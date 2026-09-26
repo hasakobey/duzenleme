@@ -26,10 +26,10 @@ public partial class LauncherView : UserControl, IWidgetView
         {
             if (e.ClickCount == 2) { e.Handled = true; CollapseToggleRequested?.Invoke(); }
         };
-        AddTab.MouseLeftButtonUp += (_, e) => { e.Handled = true; NewTab(); };
-        AddTab.MouseLeftButtonDown += (_, e) => e.Handled = true;
+
         Items.PreviewMouseLeftButtonUp += OnItemClick;
-        Items.ContextMenu = Menus.Dynamic(FillItemMenu);
+        Menus.AttachItemMenu(Items, FillItemMenu);
+        Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link);
         DragEnter += OnDragOver;
         DragOver += OnDragOver;
         DragLeave += (_, _) => DropOverlay.Visibility = Visibility.Collapsed;
@@ -39,7 +39,9 @@ public partial class LauncherView : UserControl, IWidgetView
 
     public bool Resizable => true;
     public bool Collapsible => true;
+    public Thickness CardPadding => new(14, 12, 14, 12);
     public event Action? CollapseToggleRequested;
+    public event Action? MenuRequested;
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -47,12 +49,12 @@ public partial class LauncherView : UserControl, IWidgetView
 
     private void Render()
     {
-        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? "Kısayollar" : _config.Title;
+        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? "Kısayol kutusu" : _config.Title;
         CountText.Text = $"{_config.Tabs.Sum(t => t.Items.Count)} öğe";
         RenderTabs();
 
-        Items.ItemsPanel = (ItemsPanelTemplate)FindResource(_config.View == ItemView.List ? "TileStackPanel" : "TileWrapPanel");
-        var items = Current.Items.Select(p => TileItem.Create(p, _config.IconSize, _config.View)).ToList();
+        Items.ItemsPanel = TileItem.Panel(_config);
+        var items = Current.Items.Select(p => TileItem.Create(p, _config)).ToList();
         Items.ItemsSource = items;
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -64,14 +66,12 @@ public partial class LauncherView : UserControl, IWidgetView
         {
             var index = i;
             var active = i == Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1);
-            var pill = new Border
+            var pill = new Button
             {
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(11, 3, 11, 4),
-                Margin = new Thickness(0, 0, 4, 4),
-                Cursor = Cursors.Hand,
+                Style = (Style)FindResource("PillButton"),
+                ToolTip = "Sağ tık: yeniden adlandır, taşı, sil",
                 Background = active ? _palette.Accent : new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)),
-                Child = new TextBlock
+                Content = new TextBlock
                 {
                     Text = _config.Tabs[i].Name,
                     FontSize = 12.5,
@@ -80,10 +80,8 @@ public partial class LauncherView : UserControl, IWidgetView
                 },
                 ContextMenu = Menus.Dynamic(menu => FillTabMenu(menu, index)),
             };
-            pill.MouseLeftButtonDown += (_, e) => e.Handled = true;
-            pill.MouseLeftButtonUp += (_, e) =>
+            pill.Click += (_, _) =>
             {
-                e.Handled = true;
                 _config.ActiveTab = index;
                 AppHost.SaveSettings();
                 Render();
@@ -121,6 +119,8 @@ public partial class LauncherView : UserControl, IWidgetView
         else if (_config.ActiveTab == b) _config.ActiveTab = a;
     }
 
+    private void AddTab_Click(object sender, RoutedEventArgs e) => NewTab();
+
     private void NewTab()
     {
         if (InputDialog.Ask("Yeni sekme", "Sekme adı", $"Sekme {_config.Tabs.Count + 1}") is not { Length: > 0 } name) return;
@@ -141,15 +141,16 @@ public partial class LauncherView : UserControl, IWidgetView
     /// <summary>Dock gibi: tek tıkla açılır.</summary>
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
-        if ((e.OriginalSource as FrameworkElement)?.DataContext is TileItem item && !item.Missing)
+        if (Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
+        {
             TileItem.Launch(item.Path);
+            // Açılan öğe seçili kalmasın (vurgusu ve menüsü sonraki tıklamaları karıştırmasın).
+            Items.SelectedItem = null;
+        }
     }
 
-    private TileItem? Selected => Items.SelectedItem as TileItem;
-
-    private void FillItemMenu(ContextMenu menu)
+    private void FillItemMenu(ContextMenu menu, TileItem item)
     {
-        if (Selected is not { } item) return;
         menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
         var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
         if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
@@ -169,6 +170,7 @@ public partial class LauncherView : UserControl, IWidgetView
         }
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item("Listeden kaldır", () => Change(() => Current.Items.Remove(item.Path))));
+        menu.Items.Add(Menus.Item("Kutu ayarları…", () => MenuRequested?.Invoke()));
     }
 
     private void OnDragOver(object sender, DragEventArgs e)
@@ -212,13 +214,34 @@ public partial class LauncherView : UserControl, IWidgetView
                 Change(() => _config.Title = string.IsNullOrWhiteSpace(title) ? null : title);
         }));
         menu.Items.Add(Menus.Item("Sekme ekle…", NewTab));
+        menu.Items.Add(Menus.Item("Uygulama ya da dosya ekle…", AddFiles));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Choice("Görünüm", _config.View,
-            [(ItemView.Icons, "Simgeler"), (ItemView.List, "Liste")],
-            v => Change(() => _config.View = v)));
-        menu.Items.Add(Menus.Choice("Simge boyutu", _config.IconSize,
-            [(IconSize.Small, "Küçük"), (IconSize.Medium, "Orta"), (IconSize.Large, "Büyük")],
-            v => Change(() => _config.IconSize = v)));
+        menu.Items.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
+    }
+
+    public bool OnCtrlWheel(int delta)
+    {
+        Menus.StepIconSize(_config, delta, Change);
+        return true;
+    }
+
+    /// <summary>Sürükle-bırak dışında da ekleyebilmek için dosya seçici.</summary>
+    private void AddFiles()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Kısayol kutusuna ekle",
+            Multiselect = true,
+            DereferenceLinks = false,
+            Filter = "Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*",
+            InitialDirectory = AppHost.DesktopDirectory,
+        };
+        if (dialog.ShowDialog() != true) return;
+        Change(() =>
+        {
+            foreach (var path in dialog.FileNames)
+                if (!Current.Items.Contains(path, StringComparer.OrdinalIgnoreCase)) Current.Items.Add(path);
+        });
     }
 
     public void Detach() { }

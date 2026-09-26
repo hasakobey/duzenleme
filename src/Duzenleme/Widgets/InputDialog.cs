@@ -43,6 +43,9 @@ public static class InputDialog
             WindowBackdropType = WindowBackdropType.Mica,
             Topmost = true,
             ShowInTaskbar = false,
+            // FluentWindow'un varsayılan en küçük boyutu içerikten büyük; iletişim kutusu içeriğe sığsın.
+            MinWidth = 0,
+            MinHeight = 0,
         };
         string? result = null;
         ok.Click += (_, _) => { result = box.Text.Trim(); window.DialogResult = true; };

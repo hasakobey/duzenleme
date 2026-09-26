@@ -34,6 +34,42 @@ public sealed class HotkeyManager : IDisposable
         _window.AddHook(WndProc);
     }
 
+    [DllImport("user32.dll")]
+    private static extern int GetKeyboardLayoutList(int count, IntPtr[]? list);
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKeyEx(uint code, uint mapType, IntPtr hkl);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int ToUnicodeEx(uint vk, uint scan, byte[] state, System.Text.StringBuilder buffer, int size, uint flags, IntPtr hkl);
+
+    /// <summary>
+    /// Ctrl+Alt birleşimi (= AltGr) yüklü klavye düzenlerinden birinde karakter üretiyorsa o karakteri döner.
+    /// Örn. Lehçe'de Ctrl+Alt+O "ó" yazar; genel kısayol onu yutarsa kullanıcı o harfi yazamaz.
+    /// </summary>
+    private static string? AltGrConflict(HotkeyModifiers mods, uint vk)
+    {
+        if (!mods.HasFlag(HotkeyModifiers.Ctrl) || !mods.HasFlag(HotkeyModifiers.Alt) || mods.HasFlag(HotkeyModifiers.Win)) return null;
+        var count = GetKeyboardLayoutList(0, null);
+        if (count <= 0) return null;
+        var layouts = new IntPtr[count];
+        GetKeyboardLayoutList(count, layouts);
+
+        var state = new byte[256];
+        foreach (var key in new[] { 0x11, 0xA2, 0x12, 0xA5 }) state[key] = 0x80; // Ctrl, Sol Ctrl, Alt, Sağ Alt (AltGr)
+        if (mods.HasFlag(HotkeyModifiers.Shift)) { state[0x10] = 0x80; state[0xA0] = 0x80; }
+
+        foreach (var hkl in layouts)
+        {
+            var scan = MapVirtualKeyEx(vk, 0, hkl);
+            var buffer = new System.Text.StringBuilder(8);
+            // 0x4: çekirdeğin ölü tuş durumunu değiştirme.
+            var result = ToUnicodeEx(vk, scan, state, buffer, buffer.Capacity, 0x4, hkl);
+            if (result != 0) return result > 0 ? buffer.ToString(0, result) : "?";
+        }
+        return null;
+    }
+
     public static bool TryGetVirtualKey(string key, out uint vk)
     {
         vk = 0;
@@ -56,6 +92,11 @@ public sealed class HotkeyManager : IDisposable
             if (!Hotkey.TryParse(text, out var hk) || !TryGetVirtualKey(hk.Key, out var vk))
             {
                 Failures[action] = "Geçersiz kısayol";
+                continue;
+            }
+            if (AltGrConflict(hk.Modifiers, vk) is { } character)
+            {
+                Failures[action] = $"Klavyende AltGr ile \"{character}\" yazılıyor; başka bir kısayol seç (ör. Win+Shift+…)";
                 continue;
             }
             var id = (int)action + 1;

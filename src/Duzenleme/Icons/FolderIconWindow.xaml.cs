@@ -47,6 +47,7 @@ public partial class FolderIconWindow : FluentWindow
     {
         _folder = folder;
         InitializeComponent();
+        Views.WindowFit.Attach(this);
         var name = System.IO.Path.GetFileName(folder.TrimEnd('\\'));
         (_glyph, _color) = FolderIconCatalog.Suggest(name);
         TitleBar.Title = $"Klasör simgesi — {name}";

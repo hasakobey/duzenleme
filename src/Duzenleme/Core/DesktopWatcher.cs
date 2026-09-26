@@ -5,6 +5,7 @@ namespace Duzenleme.Core;
 
 /// <summary>
 /// Masaüstünü izler; yeni ya da yeniden adlandırılan dosyayı, yazma işlemi bitince düzenleyiciye verir.
+/// Masaüstü klasörü geçici olarak erişilemez olursa (OneDrive, ağ) izleyici kendini yeniden kurar.
 /// </summary>
 public sealed class DesktopWatcher : IDisposable
 {
@@ -13,30 +14,31 @@ public sealed class DesktopWatcher : IDisposable
 
     private readonly DesktopOrganizer _organizer;
     private readonly Func<bool> _isPaused;
-    private readonly FileSystemWatcher _watcher;
+    private readonly ResilientWatcher _watcher;
     private readonly ConcurrentDictionary<string, (Timer Timer, DateTime FirstSeen)> _pending = new(StringComparer.OrdinalIgnoreCase);
 
     public DesktopWatcher(DesktopOrganizer organizer, Func<bool> isPaused)
     {
         _organizer = organizer;
         _isPaused = isPaused;
-        Directory.CreateDirectory(organizer.DesktopDirectory);
-        _watcher = new FileSystemWatcher(organizer.DesktopDirectory)
-        {
-            IncludeSubdirectories = false,
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
-            InternalBufferSize = 64 * 1024,
-        };
-        _watcher.Created += (_, e) => Schedule(e.FullPath);
-        _watcher.Changed += (_, e) => Schedule(e.FullPath);
-        _watcher.Renamed += (_, e) => Schedule(e.FullPath);
-        // Olay kaçarsa (tampon taşması) masaüstünü baştan tara.
-        _watcher.Error += (_, _) => ThreadPool.QueueUserWorkItem(_ => { if (!_isPaused()) _organizer.OrganizeAll(); });
+        _watcher = new ResilientWatcher(organizer.DesktopDirectory,
+            NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+            Schedule,
+            onOverflow: OrganizeAllInBackground,   // olay kaçtıysa masaüstünü baştan tara
+            onRecovered: OrganizeAllInBackground); // izleyici yeniden kurulduysa aradaki dosyaları yakala
     }
 
-    public void Start() => _watcher.EnableRaisingEvents = true;
+    /// <summary>İzleme şu anda çalışıyor mu? (Masaüstü klasörü erişilemezken false.)</summary>
+    public bool IsRunning => _watcher.IsRunning;
 
-    public void Stop() => _watcher.EnableRaisingEvents = false;
+    public void Start() => _watcher.Start();
+
+    private void OrganizeAllInBackground() =>
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try { if (!_isPaused()) _organizer.OrganizeAll(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        });
 
     private void Schedule(string path)
     {
@@ -48,24 +50,32 @@ public sealed class DesktopWatcher : IDisposable
     private void Fire(object? state)
     {
         var path = (string)state!;
-        if (!_pending.TryGetValue(path, out var entry)) return;
+        // Zamanlayıcı iş parçacığındaki bir hata tüm uygulamayı kapatmasın.
+        try
+        {
+            if (!_pending.TryGetValue(path, out var entry)) return;
 
-        if (!File.Exists(path) || _isPaused())
+            if (!File.Exists(path) || _isPaused())
+            {
+                Forget(path);
+                return;
+            }
+
+            if (!FileMover.IsReady(path))
+            {
+                // Hâlâ yazılıyor: biraz sonra tekrar dene, çok uzarsa vazgeç.
+                if (DateTime.UtcNow - entry.FirstSeen > GiveUpAfter) Forget(path);
+                else entry.Timer.Change(Debounce, Timeout.InfiniteTimeSpan);
+                return;
+            }
+
+            Forget(path);
+            _organizer.Organize(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ObjectDisposedException)
         {
             Forget(path);
-            return;
         }
-
-        if (!FileMover.IsReady(path))
-        {
-            // Hâlâ yazılıyor: biraz sonra tekrar dene, çok uzarsa vazgeç.
-            if (DateTime.UtcNow - entry.FirstSeen > GiveUpAfter) Forget(path);
-            else entry.Timer.Change(Debounce, Timeout.InfiniteTimeSpan);
-            return;
-        }
-
-        Forget(path);
-        _organizer.Organize(path);
     }
 
     private void Forget(string path)

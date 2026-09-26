@@ -17,11 +17,29 @@ public partial class ClockView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
-        _timer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(250) };
-        _timer.Tick += (_, _) => Update();
-        _timer.Start();
+        _timer = new DispatcherTimer(DispatcherPriority.Render);
+        _timer.Tick += (_, _) => { Update(); Schedule(); };
         Update();
+        Schedule();
+        _timer.Start();
+        // Uyku/uyanma ya da saat ayarı değişince beklemeden güncelle.
+        Microsoft.Win32.SystemEvents.TimeChanged += OnSystemTime;
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnSystemTime;
     }
+
+    /// <summary>
+    /// Bir sonraki saniye (saniye gösteriliyorsa) ya da dakika başına kurulur: saat boşta gereksiz yere
+    /// uyanıp yeniden çizilmez (katmanlı pencerede her çizim tüm widget'ı yeniden oluşturur).
+    /// </summary>
+    private void Schedule()
+    {
+        var now = DateTime.Now;
+        var unit = _config.ShowSeconds ? TimeSpan.TicksPerSecond : TimeSpan.TicksPerMinute;
+        _timer.Interval = TimeSpan.FromTicks(unit - now.Ticks % unit) + TimeSpan.FromMilliseconds(15);
+    }
+
+    private void OnSystemTime(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(() => { Update(); Schedule(); });
 
     public bool Resizable => false;
 
@@ -58,9 +76,15 @@ public partial class ClockView : UserControl, IWidgetView
             _config.ShowSeconds = !_config.ShowSeconds;
             AppHost.SaveSettings();
             Update();
+            Schedule();
         };
         menu.Items.Add(seconds);
     }
 
-    public void Detach() => _timer.Stop();
+    public void Detach()
+    {
+        _timer.Stop();
+        Microsoft.Win32.SystemEvents.TimeChanged -= OnSystemTime;
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnSystemTime;
+    }
 }

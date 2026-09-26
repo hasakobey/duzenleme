@@ -483,5 +483,8 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# Yay�n ��kt�s�
+# Yayın çıktısı
 dist/
+
+# Düzenleme masaüstündeki bu klasöre simge verirse oluşan dosya (desktop.ini yukarıda yok sayılıyor)
+.duzenleme-*.ico

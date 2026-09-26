@@ -18,10 +18,18 @@ Stardock Fences, iTop Easy Desktop, SlideSlide, ViPad ve LaunchBar Commander'ın
 | **Saat** | Büyük dijital saat, günün selamı, isteğe bağlı saniye |
 | **Tarih** | Gün/ay/yıl ve bugünün vurgulandığı haftalık şerit |
 | **Not** | Yüzen yapışkan not, 6 renk, yazdıkça kaydedilir (SlideSlide) |
-| **Klasör bölmesi** | Bir klasörü masaüstünde panel olarak gösterir; üstüne sürüklenen dosyayı klasöre taşır; başlığa çift tıklayınca katlanır; simge/liste görünümü, sıralama (Fences) |
-| **Kısayol kutusu** | Sekmeli uygulama/dosya rafı; sürükle-bırakla ekle, tek tıkla aç, yönetici olarak çalıştır (ViPad + LaunchBar Commander) |
+| **Bölme** | Masaüstünü bölümlere ayırır: bir klasörün içi (ör. PDF) ya da masaüstündeki **Klasörler / Kısayollar / Dosyalar / Tümü**. Başlıktaki 🔍 ile yazdıkça süzer ve alt klasörlerde de arar (Enter açar). Dosyaları bölmeden bölmeye sürükleyerek taşı. Resim/video/PDF önizlemesi, fare çekilince katlanma (Fences) |
+| **Kısayol kutusu** | Sekmeli uygulama/dosya rafı; sürükle-bırakla ya da "Uygulama ekle…" ile ekle, tek tıkla aç, yönetici olarak çalıştır (ViPad + LaunchBar Commander) |
 
-Her widget'a sağ tıkla: Cam/Koyu/Açık görünüm, 5 vurgu rengi, 4 boyut, saydamlık, konumu kilitle, çoğalt. Widget düzenlerini ad vererek kaydedip tek tıkla geri dönebilirsin ("İş", "Oyun"…).
+**Araçlar → "Masaüstümü bölümlere ayır"** tek tıkla Klasörler, Kısayollar, Dosyalar ve masaüstündeki PDF/Resimler gibi klasörler için birer bölme kurar. Masaüstü simgelerini gizlersen (çift tık) geriye yalnızca düzenli bölmeler kalır.
+
+Her widget'a sağ tıkla:
+- **Boyut:** kenarlarından ve köşelerinden sürükleyerek büyüt/küçült (saat ve tarih ölçeklenir); `Ctrl + fare tekerleği` bölmede simgeleri, diğerlerinde widget'ı büyütür. Taşırken `Shift` ızgaraya hizalar.
+- **Simgeler:** ızgara/liste, 4 boyut, sola/ortaya/sağa hizalama, aralık, yazı boyutu, **adları gizle**, tek tıkla aç, önizleme.
+- **Özelleştir:** Cam/Koyu/Açık, 5 vurgu rengi, ölçek, saydamlık, köşeler, gölge, "üzerine gelince belirginleş".
+- Konumu kilitle, çoğalt; widget düzenlerini ad vererek kaydedip tek tıkla geri dön ("İş", "Oyun"…).
+
+Widget'lar monitör takılıp çıkarılınca ya da uykudan uyanınca kayıtlı yerlerine döner; yeni widget, düğmeye bastığın monitörde açılır.
 
 ### Masaüstü
 - **Hızlı gizle:** boş masaüstüne çift tıkla ya da `Ctrl+Alt+H` → simgeler (ve istersen widget'lar) gizlenir (Fences / iTop).
@@ -41,26 +49,38 @@ Her widget'a sağ tıkla: Cam/Koyu/Açık görünüm, 5 vurgu rengi, 4 boyut, sa
 | `Ctrl+Alt+O` | Masaüstünü şimdi düzenle |
 | `Ctrl+Alt+D` | Düzenleme'yi aç |
 | `Ctrl+Alt+N` | Yeni not |
+| `Ctrl+Alt+W` | Widget'ları pencerelerin önüne getir (5 sn) |
 
 ## Kurulum
 
-`powershell -File tools/publish.ps1` ile `dist/Duzenleme.exe` üret (ya da yayınlandıysa [Releases](../../releases) sayfasından indir). Tek dosyadır, .NET kurulumu gerekmez. Ayarlar'dan "Windows ile başlat"ı açabilirsin.
+**`Duzenleme-Kurulum-<sürüm>.exe`** — tek kurulum sihirbazı, her bilgisayar için:
 
-**Taşınabilir kullanım:** exe'nin yanına boş bir `portable.txt` koyarsan ayarlar exe'nin yanındaki `data` klasöründe tutulur (USB bellekte taşınabilir; LaunchBar Commander gibi).
+- Windows 10 (1607+) ve Windows 11; **x64, ARM64 ve 32-bit** — bilgisayara uygun sürümü kendisi seçer.
+- .NET kurulumu gerekmez (çalışma zamanı pakete dahil), **yönetici izni istemez** (kullanıcı başına `%LOCALAPPDATA%\Programs\Duzenleme`).
+- Türkçe/İngilizce sihirbaz; Başlat menüsü kısayolu, isteğe bağlı masaüstü kısayolu ve "Windows ile başlat".
+- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur.
+- "Uygulamalar ve özellikler"den kaldırılabilir; kaldırırken ayarların silinip silinmeyeceğini sorar.
 
-> Smart App Control açık bilgisayarlarda imzasız yeni sürümler ilk çalıştırmada engellenebilir.
+**Taşınabilir kullanım:** `Duzenleme-<sürüm>-<mimari>-tasinabilir.zip` dosyasını yazılabilir bir klasöre çıkar ve `Duzenleme.exe`'yi çalıştır. İçindeki `portable.txt` sayesinde ayarlar exe'nin yanındaki `data` klasöründe tutulur (USB bellekte taşınabilir).
+
+> **İmza hakkında:** Paket kod imzası olmadan derlenir. Bu yüzden Windows SmartScreen ilk açılışta "Windows bilgisayarınızı korudu" uyarısı gösterebilir (**Ek bilgi → Yine de çalıştır**). **Smart App Control** açık bilgisayarlar imzasız programları engelleyebilir. Kalıcı çözüm bir kod imzalama sertifikasıdır (ör. Microsoft Trusted Signing); `tools/publish.ps1` sertifika verildiğinde tüm dosyaları ve kurulumu otomatik imzalar (dosyanın başındaki açıklamaya bak).
 
 ## Geliştirme
 
-Gerekenler: Windows 10/11, .NET 8 SDK.
+Gerekenler: Windows 10/11, **.NET 10 SDK**, paketleme için [Inno Setup 6.3+](https://jrsoftware.org/isdl.php).
 
 ```powershell
 dotnet test Duzenleme.sln                     # testler
 dotnet run --project src/Duzenleme -- --desktop C:\tmp\Desktop --data C:\tmp\data   # test klasörüyle çalıştır
 dotnet run --project src/Duzenleme            # gerçek masaüstünü izler!
-powershell -File tools/publish.ps1            # dist/Duzenleme.exe (tek dosya)
+powershell -File tools/publish.ps1            # dist/: kurulum sihirbazı + 3 taşınabilir zip
+powershell -File tools/publish.ps1 -Arch x64  # hızlı deneme (yalnızca x64)
 ```
+
+Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
 
 Geliştirme yardımcıları: `--export-icon-sheet out.png` (simge kütüphanesi önizlemesi), `--render-svg in.svg out.png` (SVG'yi yapay zekâ çıktısıyla aynı temizleme/çizim yolundan geçirir, yanına `.ico` yazar).
 
-Ayarlar ve geçmiş `%AppData%\Duzenleme` altında (`settings.json`, `journal.json`, `ai-icons/`) tutulur.
+Ayarlar ve geçmiş `%AppData%\Duzenleme` altında (`settings.json`, `journal.json`, `ai-icons/`) tutulur; ayarların son 7 günlük kopyası `yedekler/` klasöründedir.
+
+**Performans:** klasör taramaları ve simge/önizleme yüklemeleri arka planda yapılır (büyük klasörde arayüz donmaz); saat yalnızca dakika (ya da saniye) başında çizilir; widget'lar yazılımla çizilir (7 widget'ta ~85 MB daha az bellek). Donanım çizimine dönmek için `DUZENLEME_GPU=1`.

@@ -11,6 +11,7 @@ public partial class MainWindow : FluentWindow
     public MainWindow()
     {
         InitializeComponent();
+        Views.WindowFit.Attach(this);
         Loaded += (_, _) => RootNavigation.Navigate(typeof(HomePage));
     }
 

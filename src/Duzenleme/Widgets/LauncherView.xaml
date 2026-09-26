@@ -26,17 +26,16 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
-                <Border x:Name="AddTab" CornerRadius="10" Padding="8,3" Margin="2,0,0,4" Cursor="Hand" ToolTip="Sekme ekle"
-                        Background="Transparent" VerticalAlignment="Top">
-                    <ui:SymbolIcon x:Name="AddTabIcon" Symbol="Add16" FontSize="14" />
-                </Border>
+                <Button x:Name="AddTab" Style="{StaticResource PillButton}" Padding="8,3" Margin="2,0,0,4" ToolTip="Sekme ekle"
+                        Background="Transparent" VerticalAlignment="Top" Click="AddTab_Click">
+                    <ui:SymbolIcon x:Name="AddTabIcon" Symbol="Add24" FontSize="14" />
+                </Button>
             </StackPanel>
 
             <Grid>
                 <ListBox x:Name="Items" Background="Transparent" BorderThickness="0" Padding="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionMode="Single"
-                         ItemContainerStyle="{StaticResource TileContainer}" ItemTemplate="{StaticResource TileTemplate}"
-                         ItemsPanel="{StaticResource TileWrapPanel}" />
+                         ItemContainerStyle="{StaticResource TileContainer}" ItemTemplate="{StaticResource TileTemplate}" />
 
                 <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                     <ui:SymbolIcon x:Name="EmptyIcon" Symbol="AppsAddIn24" FontSize="30" HorizontalAlignment="Center" Opacity="0.7" />

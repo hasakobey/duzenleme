@@ -19,7 +19,41 @@
     <StackPanel Margin="40,8,40,40">
         <TextBlock Style="{StaticResource PageTitle}" Text="Araçlar" />
         <TextBlock Style="{StaticResource PageSubtitle}"
-                   Text="Masaüstüne saat, tarih, not, kısayol kutusu ve klasör bölmeleri ekle. Sürükleyerek taşı; sağ tıkla renk, boyut, saydamlık ve görünümü değiştir." />
+                   Text="Masaüstüne saat, tarih, not, kısayol kutusu ve bölmeler ekle. Sürükleyerek taşı, kenarlarından büyüt/küçült; sağ tıklayarak görünümü, simgeleri ve renkleri ayarla." />
+        <ui:InfoBar x:Name="AddedInfo" Margin="0,-8,0,16" IsClosable="True" Severity="Success" />
+
+        <!-- Bölmeler: en çok kullanılan özellik; tam genişlikte ki diğer kartlar gereksiz uzamasın. -->
+        <Border Style="{StaticResource Surface}" Margin="0,0,0,12" Padding="20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource Preview}" Margin="0,0,20,0" VerticalAlignment="Top">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#F59E0B" Offset="0" />
+                            <GradientStop Color="#EF4444" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="White" Margin="4,0" />
+                        <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="#CCFFFFFF" Margin="4,0" />
+                        <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="#99FFFFFF" Margin="4,0" />
+                    </StackPanel>
+                </Border>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Style="{StaticResource CardTitle}" Text="Bölmeler" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12" TextWrapping="Wrap"
+                               Text="Masaüstünü bölümlere ayır: klasörler, kısayollar, dosyalar ya da PDF gibi bir klasörün içi ayrı panellerde. Bölmeler arasında sürükleyerek taşı, başlıktaki büyüteçle ara." />
+                    <ui:Button x:Name="AutoFencesButton" Appearance="Primary" Content="Masaüstümü bölümlere ayır"
+                               HorizontalAlignment="Left" Click="AutoFences_Click"
+                               ToolTip="Klasörler, Kısayollar, Dosyalar ve masaüstündeki PDF, Resimler gibi klasörler için birer bölme ekler" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,14,0,6" Text="Ya da tek bir bölme ekle:" />
+                    <WrapPanel x:Name="FenceChoices" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <UniformGrid Columns="3" Margin="-6,0">
             <!-- Saat -->
@@ -95,35 +129,6 @@
                 </DockPanel>
             </Border>
 
-            <!-- Bölme -->
-            <Border Style="{StaticResource Surface}" Margin="6,0,6,12" Padding="20">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
-                        <ComboBox x:Name="FolderPicker" Margin="0,0,0,8" />
-                        <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Bölme ekle"
-                                   HorizontalAlignment="Stretch" Click="AddFence_Click" />
-                    </StackPanel>
-                    <StackPanel>
-                        <Border Style="{StaticResource Preview}">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Color="#F59E0B" Offset="0" />
-                                    <GradientStop Color="#EF4444" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="White" Margin="4,0" />
-                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="#CCFFFFFF" Margin="4,0" />
-                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="#99FFFFFF" Margin="4,0" />
-                            </StackPanel>
-                        </Border>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="Klasör bölmesi" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
-                                   Text="Bir masaüstü klasörünü (ör. PDF) panel olarak gösterir. Üstüne sürüklenen dosyayı klasöre taşır; başlığa çift tıklayınca katlanır." />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-
             <!-- Kısayol kutusu -->
             <Border Style="{StaticResource Surface}" Margin="6,0,6,12" Padding="20">
                 <DockPanel>
@@ -183,7 +188,12 @@
             </Border>
         </UniformGrid>
 
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Masaüstündeki widget'ların" />
+
+        <Grid Margin="0,24,0,8">
+            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="Masaüstündeki widget'ların" />
+            <ui:Button HorizontalAlignment="Right" Icon="{ui:SymbolIcon Eye24}" Content="Tümünü öne getir"
+                       ToolTip="Widget'lar pencerelerin arkasında kalır; 5 saniyeliğine öne getirir" Click="RevealAll_Click" />
+        </Grid>
         <ItemsControl x:Name="ActiveList">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
@@ -195,13 +205,16 @@
                                 <ColumnDefinition Width="130" />
                                 <ColumnDefinition Width="130" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="22" Margin="0,0,14,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                             <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <ComboBox Grid.Column="2" ItemsSource="{Binding StyleNames}" SelectedIndex="{Binding StyleIndex, Mode=TwoWay}" IsEnabled="{Binding HasStyle}" />
                             <ComboBox Grid.Column="3" Margin="8,0,0,0" ItemsSource="{Binding AccentNames}" SelectedIndex="{Binding AccentIndex, Mode=TwoWay}" />
-                            <ui:Button Grid.Column="4" Margin="10,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent"
+                            <ui:Button Grid.Column="4" Margin="10,0,0,0" Icon="{ui:SymbolIcon Eye24}" Content="Göster"
+                                       ToolTip="Masaüstündeki yerini göster" Click="Reveal_Click" />
+                            <ui:Button Grid.Column="5" Margin="6,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent"
                                        ToolTip="Kaldır" Click="Remove_Click" />
                         </Grid>
                     </Border>

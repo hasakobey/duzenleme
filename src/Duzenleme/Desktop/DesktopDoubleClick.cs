@@ -64,20 +64,61 @@ public sealed class DesktopDoubleClick : IDisposable
         _proc = HookCallback;
     }
 
-    public bool Enabled => _hook != IntPtr.Zero;
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam, lParam;
+        public uint time;
+        public POINT pt;
+    }
 
+    [DllImport("user32.dll")]
+    private static extern int GetMessage(out MSG msg, IntPtr hwnd, uint min, uint max);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostThreadMessage(uint threadId, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    private const uint WM_QUIT = 0x0012;
+    private Thread? _thread;
+    private uint _threadId;
+
+    public bool Enabled => _thread is not null;
+
+    /// <summary>
+    /// Kanca kendi mesaj döngüsü olan ayrı bir iş parçacığında kurulur: arayüz meşgulken (büyük klasör listelenirken vb.)
+    /// sistem genelinde fare takılmaz ve Windows yavaş kancayı sessizce kaldırmaz.
+    /// </summary>
     public void Enable()
     {
-        if (_hook != IntPtr.Zero) return;
-        using var module = Process.GetCurrentProcess().MainModule;
-        _hook = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(module?.ModuleName), 0);
+        if (_thread is not null) return;
+        using var ready = new ManualResetEventSlim();
+        _thread = new Thread(() =>
+        {
+            _threadId = GetCurrentThreadId();
+            using (var module = Process.GetCurrentProcess().MainModule)
+                _hook = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(module?.ModuleName), 0);
+            ready.Set();
+            while (GetMessage(out _, IntPtr.Zero, 0, 0) > 0) { }
+            if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
+            _hook = IntPtr.Zero;
+        })
+        { IsBackground = true, Name = "Düzenleme çift tık kancası" };
+        _thread.Start();
+        ready.Wait(TimeSpan.FromSeconds(2));
     }
 
     public void Disable()
     {
-        if (_hook == IntPtr.Zero) return;
-        UnhookWindowsHookEx(_hook);
-        _hook = IntPtr.Zero;
+        if (_thread is null) return;
+        PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+        _thread.Join(TimeSpan.FromSeconds(2));
+        _thread = null;
     }
 
     private IntPtr HookCallback(int code, IntPtr wParam, IntPtr lParam)

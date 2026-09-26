@@ -64,6 +64,20 @@ public class SettingsTests
     }
 
     [Fact]
+    public void Locked_settings_file_throws_instead_of_returning_defaults()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, """{ "Paused": true }""");
+        try
+        {
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                Assert.ThrowsAny<IOException>(() => JsonFile.Load(path, () => new AppSettings()));
+            Assert.True(JsonFile.Load(path, () => new AppSettings()).Paused);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void Numbers_written_as_strings_are_accepted()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");

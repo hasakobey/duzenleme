@@ -1,4 +1,4 @@
-# Uygulama simgesini (Assets/app.ico) çizer: mor degrade zemin üzerinde 2x2 düzen kutucukları.
+﻿# Uygulama simgesini (Assets/app.ico) çizer: mor degrade zemin üzerinde 2x2 düzen kutucukları.
 Add-Type -AssemblyName System.Drawing
 $out = Join-Path $PSScriptRoot '..\src\Duzenleme\Assets\app.ico'
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null

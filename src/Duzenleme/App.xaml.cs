@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.IO;
 using Duzenleme.Core;
 using Duzenleme.Desktop;
+using Microsoft.Win32;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -14,8 +16,10 @@ public partial class App : Application
 
     private Mutex? _instanceMutex;
     private EventWaitHandle? _showSignal;
+    private EventWaitHandle? _exitSignal;
     private MainWindow? _mainWindow;
     private NewFolderWatcher? _newFolders;
+    private bool _exiting;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -43,6 +47,22 @@ public partial class App : Application
 
         // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir.
         var id = "Duzenleme." + Environment.UserName + (args.Desktop is null ? "" : ".test");
+
+        // Kurulum/kaldırma programı için: çalışan örneği düzgünce kapat (masaüstü simgeleri geri açılır) ve kapanmasını bekle.
+        if (args.Exit)
+        {
+            using (var exit = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".exit")) exit.Set();
+            try
+            {
+                using var running = Mutex.OpenExisting(id);
+                try { running.WaitOne(TimeSpan.FromSeconds(15)); }
+                catch (AbandonedMutexException) { }
+            }
+            catch (WaitHandleCannotBeOpenedException) { }
+            Shutdown();
+            return;
+        }
+
         _instanceMutex = new Mutex(true, id, out var isFirst);
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".show");
         if (!isFirst)
@@ -52,12 +72,35 @@ public partial class App : Application
             return;
         }
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, -1, false);
+        _exitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".exit");
+        ThreadPool.RegisterWaitForSingleObject(_exitSignal, (_, _) => Dispatcher.BeginInvoke(ExitApp), null, -1, true);
 
         DispatcherUnhandledException += OnUnhandledException;
         SessionEnding += (_, _) => AppHost.RestoreDesktopOnExit();
 
+        try
+        {
+            StartServices(args);
+        }
+        catch (Exception ex)
+        {
+            // Yarım başlamış, görünmez bir örnek tek-örnek kilidini tutup sonraki açılışları engellemesin.
+            DebugLog.Write("STARTUP " + ex);
+            System.Windows.MessageBox.Show(StartupErrorMessage(ex), "Düzenleme başlatılamadı",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            _exiting = true;
+            try { AppHost.DoubleClick?.Dispose(); AppHost.Hotkeys?.Dispose(); AppHost.Tray?.Dispose(); } catch { }
+            Shutdown(1);
+        }
+    }
+
+    private void StartServices(Args args)
+    {
         AppHost.Initialize(args.Desktop, args.Data);
         ApplyTheme(AppHost.Settings.Theme);
+        // Windows teması, yüksek karşıtlık ya da vurgu rengi değişince uygulama da uyum sağlasın.
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
 
         AppHost.Tray = new TrayIcon(ShowMainWindow, ExitApp);
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
@@ -71,6 +114,13 @@ public partial class App : Application
         }));
         AppHost.Watcher.Start();
         if (!AppHost.Settings.Paused) AppHost.OrganizeNowInBackground();
+        // Eski sürümün mutlak yollu klasör simgelerini onar; arka planda, başlangıcı geciktirmeden ve düşürmeden.
+        var desktop = AppHost.DesktopDirectory;
+        Task.Run(() =>
+        {
+            try { Icons.FolderIconService.RepairDesktopFolders(desktop); }
+            catch (Exception ex) { DebugLog.Write($"klasör simgesi onarımı: {ex}"); }
+        });
 
         if (!AppHost.Settings.FirstRunDone)
         {
@@ -81,24 +131,64 @@ public partial class App : Application
             AppHost.SaveSettings();
         }
 
+        _started = true;
         if (!args.Minimized) ShowMainWindow();
+    }
+
+    private static string StartupErrorMessage(Exception ex) => ex switch
+    {
+        UnauthorizedAccessException or IOException when AppHost.DataDirectory.Length > 0 =>
+            $"Ayar klasörüne erişilemiyor:\n{AppHost.DataDirectory}\n\n{ex.Message}\n\n" +
+            "Taşınabilir sürümü kullanıyorsan programı yazılabilir bir klasöre (ör. Belgeler) çıkar.",
+        _ => $"Beklenmeyen bir hata oluştu:\n{ex.Message}",
+    };
+
+    private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is UserPreferenceCategory.General or UserPreferenceCategory.Color
+            or UserPreferenceCategory.VisualStyle or UserPreferenceCategory.Accessibility)
+            Dispatcher.BeginInvoke(() => ApplyTheme(AppHost.Settings.Theme));
+    }
+
+    private void OnSystemParameterChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SystemParameters.HighContrast))
+            Dispatcher.BeginInvoke(() => ApplyTheme(AppHost.Settings.Theme));
     }
 
     public static void ApplyTheme(AppTheme theme)
     {
-        var resolved = theme switch
+        // WPF-UI temayı Application.MainWindow'a uygular; bu bir widget olursa saydam zemini opaklaşır.
+        if (Current.MainWindow is Widgets.WidgetWindow) Current.MainWindow = null;
+        SystemThemeManager.UpdateSystemThemeCache();
+        var highContrast = SystemParameters.HighContrast;
+        var system = ApplicationThemeManager.GetSystemTheme();
+        var resolved = highContrast ? ApplicationTheme.HighContrast : theme switch
         {
             AppTheme.Dark => ApplicationTheme.Dark,
             AppTheme.Light => ApplicationTheme.Light,
-            _ => ApplicationThemeManager.GetSystemTheme() == SystemTheme.Light ? ApplicationTheme.Light : ApplicationTheme.Dark,
+            // Windows 11'in "Sunrise", "Flow" gibi açık temaları da açık sayılsın.
+            _ => system is SystemTheme.Dark or SystemTheme.Glow or SystemTheme.CapturedMotion ? ApplicationTheme.Dark : ApplicationTheme.Light,
         };
-        ApplicationThemeManager.Apply(resolved, WindowBackdropType.Mica, updateAccent: false);
-        ApplicationAccentColorManager.Apply(Brand, resolved);
+        var backdrop = highContrast ? WindowBackdropType.None : WindowBackdropType.Mica;
+        ApplicationThemeManager.Apply(resolved, backdrop, updateAccent: false);
+        if (!highContrast) ApplicationAccentColorManager.Apply(Brand, resolved);
+
+        // Apply yalnızca Application.MainWindow'u günceller; açık diğer pencereler (simge seçici vb.) de güncellensin.
+        // Widget pencerelerine dokunulmaz: onlar kendi saydam zeminlerini kullanır.
+        foreach (var window in Current.Windows.OfType<FluentWindow>())
+            if (!ReferenceEquals(window, Current.MainWindow))
+                WindowBackgroundManager.UpdateBackground(window, resolved, backdrop);
     }
+
+    private bool _started;
 
     public void ShowMainWindow()
     {
+        if (!_started || _exiting) return;
         _mainWindow ??= new MainWindow();
+        // WPF ilk oluşturulan pencereyi (bir widget) ana pencere yapar; tema değişikliği yanlış pencereye gitmesin.
+        MainWindow = _mainWindow;
         _mainWindow.Show();
         if (_mainWindow.WindowState == WindowState.Minimized) _mainWindow.WindowState = WindowState.Normal;
         _mainWindow.Activate();
@@ -112,43 +202,60 @@ public partial class App : Application
             case HotkeyAction.OrganizeNow: AppHost.OrganizeNowInBackground(); break;
             case HotkeyAction.OpenApp: ShowMainWindow(); break;
             case HotkeyAction.NewNote: AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id); break;
+            case HotkeyAction.PeekWidgets: AppHost.Widgets.RevealAll(); break;
         }
     }
 
     public void ExitApp()
     {
-        AppHost.RestoreDesktopOnExit();
-        AppHost.DoubleClick?.Dispose();
-        _newFolders?.Dispose();
-        AppHost.Hotkeys?.Dispose();
-        AppHost.Watcher.Dispose();
-        AppHost.Widgets.CloseAll();
-        AppHost.Tray?.Dispose();
-        _mainWindow?.CloseForReal();
-        Shutdown();
+        if (_exiting) return;
+        _exiting = true;
+        try
+        {
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+            SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;
+            AppHost.RestoreDesktopOnExit();
+            AppHost.DoubleClick?.Dispose();
+            _newFolders?.Dispose();
+            AppHost.Hotkeys?.Dispose();
+            AppHost.Watcher?.Dispose();
+            AppHost.Widgets?.CloseAll();
+            AppHost.Tray?.Dispose();
+            _mainWindow?.CloseForReal();
+        }
+        finally
+        {
+            // Temizlikte bir şey ters gitse de süreç kapanmalı (kurulum programı --exit ile bekliyor olabilir).
+            Shutdown();
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // --exit ile bekleyen kurulum programı hemen devam edebilsin.
+        try { _instanceMutex?.ReleaseMutex(); }
+        catch (ApplicationException) { }
         _instanceMutex?.Dispose();
         _showSignal?.Dispose();
+        _exitSignal?.Dispose();
         base.OnExit(e);
     }
 
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         // Tek bir hata tüm uygulamayı (ve masaüstü izlemeyi) kapatmasın.
+        DebugLog.Write("UNHANDLED " + e.Exception);
         System.Windows.MessageBox.Show(e.Exception.Message, "Düzenleme — beklenmeyen hata", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         e.Handled = true;
     }
 
-    private sealed record Args(string? Desktop, string? Data, bool Minimized);
+    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit);
 
-    /// <summary>--desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır.</summary>
+    /// <summary>--desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır.</summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        var minimized = false;
+        bool minimized = false, exit = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -156,8 +263,9 @@ public partial class App : Application
                 case "--desktop" when i + 1 < args.Length: desktop = args[++i]; break;
                 case "--data" when i + 1 < args.Length: data = args[++i]; break;
                 case "--minimized": minimized = true; break;
+                case "--exit": exit = true; break;
             }
         }
-        return new Args(desktop, data, minimized);
+        return new Args(desktop, data, minimized, exit);
     }
 }

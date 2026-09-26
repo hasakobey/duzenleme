@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -11,10 +11,19 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>Duzenleme</AssemblyName>
     <Product>Düzenleme</Product>
-    <Version>1.0.0</Version>
+    <AssemblyTitle>Düzenleme</AssemblyTitle>
+    <!-- Sürüm numarası sade kalsın (1.1.0+abcdef... değil). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Version>1.2.0</Version>
+    <Company>hasakobey</Company>
+    <Authors>hasakobey</Authors>
+    <Copyright>© 2026 hasakobey</Copyright>
+    <Description>Düzenleme — modern masaüstü düzenleyici</Description>
+    <!-- Yalnızca Türkçe ve İngilizce kaynaklar: paket küçülür. -->
+    <SatelliteResourceLanguages>tr;en</SatelliteResourceLanguages>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- WFAC010 WinForms uygulamaları içindir; DPI ayarını WPF manifest'ten okur. -->
-    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <NoWarn>$(NoWarn);WFAC010;WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,7 +39,6 @@
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.50.0" />
     <PackageReference Include="SharpVectors.Wpf" Version="1.8.6" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>
 

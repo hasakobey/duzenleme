@@ -53,12 +53,25 @@ public static class DesktopIcons
         // Duvar kağıdı slayt gösterisinde görünüm bir WorkerW altına taşınır.
         EnumWindows((hwnd, _) =>
         {
+            // Yalnızca masaüstünün WorkerW'leri: başka bir programın içindeki kabuk görünümü (ör. dosya iletişim kutusu) değil.
+            if (ClassOf(hwnd) != "WorkerW") return true;
             var found = FindWindowEx(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null);
             if (found == IntPtr.Zero) return true;
             defView = found;
             return false;
         }, IntPtr.Zero);
         return defView;
+    }
+
+    /// <summary>
+    /// Widget'ların sahibi olacak pencere: simge görünümünü (SHELLDLL_DefView) taşıyan üst pencere.
+    /// Windows 11 24H2+'da ve bölünmemiş düzende Progman; Windows 10 / 11 23H2'de slayt gösterisi vb. sonrası WorkerW.
+    /// </summary>
+    public static IntPtr DesktopOwner()
+    {
+        var defView = FindDefView();
+        var host = defView == IntPtr.Zero ? IntPtr.Zero : GetParent(defView);
+        return host != IntPtr.Zero ? host : FindWindow("Progman", null);
     }
 
     public static IntPtr FindListView()

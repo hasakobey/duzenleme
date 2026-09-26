@@ -46,15 +46,95 @@ public static class FolderIconService
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern void SHChangeNotify(int wEventId, uint uFlags, string? dwItem1, IntPtr dwItem2);
 
+    static FolderIconService() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+    /// <summary>desktop.ini'yi kodlamasını algılayarak okur (UTF-16/UTF-8 BOM'lu ya da sistemin ANSI kod sayfası).</summary>
+    private static (string[] Lines, Encoding Encoding) ReadIni(string ini)
+    {
+        var bytes = File.ReadAllBytes(ini);
+        Encoding encoding =
+            bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE ? Encoding.Unicode :
+            bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? new UTF8Encoding(true) :
+            Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ANSICodePage);
+        var text = encoding.GetString(bytes).TrimStart('﻿');
+        return (text.Split(["\r\n", "\n"], StringSplitOptions.None), encoding);
+    }
+
+    /// <summary>desktop.ini'deki IconResource (ya da eski IconFile) değeri, ",indeks" kısmı olmadan.</summary>
+    private static string? IconValue(string[] lines)
+    {
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            foreach (var key in new[] { "IconResource", "IconFile" })
+            {
+                if (!line.StartsWith(key, StringComparison.OrdinalIgnoreCase)) continue;
+                var eq = line.IndexOf('=');
+                if (eq < 0) continue;
+                var value = line[(eq + 1)..].Trim();
+                var comma = value.LastIndexOf(',');
+                if (comma > 1 && int.TryParse(value[(comma + 1)..].Trim(), out _)) value = value[..comma];
+                return value.Trim().Trim('"');
+            }
+        }
+        return null;
+    }
+
+    private static string Resolve(string folder, string value)
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(value);
+        return Path.IsPathRooted(expanded) ? expanded : Path.Combine(folder, expanded);
+    }
+
+    /// <summary>Klasörün özel simgesi var ve simge dosyası gerçekten duruyor mu? (Bozuk/eski simge "yok" sayılır.)</summary>
     public static bool HasCustomIcon(string folder)
     {
         var ini = Path.Combine(folder, "desktop.ini");
         try
         {
-            return File.Exists(ini) && File.ReadAllText(ini).Contains("Icon", StringComparison.OrdinalIgnoreCase);
+            if (!File.Exists(ini)) return false;
+            var value = IconValue(ReadIni(ini).Lines);
+            return value is { Length: > 0 } && File.Exists(Resolve(folder, value));
         }
-        catch (IOException) { return false; }
-        catch (UnauthorizedAccessException) { return false; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>
+    /// Eski sürümlerin tam yol yazdığı desktop.ini'leri onarır: simge dosyası klasörün içindeyse göreli yola çevirir,
+    /// hiç yoksa klasörü varsayılan simgeye döndürür. Böylece taşınan/yeniden adlandırılan klasörlerin simgesi bozulmaz.
+    /// </summary>
+    public static void RepairDesktopFolders(string desktop)
+    {
+        if (!Directory.Exists(desktop)) return;
+        foreach (var folder in Directory.EnumerateDirectories(desktop))
+        {
+            try
+            {
+                var ini = Path.Combine(folder, "desktop.ini");
+                if (!File.Exists(ini)) continue;
+                var (lines, encoding) = ReadIni(ini);
+                var value = IconValue(lines);
+                if (value is null || !Path.IsPathRooted(value)) continue;
+                var name = Path.GetFileName(value);
+                if (!name.StartsWith(IconPrefix, StringComparison.OrdinalIgnoreCase)) continue; // başka programın simgesine dokunma
+
+                if (File.Exists(Path.Combine(folder, name)))
+                {
+                    var fixedLines = lines.Select(l => l.TrimStart().StartsWith("IconResource", StringComparison.OrdinalIgnoreCase)
+                        ? $"IconResource={name},0" : l).ToArray();
+                    var attrs = File.GetAttributes(ini);
+                    File.SetAttributes(ini, FileAttributes.Normal);
+                    File.WriteAllText(ini, string.Join("\r\n", fixedLines), encoding);
+                    File.SetAttributes(ini, attrs);
+                    Refresh(folder);
+                }
+                else if (!File.Exists(value))
+                {
+                    Reset(folder);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
     }
 
     /// <summary>Çizimi .ico'ya çevirip klasöre uygular.</summary>
@@ -68,11 +148,16 @@ public static class FolderIconService
         File.WriteAllBytes(iconPath, bytes);
         File.SetAttributes(iconPath, FileAttributes.Hidden | FileAttributes.System);
 
+        // desktop.ini yoksa UTF-16 olarak başlat: Windows sonraki yazmalarda Unicode'u korur (Türkçe/Çince klasör adları vb.).
+        var ini = Path.Combine(folder, "desktop.ini");
+        if (!File.Exists(ini)) File.WriteAllText(ini, "[.ShellClassInfo]\r\n", Encoding.Unicode);
+
         var settings = new SHFOLDERCUSTOMSETTINGS
         {
             dwSize = (uint)Marshal.SizeOf<SHFOLDERCUSTOMSETTINGS>(),
             dwMask = FCSM_ICONFILE,
-            pszIconFile = iconPath,
+            // Göreli yol: klasör taşınsa, yeniden adlandırılsa ya da başka dilde Windows'ta açılsa da simge bulunur.
+            pszIconFile = Path.GetFileName(iconPath),
             cchIconFile = 0,
             iIconIndex = 0,
         };
@@ -90,7 +175,8 @@ public static class FolderIconService
             var attrs = File.GetAttributes(ini);
             File.SetAttributes(ini, FileAttributes.Normal);
             // Yalnızca simge satırlarını sil; desktop.ini'deki diğer ayarlar (ör. yerelleştirilmiş ad) kalsın.
-            var lines = File.ReadAllLines(ini)
+            var (all, encoding) = ReadIni(ini);
+            var lines = all
                 .Where(l => !l.TrimStart().StartsWith("IconResource", StringComparison.OrdinalIgnoreCase)
                             && !l.TrimStart().StartsWith("IconFile", StringComparison.OrdinalIgnoreCase)
                             && !l.TrimStart().StartsWith("IconIndex", StringComparison.OrdinalIgnoreCase))
@@ -98,7 +184,7 @@ public static class FolderIconService
             var meaningful = lines.Any(l => l.Trim().Length > 0 && !l.Trim().StartsWith('[') && !l.Trim().StartsWith(';'));
             if (meaningful)
             {
-                File.WriteAllLines(ini, lines, Encoding.Unicode);
+                File.WriteAllText(ini, string.Join("\r\n", lines), encoding);
                 File.SetAttributes(ini, attrs);
             }
             else

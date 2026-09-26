@@ -28,10 +28,22 @@ public partial class NoteView : UserControl, IWidgetView
         _saveTimer.Tick += (_, _) => Save();
         Editor.TextChanged += (_, _) => { _saveTimer.Stop(); _saveTimer.Start(); };
         Editor.LostKeyboardFocus += (_, _) => Save();
+        // Yazı alanına sağ tıklayınca da not ayarlarına ulaşılabilsin (varsayılan menüde yalnızca Kes/Kopyala/Yapıştır var).
+        Editor.ContextMenu = Menus.Dynamic(menu =>
+        {
+            menu.Items.Add(new MenuItem { Header = "Kes", Command = ApplicationCommands.Cut, CommandTarget = Editor });
+            menu.Items.Add(new MenuItem { Header = "Kopyala", Command = ApplicationCommands.Copy, CommandTarget = Editor });
+            menu.Items.Add(new MenuItem { Header = "Yapıştır", Command = ApplicationCommands.Paste, CommandTarget = Editor });
+            menu.Items.Add(new MenuItem { Header = "Tümünü seç", Command = ApplicationCommands.SelectAll, CommandTarget = Editor });
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Menus.Item("Not ayarları…", () => MenuRequested?.Invoke()));
+        });
         UpdateTitle();
     }
 
     public bool Resizable => true;
+    public Thickness CardPadding => new(16, 12, 16, 14);
+    public event Action? MenuRequested;
 
     private void Save()
     {

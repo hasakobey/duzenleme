@@ -19,8 +19,8 @@ public sealed class WidgetRow(WidgetConfig config)
         WidgetKind.Clock => "Saat",
         WidgetKind.Date => "Tarih",
         WidgetKind.Note => "Not" + (string.IsNullOrWhiteSpace(Config.NoteText) ? "" : " · " + FirstLine(Config.NoteText)),
-        WidgetKind.Launcher => $"Kısayol kutusu · {Config.Title ?? "Kısayollar"} ({Config.Tabs.Sum(t => t.Items.Count)} öğe)",
-        _ => $"Bölme · {Config.Title ?? Config.FolderName}",
+        WidgetKind.Launcher => (Config.Title is { } title ? $"Kısayol kutusu · {title}" : "Kısayol kutusu") + $" ({Config.Tabs.Sum(t => t.Items.Count)} öğe)",
+        _ => $"Bölme · {Config.Title ?? (Config.Filter != DesktopFilter.None ? DesktopItems.Label(Config.Filter) : Config.FolderName)}",
     };
 
     private static string FirstLine(string text)
@@ -90,14 +90,8 @@ public partial class WidgetsPage : Page
         MonthPreview.Text = now.ToString("MMMM", UiText.Tr);
         WeekdayPreview.Text = now.ToString("dddd", UiText.Tr);
 
-        var folders = AppHost.Organizer.ExistingFolders().OrderBy(f => f).ToList();
-        // Kurallardaki klasör adlarını da öner: bölme, klasör oluşturulunca kendiliğinden dolar.
-        foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
-            if (!folders.Any(f => FolderName.Equal(f, rule.TargetFolder))) folders.Add(rule.TargetFolder);
-        var selected = FolderPicker.SelectedItem as string;
-        FolderPicker.ItemsSource = folders;
-        FolderPicker.SelectedItem = selected is not null && folders.Contains(selected) ? selected
-            : folders.FirstOrDefault(f => FolderName.Equal(f, "PDF")) ?? folders.FirstOrDefault();
+        AutoFencesButton.Icon = new SymbolIcon { Symbol = SymbolRegular.Sparkle24 };
+        BuildFenceChoices();
 
         HideButton.Content = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
         HideButton.Icon = new SymbolIcon { Symbol = AppHost.DesktopHidden ? SymbolRegular.Eye24 : SymbolRegular.EyeOff24 };
@@ -113,17 +107,118 @@ public partial class WidgetsPage : Page
         LayoutEmpty.Visibility = layouts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void AddClock_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.Add(WidgetKind.Clock);
-
-    private void AddDate_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.Add(WidgetKind.Date);
-
-    private void AddNote_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id);
-
-    private void AddLauncher_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.Add(WidgetKind.Launcher);
-
-    private void AddFence_Click(object sender, RoutedEventArgs e)
+    private void Added(string what, string where)
     {
-        if (FolderPicker.SelectedItem is string folder) AppHost.Widgets.Add(WidgetKind.Fence, folder);
+        AddedInfo.Severity = InfoBarSeverity.Success;
+        AddedInfo.Title = $"{what} masaüstüne eklendi";
+        AddedInfo.Message = $"Yeri: {where}. Birkaç saniye öne getirildi; sonra masaüstü katmanına (pencerelerin arkasına) döner. " +
+                            "Sürükleyerek taşı, sağ tıklayarak ayarla. Kaybolursa listeden \"Göster\"e bas.";
+        AddedInfo.IsOpen = true;
+    }
+
+    private void AddClock_Click(object sender, RoutedEventArgs e) { AppHost.Widgets.Add(WidgetKind.Clock); Added("Saat", "ekranın sağ üstü"); }
+
+    private void AddDate_Click(object sender, RoutedEventArgs e) { AppHost.Widgets.Add(WidgetKind.Date); Added("Tarih", "ekranın sağ üstü, saatin altı"); }
+
+    private void AddNote_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id);
+        Added("Not", "ekranın sağ tarafı");
+    }
+
+    private void AddLauncher_Click(object sender, RoutedEventArgs e) { AppHost.Widgets.Add(WidgetKind.Launcher); Added("Kısayol kutusu", "ekranın alt ortası"); }
+
+    /// <summary>
+    /// Tek tıkla eklenecek bölmeler: masaüstü türleri (Klasörler, Kısayollar, Dosyalar, Tümü), kural klasörleri
+    /// (PDF, Resimler…; masaüstünde yoksa eklenirken oluşturulur) ve kullanıcının diğer klasörleri.
+    /// </summary>
+    private void BuildFenceChoices()
+    {
+        FenceChoices.Children.Clear();
+        foreach (var filter in DesktopItems.Filters)
+        {
+            var icon = filter switch
+            {
+                DesktopFilter.Folders => SymbolRegular.Folder24,
+                DesktopFilter.Shortcuts => SymbolRegular.Apps24,
+                DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
+                _ => SymbolRegular.Desktop24,
+            };
+            var label = filter == DesktopFilter.All ? "Tüm masaüstü" : DesktopItems.Label(filter);
+            AddChoice(label, icon, DesktopItems.Description(filter), () =>
+            {
+                AppHost.Widgets.AddFence(filter);
+                Added($"\"{label}\" bölmesi", "ekranın üst ortası");
+            });
+        }
+
+        var existing = AppHost.Organizer.ExistingFolders().ToList();
+        var names = new List<string>();
+        foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
+            if (!names.Any(n => FolderName.Equal(n, rule.TargetFolder)))
+                names.Add(existing.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder)) ?? rule.TargetFolder);
+        foreach (var folder in existing.OrderBy(f => f, StringComparer.Create(UiText.Tr, true)))
+            if (!names.Any(n => FolderName.Equal(n, folder))) names.Add(folder);
+
+        foreach (var name in names)
+        {
+            var exists = existing.Any(f => FolderName.Equal(f, name));
+            AddChoice(name, name.Equals("PDF", StringComparison.OrdinalIgnoreCase) ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
+                exists ? $"Masaüstündeki \"{name}\" klasörünün içi" : $"Masaüstünde \"{name}\" klasörü yok; eklenince oluşturulur ve uygun dosyalar oraya taşınır",
+                () => AddFolderFence(name, exists));
+        }
+    }
+
+    private void AddChoice(string label, SymbolRegular icon, string tip, Action add)
+    {
+        var button = new Wpf.Ui.Controls.Button
+        {
+            Content = label,
+            Icon = new SymbolIcon { Symbol = icon },
+            ToolTip = tip,
+            Margin = new Thickness(0, 0, 6, 6),
+            Padding = new Thickness(10, 5, 12, 6),
+        };
+        button.Click += (_, _) => add();
+        FenceChoices.Children.Add(button);
+    }
+
+    private void AddFolderFence(string name, bool exists)
+    {
+        if (!exists)
+        {
+            try { System.IO.Directory.CreateDirectory(System.IO.Path.Combine(AppHost.DesktopDirectory, name)); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                System.Windows.MessageBox.Show(ex.Message, "Düzenleme");
+                return;
+            }
+            AppHost.OrganizeNowInBackground();
+        }
+        AppHost.Widgets.Add(WidgetKind.Fence, name);
+        Added($"\"{name}\" bölmesi", "ekranın üst ortası" + (exists ? "" : $". Masaüstünde \"{name}\" klasörü oluşturuldu"));
+    }
+
+    private void AutoFences_Click(object sender, RoutedEventArgs e)
+    {
+        var count = AppHost.Widgets.AddStarterFences();
+        if (count == 0)
+        {
+            AddedInfo.Severity = InfoBarSeverity.Informational;
+            AddedInfo.Title = "Bölmeler zaten hazır";
+            AddedInfo.Message = "Klasörler, Kısayollar, Dosyalar ve masaüstündeki kural klasörleri için bölme zaten var.";
+            AddedInfo.IsOpen = true;
+            return;
+        }
+        Added($"{count} bölme", "ekranın üst tarafı");
+        AddedInfo.Message += " İpucu: masaüstüne çift tıklayıp simgeleri gizlersen yalnızca düzenli bölmeler kalır.";
+    }
+
+    private void RevealAll_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RevealAll();
+
+    private void Reveal_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is WidgetRow row) AppHost.Widgets.Reveal(row.Config.Id);
     }
 
     private void ToggleDesktop_Click(object sender, RoutedEventArgs e) => AppHost.ToggleDesktop();

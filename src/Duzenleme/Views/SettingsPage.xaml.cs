@@ -27,6 +27,7 @@ public partial class SettingsPage : Page
         (HotkeyAction.OrganizeNow, "Masaüstünü şimdi düzenle", SymbolRegular.Sparkle24),
         (HotkeyAction.OpenApp, "Düzenleme'yi aç", SymbolRegular.WindowNew24),
         (HotkeyAction.NewNote, "Yeni not", SymbolRegular.NoteAdd24),
+        (HotkeyAction.PeekWidgets, "Widget'ları öne getir (5 sn)", SymbolRegular.Eye24),
     ];
 
     private bool _loading;
@@ -50,7 +51,9 @@ public partial class SettingsPage : Page
         DataPath.Text = AppHost.DataDirectory;
         PortableText.Text = AppHost.IsPortable
             ? "Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe."
-            : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
+            : AppHost.PortableFallback
+                ? "portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik %AppData%\\Duzenleme'de. Programı yazılabilir bir klasöre taşı."
+                : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
         VersionText.Text = "Düzenleme " + Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
         LoadHotkeys();
         UpdateKeyStatus();

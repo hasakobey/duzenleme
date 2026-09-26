@@ -42,8 +42,27 @@ public sealed class TrayIcon : IDisposable
         add.DropDownItems.Add("Tarih", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Date));
         add.DropDownItems.Add("Not", null, (_, _) => AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id));
         add.DropDownItems.Add("Kısayol kutusu", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Launcher));
-        add.DropDownItems.Add("PDF bölmesi", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Fence, "PDF"));
+        var fence = new Forms.ToolStripMenuItem("Bölme");
+        fence.DropDownItems.Add("(yükleniyor)");
+        // Klasör listesi değişebilir: alt menü her açılışta yeniden kurulur.
+        fence.DropDownOpening += (_, _) =>
+        {
+            fence.DropDownItems.Clear();
+            foreach (var filter in DesktopItems.Filters)
+            {
+                var f = filter;
+                fence.DropDownItems.Add(f == DesktopFilter.All ? "Tüm masaüstü" : DesktopItems.Label(f), null, (_, _) => AppHost.Widgets.AddFence(f));
+            }
+            var folders = AppHost.Organizer.ExistingFolders().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList();
+            if (folders.Count > 0) fence.DropDownItems.Add(new Forms.ToolStripSeparator());
+            foreach (var name in folders)
+                fence.DropDownItems.Add(name, null, (_, _) => AppHost.Widgets.Add(WidgetKind.Fence, name));
+            fence.DropDownItems.Add(new Forms.ToolStripSeparator());
+            fence.DropDownItems.Add("Masaüstümü bölümlere ayır", null, (_, _) => AppHost.Widgets.AddStarterFences());
+        };
+        add.DropDownItems.Add(fence);
         menu.Items.Add(add);
+        menu.Items.Add("Widget'ları öne getir (5 sn)", null, (_, _) => AppHost.Widgets.RevealAll());
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Çıkış", null, (_, _) => exit());
         menu.Opening += (_, _) =>

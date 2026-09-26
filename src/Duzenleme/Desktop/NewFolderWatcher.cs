@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO;
+using Duzenleme.Core;
 using Duzenleme.Icons;
 
 namespace Duzenleme.Desktop;
@@ -11,23 +12,28 @@ namespace Duzenleme.Desktop;
 public sealed class NewFolderWatcher : IDisposable
 {
     private static readonly TimeSpan Settle = TimeSpan.FromSeconds(4);
-    private static readonly string[] DefaultNames = ["yeni klasör", "new folder", "yeni klasor"];
 
-    private readonly FileSystemWatcher _watcher;
+    /// <summary>Windows'un farklı dillerdeki varsayılan "Yeni klasör" adları (henüz adı verilmemiş klasör için öneri yapılmaz).</summary>
+    private static readonly string[] DefaultNames =
+    [
+        "yeni klasör", "yeni klasor", "new folder", "neuer ordner", "nouveau dossier", "nueva carpeta", "nuova cartella",
+        "nieuwe map", "nowy folder", "nova pasta", "novo pasta", "новая папка", "nová složka", "új mappa", "ny mapp", "ny mappe",
+        "uusi kansio", "νέος φάκελος", "yeni_klasör", "新建文件夹", "新しいフォルダー", "새 폴더", "مجلد جديد", "תיקייה חדשה",
+    ];
+
+    private readonly ResilientWatcher _watcher;
     private readonly ConcurrentDictionary<string, Timer> _pending = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<string> _onNewFolder;
 
     public NewFolderWatcher(string desktop, Action<string> onNewFolder)
     {
         _onNewFolder = onNewFolder;
-        _watcher = new FileSystemWatcher(desktop) { NotifyFilter = NotifyFilters.DirectoryName, IncludeSubdirectories = false };
-        _watcher.Created += (_, e) => Schedule(e.FullPath);
-        _watcher.Renamed += (_, e) =>
+        _watcher = new ResilientWatcher(desktop, NotifyFilters.DirectoryName, path =>
         {
-            Cancel(e.OldFullPath);
-            Schedule(e.FullPath);
-        };
-        _watcher.EnableRaisingEvents = true;
+            // Yeniden adlandırmada eski ad artık yok; zamanlayıcısı kendiliğinden boşa düşer.
+            if (Directory.Exists(path)) Schedule(path);
+        });
+        _watcher.Start();
     }
 
     private void Schedule(string path)
@@ -45,12 +51,16 @@ public sealed class NewFolderWatcher : IDisposable
     {
         var path = (string)state!;
         Cancel(path);
-        if (!Directory.Exists(path)) return;
-        var name = Path.GetFileName(path).ToLowerInvariant();
-        // Henüz adı verilmemiş "Yeni klasör (2)" gibi klasörler için öneri yapma.
-        if (DefaultNames.Any(d => name.StartsWith(d, StringComparison.Ordinal))) return;
-        if (FolderIconService.HasCustomIcon(path)) return;
-        _onNewFolder(path);
+        try
+        {
+            if (!Directory.Exists(path)) return;
+            var name = Path.GetFileName(path).ToLowerInvariant();
+            // Henüz adı verilmemiş "Yeni klasör (2)" gibi klasörler için öneri yapma.
+            if (DefaultNames.Any(d => name.StartsWith(d, StringComparison.Ordinal))) return;
+            if (FolderIconService.HasCustomIcon(path)) return;
+            _onNewFolder(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     public void Dispose()

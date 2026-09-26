@@ -26,7 +26,18 @@ public sealed class MoveRow(MoveEntry entry)
 {
     public MoveEntry Entry { get; } = entry;
     public string FileName => Entry.Undone ? Path.GetFileName(Entry.Source) : Entry.FileName;
-    public string Route => Entry.Undone ? $"{Entry.FolderName}  →  Masaüstü (geri alındı)" : $"Masaüstü  →  {Entry.FolderName}";
+    public string Route => Entry.Undone ? $"{Entry.FolderName}  →  Masaüstü (geri alındı)" : $"{SourceFolder}  →  {Entry.FolderName}";
+
+    /// <summary>Dosyanın geldiği yer: masaüstü ya da (bölmeler arası sürüklemede) başka bir klasör.</summary>
+    private string SourceFolder
+    {
+        get
+        {
+            var dir = Path.GetDirectoryName(Entry.Source) ?? "";
+            return string.Equals(dir.TrimEnd('\\'), AppHost.DesktopDirectory.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)
+                ? "Masaüstü" : Path.GetFileName(dir);
+        }
+    }
     public string When => UiText.When(Entry.Time);
     public ImageSource? Icon => ShellIcons.For(Entry.Undone ? Entry.Source : Entry.Destination);
     public bool CanUndo => !Entry.Undone;
