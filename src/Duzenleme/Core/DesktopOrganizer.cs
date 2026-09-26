@@ -63,6 +63,18 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
         return moved;
     }
 
+    /// <summary>Kullanıcının sürükleyip bıraktığı dosyayı klasöre taşır; geçmişe yazılır, geri alınabilir.</summary>
+    public MoveEntry MoveManually(string path, string targetDirectory)
+    {
+        lock (_moveLock)
+        {
+            var destination = FileMover.MoveInto(path, targetDirectory);
+            var entry = new MoveEntry { Source = path, Destination = destination };
+            journal.Add(entry);
+            return entry;
+        }
+    }
+
     public void Undo(MoveEntry entry)
     {
         lock (_moveLock)

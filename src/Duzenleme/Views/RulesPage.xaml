@@ -1,0 +1,75 @@
+<Page x:Class="Duzenleme.Views.RulesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Kurallar">
+    <StackPanel Margin="40,8,40,40">
+        <TextBlock Style="{StaticResource PageTitle}" Text="Kurallar" />
+        <TextBlock Style="{StaticResource PageSubtitle}"
+                   Text="Masaüstüne bir dosya geldiğinde uzantısına uyan kurala bakılır. O kuralın klasörü masaüstünde varsa dosya oraya taşınır; yoksa dosya olduğu yerde kalır." />
+
+        <ui:CardControl Icon="{ui:SymbolIcon FolderAdd24}" Margin="0,0,0,8">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Klasör yoksa oluştur" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Kapalıyken yalnızca senin masaüstünde oluşturduğun klasörler kullanılır." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:ToggleSwitch x:Name="CreateMissing" Click="CreateMissing_Click" />
+        </ui:CardControl>
+
+        <!-- Başlıklar kural satırıyla aynı ölçülerde: görünmez anahtar sütun genişliğini eşitler. -->
+        <Grid Margin="15,20,15,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ui:ToggleSwitch Visibility="Hidden" Margin="0,0,14,0" />
+            <TextBlock Grid.Column="1" Text="KLASÖR" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="12,0,0,0" />
+            <TextBlock Grid.Column="2" Text="UZANTILAR" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="24,0,0,0" />
+            <TextBlock Grid.Column="3" Text="MASAÜSTÜNDE" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="12,0,0,0" />
+            <ui:Button Grid.Column="4" Visibility="Hidden" Margin="12,0,0,0" Icon="{ui:SymbolIcon Delete24}" />
+        </Grid>
+
+        <ItemsControl x:Name="RuleList">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:ToggleSwitch IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                            <ui:TextBox Grid.Column="1" Text="{Binding TargetFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                        PlaceholderText="Klasör adı" Icon="{ui:SymbolIcon Folder24}" />
+                            <ui:TextBox Grid.Column="2" Margin="12,0,0,0" Text="{Binding ExtensionsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                        PlaceholderText="pdf, docx, png" />
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="{Binding StatusIcon}" Filled="True" Foreground="{Binding StatusBrush}" FontSize="18" />
+                                <TextBlock Text="{Binding StatusText}" Margin="6,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <ui:Button Content="Oluştur" Margin="10,0,0,0" Padding="10,4" Click="CreateFolder_Click"
+                                           Visibility="{Binding CreateVisibility}" />
+                            </StackPanel>
+                            <ui:Button Grid.Column="4" Margin="12,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent"
+                                       ToolTip="Kuralı sil" Click="Delete_Click" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Kural ekle" Click="Add_Click" />
+            <ui:Button Margin="10,0,0,0" Icon="{ui:SymbolIcon ArrowReset24}" Content="Varsayılanlara dön" Click="Reset_Click" />
+        </StackPanel>
+        <TextBlock Style="{StaticResource Muted}" Margin="0,16,0,0"
+                   Text="İpucu: Klasör adında büyük/küçük harf ve Türkçe karakter fark etmez; &quot;Arşivler&quot; ile &quot;arsivler&quot; aynı sayılır. Kısayollar (.lnk), sistem dosyaları ve inmekte olan dosyalar hiçbir zaman taşınmaz." />
+    </StackPanel>
+</Page>

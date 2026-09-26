@@ -1,12 +1,45 @@
-﻿<Window x:Class="Duzenleme.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Duzenleme"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+<ui:FluentWindow x:Class="Duzenleme.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:pages="clr-namespace:Duzenleme.Views"
+                 Title="Düzenleme"
+                 Width="1060" Height="720" MinWidth="860" MinHeight="580"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 Icon="pack://application:,,,/Assets/app.ico">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
+        <ui:NavigationView x:Name="RootNavigation" Grid.Row="1"
+                           PaneDisplayMode="Left"
+                           IsBackButtonVisible="Collapsed"
+                           IsPaneToggleVisible="False"
+                           OpenPaneLength="232"
+                           TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}">
+            <ui:NavigationView.Header>
+                <Border Height="8" />
+            </ui:NavigationView.Header>
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Genel bakış" Icon="{ui:SymbolIcon Home24}" TargetPageType="{x:Type pages:HomePage}" />
+                <ui:NavigationViewItem Content="Kurallar" Icon="{ui:SymbolIcon FolderArrowRight24}" TargetPageType="{x:Type pages:RulesPage}" />
+                <ui:NavigationViewItem Content="Araçlar" Icon="{ui:SymbolIcon Apps24}" TargetPageType="{x:Type pages:WidgetsPage}" />
+                <ui:NavigationViewItem Content="Geçmiş" Icon="{ui:SymbolIcon History24}" TargetPageType="{x:Type pages:HistoryPage}" />
+            </ui:NavigationView.MenuItems>
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Ayarlar" Icon="{ui:SymbolIcon Settings24}" TargetPageType="{x:Type pages:SettingsPage}" />
+            </ui:NavigationView.FooterMenuItems>
+        </ui:NavigationView>
+
+        <ui:TitleBar x:Name="TitleBar" Grid.Row="0" Title="Düzenleme" CloseWindowByDoubleClickOnIcon="False">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
     </Grid>
-</Window>
+</ui:FluentWindow>

@@ -1,0 +1,76 @@
+<Page x:Class="Duzenleme.Views.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Ayarlar">
+    <StackPanel Margin="40,8,40,40">
+        <TextBlock Style="{StaticResource PageTitle}" Text="Ayarlar" />
+        <TextBlock Style="{StaticResource PageSubtitle}" Text="Uygulamanın görünümü ve davranışı." />
+
+        <ui:CardControl Icon="{ui:SymbolIcon PaintBrush24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Tema" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Ana pencerenin görünümü. Widget'ların görünümü kendi menülerinden seçilir." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ComboBox x:Name="ThemeBox" Width="170" SelectionChanged="ThemeBox_SelectionChanged">
+                <ComboBoxItem Content="Sistem" />
+                <ComboBoxItem Content="Koyu" />
+                <ComboBoxItem Content="Açık" />
+            </ComboBox>
+        </ui:CardControl>
+
+        <ui:CardControl Icon="{ui:SymbolIcon Power24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Windows ile başlat" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Oturum açınca tepside sessizce başlar; widget'lar ve masaüstü izleme hazır olur." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:ToggleSwitch x:Name="StartupToggle" Click="StartupToggle_Click" />
+        </ui:CardControl>
+
+        <ui:CardControl Icon="{ui:SymbolIcon Alert24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Bildirimler" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Bir dosya taşındığında kısa bir bildirim göster." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:ToggleSwitch x:Name="NotifyToggle" Click="NotifyToggle_Click" />
+        </ui:CardControl>
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Klasörler" />
+        <ui:CardControl Icon="{ui:SymbolIcon Desktop24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="İzlenen masaüstü" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="DesktopPath" Style="{StaticResource Muted}" />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:Button Content="Aç" Icon="{ui:SymbolIcon Open24}" Click="OpenDesktop_Click" />
+        </ui:CardControl>
+        <ui:CardControl Icon="{ui:SymbolIcon Database24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Ayar ve geçmiş dosyaları" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="DataPath" Style="{StaticResource Muted}" />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:Button Content="Aç" Icon="{ui:SymbolIcon Open24}" Click="OpenData_Click" />
+        </ui:CardControl>
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Hakkında" />
+        <Border Style="{StaticResource Surface}">
+            <StackPanel Orientation="Horizontal">
+                <Image Source="pack://application:,,,/Assets/app.ico" Width="40" Height="40" Margin="0,0,14,0" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="VersionText" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Masaüstü düzenleyici · saat ve tarih widget'ları · klasör bölmeleri" />
+                </StackPanel>
+                <ui:Button Margin="24,0,0,0" Appearance="Danger" Icon="{ui:SymbolIcon Power24}" Content="Uygulamadan çık" Click="Exit_Click" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Page>

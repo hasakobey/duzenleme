@@ -94,6 +94,34 @@ public class OrganizerTests
     }
 
     [Fact]
+    public void Manual_move_is_journaled_and_undoable()
+    {
+        using var t = new TempDesktop();
+        var pdfDir = t.Folder("PDF");
+        var file = t.File("elle.txt");
+
+        var entry = t.Organizer.MoveManually(file, pdfDir);
+        Assert.True(File.Exists(Path.Combine(pdfDir, "elle.txt")));
+
+        t.Organizer.Undo(entry);
+        Assert.True(File.Exists(file));
+    }
+
+    [Fact]
+    public void File_taken_back_out_of_folder_is_not_moved_again()
+    {
+        using var t = new TempDesktop();
+        var pdfDir = t.Folder("PDF");
+        File.WriteAllText(Path.Combine(pdfDir, "geri.pdf"), "x");
+        var onDesktop = Path.Combine(t.Desktop, "geri.pdf");
+        File.Move(Path.Combine(pdfDir, "geri.pdf"), onDesktop);
+        t.Journal.Add(new MoveEntry { Source = onDesktop, Destination = Path.Combine(pdfDir, "geri.pdf"), Undone = true });
+
+        Assert.Null(t.Organizer.Organize(onDesktop));
+        Assert.True(File.Exists(onDesktop));
+    }
+
+    [Fact]
     public void Journal_persists_across_instances()
     {
         using var t = new TempDesktop();

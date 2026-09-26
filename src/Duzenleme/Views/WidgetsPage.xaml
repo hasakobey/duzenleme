@@ -1,0 +1,115 @@
+<Page x:Class="Duzenleme.Views.WidgetsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Araçlar">
+    <StackPanel Margin="40,8,40,40">
+        <TextBlock Style="{StaticResource PageTitle}" Text="Araçlar" />
+        <TextBlock Style="{StaticResource PageSubtitle}"
+                   Text="Masaüstüne saat, tarih ve klasör bölmeleri ekle. Widget'ları sürükleyerek taşı; sağ tıkla görünümünü değiştir, kilitle ya da kaldır." />
+
+        <UniformGrid Columns="3" Margin="-6,0">
+            <!-- Saat -->
+            <Border Style="{StaticResource Surface}" Margin="6,0" Padding="20">
+                <DockPanel>
+                    <ui:Button DockPanel.Dock="Bottom" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Saat ekle"
+                               HorizontalAlignment="Stretch" Margin="0,16,0,0" Click="AddClock_Click" />
+                    <StackPanel>
+                        <Border Height="96" CornerRadius="12" Margin="0,0,0,14">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#6366F1" Offset="0" />
+                                    <GradientStop Color="#A855F7" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock x:Name="ClockPreview" Text="14:05" FontSize="40" FontWeight="Light" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe UI Variable Display, Segoe UI" />
+                        </Border>
+                        <TextBlock Text="Saat" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" Text="Büyük dijital saat, günün selamı ve isteğe bağlı saniye." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Tarih -->
+            <Border Style="{StaticResource Surface}" Margin="6,0" Padding="20">
+                <DockPanel>
+                    <ui:Button DockPanel.Dock="Bottom" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Tarih ekle"
+                               HorizontalAlignment="Stretch" Margin="0,16,0,0" Click="AddDate_Click" />
+                    <StackPanel>
+                        <Border Height="96" CornerRadius="12" Margin="0,0,0,14">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0EA5E9" Offset="0" />
+                                    <GradientStop Color="#6366F1" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock x:Name="DayPreview" Text="26" FontSize="40" FontWeight="SemiBold" Foreground="White" Margin="0,0,10,0" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock x:Name="MonthPreview" Text="Eylül" FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                                    <TextBlock x:Name="WeekdayPreview" Text="Cumartesi" FontSize="12" Foreground="#DDFFFFFF" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Tarih" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" Text="Gün, ay, yıl ve bugünün vurgulandığı haftalık şerit." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Bölme -->
+            <Border Style="{StaticResource Surface}" Margin="6,0" Padding="20">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
+                        <ComboBox x:Name="FolderPicker" Margin="0,0,0,8" />
+                        <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Bölme ekle"
+                                   HorizontalAlignment="Stretch" Click="AddFence_Click" />
+                    </StackPanel>
+                    <StackPanel>
+                        <Border Height="96" CornerRadius="12" Margin="0,0,0,14">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#F59E0B" Offset="0" />
+                                    <GradientStop Color="#EF4444" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="White" Margin="4,0" />
+                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="#CCFFFFFF" Margin="4,0" />
+                                <ui:SymbolIcon Symbol="DocumentPdf24" FontSize="30" Foreground="#99FFFFFF" Margin="4,0" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Klasör bölmesi" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                   Text="Bir masaüstü klasörünü (ör. PDF) masaüstünde panel olarak gösterir. Dosyaları üstüne sürükleyince klasöre taşır." />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+        </UniformGrid>
+
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Masaüstündeki widget'ların" />
+        <ItemsControl x:Name="ActiveList">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="22" Margin="0,0,14,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding StyleNames}" SelectedIndex="{Binding StyleIndex, Mode=TwoWay}" />
+                            <ui:Button Grid.Column="3" Margin="10,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent"
+                                       ToolTip="Kaldır" Click="Remove_Click" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock x:Name="ActiveEmpty" Style="{StaticResource Muted}" Text="Masaüstünde widget yok. Yukarıdan ekleyebilirsin." />
+    </StackPanel>
+</Page>

@@ -1,23 +1,36 @@
-﻿using System.Text;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using System.ComponentModel;
+using Duzenleme.Views;
+using Wpf.Ui.Controls;
 
 namespace Duzenleme;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : FluentWindow
 {
+    private bool _reallyClose;
+
     public MainWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) => RootNavigation.Navigate(typeof(HomePage));
+    }
+
+    public void NavigateTo(Type page) => RootNavigation.Navigate(page);
+
+    /// <summary>Pencereyi kapatmak uygulamayı kapatmaz; tepside çalışmaya devam eder.</summary>
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (!_reallyClose)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+        base.OnClosing(e);
+    }
+
+    public void CloseForReal()
+    {
+        _reallyClose = true;
+        Close();
     }
 }

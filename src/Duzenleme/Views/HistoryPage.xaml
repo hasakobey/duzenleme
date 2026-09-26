@@ -1,0 +1,44 @@
+<Page x:Class="Duzenleme.Views.HistoryPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Geçmiş">
+    <StackPanel Margin="40,8,40,40">
+        <TextBlock Style="{StaticResource PageTitle}" Text="Geçmiş" />
+        <TextBlock Style="{StaticResource PageSubtitle}"
+                   Text="Taşınan her dosya burada. Geri aldığın dosya masaüstüne döner ve bir daha otomatik taşınmaz." />
+
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+            <ui:Button Icon="{ui:SymbolIcon ArrowUndo24}" Content="Son taşımayı geri al" Click="UndoLast_Click" />
+            <ui:Button Margin="10,0,0,0" Icon="{ui:SymbolIcon Broom24}" Content="Geçmişi temizle" Click="Clear_Click" />
+        </StackPanel>
+
+        <ui:InfoBar x:Name="Feedback" IsClosable="True" Margin="0,0,0,12" />
+
+        <ItemsControl x:Name="Entries">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="110" />
+                            </Grid.ColumnDefinitions>
+                            <Image Source="{Binding Icon}" Width="30" Height="30" Margin="0,0,14,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="{Binding Route}" Style="{StaticResource Muted}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="{Binding When}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0" />
+                            <ui:Button Grid.Column="3" Content="Geri al" Icon="{ui:SymbolIcon ArrowUndo24}" HorizontalAlignment="Stretch"
+                                       IsEnabled="{Binding CanUndo}" Click="Undo_Click" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock x:Name="Empty" Style="{StaticResource Muted}" Text="Henüz taşınan dosya yok." />
+    </StackPanel>
+</Page>
