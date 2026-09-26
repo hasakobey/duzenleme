@@ -13,7 +13,7 @@ Windows için modern masaüstü düzenleyici. Masaüstüne düşen dosyaları **
 
 ## Kurulum
 
-[Releases](../../releases) sayfasından `Duzenleme.exe` dosyasını indirip çalıştır (.NET kurulumu gerekmez). Ayarlar'dan "Windows ile başlat"ı açabilirsin.
+`powershell -File tools/publish.ps1` ile `dist/Duzenleme.exe` üret (ya da yayınlandıysa [Releases](../../releases) sayfasından indir). Tek dosyadır, .NET kurulumu gerekmez. Ayarlar'dan "Windows ile başlat"ı açabilirsin.
 
 ## Geliştirme
 
