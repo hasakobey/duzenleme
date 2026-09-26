@@ -60,6 +60,7 @@ public partial class FenceView : UserControl, IWidgetView
         Drop += OnDrop;
         AppHost.Organizer.FileMoved += OnAnyMove;
         AppHost.Journal.Changed += OnJournalChanged;
+        AppHost.DesktopVisibilityChanged += QueueRefresh;
 
         Refresh();
     }
@@ -143,6 +144,11 @@ public partial class FenceView : UserControl, IWidgetView
         if (generation != _generation) return;
 
         _all = paths.Select(p => TileItem.Create(p, _config)).ToList();
+        // Masaüstünde gösterilen sistem simgeleri (Bu Bilgisayar, Geri Dönüşüm Kutusu…) de bölmede yer alsın:
+        // Windows simgeleri gizliyken başka yerde görünmezler.
+        if (_config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All)
+            _all.InsertRange(0, Desktop.DesktopSystemIcons.All.Where(Desktop.DesktopSystemIcons.IsShown)
+                .Select(icon => TileItem.CreateShell(icon, _config)));
         CountBadge.Visibility = Visibility.Visible;
         ShowItems();
         if (_query.Length > 0) DeepSearch();
@@ -371,6 +377,12 @@ public partial class FenceView : UserControl, IWidgetView
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
         menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
+        if (TileItem.IsShellObject(item.Path))
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
+            return;
+        }
         menu.Items.Add(Menus.Item("Klasörde göster", () => TileItem.Reveal(item.Path)));
         if (Directory.Exists(item.Path))
         {
@@ -381,8 +393,67 @@ public partial class FenceView : UserControl, IWidgetView
         }
         if (!DesktopMode && File.Exists(item.Path))
             menu.Items.Add(Menus.Item("Masaüstüne geri taşı", () => MoveToDesktop(item)));
+        // Masaüstü simgeleri gizliyken (bölmeler yönetirken) bu işler yalnızca buradan yapılabilir.
+        menu.Items.Add(Menus.Item("Yeniden adlandır…", () => Rename(item)));
+        menu.Items.Add(Menus.Item("Geri Dönüşüm Kutusu'na taşı", () => Recycle(item)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
+    }
+
+    private void Rename(TileItem item)
+    {
+        var path = item.Path;
+        var isDir = Directory.Exists(path);
+        var oldName = System.IO.Path.GetFileName(path);
+        if (InputDialog.Ask("Yeniden adlandır", "Yeni ad", oldName) is not { Length: > 0 } newName || newName == oldName) return;
+        if (newName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
+        {
+            MessageBox.Show("Ad şu karakterleri içeremez: \\ / : * ? \" < > |", "Düzenleme");
+            return;
+        }
+        var target = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, newName);
+        try
+        {
+            if (isDir) Directory.Move(path, target);
+            else File.Move(path, target);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(ex.Message, "Düzenleme");
+        }
+        QueueRefresh();
+    }
+
+    private void Recycle(TileItem item)
+    {
+        try
+        {
+            if (Directory.Exists(item.Path))
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(item.Path,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+            else if (File.Exists(item.Path))
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(item.Path,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            // Kullanıcı iptal etti ya da dosya kullanımda; Windows zaten bildirir.
+        }
+        QueueRefresh();
+    }
+
+    /// <summary>Bölmenin gösterdiği yerde (masaüstü ya da klasör) yeni klasör açar.</summary>
+    private void NewFolder()
+    {
+        var parent = DesktopMode ? AppHost.DesktopDirectory : ResolveFolder();
+        if (parent is null) return;
+        if (InputDialog.Ask("Yeni klasör", "Klasör adı", "Yeni klasör") is not { Length: > 0 } name) return;
+        try { Directory.CreateDirectory(FileMover.UniquePath(parent, name)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            MessageBox.Show(ex.Message, "Düzenleme");
+        }
+        QueueRefresh();
     }
 
     private static void MoveToDesktop(TileItem item)
@@ -471,6 +542,8 @@ public partial class FenceView : UserControl, IWidgetView
             menu.Items.Add(Menus.Item("Klasörü aç", () => TileItem.Launch(folder)));
             menu.Items.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(folder)));
         }
+        if (_config.Filter is DesktopFilter.None or DesktopFilter.Folders or DesktopFilter.All)
+            menu.Items.Add(Menus.Item("Yeni klasör…", NewFolder));
         menu.Items.Add(Menus.Item("Başlığı değiştir…", () =>
         {
             if (InputDialog.Ask("Bölme başlığı", "Başlık (boş bırakırsan varsayılan ad kullanılır)", TitleText.Text) is { } title)
@@ -499,6 +572,9 @@ public partial class FenceView : UserControl, IWidgetView
             v => Set(() => _config.Sort = v)));
         menu.Items.Add(Menus.TileOptions(_config, Set, singleClickOption: true));
         menu.Items.Add(Menus.Item("Yenile", Refresh));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", AppHost.Settings.FencesReplaceIcons,
+            () => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons)));
     }
 
     public void Detach()
@@ -509,5 +585,6 @@ public partial class FenceView : UserControl, IWidgetView
         _watchers.Clear();
         AppHost.Organizer.FileMoved -= OnAnyMove;
         AppHost.Journal.Changed -= OnJournalChanged;
+        AppHost.DesktopVisibilityChanged -= QueueRefresh;
     }
 }

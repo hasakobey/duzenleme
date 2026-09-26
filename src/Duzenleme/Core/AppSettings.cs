@@ -63,6 +63,9 @@ public sealed class WidgetConfig
 
     public bool Locked { get; set; }
 
+    /// <summary>Widget'lar arasındaki sıra: büyük olan öndedir (son tıklanan/eklenen). Hepsi masaüstü katmanında kalır.</summary>
+    public long Z { get; set; }
+
     public CornerStyle Corners { get; set; } = CornerStyle.Round;
     public bool Shadow { get; set; } = true;
 
@@ -146,6 +149,12 @@ public sealed class AppSettings
 
     /// <summary>Simgeler gizlenirken widget'lar da gizlensin.</summary>
     public bool HideWidgetsWithIcons { get; set; } = true;
+
+    /// <summary>
+    /// Masaüstünü bölmeler yönetir: Windows'un kendi masaüstü simgeleri gizlenir, öğeler yalnızca bölmelerde görünür
+    /// (Fences gibi). Dosyalara dokunulmaz; kapatınca ya da uygulamadan çıkınca simgeler geri gelir.
+    /// </summary>
+    public bool FencesReplaceIcons { get; set; }
 
     /// <summary>Simgeleri biz gizlediysek, çıkışta/çökmeden sonra geri açabilmek için.</summary>
     public bool IconsHiddenByApp { get; set; }

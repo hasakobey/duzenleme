@@ -13,6 +13,9 @@ public static class AppHost
 
     /// <summary>Masaüstünde görünen klasörler: kullanıcının masaüstü ve (test klasörü verilmediyse) Genel Masaüstü.</summary>
     public static IReadOnlyList<string> DesktopDirectories { get; private set; } = [];
+
+    /// <summary>--desktop ile verilen test klasörü mü izleniyor?</summary>
+    public static bool IsTestDesktop { get; private set; }
     public static bool IsPortable { get; private set; }
     public static AppSettings Settings { get; private set; } = new();
     public static MoveJournal Journal { get; private set; } = null!;
@@ -76,6 +79,7 @@ public static class AppHost
         IsPortable = portable is not null;
         DataDirectory = dataOverride ?? portable ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Duzenleme");
         DesktopDirectory = desktopOverride ?? ResolveDesktop();
+        IsTestDesktop = desktopOverride is not null;
         // Kurulan programların kısayolları çoğunlukla Genel Masaüstü'ndedir; "Kısayollar" bölmesi onları da göstersin.
         var common = desktopOverride is null
             ? Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory, Environment.SpecialFolderOption.DoNotVerify)
@@ -93,9 +97,10 @@ public static class AppHost
         Widgets = new WidgetManager();
 
         // Önceki oturum simgeleri gizli bırakarak kapandıysa (ör. çökme) geri aç.
-        if (Settings.IconsHiddenByApp)
+        // Bölmeler masaüstünü yönetiyorsa gizli kalır; widget'lar açılınca yeniden uygulanır.
+        if (Settings.IconsHiddenByApp && !Settings.FencesReplaceIcons)
         {
-            DesktopIcons.SetVisible(true);
+            if (!IsTestDesktop) DesktopIcons.SetVisible(true);
             Settings.IconsHiddenByApp = false;
             SaveSettings();
         }
@@ -123,11 +128,50 @@ public static class AppHost
     public static void SetDesktopHidden(bool hidden)
     {
         DesktopHidden = hidden;
-        DesktopIcons.SetVisible(!hidden);
-        Widgets.SetHidden(hidden && Settings.HideWidgetsWithIcons);
-        Settings.IconsHiddenByApp = hidden;
+        ApplyIconVisibility();
+        // Bölmeler masaüstünü yönetirken Windows simgeleri zaten gizli: "gizle" bölmeleri (tüm widget'ları) gizler.
+        Widgets.SetHidden(hidden && (Settings.HideWidgetsWithIcons || Settings.FencesReplaceIcons));
         SaveSettings();
         DesktopVisibilityChanged?.Invoke();
+    }
+
+    /// <summary>Windows'un masaüstü simgeleri şu an bizim tarafımızdan gizli olmalı mı?</summary>
+    private static bool IconsShouldBeHidden => DesktopHidden || Settings.FencesReplaceIcons;
+
+    /// <summary>Simge görünürlüğünü duruma uygular (çökme sonrası geri açılabilsin diye ayara da yazılır).</summary>
+    public static void ApplyIconVisibility()
+    {
+        // Test klasörüyle (--desktop) çalışan örnek kullanıcının gerçek masaüstü simgelerine dokunmaz.
+        if (IsTestDesktop) DebugLog.Write($"simgeler {(IconsShouldBeHidden ? "gizlenecekti" : "gösterilecekti")} (test masaüstü)");
+        else DesktopIcons.SetVisible(!IconsShouldBeHidden);
+        Settings.IconsHiddenByApp = IconsShouldBeHidden;
+    }
+
+    /// <summary>
+    /// "Masaüstünü bölmeler yönetsin": açılınca eksik Klasörler/Kısayollar/Dosyalar bölmeleri eklenir (hiçbir öğe
+    /// görünmez kalmasın) ve Windows'un masaüstü simgeleri gizlenir. Kapatınca simgeler geri gelir.
+    /// </summary>
+    public static void SetFencesManageDesktop(bool on)
+    {
+        if (on) Widgets.EnsureDesktopCoverage();
+        Settings.FencesReplaceIcons = on;
+        if (DesktopHidden)
+        {
+            DesktopHidden = false;
+            Widgets.SetHidden(false);
+        }
+        ApplyIconVisibility();
+        SaveSettings();
+        DesktopVisibilityChanged?.Invoke();
+    }
+
+    /// <summary>Mod açıkken bir türü gösteren son bölme kaldırılırsa o öğeler hiçbir yerde görünmez: mod kapatılır.</summary>
+    public static void EnsureNothingInvisible()
+    {
+        if (!Settings.FencesReplaceIcons || Widgets.CoversDesktop()) return;
+        SetFencesManageDesktop(false);
+        Tray?.Notify("Masaüstü simgeleri yeniden gösteriliyor",
+            "Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Araçlar'dan yeniden aç.");
     }
 
     public static void ApplyDoubleClickSetting()
@@ -141,6 +185,12 @@ public static class AppHost
     /// </summary>
     public static void ReconcileDesktopState()
     {
+        if (Settings.FencesReplaceIcons)
+        {
+            // Explorer yeniden başlayınca simgeler kendiliğinden geri gelir: bölmeler yönetirken yeniden gizle.
+            if (!IsTestDesktop && DesktopIcons.AreVisible) DesktopIcons.SetVisible(false);
+            return;
+        }
         if (!DesktopHidden || !DesktopIcons.AreVisible) return;
         DesktopHidden = false;
         Widgets.SetHidden(false);
@@ -172,8 +222,9 @@ public static class AppHost
     /// <summary>Uygulama kapanırken masaüstünü kullanıcıya gizli bırakma.</summary>
     public static void RestoreDesktopOnExit()
     {
-        if (!DesktopHidden) return;
-        DesktopIcons.SetVisible(true);
+        // Mod ayarı kalır (sonraki açılışta yeniden gizlenir); uygulama kapalıyken simgeler görünür olmalı.
+        if (!IconsShouldBeHidden) return;
+        if (!IsTestDesktop) DesktopIcons.SetVisible(true);
         Settings.IconsHiddenByApp = false;
         try { JsonFile.Save(SettingsPath, Settings); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }

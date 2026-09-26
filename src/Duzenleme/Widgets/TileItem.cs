@@ -122,6 +122,26 @@ public sealed class TileItem : INotifyPropertyChanged
         return new ItemsPanelTemplate(panel);
     }
 
+    /// <summary>Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesnesi ("::{CLSID}") kutucuğu.</summary>
+    public static TileItem CreateShell(Desktop.SystemIcon icon, WidgetConfig config)
+    {
+        var template = Create("::" + icon.Clsid, config, icon.Name);
+        var item = new TileItem
+        {
+            Name = icon.Name,
+            Path = "::" + icon.Clsid,
+            Missing = false,
+            IconPx = template.IconPx, TileWidth = template.TileWidth, Orientation = template.Orientation,
+            IconAlign = template.IconAlign, TextAlign = template.TextAlign, Wrap = template.Wrap,
+            TextMargin = template.TextMargin, TextMaxHeight = template.TextMaxHeight, LabelFont = template.LabelFont,
+            LabelVisibility = template.LabelVisibility, Pad = template.Pad,
+        };
+        item.Icon = ShellIcons.ForShellObject("::" + icon.Clsid);
+        return item;
+    }
+
+    public static bool IsShellObject(string path) => path.StartsWith("::", StringComparison.Ordinal);
+
     public static string DisplayName(string path)
     {
         var name = System.IO.Path.GetFileName(path.TrimEnd('\\', '/'));
@@ -134,6 +154,11 @@ public sealed class TileItem : INotifyPropertyChanged
     {
         try
         {
+            if (IsShellObject(path))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", "shell:" + path) { UseShellExecute = true });
+                return;
+            }
             var original = path;
             path = NativePath(path);
             var info = new ProcessStartInfo(path) { UseShellExecute = true };

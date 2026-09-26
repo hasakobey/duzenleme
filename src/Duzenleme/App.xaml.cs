@@ -108,6 +108,12 @@ public partial class App : Application
         AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.ToggleDesktop);
         AppHost.ApplyDoubleClickSetting();
         AppHost.Widgets.RestoreAll();
+        if (AppHost.Settings.FencesReplaceIcons)
+        {
+            // Hiçbir öğe görünmez kalmasın: eksik Klasörler/Kısayollar/Dosyalar bölmesi varsa ekle.
+            AppHost.Widgets.EnsureDesktopCoverage();
+            AppHost.ApplyIconVisibility();
+        }
         _newFolders = new NewFolderWatcher(AppHost.DesktopDirectory, folder => Dispatcher.BeginInvoke(() =>
         {
             if (AppHost.Settings.SuggestFolderIcons) AppHost.Tray?.SuggestFolderIcon(folder);

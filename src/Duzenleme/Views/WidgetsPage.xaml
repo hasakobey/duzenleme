@@ -49,6 +49,10 @@
                     <ui:Button x:Name="AutoFencesButton" Appearance="Primary" Content="Masaüstümü bölümlere ayır"
                                HorizontalAlignment="Left" Click="AutoFences_Click"
                                ToolTip="Klasörler, Kısayollar, Dosyalar ve masaüstündeki PDF, Resimler gibi klasörler için birer bölme ekler" />
+                    <ui:ToggleSwitch x:Name="ManageToggle" Margin="0,14,0,0" Click="ManageToggle_Click"
+                                     Content="Masaüstü simgelerini yalnızca bölmelerde göster (masaüstündeki kopyalarını gizle)" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="Açıkken Windows'un masaüstü simgeleri gizlenir, her şey bölmelerde görünür. Dosyalara dokunulmaz; kapatınca ya da uygulamadan çıkınca simgeler geri gelir." />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,14,0,6" Text="Ya da tek bir bölme ekle:" />
                     <WrapPanel x:Name="FenceChoices" />
                 </StackPanel>
@@ -191,8 +195,12 @@
 
         <Grid Margin="0,24,0,8">
             <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="Masaüstündeki widget'ların" />
-            <ui:Button HorizontalAlignment="Right" Icon="{ui:SymbolIcon Eye24}" Content="Tümünü öne getir"
-                       ToolTip="Widget'lar pencerelerin arkasında kalır; 5 saniyeliğine öne getirir" Click="RevealAll_Click" />
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <ui:Button x:Name="ArrangeButton" Content="Düzenli yerleştir" Margin="0,0,8,0" Click="Arrange_Click"
+                           ToolTip="Tüm widget'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki düzen kaydedilir" />
+                <ui:Button Icon="{ui:SymbolIcon Eye24}" Content="Tümünü öne getir"
+                           ToolTip="Widget'lar pencerelerin arkasında kalır; 5 saniyeliğine öne getirir" Click="RevealAll_Click" />
+            </StackPanel>
         </Grid>
         <ItemsControl x:Name="ActiveList">
             <ItemsControl.ItemTemplate>

@@ -62,12 +62,17 @@ public sealed class TrayIcon : IDisposable
         };
         add.DropDownItems.Add(fence);
         menu.Items.Add(add);
+        _manageItem = new Forms.ToolStripMenuItem("Masaüstü simgeleri yalnızca bölmelerde", null,
+            (_, _) => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons));
+        menu.Items.Add(_manageItem);
         menu.Items.Add("Widget'ları öne getir (5 sn)", null, (_, _) => AppHost.Widgets.RevealAll());
+        menu.Items.Add("Widget'ları düzenli yerleştir", null, (_, _) => AppHost.Widgets.ArrangeAll());
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Çıkış", null, (_, _) => exit());
         menu.Opening += (_, _) =>
         {
             _pauseItem.Checked = AppHost.Settings.Paused;
+            _manageItem.Checked = AppHost.Settings.FencesReplaceIcons;
             _hideItem.Text = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
         };
         _icon.ContextMenuStrip = menu;
@@ -105,6 +110,15 @@ public sealed class TrayIcon : IDisposable
         _pendingNotices.Clear();
         _balloonAction = null;
         _icon.ShowBalloonTip(3000, title, text, Forms.ToolTipIcon.None);
+    }
+
+    private Forms.ToolStripMenuItem _manageItem = null!;
+
+    /// <summary>Kısa bilgi balonu.</summary>
+    public void Notify(string title, string text)
+    {
+        _balloonAction = null;
+        _icon.ShowBalloonTip(5000, title, text, Forms.ToolTipIcon.Info);
     }
 
     /// <summary>Yeni klasör için tıklanabilir öneri: balona tıklayınca simge seçici açılır.</summary>

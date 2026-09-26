@@ -269,6 +269,7 @@ public sealed class WidgetWindow : Window
 
         menu.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () => { Config.Locked = !Config.Locked; AppHost.SaveSettings(); }));
         menu.Items.Add(Menus.Item("Çoğalt", () => AppHost.Widgets.Duplicate(Config.Id)));
+        menu.Items.Add(Menus.Item("Tüm widget'ları düzenli yerleştir", () => AppHost.Widgets.ArrangeAll()));
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item("Kaldır", () => AppHost.Widgets.Remove(Config.Id)));
     }
@@ -431,6 +432,21 @@ public sealed class WidgetWindow : Window
         if (hwnd == IntPtr.Zero || _revealing) return; // öne getirme sırasında bilerek sahipsiz
         var current = NativeMethods.GetWindow(hwnd, NativeMethods.GW_OWNER);
         if (wanted != IntPtr.Zero && (current != wanted || !NativeMethods.IsWindow(current))) AttachToDesktop();
+    }
+
+    /// <summary>Masaüstü katmanında en alta iner (öne getirme sürüyorsa beklenir).</summary>
+    public void SendToBottom()
+    {
+        if (!_revealing && Handle != IntPtr.Zero) SendToBack(Handle);
+    }
+
+    /// <summary>Kullanıcı düzeni için fiziksel konuma taşır ve kaydeder.</summary>
+    public void MoveTo(int x, int y)
+    {
+        if (Handle == IntPtr.Zero) return;
+        NativeMethods.SetWindowPos(Handle, IntPtr.Zero, x, y, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        QueueSave();
     }
 
     private static void SendToBack(IntPtr hwnd) =>
@@ -666,6 +682,7 @@ public sealed class WidgetWindow : Window
         NativeMethods.SetWindowPos(Handle, NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
         AttachToDesktop(); // masaüstüne yeniden bağlan ve en alta dön
+        AppHost.Widgets.BringToFront(this); // ama diğer widget'ların önünde kal
     }
 
     private void DemoteWhenDeactivated(object? sender, EventArgs e)
@@ -686,7 +703,9 @@ public sealed class WidgetWindow : Window
         if (msg == WM_MOUSEACTIVATE)
         {
             // WS_EX_NOACTIVATE tıklamayla etkinleşmeyi de kapatır; tıklayınca etkinleşsin (not yazmak, aramak için).
+            // Tıklanan widget diğer widget'ların önüne geçer (etkinleşince en alta itildiği için hemen ardından).
             const int MA_ACTIVATE = 1;
+            Dispatcher.BeginInvoke(() => AppHost.Widgets.BringToFront(this), DispatcherPriority.Input);
             handled = true;
             return new IntPtr(MA_ACTIVATE);
         }

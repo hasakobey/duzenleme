@@ -91,6 +91,8 @@ public partial class WidgetsPage : Page
         WeekdayPreview.Text = now.ToString("dddd", UiText.Tr);
 
         AutoFencesButton.Icon = new SymbolIcon { Symbol = SymbolRegular.Sparkle24 };
+        ManageToggle.IsChecked = AppHost.Settings.FencesReplaceIcons;
+        ArrangeButton.Icon = new SymbolIcon { Symbol = SymbolRegular.Grid24 };
         BuildFenceChoices();
 
         HideButton.Content = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
@@ -202,19 +204,33 @@ public partial class WidgetsPage : Page
     private void AutoFences_Click(object sender, RoutedEventArgs e)
     {
         var count = AppHost.Widgets.AddStarterFences();
-        if (count == 0)
-        {
-            AddedInfo.Severity = InfoBarSeverity.Informational;
-            AddedInfo.Title = "Bölmeler zaten hazır";
-            AddedInfo.Message = "Klasörler, Kısayollar, Dosyalar ve masaüstündeki kural klasörleri için bölme zaten var.";
-            AddedInfo.IsOpen = true;
-            return;
-        }
-        Added($"{count} bölme", "ekranın üst tarafı");
-        AddedInfo.Message += " İpucu: masaüstüne çift tıklayıp simgeleri gizlersen yalnızca düzenli bölmeler kalır.";
+        // Bölümlere ayırmanın amacı temiz masaüstü: öğeler artık masaüstünde ikinci kez görünmesin.
+        AppHost.SetFencesManageDesktop(true);
+        AddedInfo.Severity = InfoBarSeverity.Success;
+        AddedInfo.Title = count == 0 ? "Masaüstü artık bölmelerde" : $"{count} bölme eklendi, masaüstü artık bölmelerde";
+        AddedInfo.Message = "Windows'un masaüstü simgeleri gizlendi; klasörler, kısayollar ve dosyalar yalnızca bölmelerde görünür. " +
+                            "Geri almak için \"Masaüstü simgelerini yalnızca bölmelerde göster\" anahtarını kapat.";
+        AddedInfo.IsOpen = true;
+        Refresh();
+    }
+
+    private void ManageToggle_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.SetFencesManageDesktop(ManageToggle.IsChecked == true);
+        Refresh();
     }
 
     private void RevealAll_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RevealAll();
+
+    private void Arrange_Click(object sender, RoutedEventArgs e)
+    {
+        var count = AppHost.Widgets.ArrangeAll();
+        AddedInfo.Severity = InfoBarSeverity.Success;
+        AddedInfo.Title = $"{count} widget düzenli yerleştirildi";
+        AddedInfo.Message = $"Beğenmezsen aşağıdaki Kayıtlı düzenler'den \"{Widgets.WidgetManager.ArrangeBackupName}\" düzenini uygula.";
+        AddedInfo.IsOpen = true;
+        Refresh();
+    }
 
     private void Reveal_Click(object sender, RoutedEventArgs e)
     {

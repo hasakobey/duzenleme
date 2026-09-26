@@ -14,7 +14,7 @@
     <AssemblyTitle>Düzenleme</AssemblyTitle>
     <!-- Sürüm numarası sade kalsın (1.1.0+abcdef... değil). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <Company>hasakobey</Company>
     <Authors>hasakobey</Authors>
     <Copyright>© 2026 hasakobey</Copyright>

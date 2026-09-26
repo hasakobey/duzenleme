@@ -53,11 +53,36 @@ public sealed class WidgetManager
     public void RestoreAll()
     {
         foreach (var config in AppHost.Settings.Widgets.ToList()) TryOpen(config);
+        ApplyZOrder();
+    }
+
+    /// <summary>
+    /// Widget'ı diğer widget'ların önüne alır; yine masaüstü katmanında (açık pencerelerin arkasında) kalır.
+    /// Tıklanan, taşınan ya da yeni eklenen widget başka bir widget'ın altında kaybolmasın.
+    /// </summary>
+    public void BringToFront(WidgetWindow window)
+    {
+        var top = _open.Values.Where(w => w != window).Select(w => w.Config.Z).DefaultIfEmpty(0).Max();
+        if (window.Config.Z <= top)
+        {
+            window.Config.Z = Math.Max(top + 1, DateTime.UtcNow.Ticks);
+            AppHost.SaveSettings();
+        }
+        ApplyZOrder();
+    }
+
+    /// <summary>
+    /// Widget'ları kayıtlı sıraya dizer. Hepsi en alta itildiği için sırayla (en öndeki önce) en alta gönderilir:
+    /// en son gönderilen en altta kalır.
+    /// </summary>
+    private void ApplyZOrder()
+    {
+        foreach (var window in _open.Values.OrderByDescending(w => w.Config.Z).ToList()) window.SendToBottom();
     }
 
     public WidgetConfig Add(WidgetKind kind, string? folderName = null)
     {
-        var config = new WidgetConfig { Kind = kind, FolderName = folderName };
+        var config = new WidgetConfig { Kind = kind, FolderName = folderName, Z = DateTime.UtcNow.Ticks };
         if (kind == WidgetKind.Launcher)
             config.Tabs = [new LauncherTab { Name = "Uygulamalar" }, new LauncherTab { Name = "Dosyalar" }];
         if (kind == WidgetKind.Note)
@@ -67,7 +92,7 @@ public sealed class WidgetManager
 
     /// <summary>Masaüstündeki öğeleri türüne göre gösteren bölme (Klasörler, Kısayollar, Dosyalar, Tümü).</summary>
     public WidgetConfig AddFence(DesktopFilter filter) =>
-        AddConfig(new WidgetConfig { Kind = WidgetKind.Fence, Filter = filter, Sort = FenceSort.Name });
+        AddConfig(new WidgetConfig { Kind = WidgetKind.Fence, Filter = filter, Sort = FenceSort.Name, Z = DateTime.UtcNow.Ticks });
 
     /// <summary>
     /// "Masaüstümü bölümlere ayır": Klasörler, Kısayollar, Dosyalar ve masaüstünde var olan kural klasörleri
@@ -102,6 +127,7 @@ public sealed class WidgetManager
         // Yeni kopya boş bir yere yerleşsin (kaydedilmiş konumu yok).
         copy.Left = copy.Top = double.NaN;
         copy.PixelLeft = copy.PixelTop = null;
+        copy.Z = DateTime.UtcNow.Ticks;
         AddConfig(copy);
     }
 
@@ -137,7 +163,25 @@ public sealed class WidgetManager
         }
         AppHost.Settings.Widgets.RemoveAll(w => w.Id == id);
         AppHost.SaveSettings();
+        AppHost.EnsureNothingInvisible();
         Changed?.Invoke();
+    }
+
+    /// <summary>Masaüstündeki her öğe türü (klasör, kısayol, dosya) en az bir bölmede görünüyor mu?</summary>
+    public bool CoversDesktop()
+    {
+        var filters = AppHost.Settings.Widgets.Where(w => w.Kind == WidgetKind.Fence).Select(w => w.Filter).ToHashSet();
+        return filters.Contains(DesktopFilter.All) ||
+               (filters.Contains(DesktopFilter.Folders) && filters.Contains(DesktopFilter.Shortcuts) && filters.Contains(DesktopFilter.Files));
+    }
+
+    /// <summary>Eksik Klasörler/Kısayollar/Dosyalar bölmelerini ekler (masaüstünü bölmeler yönetecekse).</summary>
+    public void EnsureDesktopCoverage()
+    {
+        if (CoversDesktop()) return;
+        var filters = AppHost.Settings.Widgets.Where(w => w.Kind == WidgetKind.Fence).Select(w => w.Filter).ToHashSet();
+        foreach (var filter in new[] { DesktopFilter.Folders, DesktopFilter.Shortcuts, DesktopFilter.Files })
+            if (!filters.Contains(filter)) AddFence(filter);
     }
 
     /// <summary>Kayıtlı bir düzeni uygular: mevcut widget'lar kapanır, düzendekiler açılır.</summary>
@@ -153,6 +197,7 @@ public sealed class WidgetManager
         AppHost.SaveSettings();
         if (Hidden) SetHidden(false);
         RestoreAll();
+        AppHost.EnsureNothingInvisible();
         Changed?.Invoke();
     }
 
@@ -182,6 +227,54 @@ public sealed class WidgetManager
         // Ekran dışı kontrolü fiziksel pikselle yapılır: DIP konumları ölçeği farklı monitörlerde kayar.
         if (!window.IsOnScreen()) window.MoveToFreeSpot();
         window.Reveal(RevealTime);
+    }
+
+    public const string ArrangeBackupName = "Otomatik yerleştirmeden önce";
+
+    /// <summary>
+    /// Tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü simgeleri
+    /// genelde soldadır), geniş olanlar önce. Önceki düzen "Otomatik yerleştirmeden önce" adıyla kaydedilir.
+    /// </summary>
+    public int ArrangeAll()
+    {
+        if (Hidden) SetHidden(false);
+        var placed = _open.Values.Select(w => (Window: w, Bounds: w.PixelBounds)).Where(t => t.Bounds is not null).ToList();
+        if (placed.Count == 0) return 0;
+
+        AppHost.Settings.Layouts.RemoveAll(l => l.Name == ArrangeBackupName);
+        AppHost.Settings.Layouts.Add(LayoutSnapshot.Capture(ArrangeBackupName, AppHost.Settings.Widgets));
+
+        var byMonitor = placed.GroupBy(t =>
+        {
+            var r = t.Bounds!.Value;
+            return NativeMethods.WorkAreaAt(new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 });
+        });
+        foreach (var group in byMonitor)
+        {
+            var area = group.Key;
+            var right = area.Right;
+            var columnWidth = 0;
+            var y = area.Top;
+            var first = true;
+            foreach (var (window, bounds) in group.OrderByDescending(t => t.Bounds!.Value.Width).ThenBy(t => t.Bounds!.Value.Top))
+            {
+                var r = bounds!.Value;
+                if (first || (y + r.Height > area.Bottom && y > area.Top))
+                {
+                    // Yeni sütun (ilk ya da önceki doldu): bir öncekinin soluna.
+                    if (!first) right -= columnWidth;
+                    columnWidth = r.Width;
+                    y = area.Top;
+                    first = false;
+                }
+                var x = Math.Max(area.Left, right - r.Width); // sütunda sağa yaslı
+                window.MoveTo(x, y);
+                y += r.Height;
+            }
+        }
+        AppHost.SaveSettings();
+        Changed?.Invoke();
+        return placed.Count;
     }
 
     public void Restyle(string id)
@@ -242,10 +335,23 @@ public sealed class WidgetManager
             if (startX - d >= area.Left) columns.Add(startX - d);
             if (startX + d + w <= area.Right) columns.Add(startX + d);
         }
+        // Boş yer yoksa en az çakışan yer seçilir (bir widget'ın tam üstüne binmesin).
+        var best = preferred;
+        var bestOverlap = long.MaxValue;
         foreach (var x in columns)
             for (var y = area.Top + gap; y + h <= area.Bottom; y += stepY)
+            {
                 if (Free(x, y)) return new NativeMethods.POINT { X = x, Y = y };
-        return preferred;
+                var overlap = taken.Sum(t =>
+                    (long)Math.Max(0, Math.Min(x + w, t.Right) - Math.Max(x, t.Left)) *
+                    Math.Max(0, Math.Min(y + h, t.Bottom) - Math.Max(y, t.Top)));
+                if (overlap < bestOverlap)
+                {
+                    bestOverlap = overlap;
+                    best = new NativeMethods.POINT { X = x, Y = y };
+                }
+            }
+        return best;
     }
 
     private WidgetWindow? TryOpen(WidgetConfig config)

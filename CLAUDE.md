@@ -23,6 +23,9 @@ Windows masaüstü düzenleyici (Fences benzeri): masaüstüne düşen dosyalar�
 - Yeni widget yeri (`WidgetManager.FreeSpot`) imlecin monitöründe, fiziksel pikselle hesaplanır.
 - Bölme/kutu öğe menüsü `Menus.AttachItemMenu` ile bağlanır: boş alana sağ tık widget menüsüne düşmeli (ListBox'a `ContextMenu` verme). Simgeler `ShellIcons.Request` ile arka plandaki STA iş parçacığında yüklenir.
 - Test monitörü (solda) %125 ölçekli: test ayarlarındaki DIP konumları fiziksel/1.25 olmalı.
+- `--desktop` ile çalışan test örneği gerçek masaüstü simgelerini gizlemez/açmaz (`AppHost.IsTestDesktop`); kullanıcı o an fareyi kullanıyorsa gerçek fareyle test yapma, mesaj göndererek (ör. WM_MOUSEACTIVATE) doğrula.
+- "Masaüstünü bölmeler yönetsin" (`FencesReplaceIcons`): Windows simgeleri gizlenir; Klasörler+Kısayollar+Dosyalar (ya da Tümü) bölmesi her zaman bulunmalı (`EnsureDesktopCoverage`), yoksa mod kapanır (`EnsureNothingInvisible`).
+- Widget'lar arası sıra `WidgetConfig.Z`; hepsi en alta itildiği için `ApplyZOrder` en öndekinden başlayarak sırayla en alta gönderir.
 
 ## Kurallar
 - Dosya yalnızca hedef klasör masaüstünde **zaten varsa** taşınır ("yoksa oluştur" ayarı varsayılan kapalı).
