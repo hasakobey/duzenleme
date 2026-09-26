@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet *)",
+      "Bash(git *)",
+      "PowerShell(dotnet *)",
+      "PowerShell(git *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:CLAUDE_PROJECT_DIR\\.claude\\hooks\\build-check.ps1\"",
+            "timeout": 180,
+            "statusMessage": "dotnet build kontrol ediliyor..."
+          }
+        ]
+      }
+    ]
+  }
+}
