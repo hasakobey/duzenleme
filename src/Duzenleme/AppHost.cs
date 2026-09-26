@@ -144,7 +144,10 @@ public static class AppHost
         // Test klasörüyle (--desktop) çalışan örnek kullanıcının gerçek masaüstü simgelerine dokunmaz.
         if (IsTestDesktop) DebugLog.Write($"simgeler {(IconsShouldBeHidden ? "gizlenecekti" : "gösterilecekti")} (test masaüstü)");
         else DesktopIcons.SetVisible(!IconsShouldBeHidden);
+        // Hemen diske yazılır: uygulama zorla kapatılırsa kurulum/kaldırma ve sonraki açılış simgeleri geri açabilsin.
+        if (Settings.IconsHiddenByApp == IconsShouldBeHidden) return;
         Settings.IconsHiddenByApp = IconsShouldBeHidden;
+        SaveSettings();
     }
 
     /// <summary>
