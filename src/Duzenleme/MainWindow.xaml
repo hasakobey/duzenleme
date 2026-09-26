@@ -29,7 +29,7 @@
                 <ui:NavigationViewItem Content="Genel bakış" Icon="{ui:SymbolIcon Home24}" TargetPageType="{x:Type pages:HomePage}" />
                 <ui:NavigationViewItem Content="Masaüstü" Icon="{ui:SymbolIcon Desktop24}" TargetPageType="{x:Type pages:DesktopPage}" />
                 <ui:NavigationViewItem Content="Kurallar" Icon="{ui:SymbolIcon FolderArrowRight24}" TargetPageType="{x:Type pages:RulesPage}" />
-                <ui:NavigationViewItem Content="Araçlar" Icon="{ui:SymbolIcon Apps24}" TargetPageType="{x:Type pages:WidgetsPage}" />
+                <ui:NavigationViewItem Content="Widget'lar" Icon="{ui:SymbolIcon Apps24}" TargetPageType="{x:Type pages:WidgetsPage}" />
                 <ui:NavigationViewItem Content="Geçmiş" Icon="{ui:SymbolIcon History24}" TargetPageType="{x:Type pages:HistoryPage}" />
             </ui:NavigationView.MenuItems>
             <ui:NavigationView.FooterMenuItems>

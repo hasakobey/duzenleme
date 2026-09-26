@@ -54,7 +54,7 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, string Key)
     }
 }
 
-public enum HotkeyAction { ToggleDesktop, OrganizeNow, OpenApp, NewNote, PeekWidgets }
+public enum HotkeyAction { ToggleDesktop, OrganizeNow, OpenApp, NewNote, PeekWidgets, QuickAdd }
 
 public sealed class HotkeySettings
 {
@@ -66,12 +66,16 @@ public sealed class HotkeySettings
     /// <summary>Widget'ları pencerelerin önüne getirir (Fences'taki "Peek").</summary>
     public string PeekWidgets { get; set; } = "Ctrl+Alt+W";
 
+    /// <summary>"Widget ekle" penceresini açar.</summary>
+    public string QuickAdd { get; set; } = "Ctrl+Alt+B";
+
     public string Get(HotkeyAction action) => action switch
     {
         HotkeyAction.ToggleDesktop => ToggleDesktop,
         HotkeyAction.OrganizeNow => OrganizeNow,
         HotkeyAction.OpenApp => OpenApp,
         HotkeyAction.PeekWidgets => PeekWidgets,
+        HotkeyAction.QuickAdd => QuickAdd,
         _ => NewNote,
     };
 
@@ -83,6 +87,7 @@ public sealed class HotkeySettings
             case HotkeyAction.OrganizeNow: OrganizeNow = value; break;
             case HotkeyAction.OpenApp: OpenApp = value; break;
             case HotkeyAction.PeekWidgets: PeekWidgets = value; break;
+            case HotkeyAction.QuickAdd: QuickAdd = value; break;
             default: NewNote = value; break;
         }
     }

@@ -54,7 +54,9 @@
                     Message="Örneğin masaüstünde &quot;PDF&quot; adında bir klasör oluşturduğunda, PDF dosyaları oraya kendiliğinden taşınır. Klasör adlarını Kurallar'dan değiştirebilirsin." />
 
         <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
-            <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Sparkle24}" Content="Masaüstünü şimdi düzenle" Click="OrganizeNow_Click" />
+            <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Widget ekle" Click="QuickAdd_Click"
+                       ToolTip="Saat, not ya da bölme (Klasörlerim, Kısayollarım, PDF…) ekle" />
+            <ui:Button Margin="10,0,0,0" Icon="{ui:SymbolIcon Sparkle24}" Content="Masaüstünü şimdi düzenle" Click="OrganizeNow_Click" />
             <ui:Button Margin="10,0,0,0" Icon="{ui:SymbolIcon ArrowUndo24}" Content="Son taşımayı geri al" Click="UndoLast_Click" />
             <ui:Button Margin="10,0,0,0" Icon="{ui:SymbolIcon Open24}" Content="Masaüstü klasörünü aç" Click="OpenDesktop_Click" />
         </StackPanel>

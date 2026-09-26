@@ -25,6 +25,7 @@ Windows masaüstü düzenleyici (Fences benzeri): masaüstüne düşen dosyalar�
 - Test monitörü (solda) %125 ölçekli: test ayarlarındaki DIP konumları fiziksel/1.25 olmalı.
 - `--desktop` ile çalışan test örneği gerçek masaüstü simgelerini gizlemez/açmaz (`AppHost.IsTestDesktop`); kullanıcı o an fareyi kullanıyorsa gerçek fareyle test yapma, mesaj göndererek (ör. WM_MOUSEACTIVATE) doğrula.
 - "Masaüstünü bölmeler yönetsin" (`FencesReplaceIcons`): Windows simgeleri gizlenir; Klasörler+Kısayollar+Dosyalar (ya da Tümü) bölmesi her zaman bulunmalı (`EnsureDesktopCoverage`), yoksa mod kapanır (`EnsureNothingInvisible`).
+- Yeni widget'lar imlecin monitörüne yerleşir: test örneğinde imleç kullanıcının ekranındaysa test widget'ı onun masaüstüne düşer. Testte `DUZENLEME_QUICKADD_AT` ile "Widget ekle" penceresini test monitörüne aç, düğmelere UI Automation (InvokePattern) ile bas; iş bitince test örneğini `--exit` ile kapat.
 - Widget'lar arası sıra `WidgetConfig.Z`; hepsi en alta itildiği için `ApplyZOrder` en öndekinden başlayarak sırayla en alta gönderir.
 
 ## Kurallar

@@ -28,6 +28,7 @@ public partial class SettingsPage : Page
         (HotkeyAction.OpenApp, "Düzenleme'yi aç", SymbolRegular.WindowNew24),
         (HotkeyAction.NewNote, "Yeni not", SymbolRegular.NoteAdd24),
         (HotkeyAction.PeekWidgets, "Widget'ları öne getir (5 sn)", SymbolRegular.Eye24),
+        (HotkeyAction.QuickAdd, "Widget ekle penceresi", SymbolRegular.Add24),
     ];
 
     private bool _loading;

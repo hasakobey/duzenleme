@@ -86,6 +86,8 @@ public partial class HomePage : Page
 
     private void OrganizeNow_Click(object sender, RoutedEventArgs e) => AppHost.OrganizeNowInBackground();
 
+    private void QuickAdd_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowQuickAdd();
+
     private void UndoLast_Click(object sender, RoutedEventArgs e) => HistoryPage.UndoWithFeedback(AppHost.Journal.LastActive());
 
     private void OpenDesktop_Click(object sender, RoutedEventArgs e) =>

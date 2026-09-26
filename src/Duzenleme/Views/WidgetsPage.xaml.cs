@@ -154,20 +154,15 @@ public partial class WidgetsPage : Page
             });
         }
 
-        var existing = AppHost.Organizer.ExistingFolders().ToList();
-        var names = new List<string>();
-        foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
-            if (!names.Any(n => FolderName.Equal(n, rule.TargetFolder)))
-                names.Add(existing.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder)) ?? rule.TargetFolder);
-        foreach (var folder in existing.OrderBy(f => f, StringComparer.Create(UiText.Tr, true)))
-            if (!names.Any(n => FolderName.Equal(n, folder))) names.Add(folder);
-
-        foreach (var name in names)
+        foreach (var (name, exists) in AppHost.Widgets.FolderFenceChoices())
         {
-            var exists = existing.Any(f => FolderName.Equal(f, name));
             AddChoice(name, name.Equals("PDF", StringComparison.OrdinalIgnoreCase) ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
                 exists ? $"Masaüstündeki \"{name}\" klasörünün içi" : $"Masaüstünde \"{name}\" klasörü yok; eklenince oluşturulur ve uygun dosyalar oraya taşınır",
-                () => AddFolderFence(name, exists));
+                () =>
+                {
+                    if (AppHost.Widgets.AddFolderFence(name) is null) return;
+                    Added($"\"{name}\" bölmesi", "ekranın üst ortası" + (exists ? "" : $". Masaüstünde \"{name}\" klasörü oluşturuldu"));
+                });
         }
     }
 
@@ -183,22 +178,6 @@ public partial class WidgetsPage : Page
         };
         button.Click += (_, _) => add();
         FenceChoices.Children.Add(button);
-    }
-
-    private void AddFolderFence(string name, bool exists)
-    {
-        if (!exists)
-        {
-            try { System.IO.Directory.CreateDirectory(System.IO.Path.Combine(AppHost.DesktopDirectory, name)); }
-            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
-            {
-                System.Windows.MessageBox.Show(ex.Message, "Düzenleme");
-                return;
-            }
-            AppHost.OrganizeNowInBackground();
-        }
-        AppHost.Widgets.Add(WidgetKind.Fence, name);
-        Added($"\"{name}\" bölmesi", "ekranın üst ortası" + (exists ? "" : $". Masaüstünde \"{name}\" klasörü oluşturuldu"));
     }
 
     private void AutoFences_Click(object sender, RoutedEventArgs e)

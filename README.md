@@ -21,7 +21,9 @@ Stardock Fences, iTop Easy Desktop, SlideSlide, ViPad ve LaunchBar Commander'ın
 | **Bölme** | Masaüstünü bölümlere ayırır: bir klasörün içi (ör. PDF) ya da masaüstündeki **Klasörler / Kısayollar / Dosyalar / Tümü**. Başlıktaki 🔍 ile yazdıkça süzer ve alt klasörlerde de arar (Enter açar). Dosyaları bölmeden bölmeye sürükleyerek taşı. Resim/video/PDF önizlemesi, fare çekilince katlanma (Fences) |
 | **Kısayol kutusu** | Sekmeli uygulama/dosya rafı; sürükle-bırakla ya da "Uygulama ekle…" ile ekle, tek tıkla aç, yönetici olarak çalıştır (ViPad + LaunchBar Commander) |
 
-**Araçlar → "Masaüstümü bölümlere ayır"** tek tıkla Klasörler, Kısayollar, Dosyalar ve masaüstündeki PDF/Resimler gibi klasörler için birer bölme kurar ve **masaüstünü bölmelere devreder**: Windows'un kendi masaüstü simgeleri gizlenir, her şey (Bu Bilgisayar, Geri Dönüşüm Kutusu dahil) yalnızca bölmelerde görünür — Fences gibi. Dosyalara dokunulmaz; "Masaüstü simgelerini yalnızca bölmelerde göster" anahtarı (Araçlar, tepsi menüsü ya da bölmeye sağ tık) kapatılınca ya da uygulamadan çıkınca simgeler geri gelir. Bu modda yeni klasör, yeniden adlandırma ve Geri Dönüşüm Kutusu'na taşıma bölme menüsünden yapılır. Masaüstüne çift tık tüm bölmeleri gizler/gösterir.
+**Widget eklemek:** tepsi simgesine sağ tık → **Widget ekle…**, herhangi bir widget'a sağ tık → **Yeni widget ekle…**, `Ctrl+Alt+B` ya da Başlat menüsündeki **Düzenleme - Widget ekle**. Açılan pencerede Klasörlerim, Kısayollarım, Dosyalarım, PDF, Saat, Not… düğmelerinden birine bas; widget o ekrana eklenir.
+
+**Widget'lar → "Masaüstümü bölümlere ayır"** tek tıkla Klasörler, Kısayollar, Dosyalar ve masaüstündeki PDF/Resimler gibi klasörler için birer bölme kurar ve **masaüstünü bölmelere devreder**: Windows'un kendi masaüstü simgeleri gizlenir, her şey (Bu Bilgisayar, Geri Dönüşüm Kutusu dahil) yalnızca bölmelerde görünür — Fences gibi. Dosyalara dokunulmaz; "Masaüstü simgelerini yalnızca bölmelerde göster" anahtarı (Araçlar, tepsi menüsü ya da bölmeye sağ tık) kapatılınca ya da uygulamadan çıkınca simgeler geri gelir. Bu modda yeni klasör, yeniden adlandırma ve Geri Dönüşüm Kutusu'na taşıma bölme menüsünden yapılır. Masaüstüne çift tık tüm bölmeleri gizler/gösterir.
 
 Tıkladığın ya da yeni eklediğin widget diğerlerinin önüne geçer (sıra saklanır); "Düzenli yerleştir" hepsini çakışmadan sağdan dizer, önceki düzen "Kayıtlı düzenler"e yedeklenir.
 
@@ -52,6 +54,7 @@ Widget'lar monitör takılıp çıkarılınca ya da uykudan uyanınca kayıtlı 
 | `Ctrl+Alt+D` | Düzenleme'yi aç |
 | `Ctrl+Alt+N` | Yeni not |
 | `Ctrl+Alt+W` | Widget'ları pencerelerin önüne getir (5 sn) |
+| `Ctrl+Alt+B` | "Widget ekle" penceresi |
 
 ## Kurulum
 
@@ -79,7 +82,7 @@ powershell -File tools/publish.ps1            # dist/: kurulum sihirbazı + 3 ta
 powershell -File tools/publish.ps1 -Arch x64  # hızlı deneme (yalnızca x64)
 ```
 
-Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
+Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--add` ("Widget ekle" penceresi; uygulama çalışıyorsa ona iletilir), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
 
 Geliştirme yardımcıları: `--export-icon-sheet out.png` (simge kütüphanesi önizlemesi), `--render-svg in.svg out.png` (SVG'yi yapay zekâ çıktısıyla aynı temizleme/çizim yolundan geçirir, yanına `.ico` yazar).
 

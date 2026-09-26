@@ -17,6 +17,10 @@ public partial class App : Application
     private Mutex? _instanceMutex;
     private EventWaitHandle? _showSignal;
     private EventWaitHandle? _exitSignal;
+    private EventWaitHandle? _addSignal;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(int processId);
     private MainWindow? _mainWindow;
     private NewFolderWatcher? _newFolders;
     private bool _exiting;
@@ -65,13 +69,18 @@ public partial class App : Application
 
         _instanceMutex = new Mutex(true, id, out var isFirst);
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".show");
+        _addSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".add");
         if (!isFirst)
         {
-            _showSignal.Set();
+            // Çalışan örnek penceresini öne getirebilsin (yoksa Windows yalnızca görev çubuğunda yanıp söndürür).
+            const int ASFW_ANY = -1;
+            AllowSetForegroundWindow(ASFW_ANY);
+            (args.Add ? _addSignal : _showSignal).Set();
             Shutdown();
             return;
         }
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, -1, false);
+        ThreadPool.RegisterWaitForSingleObject(_addSignal, (_, _) => Dispatcher.BeginInvoke(ShowQuickAdd), null, -1, false);
         _exitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".exit");
         ThreadPool.RegisterWaitForSingleObject(_exitSignal, (_, _) => Dispatcher.BeginInvoke(ExitApp), null, -1, true);
 
@@ -102,7 +111,7 @@ public partial class App : Application
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
 
-        AppHost.Tray = new TrayIcon(ShowMainWindow, ExitApp);
+        AppHost.Tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
         AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.ToggleDesktop);
@@ -138,7 +147,8 @@ public partial class App : Application
         }
 
         _started = true;
-        if (!args.Minimized) ShowMainWindow();
+        if (args.Add) Dispatcher.BeginInvoke(ShowQuickAdd, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        else if (!args.Minimized) ShowMainWindow();
     }
 
     private static string StartupErrorMessage(Exception ex) => ex switch
@@ -189,6 +199,13 @@ public partial class App : Application
 
     private bool _started;
 
+    /// <summary>Tek tıkla widget/bölme ekleme penceresi.</summary>
+    public void ShowQuickAdd()
+    {
+        if (!_started || _exiting) return;
+        Views.QuickAddWindow.ShowNearCursor();
+    }
+
     public void ShowMainWindow()
     {
         if (!_started || _exiting) return;
@@ -209,6 +226,7 @@ public partial class App : Application
             case HotkeyAction.OpenApp: ShowMainWindow(); break;
             case HotkeyAction.NewNote: AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id); break;
             case HotkeyAction.PeekWidgets: AppHost.Widgets.RevealAll(); break;
+            case HotkeyAction.QuickAdd: ShowQuickAdd(); break;
         }
     }
 
@@ -255,13 +273,13 @@ public partial class App : Application
         e.Handled = true;
     }
 
-    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit);
+    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add);
 
     /// <summary>--desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır.</summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        bool minimized = false, exit = false;
+        bool minimized = false, exit = false, add = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -270,8 +288,9 @@ public partial class App : Application
                 case "--data" when i + 1 < args.Length: data = args[++i]; break;
                 case "--minimized": minimized = true; break;
                 case "--exit": exit = true; break;
+                case "--add": add = true; break;
             }
         }
-        return new Args(desktop, data, minimized, exit);
+        return new Args(desktop, data, minimized, exit, add);
     }
 }

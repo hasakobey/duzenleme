@@ -90,6 +90,41 @@ public sealed class WidgetManager
         return AddConfig(config);
     }
 
+    /// <summary>
+    /// Klasör bölmesi seçenekleri: kural klasörleri (PDF, Resimler…; masaüstünde yoksa eklenirken açılır) ve
+    /// kullanıcının masaüstündeki diğer klasörleri.
+    /// </summary>
+    public List<(string Name, bool Exists)> FolderFenceChoices()
+    {
+        var existing = AppHost.Organizer.ExistingFolders().ToList();
+        var names = new List<string>();
+        foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
+            if (!names.Any(n => FolderName.Equal(n, rule.TargetFolder)))
+                names.Add(existing.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder)) ?? rule.TargetFolder);
+        foreach (var folder in existing.OrderBy(f => f, StringComparer.Create(Views.UiText.Tr, true)))
+            if (!names.Any(n => FolderName.Equal(n, folder))) names.Add(folder);
+        return names.Select(n => (n, existing.Any(f => FolderName.Equal(f, n)))).ToList();
+    }
+
+    /// <summary>
+    /// Bir klasörün içini gösteren bölme ekler; klasör masaüstünde yoksa açar (uygun dosyalar oraya taşınır).
+    /// Klasör açılamazsa hata gösterir ve null döner.
+    /// </summary>
+    public WidgetConfig? AddFolderFence(string name)
+    {
+        if (!AppHost.Organizer.ExistingFolders().Any(f => FolderName.Equal(f, name)))
+        {
+            try { System.IO.Directory.CreateDirectory(System.IO.Path.Combine(AppHost.DesktopDirectory, name)); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                MessageBox.Show(ex.Message, "Düzenleme");
+                return null;
+            }
+            AppHost.OrganizeNowInBackground();
+        }
+        return Add(WidgetKind.Fence, name);
+    }
+
     /// <summary>Masaüstündeki öğeleri türüne göre gösteren bölme (Klasörler, Kısayollar, Dosyalar, Tümü).</summary>
     public WidgetConfig AddFence(DesktopFilter filter) =>
         AddConfig(new WidgetConfig { Kind = WidgetKind.Fence, Filter = filter, Sort = FenceSort.Name, Z = DateTime.UtcNow.Ticks });
@@ -307,9 +342,17 @@ public sealed class WidgetManager
     /// türüne göre tercih edilen köşeden başlar, mevcut widget'lara çarpmadan aşağı, sonra sola kayar.
     /// Hiç yer yoksa tercih edilen noktayı döner. <paramref name="dipSize"/> widget'ın DIP boyutudur.
     /// </summary>
+    /// <summary>Bir sonraki yeni widget'ın yerleşeceği ekrandaki nokta (ör. "Widget ekle" penceresinin yeri); bir kez kullanılır.</summary>
+    internal NativeMethods.POINT? PlacementHint { get; set; }
+
     internal NativeMethods.POINT FreeSpot(WidgetKind kind, Size dipSize, WidgetWindow? self = null)
     {
         NativeMethods.GetCursorPos(out var cursor);
+        if (PlacementHint is { } hint)
+        {
+            cursor = hint;
+            PlacementHint = null;
+        }
         var area = NativeMethods.WorkAreaAt(cursor);
         var scale = NativeMethods.ScaleAt(cursor);
         var gap = (int)Math.Round(16 * scale);

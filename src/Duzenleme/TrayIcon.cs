@@ -17,7 +17,7 @@ public sealed class TrayIcon : IDisposable
     private readonly List<MoveEntry> _pendingNotices = [];
     private readonly DispatcherTimer _noticeTimer;
 
-    public TrayIcon(Action openMainWindow, Action exit)
+    public TrayIcon(Action openMainWindow, Action quickAdd, Action exit)
     {
         var iconStream = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico"))!.Stream;
         _icon = new Forms.NotifyIcon
@@ -29,7 +29,8 @@ public sealed class TrayIcon : IDisposable
 
         _pauseItem = new Forms.ToolStripMenuItem("İzlemeyi duraklat", null, (_, _) => AppHost.SetPaused(!AppHost.Settings.Paused));
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add(new Forms.ToolStripMenuItem("Düzenleme'yi aç", null, (_, _) => openMainWindow()) { Font = new System.Drawing.Font(menu.Font, System.Drawing.FontStyle.Bold) });
+        menu.Items.Add(new Forms.ToolStripMenuItem("Widget ekle…", null, (_, _) => quickAdd()) { Font = new System.Drawing.Font(menu.Font, System.Drawing.FontStyle.Bold) });
+        menu.Items.Add(new Forms.ToolStripMenuItem("Düzenleme'yi aç", null, (_, _) => openMainWindow()));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(_pauseItem);
         menu.Items.Add("Masaüstünü şimdi düzenle", null, (_, _) => AppHost.OrganizeNowInBackground());

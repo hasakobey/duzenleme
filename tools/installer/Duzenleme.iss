@@ -105,6 +105,8 @@ turkish.OtherCopyRunning=Düzenleme'nin başka bir kopyası (eski sürüm ya da 
 english.OtherCopyRunning=Another copy of Düzenleme (an older or portable version) is running.%n%nRight-click its tray icon next to the clock, choose "Çıkış" (Exit), then press Retry.
 turkish.OtherCopyAbort=Düzenleme hâlâ çalıştığı için kurulum iptal edildi. Kapatıp kurulumu yeniden çalıştırabilirsin.
 english.OtherCopyAbort=Setup was cancelled because Düzenleme is still running. Close it and run setup again.
+turkish.QuickAdd=Widget ekle
+english.QuickAdd=Add a widget
 turkish.NoPayload=Bu kurulum programı bu bilgisayarın işlemci mimarisi için dosya içermiyor.
 english.NoPayload=This setup does not contain files for this computer's processor architecture.
 
@@ -127,6 +129,8 @@ Source: "{#StageDir}\x86\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdi
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Tagline}"
+; Başlat menüsünden tek tıkla "Widget ekle" penceresi (uygulama çalışıyorsa ona iletilir).
+Name: "{autoprograms}\{#AppName} - {cm:QuickAdd}"; Filename: "{app}\{#AppExe}"; Parameters: "--add"; Comment: "{cm:QuickAdd}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Tagline}"; Tasks: desktopicon
 
 [Registry]

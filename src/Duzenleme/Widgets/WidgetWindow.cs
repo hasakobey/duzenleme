@@ -225,6 +225,8 @@ public sealed class WidgetWindow : Window
 
     private void FillMenu(ContextMenu menu)
     {
+        menu.Items.Add(Menus.Item("Yeni widget ekle…", () => (Application.Current as App)?.ShowQuickAdd()));
+        menu.Items.Add(new Separator());
         View.AddMenuItems(menu);
         if (menu.Items.Count > 0) menu.Items.Add(new Separator());
 
