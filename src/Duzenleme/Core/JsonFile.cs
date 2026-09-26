@@ -11,7 +11,8 @@ public static class JsonFile
     {
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() },
-        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
+        // Elle düzenlenmiş dosyalarda "12" gibi metin sayılar da kabul edilsin.
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
     };
 
     public static T Load<T>(string path, Func<T> fallback)
@@ -21,7 +22,14 @@ public static class JsonFile
             if (!File.Exists(path)) return fallback();
             return JsonSerializer.Deserialize<T>(File.ReadAllText(path), Options) ?? fallback();
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (JsonException)
+        {
+            // Okunamayan dosya varsayılanla ezilmeden önce yedeklensin; kullanıcının ayarları kaybolmasın.
+            try { File.Copy(path, $"{path}.bozuk-{DateTime.Now:yyyyMMdd-HHmmss}", overwrite: true); }
+            catch (IOException) { }
+            return fallback();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return fallback();
         }

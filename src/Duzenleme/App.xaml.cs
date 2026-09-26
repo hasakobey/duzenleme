@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Duzenleme.Core;
+using Duzenleme.Desktop;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -14,11 +15,31 @@ public partial class App : Application
     private Mutex? _instanceMutex;
     private EventWaitHandle? _showSignal;
     private MainWindow? _mainWindow;
+    private NewFolderWatcher? _newFolders;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         var args = ParseArgs(e.Args);
+
+        // Geliştirme: simge kütüphanesinin önizlemesini üret ve çık.
+        if (e.Args.Length == 2 && e.Args[0] == "--export-icon-sheet")
+        {
+            Icons.IconSheet.Export(e.Args[1]);
+            Shutdown();
+            return;
+        }
+        // Geliştirme: SVG'yi (yapay zekâ çıktısıyla aynı yoldan) temizleyip çiz, PNG ve ICO yaz.
+        if (e.Args.Length == 3 && e.Args[0] == "--render-svg")
+        {
+            var drawing = Icons.AiIconGenerator.ToDrawing(Icons.AiIconGenerator.Sanitize(System.IO.File.ReadAllText(e.Args[1])));
+            var png = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            png.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(Icons.FolderIconRenderer.Render(drawing, 256)));
+            using (var fs = System.IO.File.Create(e.Args[2])) png.Save(fs);
+            System.IO.File.WriteAllBytes(System.IO.Path.ChangeExtension(e.Args[2], ".ico"), Icons.FolderIconRenderer.ToIco(drawing));
+            Shutdown();
+            return;
+        }
 
         // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir.
         var id = "Duzenleme." + Environment.UserName + (args.Desktop is null ? "" : ".test");
@@ -33,12 +54,21 @@ public partial class App : Application
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, -1, false);
 
         DispatcherUnhandledException += OnUnhandledException;
+        SessionEnding += (_, _) => AppHost.RestoreDesktopOnExit();
 
         AppHost.Initialize(args.Desktop, args.Data);
         ApplyTheme(AppHost.Settings.Theme);
 
         AppHost.Tray = new TrayIcon(ShowMainWindow, ExitApp);
+        AppHost.Hotkeys = new HotkeyManager(OnHotkey);
+        AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
+        AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.ToggleDesktop);
+        AppHost.ApplyDoubleClickSetting();
         AppHost.Widgets.RestoreAll();
+        _newFolders = new NewFolderWatcher(AppHost.DesktopDirectory, folder => Dispatcher.BeginInvoke(() =>
+        {
+            if (AppHost.Settings.SuggestFolderIcons) AppHost.Tray?.SuggestFolderIcon(folder);
+        }));
         AppHost.Watcher.Start();
         if (!AppHost.Settings.Paused) AppHost.OrganizeNowInBackground();
 
@@ -74,8 +104,23 @@ public partial class App : Application
         _mainWindow.Activate();
     }
 
+    private void OnHotkey(HotkeyAction action)
+    {
+        switch (action)
+        {
+            case HotkeyAction.ToggleDesktop: AppHost.ToggleDesktop(); break;
+            case HotkeyAction.OrganizeNow: AppHost.OrganizeNowInBackground(); break;
+            case HotkeyAction.OpenApp: ShowMainWindow(); break;
+            case HotkeyAction.NewNote: AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id); break;
+        }
+    }
+
     public void ExitApp()
     {
+        AppHost.RestoreDesktopOnExit();
+        AppHost.DoubleClick?.Dispose();
+        _newFolders?.Dispose();
+        AppHost.Hotkeys?.Dispose();
         AppHost.Watcher.Dispose();
         AppHost.Widgets.CloseAll();
         AppHost.Tray?.Dispose();

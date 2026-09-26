@@ -8,6 +8,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="Widgets/TileStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="PageTitle" TargetType="TextBlock">

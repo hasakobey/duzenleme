@@ -38,10 +38,6 @@ public sealed class WidgetWindow : Window
         ShowActivated = false;
         Topmost = false;
         Title = "Düzenleme widget";
-        ResizeMode = view.Resizable ? ResizeMode.CanResizeWithGrip : ResizeMode.NoResize;
-        SizeToContent = view.Resizable ? SizeToContent.Manual : SizeToContent.WidthAndHeight;
-        MinWidth = view.Resizable ? 240 : 0;
-        MinHeight = view.Resizable ? 170 : 0;
 
         _card = new Border
         {
@@ -56,7 +52,7 @@ public sealed class WidgetWindow : Window
 
         _card.MouseLeftButtonDown += (_, e) =>
         {
-            if (Config.Locked || e.ButtonState != MouseButtonState.Pressed) return;
+            if (Config.Locked || e.ButtonState != MouseButtonState.Pressed || e.ClickCount > 1) return;
             try { DragMove(); } catch (InvalidOperationException) { }
         };
 
@@ -64,50 +60,110 @@ public sealed class WidgetWindow : Window
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveBounds(); };
         LocationChanged += (_, _) => QueueSave();
         SizeChanged += (_, _) => QueueSave();
+        View.CollapseToggleRequested += () => SetCollapsed(!Config.Collapsed);
 
         ApplyStyle();
-        BuildMenu();
+        ApplyLayoutMode();
+        _card.ContextMenu = Menus.Dynamic(FillMenu);
         Loaded += (_, _) => PlaceOnScreen();
     }
 
     public void ApplyStyle()
     {
-        var palette = WidgetPalette.For(Config.Style);
+        var palette = View.AdjustPalette(WidgetPalette.For(Config.Style, Config.Accent));
         _card.Background = palette.Background;
         _card.BorderBrush = palette.BorderBrush;
         TextElement.SetForeground(_card, palette.Foreground);
+        _card.LayoutTransform = Math.Abs(Config.Scale - 1) < 0.01 ? Transform.Identity : new ScaleTransform(Config.Scale, Config.Scale);
+        Opacity = Math.Clamp(Config.Opacity, 0.4, 1);
         View.ApplyPalette(palette);
     }
 
-    private void BuildMenu()
+    /// <summary>Katlanmış bölme yalnızca başlık kadar yer kaplar ve yeniden boyutlandırılamaz.</summary>
+    private void ApplyLayoutMode()
     {
-        var menu = new ContextMenu();
-        menu.Opened += (_, _) =>
+        var collapsed = View.Collapsible && Config.Collapsed;
+        View.SetBodyVisible(!collapsed);
+        if (View.Resizable && !collapsed)
         {
-            menu.Items.Clear();
-            View.AddMenuItems(menu);
-            if (menu.Items.Count > 0) menu.Items.Add(new Separator());
-
-            var style = new MenuItem { Header = "Görünüm" };
-            foreach (var (s, label) in new[] { (WidgetStyle.Glass, "Cam"), (WidgetStyle.Dark, "Koyu"), (WidgetStyle.Light, "Açık") })
+            SizeToContent = SizeToContent.Manual;
+            ResizeMode = ResizeMode.CanResizeWithGrip;
+            MinWidth = 240;
+            MinHeight = 170;
+            if (_positionReady)
             {
-                var item = new MenuItem { Header = label, IsCheckable = true, IsChecked = Config.Style == s };
-                item.Click += (_, _) => { Config.Style = s; ApplyStyle(); AppHost.SaveSettings(); };
-                style.Items.Add(item);
+                Height = double.IsNaN(Config.Height) ? 300 : Config.Height;
             }
-            menu.Items.Add(style);
+        }
+        else
+        {
+            ResizeMode = ResizeMode.NoResize;
+            MinHeight = 0;
+            if (View.Resizable)
+            {
+                // Genişlik korunur, yükseklik başlığa iner (SizeToContent.Height genişliği bozduğu için elle ölçülür).
+                SizeToContent = SizeToContent.Manual;
+                MinWidth = 240;
+                if (_positionReady) FitCollapsedHeight();
+            }
+            else
+            {
+                SizeToContent = SizeToContent.WidthAndHeight;
+                MinWidth = 0;
+            }
+        }
+    }
 
-            var lockItem = new MenuItem { Header = "Konumu kilitle", IsCheckable = true, IsChecked = Config.Locked };
-            lockItem.Click += (_, _) => { Config.Locked = !Config.Locked; AppHost.SaveSettings(); };
-            menu.Items.Add(lockItem);
+    /// <summary>Genişlik sabitlendikten sonra yüksekliği içeriğe bırakır (önce genişlik verilmezse WPF varsayılan genişliği kullanır).</summary>
+    private void FitCollapsedHeight()
+    {
+        if (double.IsNaN(Width)) Width = ActualWidth;
+        SizeToContent = SizeToContent.Height;
+    }
 
-            menu.Items.Add(new Separator());
-            var remove = new MenuItem { Header = "Kaldır" };
-            remove.Click += (_, _) => AppHost.Widgets.Remove(Config.Id);
-            menu.Items.Add(remove);
-        };
-        menu.Items.Add(new MenuItem()); // Açılırken yeniden doldurulur.
-        _card.ContextMenu = menu;
+    public void SetCollapsed(bool collapsed)
+    {
+        if (!View.Collapsible || Config.Collapsed == collapsed) return;
+        if (collapsed) SaveBounds();
+        Config.Collapsed = collapsed;
+        ApplyLayoutMode();
+        AppHost.SaveSettings();
+    }
+
+    private void FillMenu(ContextMenu menu)
+    {
+        View.AddMenuItems(menu);
+        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+
+        if (View.Collapsible)
+            menu.Items.Add(Menus.Toggle("Başlığa katla", Config.Collapsed, () => SetCollapsed(!Config.Collapsed)));
+
+        var custom = new MenuItem { Header = "Özelleştir" };
+        custom.Items.Add(Menus.Choice("Görünüm", Config.Style,
+            [(WidgetStyle.Glass, "Cam"), (WidgetStyle.Dark, "Koyu"), (WidgetStyle.Light, "Açık")],
+            v => Update(() => Config.Style = v)));
+        custom.Items.Add(Menus.Choice("Vurgu rengi", Config.Accent,
+            [(WidgetAccent.Violet, "Mor"), (WidgetAccent.Blue, "Mavi"), (WidgetAccent.Green, "Yeşil"), (WidgetAccent.Orange, "Turuncu"), (WidgetAccent.Pink, "Pembe")],
+            v => Update(() => Config.Accent = v)));
+        custom.Items.Add(Menus.Choice("Boyut", Math.Round(Config.Scale, 2),
+            [(0.8, "Küçük (%80)"), (1.0, "Normal"), (1.25, "Büyük (%125)"), (1.5, "Çok büyük (%150)")],
+            v => Update(() => Config.Scale = v)));
+        custom.Items.Add(Menus.Choice("Saydamlık", Math.Round(Config.Opacity, 2),
+            [(1.0, "Yok"), (0.85, "%15"), (0.7, "%30"), (0.55, "%45")],
+            v => Update(() => Config.Opacity = v)));
+        menu.Items.Add(custom);
+
+        menu.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () => { Config.Locked = !Config.Locked; AppHost.SaveSettings(); }));
+        menu.Items.Add(Menus.Item("Çoğalt", () => AppHost.Widgets.Duplicate(Config.Id)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Menus.Item("Kaldır", () => AppHost.Widgets.Remove(Config.Id)));
+    }
+
+    private void Update(Action change)
+    {
+        change();
+        ApplyStyle();
+        AppHost.SaveSettings();
     }
 
     private void PlaceOnScreen()
@@ -118,7 +174,8 @@ public sealed class WidgetWindow : Window
         if (View.Resizable)
         {
             Width = double.IsNaN(Config.Width) ? 400 : Config.Width;
-            Height = double.IsNaN(Config.Height) ? 290 : Config.Height;
+            if (View.Collapsible && Config.Collapsed) FitCollapsedHeight();
+            else Height = double.IsNaN(Config.Height) ? 300 : Config.Height;
         }
 
         var visible = !double.IsNaN(Config.Left) && !double.IsNaN(Config.Top) &&
@@ -147,12 +204,14 @@ public sealed class WidgetWindow : Window
 
     private void SaveBounds()
     {
+        if (!_positionReady) return;
         Config.Left = Left;
         Config.Top = Top;
         if (View.Resizable)
         {
-            Config.Width = ActualWidth;
-            Config.Height = ActualHeight;
+            // Width/Height ayarlandıktan hemen sonra ActualWidth henüz güncellenmemiş olabilir.
+            Config.Width = double.IsNaN(Width) ? ActualWidth : Width;
+            if (!(View.Collapsible && Config.Collapsed)) Config.Height = double.IsNaN(Height) ? ActualHeight : Height;
         }
         AppHost.SaveSettings();
     }

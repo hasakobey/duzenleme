@@ -1,4 +1,5 @@
 using System.IO;
+using Path = System.IO.Path;
 using System.Windows;
 using System.Windows.Threading;
 using Duzenleme.Core;
@@ -11,6 +12,8 @@ public sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon _icon;
     private readonly Forms.ToolStripMenuItem _pauseItem;
+    private readonly Forms.ToolStripMenuItem _hideItem;
+    private Action? _balloonAction;
     private readonly List<MoveEntry> _pendingNotices = [];
     private readonly DispatcherTimer _noticeTimer;
 
@@ -31,14 +34,27 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add(_pauseItem);
         menu.Items.Add("Masaüstünü şimdi düzenle", null, (_, _) => AppHost.OrganizeNowInBackground());
         menu.Items.Add("Son taşımayı geri al", null, (_, _) => UndoLast());
+        _hideItem = new Forms.ToolStripMenuItem("Masaüstünü gizle", null, (_, _) => AppHost.ToggleDesktop());
+        menu.Items.Add(_hideItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Saat ekle", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Clock));
-        menu.Items.Add("Tarih ekle", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Date));
+        var add = new Forms.ToolStripMenuItem("Widget ekle");
+        add.DropDownItems.Add("Saat", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Clock));
+        add.DropDownItems.Add("Tarih", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Date));
+        add.DropDownItems.Add("Not", null, (_, _) => AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id));
+        add.DropDownItems.Add("Kısayol kutusu", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Launcher));
+        add.DropDownItems.Add("PDF bölmesi", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Fence, "PDF"));
+        menu.Items.Add(add);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Çıkış", null, (_, _) => exit());
-        menu.Opening += (_, _) => _pauseItem.Checked = AppHost.Settings.Paused;
+        menu.Opening += (_, _) =>
+        {
+            _pauseItem.Checked = AppHost.Settings.Paused;
+            _hideItem.Text = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
+        };
         _icon.ContextMenuStrip = menu;
         _icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) openMainWindow(); };
+        _icon.BalloonTipClicked += (_, _) => { var action = _balloonAction ?? openMainWindow; _balloonAction = null; action(); };
+        _icon.BalloonTipClosed += (_, _) => _balloonAction = null;
 
         // Toplu düzenlemede tek tek balon yerine tek özet göster.
         _noticeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
@@ -68,7 +84,17 @@ public sealed class TrayIcon : IDisposable
             : string.Join(", ", _pendingNotices.GroupBy(e => e.FolderName).Select(g => $"{g.Count()} dosya → {g.Key}"));
         var title = _pendingNotices.Count == 1 ? "Dosya taşındı" : $"{_pendingNotices.Count} dosya düzenlendi";
         _pendingNotices.Clear();
+        _balloonAction = null;
         _icon.ShowBalloonTip(3000, title, text, Forms.ToolTipIcon.None);
+    }
+
+    /// <summary>Yeni klasör için tıklanabilir öneri: balona tıklayınca simge seçici açılır.</summary>
+    public void SuggestFolderIcon(string folder)
+    {
+        var (glyph, _) = Core.FolderIconCatalog.Suggest(Path.GetFileName(folder));
+        _balloonAction = () => Icons.FolderIconWindow.ShowFor(folder);
+        _icon.ShowBalloonTip(6000, $"“{Path.GetFileName(folder)}” klasörüne simge ver",
+            $"Önerilen: {glyph.Label}. Seçmek için tıkla.", Forms.ToolTipIcon.None);
     }
 
     private void UndoLast()
