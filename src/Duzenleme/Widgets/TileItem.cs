@@ -150,35 +150,49 @@ public sealed class TileItem : INotifyPropertyChanged
         return ext is ".lnk" or ".url" or ".exe" or ".appref-ms" ? System.IO.Path.GetFileNameWithoutExtension(name) : name;
     }
 
+    /// <summary>
+    /// Öğeyi açar. Kabuk açılışı (klasör, ağ yolu, OneDrive dosyası) Explorer meşgulken saniyeler sürebilir: arka planda
+    /// yapılır, widget'lar o sırada donmaz. Açılan pencere öne gelebilsin diye ön plan izni önceden verilir.
+    /// </summary>
     public static void Launch(string path, bool asAdmin = false)
     {
-        try
+        const int ASFW_ANY = -1;
+        AllowSetForegroundWindow(ASFW_ANY);
+        var dispatcher = Application.Current?.Dispatcher;
+        Task.Run(() =>
         {
-            if (IsShellObject(path))
+            try
             {
-                Process.Start(new ProcessStartInfo("explorer.exe", "shell:" + path) { UseShellExecute = true });
-                return;
+                if (IsShellObject(path))
+                {
+                    Process.Start(new ProcessStartInfo("explorer.exe", "shell:" + path) { UseShellExecute = true })?.Dispose();
+                    return;
+                }
+                var native = NativePath(path);
+                var info = new ProcessStartInfo(native) { UseShellExecute = true };
+                // Çalışma klasörü asıl yoldan alınır: "Sysnative" yalnızca 32-bit süreçlerde vardır, başlatılan 64-bit program onu bulamaz.
+                if (File.Exists(native)) info.WorkingDirectory = System.IO.Path.GetDirectoryName(path);
+                if (asAdmin) info.Verb = "runas";
+                Process.Start(info)?.Dispose();
             }
-            var original = path;
-            path = NativePath(path);
-            var info = new ProcessStartInfo(path) { UseShellExecute = true };
-            // Çalışma klasörü asıl yoldan alınır: "Sysnative" yalnızca 32-bit süreçlerde vardır, başlatılan 64-bit program onu bulamaz.
-            if (File.Exists(path)) info.WorkingDirectory = System.IO.Path.GetDirectoryName(original);
-            if (asAdmin) info.Verb = "runas";
-            Process.Start(info);
-        }
-        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            // Kullanıcı yönetici onayını iptal etti.
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "Düzenleme");
-        }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+            {
+                // Kullanıcı yönetici onayını iptal etti.
+            }
+            catch (Exception ex)
+            {
+                dispatcher?.BeginInvoke(() => MessageBox.Show(ex.Message, "Düzenleme"));
+            }
+        });
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(int processId);
 
     public static void Reveal(string path)
     {
-        if (File.Exists(path) || Directory.Exists(path)) Process.Start("explorer.exe", $"/select,\"{path}\"");
+        if (!File.Exists(path) && !Directory.Exists(path)) return;
+        AllowSetForegroundWindow(-1);
+        Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
     }
 }

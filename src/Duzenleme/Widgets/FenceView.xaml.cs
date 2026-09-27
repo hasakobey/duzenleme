@@ -51,10 +51,6 @@ public partial class FenceView : UserControl, IWidgetView
             if (e.ClickCount == 2) { e.Handled = true; CollapseToggleRequested?.Invoke(); }
         };
         Menus.AttachItemMenu(Items, FillItemMenu);
-        Menus.EnableTileRemove(Items, HideItem);
-        // Başlıktaki × yalnızca fare üstündeyken görünür (kilitli widget'ta hiç).
-        MouseEnter += (_, _) => RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
-        MouseLeave += (_, _) => RemoveButton.Visibility = Visibility.Collapsed;
 
         // Öğeyi başka bir bölmeye, Gezgin'e ya da bir uygulamaya sürükleyebilmek için.
         Menus.EnableDragOut(Items, DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link);
@@ -414,14 +410,12 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void Items_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (Menus.IsOnRemoveButton(e.OriginalSource) || Menus.JustRemoved) return;
         // Boş alana ya da kaydırma çubuğuna çift tıklamak, daha önce seçilmiş bir öğeyi açmasın.
         if (!_config.SingleClick && Menus.ItemAt(Items, e.OriginalSource) is { } item) TileItem.Launch(item.Path);
     }
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
-        if (Menus.IsOnRemoveButton(e.OriginalSource) || Menus.JustRemoved) return;
         if (_config.SingleClick && Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
         {
             TileItem.Launch(item.Path);
@@ -446,7 +440,9 @@ public partial class FenceView : UserControl, IWidgetView
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
         menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
-        menu.Items.Add(Menus.Item("Bu bölmeden kaldır (gizle)", () => HideItem(item)));
+        var remove = Menus.Item("Widget'tan kaldır", () => HideItem(item));
+        remove.ToolTip = "Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler";
+        menu.Items.Add(remove);
         if (TileItem.IsShellObject(item.Path))
         {
             menu.Items.Add(new Separator());
@@ -590,6 +586,8 @@ public partial class FenceView : UserControl, IWidgetView
         SearchBox.CaretBrush = palette.Foreground;
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
+        RemoveButton.Foreground = palette.Foreground;
+        RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void Set(Action change)

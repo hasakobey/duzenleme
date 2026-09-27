@@ -28,14 +28,7 @@ public static class DesktopIcons
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ShowWindow(IntPtr hwnd, int cmd);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr hwnd);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hwnd, StringBuilder name, int max);
@@ -89,36 +82,60 @@ public static class DesktopIcons
         }
     }
 
+    /// <summary>
+    /// Simge listesini gösterir/gizler. Liste Explorer'ın penceresi olduğundan istek kuyruğuna bırakılır: Explorer
+    /// o an meşgulse (büyük bir klasör açılırken) widget'lar onu beklerken donmasın.
+    /// </summary>
     public static bool SetVisible(bool visible)
     {
         var lv = FindListView();
         if (lv == IntPtr.Zero) return false;
-        ShowWindow(lv, visible ? SW_SHOW : SW_HIDE);
+        _lastRequest = Environment.TickCount64;
+        ShowWindowAsync(lv, visible ? SW_SHOW : SW_HIDE);
         return true;
     }
 
-    /// <summary>Seçili masaüstü simgesi sayısı (boşluğa tıklanınca 0 olur).</summary>
+    private static long _lastRequest;
+
+    /// <summary>Az önce gösterme/gizleme istendi mi? (Explorer isteği henüz işlememiş olabilir; durum yanlış okunmasın.)</summary>
+    public static bool ChangePending => Environment.TickCount64 - _lastRequest < 5000;
+
+    /// <summary>Seçili masaüstü simgesi sayısı (boşluğa tıklanınca 0 olur); Explorer yanıt vermiyorsa 0.</summary>
     public static int SelectedCount()
     {
         var lv = FindListView();
-        return lv == IntPtr.Zero ? 0 : (int)SendMessage(lv, LVM_GETSELECTEDCOUNT, IntPtr.Zero, IntPtr.Zero);
+        if (lv == IntPtr.Zero) return 0;
+        const uint SMTO_ABORTIFHUNG = 0x0002;
+        return SendMessageTimeout(lv, LVM_GETSELECTEDCOUNT, IntPtr.Zero, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out var count) == IntPtr.Zero
+            ? 0 : (int)count;
     }
 
-    /// <summary>Verilen pencere masaüstünün kendisi mi (simge listesi, kabı ya da duvar kağıdı)?</summary>
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindowAsync(IntPtr hwnd, int cmd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessageTimeout(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+
+    /// <summary>
+    /// Verilen pencere masaüstünün kendisi mi (simge listesi, kabı ya da duvar kağıdı)? En üstteki pencereye bakılır:
+    /// Gezgin pencereleri ve dosya açma/kaydetme kutuları da SHELLDLL_DefView içerir; onların içindeki çift tıklama
+    /// masaüstü sayılırsa klasörde gezinirken her çift tıklama widget'ları gizleyip açar.
+    /// </summary>
     public static bool IsDesktopSurface(IntPtr hwnd)
     {
-        for (var depth = 0; hwnd != IntPtr.Zero && depth < 4; depth++)
-        {
-            var cls = ClassOf(hwnd);
-            if (cls is "SysListView32" or "SHELLDLL_DefView" or "Progman" or "WorkerW")
-            {
-                // WorkerW yalnızca masaüstü görünümünü taşıyorsa masaüstüdür.
-                return cls != "WorkerW" || FindWindowEx(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero || hwnd == GetParent(FindDefView());
-            }
-            hwnd = GetParent(hwnd);
-        }
-        return false;
+        if (hwnd == IntPtr.Zero) return false;
+        var root = GetAncestor(hwnd, GA_ROOT);
+        var cls = ClassOf(root);
+        if (cls == "Progman") return true;
+        // Windows 10 / 11 23H2'de (duvar kağıdı slayt gösterisi vb.) simgeler bir WorkerW'nin altındadır.
+        return cls == "WorkerW" && FindWindowEx(root, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero;
     }
+
+    private const uint GA_ROOT = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
 
     private static string ClassOf(IntPtr hwnd)
     {

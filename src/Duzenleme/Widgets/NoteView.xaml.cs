@@ -39,9 +39,6 @@ public partial class NoteView : UserControl, IWidgetView
             menu.Items.Add(Menus.Item("Not ayarları…", () => MenuRequested?.Invoke()));
         });
         UpdateTitle();
-        // Başlıktaki × yalnızca fare üstündeyken görünür (kilitli widget'ta hiç).
-        MouseEnter += (_, _) => RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
-        MouseLeave += (_, _) => RemoveButton.Visibility = Visibility.Collapsed;
     }
 
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
@@ -72,6 +69,8 @@ public partial class NoteView : UserControl, IWidgetView
         Editor.CaretBrush = palette.Foreground;
         Editor.SelectionBrush = palette.Accent;
         TitleText.Foreground = palette.Secondary;
+        RemoveButton.Foreground = palette.Foreground;
+        RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
 
         // Başlıktaki renk seçici noktalar.
         Swatches.Children.Clear();

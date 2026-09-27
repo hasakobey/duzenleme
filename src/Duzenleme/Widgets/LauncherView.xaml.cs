@@ -29,10 +29,6 @@ public partial class LauncherView : UserControl, IWidgetView
 
         Items.PreviewMouseLeftButtonUp += OnItemClick;
         Menus.AttachItemMenu(Items, FillItemMenu);
-        Menus.EnableTileRemove(Items, RemoveItem);
-        // Başlıktaki × yalnızca fare üstündeyken görünür (kilitli widget'ta hiç).
-        MouseEnter += (_, _) => RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
-        MouseLeave += (_, _) => RemoveButton.Visibility = Visibility.Collapsed;
 
         Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link);
         DragEnter += OnDragOver;
@@ -179,7 +175,6 @@ public partial class LauncherView : UserControl, IWidgetView
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
-        if (Menus.IsOnRemoveButton(e.OriginalSource) || Menus.JustRemoved) return;
         if (Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
         {
             TileItem.Launch(item.Path);
@@ -191,6 +186,9 @@ public partial class LauncherView : UserControl, IWidgetView
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
         menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
+        var remove = Menus.Item("Widget'tan kaldır", () => RemoveItem(item));
+        remove.ToolTip = "Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al";
+        menu.Items.Add(remove);
         var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
         if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
             menu.Items.Add(Menus.Item("Yönetici olarak çalıştır", () => TileItem.Launch(item.Path, asAdmin: true)));
@@ -208,7 +206,6 @@ public partial class LauncherView : UserControl, IWidgetView
             menu.Items.Add(move);
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Listeden kaldır", () => RemoveItem(item)));
         menu.Items.Add(Menus.Item("Kutu ayarları…", () => MenuRequested?.Invoke()));
     }
 
@@ -242,6 +239,8 @@ public partial class LauncherView : UserControl, IWidgetView
         EmptyIcon.Foreground = palette.Secondary;
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
+        RemoveButton.Foreground = palette.Foreground;
+        RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
         RenderTabs();
     }
 

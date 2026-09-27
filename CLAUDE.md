@@ -28,6 +28,9 @@ Windows masaüstü düzenleyici (Fences benzeri): masaüstüne düşen dosyalar�
 - Yeni widget'lar imlecin monitörüne yerleşir: test örneğinde imleç kullanıcının ekranındaysa test widget'ı onun masaüstüne düşer. Testte `DUZENLEME_QUICKADD_AT` ile "Widget ekle" penceresini test monitörüne aç, düğmelere UI Automation (InvokePattern) ile bas; iş bitince test örneğini `--exit` ile kapat.
 - Yerleşim kuralları (mıknatıs, çakışma çözme, büyütürken duvar) `Core/WidgetLayout.cs`'te saf geometri olarak durur ve testlenir; `WidgetWindow` kart dikdörtgenini gölge payını çıkararak (`CardBox`) verir.
 - Widget'lar arası sıra `WidgetConfig.Z`; hepsi en alta itildiği için `ApplyZOrder` en öndekinden başlayarak sırayla en alta gönderir.
+- "Masaüstüne çift tıkla" yalnızca kök penceresi (`GetAncestor(GA_ROOT)`) Progman ya da DefView taşıyan WorkerW olan tıklamalarda çalışır: Gezgin pencereleri ve dosya iletişim kutuları da `SHELLDLL_DefView` içerir (eskiden klasörde her çift tıklama widget'ları gizleyip açıyordu).
+- Explorer'ın pencerelerine UI iş parçacığından eşzamanlı çağrı yapma (Explorer meşgulken widget'lar donar): `ShowWindowAsync`, `SendMessageTimeout`; öğe açma (`TileItem.Launch`) arka planda.
+- Widget'ta fare üstüne gelince yerleşim değişmemeli: başlıktaki × hep yerinde (sönük) durur; öğe kaldırma sağ tık menüsündedir.
 
 ## Kurallar
 - Dosya yalnızca hedef klasör masaüstünde **zaten varsa** taşınır ("yoksa oluştur" ayarı varsayılan kapalı).

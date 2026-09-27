@@ -125,6 +125,21 @@ public static class AppHost
     /// <summary>Masaüstü simgelerini (ve ayara göre widget'ları) gizler ya da gösterir.</summary>
     public static void ToggleDesktop() => SetDesktopHidden(!DesktopHidden);
 
+    /// <summary>
+    /// Boş masaüstüne çift tıklama. İlk birkaç seferde nasıl geri getirileceği söylenir: bilmeden çift tıklayan
+    /// kullanıcı widget'larının kaybolduğunu sanmasın.
+    /// </summary>
+    public static void ToggleDesktopByDoubleClick()
+    {
+        ToggleDesktop();
+        if (!DesktopHidden || Settings.DoubleClickHintsShown >= 3) return;
+        Settings.DoubleClickHintsShown++;
+        SaveSettings();
+        Tray?.Notify(Widgets.Hidden ? "Widget'lar ve simgeler gizlendi" : "Masaüstü simgeleri gizlendi",
+            "Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir.",
+            () => SetDesktopHidden(false));
+    }
+
     public static void SetDesktopHidden(bool hidden)
     {
         DesktopHidden = hidden;
@@ -190,6 +205,7 @@ public static class AppHost
     /// </summary>
     public static void ReconcileDesktopState()
     {
+        if (DesktopIcons.ChangePending) return;
         if (Settings.FencesReplaceIcons)
         {
             // Explorer yeniden başlayınca simgeler kendiliğinden geri gelir: bölmeler yönetirken yeniden gizle.

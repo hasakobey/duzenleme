@@ -51,8 +51,10 @@ public sealed class WidgetWindow : Window
             Margin = new Thickness(ShadowMargin),
             Child = (UIElement)view,
         };
-        // Üzerine gelince sol üst köşede çıkan kırmızı × (macOS widget'ları gibi): widget'ı kaldırır, geri alınabilir.
+        // Saat/tarihte üzerine gelince sol üst köşede yavaşça beliren × (macOS widget'ları gibi): widget'ı kaldırır,
+        // geri alınabilir. Bölme, kutu ve notta × başlıkta hep yerinde durur (içerikleri ve köşe tutamaçları kapanmasın).
         _removeBadge = RemoveBadge();
+        _removeBadge.Visibility = view.Resizable ? Visibility.Collapsed : Visibility.Visible;
         _removeBadge.Click += (_, _) => AppHost.Widgets.RemoveWithUndo(Config.Id);
         System.Windows.Automation.AutomationProperties.SetName(_removeBadge, "Widget'ı kaldır");
         var root = new Grid();
@@ -86,10 +88,8 @@ public sealed class WidgetWindow : Window
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveBounds(); };
         // Konum/boyut yalnızca kullanıcı taşıyınca/boyutlandırınca kaydedilir. Monitör çıkarılınca ya da çözünürlük
         // değişince Windows'un pencereyi kaydırması kayıtlı düzeni bozmasın; ekran geri gelince eski yerine döner.
-        // Köşedeki × yalnızca saat/tarih gibi boyutu sabit widget'larda: onların sol üst köşesi boyutlandırma tutamacı değil.
-        // Bölme, kutu ve notta × başlığın sağ ucundadır (içerikleri ve köşe tutamaçları kapanmasın).
-        MouseEnter += (_, _) => { _removeBadge.Visibility = Config.Locked || View.Resizable ? Visibility.Collapsed : Visibility.Visible; OnHover(true); };
-        MouseLeave += (_, _) => { _removeBadge.Visibility = Visibility.Collapsed; OnHover(false); };
+        MouseEnter += (_, _) => { FadeBadge(!Config.Locked); OnHover(true); };
+        MouseLeave += (_, _) => { FadeBadge(false); OnHover(false); };
         View.LayoutChanged += () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
         PreviewDragEnter += (_, _) => OnHover(true);
         _rollupTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
@@ -130,29 +130,44 @@ public sealed class WidgetWindow : Window
         }
     }
 
+    /// <summary>Koyu, sade yuvarlak ×; yalnızca kendi üstüne gelince kırmızılaşır. Başta görünmez ve tıklanamaz.</summary>
     private static System.Windows.Controls.Button RemoveBadge()
     {
-        var glyph = new TextBlock
-        {
-            Text = "\uE711", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 9,
-            Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        };
-        var face = new FrameworkElementFactory(typeof(Border));
+        var glyph = new FrameworkElementFactory(typeof(TextBlock));
+        glyph.SetValue(TextBlock.TextProperty, "\uE711");
+        glyph.SetValue(TextBlock.FontFamilyProperty, new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));
+        glyph.SetValue(TextBlock.FontSizeProperty, 9.0);
+        glyph.SetValue(TextBlock.ForegroundProperty, Brushes.White);
+        glyph.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        glyph.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        var face = new FrameworkElementFactory(typeof(Border), "Bg");
         face.SetValue(Border.CornerRadiusProperty, new CornerRadius(11));
-        face.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)));
-        face.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)));
-        face.SetValue(Border.BorderThicknessProperty, new Thickness(1.5));
-        face.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+        face.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0xD9, 0x1E, 0x1E, 0x26)));
+        face.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF)));
+        face.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        face.AppendChild(glyph);
+        var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = face };
+        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)), "Bg"));
+        template.Triggers.Add(hover);
         return new System.Windows.Controls.Button
         {
-            Content = glyph,
-            Template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = face },
+            Template = template,
             Width = 22, Height = 22, Cursor = Cursors.Hand, Focusable = false,
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(ShadowMargin - 8, ShadowMargin - 8, 0, 0),
-            ToolTip = "Widget'ı kaldır", Visibility = Visibility.Collapsed,
-            Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = 0.4, Color = Colors.Black },
+            Margin = new Thickness(ShadowMargin - 7, ShadowMargin - 7, 0, 0),
+            ToolTip = "Widget'ı kaldır (geri getirilebilir)",
+            Opacity = 0, IsHitTestVisible = false,
         };
+    }
+
+    /// <summary>Köşedeki × belirip kaybolurken zıplamasın: kısa bir geçişle yumuşakça görünür/kaybolur.</summary>
+    private void FadeBadge(bool show)
+    {
+        if (_removeBadge.Visibility != Visibility.Visible) return;
+        _removeBadge.IsHitTestVisible = show;
+        _removeBadge.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(show ? 160 : 120)));
     }
 
     public void ApplyStyle()
@@ -306,7 +321,13 @@ public sealed class WidgetWindow : Window
         menu.Items.Add(custom);
 
         var placement = new MenuItem { Header = "Yerleşim" };
-        placement.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () => { Config.Locked = !Config.Locked; AppHost.SaveSettings(); }));
+        // Kilitli widget'ta kaldırma düğmesi de gizlenir (ApplyStyle görünümlere iletir).
+        placement.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () =>
+        {
+            Config.Locked = !Config.Locked;
+            AppHost.SaveSettings();
+            ApplyStyle();
+        }));
         placement.Items.Add(Menus.Toggle("Kenarlara yapışsın (mıknatıs)", AppHost.Settings.SnapWidgets, () =>
         {
             AppHost.Settings.SnapWidgets = !AppHost.Settings.SnapWidgets;

@@ -114,7 +114,7 @@ public partial class App : Application
         AppHost.Tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
-        AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.ToggleDesktop);
+        AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.ToggleDesktopByDoubleClick);
         AppHost.ApplyDoubleClickSetting();
         AppHost.Widgets.RestoreAll();
         if (AppHost.Settings.FencesReplaceIcons)

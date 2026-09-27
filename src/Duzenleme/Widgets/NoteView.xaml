@@ -11,9 +11,8 @@
             <TextBlock x:Name="TitleText" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"
                        FontFamily="Segoe UI Variable Text, Segoe UI" TextTrimming="CharacterEllipsis" />
             <StackPanel x:Name="Swatches" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" />
-            <Button x:Name="RemoveButton" Grid.Column="2" Style="{StaticResource TileRemoveButton}" Margin="6,0,0,0"
-                    VerticalAlignment="Center" Visibility="Collapsed" Click="RemoveWidget_Click"
-                    ToolTip="Widget'ı kaldır" AutomationProperties.Name="Widget'ı kaldır" />
+            <Button x:Name="RemoveButton" Grid.Column="2" Style="{StaticResource WidgetCloseButton}" Width="22" Height="22" Margin="6,0,-4,0"
+                    Click="RemoveWidget_Click" />
         </Grid>
         <TextBox x:Name="Editor" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0"

@@ -156,6 +156,9 @@ public sealed class AppSettings
     /// <summary>Boş masaüstüne çift tıklamak simgeleri gizler/gösterir.</summary>
     public bool DoubleClickHidesDesktop { get; set; } = true;
 
+    /// <summary>Çift tıklayınca gizlenen masaüstünün nasıl geri geleceğini anlatan ipucu kaç kez gösterildi.</summary>
+    public int DoubleClickHintsShown { get; set; }
+
     /// <summary>Simgeler gizlenirken widget'lar da gizlensin.</summary>
     public bool HideWidgetsWithIcons { get; set; } = true;
 

@@ -78,44 +78,6 @@ public static class Menus
         return d is not null && ItemsControl.ContainerFromElement(list, d) is ListBoxItem { DataContext: TileItem item } ? item : null;
     }
 
-    /// <summary>Öğenin üzerindeki küçük × düğmesine basılınca <paramref name="remove"/> çalışır.</summary>
-    public static void EnableTileRemove(ListBox list, Action<TileItem> remove)
-    {
-        list.AddHandler(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, new RoutedEventHandler((_, e) =>
-        {
-            if (e.OriginalSource is Button { Name: "RemoveTile", DataContext: TileItem item })
-            {
-                e.Handled = true;
-                _lastRemoval = Environment.TickCount64;
-                remove(item);
-            }
-        }));
-        // Çift tıklamanın ikinci tıklaması, yerine kayan sonraki öğenin ×'ine basmasın.
-        list.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent, new MouseButtonEventHandler((_, e) =>
-        {
-            if (e.ClickCount > 1 && IsOnRemoveButton(e.OriginalSource)) e.Handled = true;
-        }), handledEventsToo: true);
-    }
-
-    private static long _lastRemoval;
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern uint GetDoubleClickTime();
-
-    /// <summary>Bir öğe az önce × ile kaldırıldı mı? (Çift tıklamanın devamı yerine kayan öğeyi açmasın.)</summary>
-    public static bool JustRemoved => Environment.TickCount64 - _lastRemoval < GetDoubleClickTime();
-
-    /// <summary>Tıklama öğenin × düğmesine mi geldi? (Öğeyi açma/sürükleme tetiklenmesin.)</summary>
-    public static bool IsOnRemoveButton(object? source)
-    {
-        for (var d = source as DependencyObject; d is not null; d = d is Visual or Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
-        {
-            if (d is Button { Name: "RemoveTile" }) return true;
-            if (d is ListBoxItem) return false;
-        }
-        return false;
-    }
-
     /// <summary>"Göster" alt menüsü: widget'ın parçalarını tek tek açıp kapatır.</summary>
     public static MenuItem Parts(WidgetConfig c, IEnumerable<(string Key, string Label)> parts, Action changed)
     {
@@ -176,7 +138,7 @@ public static class Menus
         TileItem? item = null;
         list.PreviewMouseLeftButtonDown += (_, e) =>
         {
-            item = IsOnRemoveButton(e.OriginalSource) ? null : ItemAt(list, e.OriginalSource);
+            item = ItemAt(list, e.OriginalSource);
             start = item is null ? null : e.GetPosition(list);
         };
         list.PreviewMouseLeftButtonUp += (_, _) => { start = null; item = null; };

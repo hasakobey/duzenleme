@@ -15,9 +15,7 @@
             <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Display, Segoe UI" />
             <TextBlock x:Name="CountText" Grid.Column="2" FontSize="12" VerticalAlignment="Center" />
-            <Button x:Name="RemoveButton" Grid.Column="3" Style="{StaticResource TileRemoveButton}" Margin="6,0,0,0"
-                    VerticalAlignment="Center" Visibility="Collapsed" Click="RemoveWidget_Click"
-                    ToolTip="Widget'ı kaldır" AutomationProperties.Name="Widget'ı kaldır" />
+            <Button x:Name="RemoveButton" Grid.Column="3" Style="{StaticResource WidgetCloseButton}" Margin="6,0,-4,0" Click="RemoveWidget_Click" />
         </Grid>
 
         <DockPanel x:Name="Body">
