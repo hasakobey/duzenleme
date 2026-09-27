@@ -1,9 +1,237 @@
 <Page x:Class="Duzenleme.Views.AutoMovePage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="Otomatik taşıma">
-    <!-- GEÇİCİ: Paket B1 doldurur (kurallar, bekleyen dosyalar, son taşınanlar, gelişmiş). -->
+    <Page.Resources>
+        <Style x:Key="RowTitle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <Style x:Key="ColumnHeader" TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+        </Style>
+    </Page.Resources>
+
     <StackPanel Style="{StaticResource PageRoot}">
         <TextBlock Style="{StaticResource PageTitle}" Text="Otomatik taşıma" />
+        <TextBlock Style="{StaticResource PageSubtitle}"
+                   Text="Masaüstüne düşen dosyalar türüne uyan klasöre kendiliğinden taşınır. Her taşıma geri alınabilir." />
+
+        <!-- Durum: Ana sayfa kartının sade hâli (sayı satırı yok). -->
+        <Border Style="{StaticResource Surface}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon x:Name="StatusIcon" FontSize="26" Margin="0,0,16,0" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusTitle" Style="{StaticResource RowTitle}" FontSize="16"
+                               AutomationProperties.AutomationId="AutoMove.StatusTitle" />
+                    <TextBlock x:Name="StatusText" Style="{StaticResource Muted}" Margin="0,2,0,0"
+                               AutomationProperties.AutomationId="AutoMove.StatusText" />
+                </StackPanel>
+                <ui:Button x:Name="OrganizeButton" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
+                           Icon="{ui:SymbolIcon Sparkle24}" Content="Şimdi düzenle"
+                           ToolTip="Masaüstündeki uygun dosyaları şimdi klasörlerine taşır"
+                           AutomationProperties.AutomationId="AutoMove.OrganizeNow" Click="OrganizeNow_Click" />
+                <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"
+                                 AutomationProperties.AutomationId="AutoMove.Toggle" AutomationProperties.Name="Otomatik taşıma"
+                                 Click="AutoMoveToggle_Click" />
+            </Grid>
+        </Border>
+
+        <!-- Kurallar -->
+        <TextBlock Style="{StaticResource SectionHeader}" Text="Hangi dosya nereye gitsin?" />
+        <!-- Sütun başlıkları kural satırıyla aynı ölçülerde: görünmez anahtar ve düğme sütun genişliklerini eşitler. -->
+        <Grid x:Name="RuleHeader" Margin="15,0,15,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ui:ToggleSwitch Visibility="Hidden" Margin="0,0,14,0" Focusable="False" IsTabStop="False" />
+            <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeader}" Text="KLASÖR" Margin="4,0,0,0" />
+            <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeader}" Text="UZANTILAR" Margin="16,0,0,0" />
+            <ui:Button Grid.Column="3" Visibility="Hidden" Margin="12,0,0,0" Appearance="Transparent" Icon="{ui:SymbolIcon Delete24}"
+                       Focusable="False" IsTabStop="False" AutomationProperties.Name="Kuralı sil" />
+        </Grid>
+
+        <ItemsControl x:Name="RuleList" AutomationProperties.AutomationId="AutoMove.Rules" IsTabStop="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6" Opacity="{Binding RowOpacity}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:ToggleSwitch IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,14,0"
+                                             ToolTip="Kural açık/kapalı"
+                                             AutomationProperties.AutomationId="{Binding EnabledId}"
+                                             AutomationProperties.Name="{Binding EnabledName}" />
+                            <ui:TextBox x:Name="FolderBox" Grid.Column="1"
+                                        Text="{Binding TargetFolder, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                        PlaceholderText="Klasör adı" Icon="{ui:SymbolIcon Folder24}"
+                                        AutomationProperties.AutomationId="{Binding FolderId}" AutomationProperties.Name="Klasör adı" />
+                            <ui:TextBox Grid.Column="2" Margin="12,0,0,0"
+                                        Text="{Binding ExtensionsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                        PlaceholderText="pdf, docx, png"
+                                        AutomationProperties.AutomationId="{Binding ExtensionsId}" AutomationProperties.Name="Uzantılar" />
+                            <ui:Button Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center" Appearance="Transparent"
+                                       Icon="{ui:SymbolIcon Delete24}" ToolTip="Kuralı sil"
+                                       AutomationProperties.AutomationId="{Binding DeleteId}" AutomationProperties.Name="{Binding DeleteName}"
+                                       Click="DeleteRule_Click" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="4,8,0,0">
+                                <ui:SymbolIcon Symbol="{Binding StatusIcon}" Filled="{Binding StatusFilled}" Foreground="{Binding StatusBrush}"
+                                               FontSize="16" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding StatusText}" Style="{StaticResource Muted}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                           AutomationProperties.AutomationId="{Binding StatusId}" />
+                                <ui:Button Content="Klasörü oluştur" Margin="12,0,0,0" Padding="10,3" Icon="{ui:SymbolIcon FolderAdd24}"
+                                           Visibility="{Binding CreateVisibility}"
+                                           ToolTip="Klasörü masaüstünde açar; otomatik taşıma açıksa uygun dosyalar oraya taşınır"
+                                           AutomationProperties.AutomationId="{Binding CreateId}" AutomationProperties.Name="{Binding CreateName}"
+                                           Click="CreateFolder_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel x:Name="NoRules" Visibility="Collapsed" Margin="0,0,0,4">
+            <TextBlock Style="{StaticResource Muted}" Text="Hiç kural yok; bu yüzden hiçbir dosya taşınmaz." />
+            <ui:Button Margin="0,8,0,0" Icon="{ui:SymbolIcon ArrowReset24}" Content="Hazır kuralları ekle"
+                       AutomationProperties.AutomationId="AutoMove.AddDefaults" Click="AddDefaults_Click" />
+        </StackPanel>
+
+        <ui:Button Margin="0,6,0,0" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="Kural ekle"
+                   AutomationProperties.AutomationId="AutoMove.AddRule" Click="AddRule_Click" />
+        <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0"
+                   Text="Klasör masaüstünde yoksa dosya olduğu yerde kalır. Büyük/küçük harf ve Türkçe karakter fark etmez (&quot;Arşivler&quot; = &quot;arsivler&quot;). Kısayollar, sistem dosyaları ve inmekte olan dosyalar hiç taşınmaz." />
+
+        <!-- Son taşınanlar (eski Geçmiş sayfası) -->
+        <StackPanel x:Name="HistorySection">
+            <Grid Margin="0,28,0,8">
+                <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="Son taşınanlar" />
+                <ui:Button x:Name="UndoLastButton" HorizontalAlignment="Right" Icon="{ui:SymbolIcon ArrowUndo24}"
+                           Content="Son taşımayı geri al" AutomationProperties.AutomationId="AutoMove.UndoLast" Click="UndoLast_Click" />
+            </Grid>
+            <ItemsControl x:Name="HistoryList" AutomationProperties.AutomationId="AutoMove.History" IsTabStop="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="110" />
+                                </Grid.ColumnDefinitions>
+                                <Image Source="{Binding Icon}" Width="28" Height="28" Margin="0,0,12,0" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Route}" Style="{StaticResource Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding When}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0" />
+                                <Grid Grid.Column="3" VerticalAlignment="Center">
+                                    <ui:Button Content="Geri al" Icon="{ui:SymbolIcon ArrowUndo24}" HorizontalAlignment="Stretch"
+                                               Visibility="{Binding UndoVisibility}" AutomationProperties.Name="{Binding UndoName}"
+                                               Click="UndoRow_Click" />
+                                    <TextBlock Text="Geri alındı" Style="{StaticResource Muted}" HorizontalAlignment="Center"
+                                               Visibility="{Binding UndoneVisibility}" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ui:Button x:Name="ShowAllButton" Margin="0,2,0,0" Appearance="Transparent" Icon="{ui:SymbolIcon ChevronDown24}"
+                       AutomationProperties.AutomationId="AutoMove.ShowAll" Click="ShowAll_Click" />
+            <TextBlock x:Name="HistoryEmpty" Style="{StaticResource Muted}"
+                       Text="Henüz taşınan dosya yok. Masaüstüne düşen bir dosya klasörüne gidince burada görünür ve buradan geri alınabilir." />
+        </StackPanel>
+
+        <!-- Gelişmiş (katlanır, animasyonsuz) -->
+        <Border Style="{StaticResource Surface}" Margin="0,28,0,0">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="Settings24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource RowTitle}" Text="Gelişmiş" />
+                        <TextBlock Style="{StaticResource Muted}" Text="Nadiren gereken ayarlar" />
+                    </StackPanel>
+                    <ui:Button x:Name="AdvancedToggle" Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="AutoMove.Advanced" AutomationProperties.HelpText="Gelişmiş" />
+                </Grid>
+                <StackPanel x:Name="AdvancedContent" Margin="36,16,0,0">
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="FolderAdd24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="Klasör yoksa oluştur" />
+                            <TextBlock Style="{StaticResource Muted}" Text="Kapalıyken yalnızca senin masaüstünde oluşturduğun klasörler kullanılır." />
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="CreateMissing" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         AutomationProperties.AutomationId="AutoMove.CreateMissing" AutomationProperties.Name="Klasör yoksa oluştur"
+                                         Click="CreateMissing_Click" />
+                    </Grid>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="ArrowReset24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="Kuralları varsayılana döndür" />
+                            <TextBlock Style="{StaticResource Muted}" Text="Eklediğin ya da değiştirdiğin kurallar silinir; hazır altı kural geri gelir." />
+                        </StackPanel>
+                        <ui:Button Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Content="Varsayılana döndür"
+                                   AutomationProperties.AutomationId="AutoMove.ResetRules" Click="ResetRules_Click" />
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="Broom24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="Geçmişi temizle" />
+                            <TextBlock Style="{StaticResource Muted}" Text="Listedeki taşımalar silinir; dosyalar bulundukları klasörde kalır." />
+                        </StackPanel>
+                        <ui:Button Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Content="Temizle"
+                                   AutomationProperties.AutomationId="AutoMove.ClearHistory" Click="ClearHistory_Click" />
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Border>
     </StackPanel>
 </Page>

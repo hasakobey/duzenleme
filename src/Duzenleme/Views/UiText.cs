@@ -42,4 +42,11 @@ public sealed class MoveRow(MoveEntry entry)
     public ImageSource? Icon => ShellIcons.For(Entry.Undone ? Entry.Source : Entry.Destination);
     public bool CanUndo => !Entry.Undone;
     public string Status => Entry.Undone ? "Geri alındı" : "";
+
+    /// <summary>Satırdaki "Geri al" düğmesi yalnızca geri alınmamış kayıtta; geri alınmışsa yerinde "Geri alındı" yazar.</summary>
+    public System.Windows.Visibility UndoVisibility => CanUndo ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    public System.Windows.Visibility UndoneVisibility => CanUndo ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+
+    /// <summary>Ekran okuyucu için düğme adı: hangi dosyanın geri alınacağı.</summary>
+    public string UndoName => $"Geri al: {FileName}";
 }

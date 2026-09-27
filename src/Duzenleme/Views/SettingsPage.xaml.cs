@@ -1,10 +1,15 @@
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Reflection;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Duzenleme.Core;
+using Duzenleme.Desktop;
+using Duzenleme.Icons;
+using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
 
 namespace Duzenleme.Views;
@@ -19,13 +24,79 @@ public sealed class HotkeyRow(HotkeyAction action, string label, SymbolRegular i
     public Brush StatusBrush => (Brush)Application.Current.FindResource(failure is null ? "TextFillColorTertiaryBrush" : "SystemFillColorCriticalBrush");
 }
 
+/// <summary>Windows'un bir masaüstü simgesi (Bu Bilgisayar, Geri Dönüşüm Kutusu…): açık/kapalı durumu kayıt defterinden okunur.</summary>
+public sealed class SystemIconRow(SystemIcon icon) : INotifyPropertyChanged
+{
+    public SystemIcon Item { get; } = icon;
+    public string Name => Item.Name;
+    public string Description => Item.Description;
+    public ImageSource? Icon => ShellIcons.ForShellObject("::" + Item.Clsid);
+    public string OpenName => $"Aç: {Item.Name}";
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// Store sürümünde anahtar yalnızca durumu gösterir (bkz. DesktopSystemIcons.CanChange). Test örneği (--desktop)
+    /// de kullanıcının gerçek masaüstü ayarına dokunmaz.
+    /// </summary>
+    public bool CanChange => DesktopSystemIcons.CanChange && !AppHost.IsTestDesktop;
+
+    public bool Shown
+    {
+        get => DesktopSystemIcons.IsShown(Item);
+        set
+        {
+            if (CanChange) DesktopSystemIcons.SetShown(Item, value);
+            Reload();
+        }
+    }
+
+    /// <summary>Durumu yeniden okur (ör. kullanıcı Windows ayarından dönünce).</summary>
+    public void Reload() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Shown)));
+}
+
+/// <summary>Masaüstündeki bir klasör ve simgesi ("Bir klasörün simgesini değiştir" listesi).</summary>
+public sealed class FolderIconRow : INotifyPropertyChanged
+{
+    public FolderIconRow(string path)
+    {
+        Path = path;
+        Name = System.IO.Path.GetFileName(path);
+        Reload();
+    }
+
+    public string Path { get; }
+    public string Name { get; }
+    public string ChooseName => $"Simge seç: {Name}";
+    public ImageSource? Icon { get; private set; }
+    public Visibility CustomVisibility { get; private set; } = Visibility.Collapsed;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>"Özel simge" durumunu yeniden okur; simge arka planda yüklenir (ağ/OneDrive yolunda yavaş olabilir).</summary>
+    public void Reload()
+    {
+        CustomVisibility = FolderIconService.HasCustomIcon(Path) ? Visibility.Visible : Visibility.Collapsed;
+        Raise(nameof(CustomVisibility));
+        ShellIcons.Request(Path, 0, false, icon =>
+        {
+            Icon = icon;
+            Raise(nameof(Icon));
+        });
+    }
+
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+/// <summary>
+/// Ayarlar: Genel, Masaüstü (eski Masaüstü sayfasının ayarları), Klasör simgeleri, Gelişmiş (katlanır), Yardım, Hakkında.
+/// Katlanır bölümlerin içeriği ilk açılışta yüklenir.
+/// </summary>
 public partial class SettingsPage : Page
 {
     private static readonly (HotkeyAction Action, string Label, SymbolRegular Icon)[] HotkeyActions =
     [
         (HotkeyAction.ToggleDesktop, "Masaüstünü gizle / göster", SymbolRegular.EyeOff24),
         (HotkeyAction.OrganizeNow, "Masaüstünü şimdi düzenle", SymbolRegular.Sparkle24),
-        (HotkeyAction.OpenApp, "Düzenleme'yi aç", SymbolRegular.WindowNew24),
+        (HotkeyAction.OpenApp, $"{AppInfo.Name}'i aç", SymbolRegular.WindowNew24),
         (HotkeyAction.NewNote, "Yeni not", SymbolRegular.NoteAdd24),
         (HotkeyAction.PeekWidgets, "Widget'ları öne getir (5 sn)", SymbolRegular.Eye24),
         (HotkeyAction.QuickAdd, "Widget ekle penceresi", SymbolRegular.Add24),
@@ -39,11 +110,41 @@ public partial class SettingsPage : Page
     private int _startupQuery;
     private bool _startupChanging;
 
+    // Katlanır bölümler açılınca dolar.
+    private List<SystemIconRow> _systemIcons = [];
+    private List<FolderIconRow>? _folderIcons;
+
     public SettingsPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => Load();
-        Unloaded += (_, _) => WatchHostActivation(false);
+        Subtitle.Text = $"{AppInfo.Name}'in nasıl çalışacağını seç.";
+        AiText.Text = "Anahtarı girersen klasör simgesi penceresinde yazdığın açıklamaya göre yeni simge üretebilirsin. Anahtar yalnızca " +
+                      "bu bilgisayarda, Windows hesabına bağlı şifrelenerek saklanır. Üretim başına küçük bir API ücreti (birkaç sent) " +
+                      "Anthropic hesabına yansır. Anahtar zorunlu değil; hazır simgeler anahtarsız çalışır. " +
+                      $"{AppInfo.Name} internete yalnızca anahtarı doğrularken ve sen \"Üret\"e bastığında Anthropic'e bağlanır; " +
+                      "simge için yalnızca klasör adı ve yazdığın açıklama gönderilir.";
+        LoadAbout();
+
+        Fold.Attach(SystemIconsFold, SystemIconsContent, LoadSystemIcons);
+        Fold.Attach(FolderIconsFold, FolderIconsContent, LoadFolderIcons);
+        Fold.Attach(HotkeysFold, HotkeysContent);
+        Fold.Attach(AiFold, AiContent);
+        Fold.Attach(LocationsFold, LocationsContent);
+
+        Loaded += (_, _) =>
+        {
+            AppHost.DesktopVisibilityChanged += UpdateHideNow;
+            AppHost.SettingsChanged += UpdateFencesNote;
+            FolderIconWindow.IconChanged += OnFolderIconChanged;
+            Load();
+        };
+        Unloaded += (_, _) =>
+        {
+            AppHost.DesktopVisibilityChanged -= UpdateHideNow;
+            AppHost.SettingsChanged -= UpdateFencesNote;
+            FolderIconWindow.IconChanged -= OnFolderIconChanged;
+            WatchHostActivation(false);
+        };
     }
 
     private void Load()
@@ -51,30 +152,38 @@ public partial class SettingsPage : Page
         _loading = true;
         var s = AppHost.Settings;
         ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
-        LoadStartup();
         NotifyToggle.IsChecked = s.ShowNotifications;
         DoubleClickToggle.IsChecked = s.DoubleClickHidesDesktop;
         HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
+        SuggestToggle.IsChecked = s.SuggestFolderIcons;
         DesktopPath.Text = AppHost.DesktopDirectory;
         LoadDataFolder();
-        VersionText.Text = "Düzenleme " + Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
         LoadHotkeys();
         UpdateKeyStatus();
+        UpdateHideNow();
+        UpdateFencesNote();
+        SystemIconsStoreNote.Visibility = DesktopSystemIcons.CanChange ? Visibility.Collapsed : Visibility.Visible;
+        SystemIconsTestNote.Visibility = DesktopSystemIcons.CanChange && AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
+        // Kullanıcı Windows ayarlarından ya da Görev Yöneticisi'nden dönünce durumlar yenilensin.
+        WatchHostActivation(true);
+        LoadStartup();
         _loading = false;
     }
+
+    // ---- Genel ----
 
     private void LoadStartup()
     {
         if (!PackageInfo.IsPackaged)
         {
             StartupToggle.IsChecked = StartupRegistration.IsEnabled;
+            StartupToggle.IsEnabled = !AppHost.IsTestDesktop;
+            ShowStartupNote(null);
             return;
         }
         // Store sürümü: manifestteki başlangıç görevi. Durum gelene dek anahtar kapalı ve dokunulmaz.
         StartupToggle.IsEnabled = false;
         UpdateStartupTask(enable: null);
-        // Kullanıcı Ayarlar'dan ya da Görev Yöneticisi'nden dönünce durum yenilensin.
-        WatchHostActivation(true);
     }
 
     /// <summary>
@@ -107,11 +216,18 @@ public partial class SettingsPage : Page
     {
         var view = PackagedApp.DescribeStartupTask(state);
         StartupToggle.IsChecked = view.IsOn;
-        StartupToggle.IsEnabled = true;
+        StartupToggle.IsEnabled = !AppHost.IsTestDesktop;
         StartupToggle.Visibility = view.ShowToggle ? Visibility.Visible : Visibility.Collapsed;
         StartupSettingsButton.Visibility = view.ShowToggle ? Visibility.Collapsed : Visibility.Visible;
-        StartupState.Text = view.Note ?? "";
-        StartupState.Visibility = view.Note is null ? Visibility.Collapsed : Visibility.Visible;
+        ShowStartupNote(view.Note);
+    }
+
+    /// <summary>Anahtarın altındaki not. Test örneği (--desktop) gerçek başlangıç kaydını değiştirmez; bunu söyler.</summary>
+    private void ShowStartupNote(string? note)
+    {
+        if (AppHost.IsTestDesktop) note = "Test örneğinde değiştirilmez.";
+        StartupState.Text = note ?? "";
+        StartupState.Visibility = note is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void WatchHostActivation(bool watch)
@@ -121,27 +237,149 @@ public partial class SettingsPage : Page
         if (_host is not null) _host.Activated += Host_Activated;
     }
 
-    private void Host_Activated(object? sender, EventArgs e) => UpdateStartupTask(enable: null);
-
-    private void LoadDataFolder()
+    private void Host_Activated(object? sender, EventArgs e)
     {
-        // Store sürümünde ayarlar Gezgin'in gördüğü pakete özel klasörde durur (bkz. AppHost.DataDirectoryOnDisk).
-        var folder = AppHost.DataDirectoryOnDisk;
-        DataPath.Text = folder;
-        if (PackageInfo.IsPackaged)
+        if (PackageInfo.IsPackaged) UpdateStartupTask(enable: null);
+        _systemIcons.ForEach(row => row.Reload());
+    }
+
+    private void StartupToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (PackageInfo.IsPackaged) UpdateStartupTask(StartupToggle.IsChecked == true);
+        else StartupRegistration.Set(StartupToggle.IsChecked == true);
+    }
+
+    private void OpenStartupSettings_Click(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(StartupRegistration.StartupAppsSettingsUri) { UseShellExecute = true });
+
+    private void NotifyToggle_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.ShowNotifications = NotifyToggle.IsChecked == true;
+        AppHost.SaveSettings();
+    }
+
+    private void ThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        AppHost.Settings.Theme = ThemeBox.SelectedIndex switch { 1 => AppTheme.Dark, 2 => AppTheme.Light, _ => AppTheme.System };
+        AppHost.SaveSettings();
+        App.ApplyTheme(AppHost.Settings.Theme);
+    }
+
+    // ---- Masaüstü ----
+
+    private void DoubleClickToggle_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.DoubleClickHidesDesktop = DoubleClickToggle.IsChecked == true;
+        AppHost.SaveSettings();
+        AppHost.ApplyDoubleClickSetting();
+    }
+
+    private void HideWidgetsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.HideWidgetsWithIcons = HideWidgetsToggle.IsChecked == true;
+        AppHost.SaveSettings();
+        if (AppHost.DesktopHidden) AppHost.SetDesktopHidden(true);
+    }
+
+    /// <summary>"Masaüstünü şimdi gizle" satırı masaüstünün şu anki durumunu ve atanmış kısayolu gösterir.</summary>
+    private void UpdateHideNow()
+    {
+        var hidden = AppHost.DesktopHidden;
+        HideNowIcon.Symbol = hidden ? SymbolRegular.Eye24 : SymbolRegular.EyeOff24;
+        HideNowTitle.Text = hidden ? "Masaüstünü göster" : "Masaüstünü şimdi gizle";
+        HideNowButton.Content = hidden ? "Göster" : "Gizle";
+        System.Windows.Automation.AutomationProperties.SetName(HideNowButton, HideNowTitle.Text);
+        var shortcut = AppHost.Settings.Hotkeys.ToggleDesktop;
+        HideNowShortcut.Text = string.IsNullOrWhiteSpace(shortcut) ? "Kısayol atanmamış" : $"Kısayol: {shortcut}";
+    }
+
+    private void HideNow_Click(object sender, RoutedEventArgs e) => AppHost.ToggleDesktop();
+
+    private void LoadSystemIcons()
+    {
+        _systemIcons = DesktopSystemIcons.All.Select(i => new SystemIconRow(i)).ToList();
+        SystemIconList.ItemsSource = _systemIcons;
+    }
+
+    // Bölmeler masaüstünü yönetirken Windows simgeleri gizlidir; açılan simge "Kısayollar" bölmesinde görünür.
+    private void UpdateFencesNote() =>
+        FencesNote.Visibility = AppHost.Settings.FencesReplaceIcons ? Visibility.Visible : Visibility.Collapsed;
+
+    private void SystemIconOpen_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is SystemIconRow row) TileItem.Launch(DesktopSystemIcons.ShellPath(row.Item));
+    }
+
+    private void OpenIconSettings_Click(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(DesktopSystemIcons.SettingsUri) { UseShellExecute = true });
+
+    // ---- Klasör simgeleri ----
+
+    private void SuggestToggle_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.SuggestFolderIcons = SuggestToggle.IsChecked == true;
+        AppHost.SaveSettings();
+    }
+
+    private static List<string> DesktopFolders()
+    {
+        try { return AppHost.Organizer.ExistingFolders().ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    private void BeautifyAll_Click(object sender, RoutedEventArgs e)
+    {
+        var folders = DesktopFolders();
+        if (folders.Count == 0)
         {
-            // Taşınabilir mod paketliyken yoktur. Pakete ayrılmış klasör uygulamayla birlikte silinir: kullanıcı bilsin.
-            var own = !string.Equals(folder, AppHost.DataDirectory, StringComparison.OrdinalIgnoreCase);
-            PortableText.Text = "Microsoft Store sürümüne ayrılmış klasör; uygulama kaldırılınca Windows içindekileri de siler.";
-            PortableText.Visibility = own ? Visibility.Visible : Visibility.Collapsed;
+            Notice.Show("Masaüstünde klasör yok.", NoticeKind.Info);
             return;
         }
-        PortableText.Text = AppHost.IsPortable
-            ? "Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe."
-            : AppHost.PortableFallback
-                ? "portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik %AppData%\\Duzenleme'de. Programı yazılabilir bir klasöre taşı."
-                : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
+        var done = 0;
+        foreach (var folder in folders)
+        {
+            var path = Path.Combine(AppHost.DesktopDirectory, folder);
+            if (FolderIconService.HasCustomIcon(path)) continue;
+            var (glyph, color) = FolderIconCatalog.Suggest(folder);
+            try
+            {
+                FolderIconService.Apply(path, FolderIconRenderer.FolderDrawing(color, glyph.Glyph));
+                ShellIcons.Forget(path);
+                done++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException) { }
+        }
+        if (done > 0)
+            Notice.Show($"{done} klasöre adına uygun simge verildi. Beğenmediğini \"Bir klasörün simgesini değiştir\"den değiştirebilirsin.");
+        else
+            Notice.Show("Değişiklik yok: tüm klasörlerin zaten özel simgesi var.", NoticeKind.Info);
+        if (_folderIcons is not null) LoadFolderIcons();
     }
+
+    /// <summary>Masaüstündeki klasörler, Türkçe alfabe sırasıyla (katlanır bölüm ilk açıldığında ve simgeler toplu verilince).</summary>
+    private void LoadFolderIcons()
+    {
+        var order = StringComparer.Create(UiText.Tr, ignoreCase: true);
+        _folderIcons = DesktopFolders().Order(order)
+            .Select(name => new FolderIconRow(Path.Combine(AppHost.DesktopDirectory, name)))
+            .ToList();
+        FolderIconList.ItemsSource = _folderIcons;
+        FolderIconsEmpty.Visibility = _folderIcons.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnFolderIconChanged(string folder) => Dispatcher.BeginInvoke(() =>
+    {
+        ShellIcons.Forget(folder);
+        _folderIcons?.FirstOrDefault(r => string.Equals(r.Path, folder, StringComparison.OrdinalIgnoreCase))?.Reload();
+    }, DispatcherPriority.Background);
+
+    private void ChooseIcon_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is FolderIconRow row) FolderIconWindow.ShowFor(row.Path);
+    }
+
+    // ---- Gelişmiş: kısayollar ----
 
     private void LoadHotkeys()
     {
@@ -151,10 +389,12 @@ public partial class SettingsPage : Page
             .ToList();
     }
 
-    private static void ApplyHotkeys()
+    private void ApplyHotkeys()
     {
         AppHost.SaveSettings();
         AppHost.Hotkeys?.Apply(AppHost.Settings.Hotkeys);
+        LoadHotkeys();
+        UpdateHideNow();
     }
 
     private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -167,7 +407,6 @@ public partial class SettingsPage : Page
         {
             AppHost.Settings.Hotkeys.Set(row.Action, "");
             ApplyHotkeys();
-            LoadHotkeys();
             return;
         }
         // Yalnızca değiştirici tuşa basıldıysa birleşimin tamamlanmasını bekle.
@@ -184,18 +423,18 @@ public partial class SettingsPage : Page
         var keyName = key is >= Key.D0 and <= Key.D9 ? ((int)(key - Key.D0)).ToString() : key.ToString();
         AppHost.Settings.Hotkeys.Set(row.Action, new Hotkey(mods, keyName).ToString());
         ApplyHotkeys();
-        LoadHotkeys();
     }
 
     private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
     {
         AppHost.Settings.Hotkeys = new HotkeySettings();
         ApplyHotkeys();
-        LoadHotkeys();
     }
 
+    // ---- Gelişmiş: yapay zekâ ----
+
     private void UpdateKeyStatus() =>
-        KeyStatus.Text = Icons.ApiKeyStore.HasKey ? $"Kayıtlı ({Icons.ApiKeyStore.Masked()})" : "Eklenmedi";
+        KeyStatus.Text = ApiKeyStore.HasKey ? $"Kayıtlı ({ApiKeyStore.Masked()})" : "Eklenmedi";
 
     private async void SaveKey_Click(object sender, RoutedEventArgs e)
     {
@@ -208,13 +447,13 @@ public partial class SettingsPage : Page
         SaveKeyButton.IsEnabled = false;
         try
         {
-            var error = await Icons.AiIconGenerator.ValidateKeyAsync(key);
+            var error = await AiIconGenerator.ValidateKeyAsync(key);
             if (error is not null)
             {
                 ShowKey("Kaydedilmedi", error, InfoBarSeverity.Error);
                 return;
             }
-            Icons.ApiKeyStore.Save(key);
+            ApiKeyStore.Save(key);
             KeyBox.Password = "";
             UpdateKeyStatus();
             ShowKey("Kaydedildi", "Anahtar doğrulandı. Klasör simgesi penceresinde \"Üret\" artık kullanılabilir.", InfoBarSeverity.Success);
@@ -227,7 +466,7 @@ public partial class SettingsPage : Page
 
     private void DeleteKey_Click(object sender, RoutedEventArgs e)
     {
-        Icons.ApiKeyStore.Save(null);
+        ApiKeyStore.Save(null);
         UpdateKeyStatus();
         ShowKey("Silindi", "API anahtarı ayarlardan kaldırıldı. Eski ayar yedeklerinde (yedekler klasörü) şifreli kopyası kalabilir.", InfoBarSeverity.Informational);
     }
@@ -246,41 +485,26 @@ public partial class SettingsPage : Page
         e.Handled = true;
     }
 
-    private void DoubleClickToggle_Click(object sender, RoutedEventArgs e)
-    {
-        AppHost.Settings.DoubleClickHidesDesktop = DoubleClickToggle.IsChecked == true;
-        AppHost.SaveSettings();
-        AppHost.ApplyDoubleClickSetting();
-    }
+    // ---- Gelişmiş: dosya konumları ----
 
-    private void HideWidgetsToggle_Click(object sender, RoutedEventArgs e)
+    private void LoadDataFolder()
     {
-        AppHost.Settings.HideWidgetsWithIcons = HideWidgetsToggle.IsChecked == true;
-        AppHost.SaveSettings();
-        if (AppHost.DesktopHidden) AppHost.SetDesktopHidden(true);
-    }
-
-    private void ThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading) return;
-        AppHost.Settings.Theme = ThemeBox.SelectedIndex switch { 1 => AppTheme.Dark, 2 => AppTheme.Light, _ => AppTheme.System };
-        AppHost.SaveSettings();
-        App.ApplyTheme(AppHost.Settings.Theme);
-    }
-
-    private void StartupToggle_Click(object sender, RoutedEventArgs e)
-    {
-        if (PackageInfo.IsPackaged) UpdateStartupTask(StartupToggle.IsChecked == true);
-        else StartupRegistration.Set(StartupToggle.IsChecked == true);
-    }
-
-    private void OpenStartupSettings_Click(object sender, RoutedEventArgs e) =>
-        Process.Start(new ProcessStartInfo(StartupRegistration.StartupAppsSettingsUri) { UseShellExecute = true });
-
-    private void NotifyToggle_Click(object sender, RoutedEventArgs e)
-    {
-        AppHost.Settings.ShowNotifications = NotifyToggle.IsChecked == true;
-        AppHost.SaveSettings();
+        // Store sürümünde ayarlar Gezgin'in gördüğü pakete özel klasörde durur (bkz. AppHost.DataDirectoryOnDisk).
+        var folder = AppHost.DataDirectoryOnDisk;
+        DataPath.Text = folder;
+        if (PackageInfo.IsPackaged)
+        {
+            // Taşınabilir mod paketliyken yoktur. Pakete ayrılmış klasör uygulamayla birlikte silinir: kullanıcı bilsin.
+            var own = !string.Equals(folder, AppHost.DataDirectory, StringComparison.OrdinalIgnoreCase);
+            PortableText.Text = "Microsoft Store sürümüne ayrılmış klasör; uygulama kaldırılınca Windows içindekileri de siler.";
+            PortableText.Visibility = own ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+        PortableText.Text = AppHost.IsPortable
+            ? "Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe."
+            : AppHost.PortableFallback
+                ? $"portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik %AppData%\\{AppInfo.DataFolderName}'de. Programı yazılabilir bir klasöre taşı."
+                : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
     }
 
     private void OpenDesktop_Click(object sender, RoutedEventArgs e) =>
@@ -288,6 +512,28 @@ public partial class SettingsPage : Page
 
     private void OpenData_Click(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(AppHost.DataDirectoryOnDisk) { UseShellExecute = true });
+
+    // ---- Yardım ve Hakkında ----
+
+    private void Welcome_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowWelcome(rerun: true);
+
+    /// <summary>Sürüm, kanal (Store / taşınabilir / kurulum) ve nasıl güncelleneceği. Uygulama kendisi güncelleme denetlemez.</summary>
+    private void LoadAbout()
+    {
+        VersionText.Text = $"{AppInfo.Name} {AppInfo.Version} · eski adıyla {AppInfo.FormerName}";
+        TaglineText.Text = AppInfo.Tagline;
+        ChannelText.Text = PackageInfo.IsPackaged
+            ? "Microsoft Store sürümü · Güncellemeler Microsoft Store'dan kendiliğinden gelir."
+            : AppHost.IsPortable
+                ? "Taşınabilir sürüm · Güncellemek için yeni zip'i bu klasörün üzerine çıkar; data klasörün korunur."
+                : "Kurulum sürümü · Güncellemek için indirme sayfasından yeni kurulum dosyasını çalıştır; ayarların korunur.";
+        PrivacyText.Text = $"{AppInfo.Name} güncelleme denetlemez ve kendiliğinden internete bağlanmaz. Ayarların ve notların yalnızca bu bilgisayarda.";
+        // Store sürümünü Store günceller; indirme sayfası yalnızca kurulum/taşınabilir sürüm için.
+        ReleasesButton.Visibility = PackageInfo.IsPackaged ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void Releases_Click(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(AppInfo.ReleasesUrl) { UseShellExecute = true });
 
     private void Exit_Click(object sender, RoutedEventArgs e) => ((App)Application.Current).ExitApp();
 }

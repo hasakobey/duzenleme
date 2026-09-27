@@ -1,95 +1,148 @@
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Duzenleme.Core;
 using Wpf.Ui.Controls;
+using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace Duzenleme.Views;
 
-public sealed record FolderChip(string Name, SymbolRegular Icon, Brush IconBrush, string Detail);
-
+/// <summary>
+/// Ana sayfa: selam, üç ana eylem (Widget ekle, Şimdi düzenle, Son taşımayı geri al), otomatik taşıma durumu ve son üç
+/// taşıma. Açılışı hafif tutulur: klasörlerin içi sayılmaz, yalnızca masaüstündeki klasör adlarına bakılır.
+/// </summary>
 public partial class HomePage : Page
 {
+    private const int RecentCount = 3;
+
+    // Bugünkü renkler: açıkken mor, kapalıyken gri degrade.
+    private static readonly Brush OnBrush = Frozen(new LinearGradientBrush(Color.FromRgb(0x63, 0x66, 0xF1), Color.FromRgb(0xA8, 0x55, 0xF7), 0));
+    private static readonly Brush OffBrush = Frozen(new LinearGradientBrush(Color.FromRgb(0x4B, 0x4B, 0x57), Color.FromRgb(0x33, 0x33, 0x3D), 0));
+    private static readonly Brush SoftWhite = Frozen(new SolidColorBrush(Color.FromArgb(0xDD, 0xFF, 0xFF, 0xFF)));
+    private static readonly Brush IconBack = Frozen(new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)));
+
+    // Oluşturulmadan ilk Loaded'a dek geçen süre (DUZENLEME_DEBUGLOG açıksa günlüğe yazılır).
+    private readonly Stopwatch _firstLoad = Stopwatch.StartNew();
+    private int _journalQueued;
+
     public HomePage()
     {
         InitializeComponent();
+        Tagline.Text = AppInfo.Tagline;
         Loaded += (_, _) =>
         {
-            AppHost.SettingsChanged += Refresh;
-            AppHost.Journal.Changed += RefreshAsync;
+            AppHost.SettingsChanged += RefreshCard;
+            AppHost.Journal.Changed += OnJournalChanged;
+            Hello.Text = Widgets.ClockView.Greeting(DateTime.Now.Hour);
             Refresh();
+            if (_firstLoad.IsRunning)
+            {
+                _firstLoad.Stop();
+                DebugLog.Write($"ana sayfa hazır: {_firstLoad.ElapsedMilliseconds} ms");
+            }
         };
         Unloaded += (_, _) =>
         {
-            AppHost.SettingsChanged -= Refresh;
-            AppHost.Journal.Changed -= RefreshAsync;
+            AppHost.SettingsChanged -= RefreshCard;
+            AppHost.Journal.Changed -= OnJournalChanged;
         };
     }
 
-    private void RefreshAsync() => Dispatcher.BeginInvoke(Refresh);
+    private static Brush Frozen(Brush brush)
+    {
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// Geçmiş değişti (taşıyıcının iş parçacığından da gelir). Toplu taşımada art arda gelen bildirimler tek yenilemede
+    /// birleşir.
+    /// </summary>
+    private void OnJournalChanged()
+    {
+        if (Interlocked.Exchange(ref _journalQueued, 1) == 1) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            Volatile.Write(ref _journalQueued, 0);
+            if (IsLoaded) Refresh();
+        }, DispatcherPriority.Background);
+    }
 
     private void Refresh()
     {
-        var s = AppHost.Settings;
-        Hello.Text = ClockGreeting() + (string.IsNullOrEmpty(Environment.UserName) ? "" : ", " + Environment.UserName);
+        var entries = AppHost.Journal.Snapshot();
+        RefreshCard(entries);
+        RefreshUndoTile();
 
-        var paused = s.Paused;
-        WatchToggle.IsChecked = !paused;
-        StatusTitle.Text = paused ? "İzleme duraklatıldı" : "Masaüstü izleniyor";
-        StatusText.Text = paused ? "Yeni dosyalar olduğu yerde kalır." : AppHost.DesktopDirectory;
-        StatusIcon.Symbol = paused ? SymbolRegular.Pause24 : SymbolRegular.Desktop24;
-        StatusCard.Background = paused
-            ? new LinearGradientBrush(Color.FromRgb(0x4B, 0x4B, 0x57), Color.FromRgb(0x33, 0x33, 0x3D), 0)
-            : new LinearGradientBrush(Color.FromRgb(0x63, 0x66, 0xF1), Color.FromRgb(0xA8, 0x55, 0xF7), 0);
-
-        var entries = AppHost.Journal.Snapshot().Where(e => !e.Undone).ToList();
-        TodayCount.Text = entries.Count(e => e.Time.Date == DateTime.Today).ToString();
-        TotalCount.Text = entries.Count.ToString();
-
-        var folders = AppHost.Organizer.ExistingFolders().ToList();
-        var chips = new List<FolderChip>();
-        var ready = 0;
-        foreach (var rule in s.Rules.Where(r => r.Enabled))
-        {
-            var match = folders.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder));
-            if (match is not null)
-            {
-                ready++;
-                var count = SafeCount(Path.Combine(AppHost.DesktopDirectory, match));
-                chips.Add(new FolderChip(match, SymbolRegular.Folder24, (Brush)FindResource("SystemFillColorSuccessBrush"), $"{count} öğe · .{string.Join(" .", rule.Extensions.Take(3))}"));
-            }
-        }
-        foreach (var folder in folders.Where(f => !chips.Any(c => c.Name == f)))
-            chips.Add(new FolderChip(folder, SymbolRegular.Folder24, (Brush)FindResource("TextFillColorTertiaryBrush"), "kural yok"));
-
-        ReadyCount.Text = ready.ToString();
-        NoFolderInfo.IsOpen = ready == 0;
-        NoFolderInfo.Visibility = ready == 0 ? Visibility.Visible : Visibility.Collapsed;
-        Folders.ItemsSource = chips;
-
-        var recent = AppHost.Journal.Snapshot().Take(6).Select(e => new MoveRow(e)).ToList();
+        var recent = entries.Take(RecentCount).Select(e => new MoveRow(e)).ToList();
         Recent.ItemsSource = recent;
         RecentEmpty.Visibility = recent.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SeeAllButton.Visibility = recent.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private static int SafeCount(string dir)
+    // Ayarlar her kaydedildiğinde (widget taşımak da kaydeder) çağrılır: yalnızca kart, ucuz.
+    private void RefreshCard() => RefreshCard(AppHost.Journal.Snapshot());
+
+    private void RefreshCard(IReadOnlyList<MoveEntry> entries)
     {
-        try { return Directory.EnumerateFileSystemEntries(dir).Count(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
+        var on = !AppHost.Settings.Paused;
+        var ready = AutoMoveStatus.ReadyRules();
+        var moved = entries.Where(e => !e.Undone).ToList();
+        var today = moved.Count(e => e.Time.Date == DateTime.Today);
+        var (title, text) = AutoMoveStatus.Describe(on, ready, today, moved.Count);
+
+        AutoMoveToggle.IsChecked = on;
+        StatusTitle.Text = title;
+        StatusText.Text = text;
+        StatusIcon.Symbol = on ? SymbolRegular.FolderArrowRight24 : SymbolRegular.Pause24;
+        SetUpFolders.Visibility = on && ready == 0 ? Visibility.Visible : Visibility.Collapsed;
+        PaintCard(on);
     }
 
-    private static string ClockGreeting() => Widgets.ClockView.Greeting(DateTime.Now.Hour);
+    /// <summary>Degrade kart; yüksek karşıtlıkta sistemin kart rengi ve metin renkleri (beyaz yazı okunmaz olmasın).</summary>
+    private void PaintCard(bool on)
+    {
+        if (SystemParameters.HighContrast)
+        {
+            StatusCard.SetResourceReference(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+            StatusIconBack.Background = Brushes.Transparent;
+            StatusIcon.SetResourceReference(IconElement.ForegroundProperty, "TextFillColorPrimaryBrush");
+            StatusTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+            StatusText.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+            return;
+        }
+        StatusCard.Background = on ? OnBrush : OffBrush;
+        StatusIconBack.Background = IconBack;
+        StatusIcon.Foreground = Brushes.White;
+        StatusTitle.Foreground = Brushes.White;
+        StatusText.Foreground = SoftWhite;
+    }
 
-    private void WatchToggle_Click(object sender, RoutedEventArgs e) => AppHost.SetPaused(WatchToggle.IsChecked != true);
+    private void RefreshUndoTile()
+    {
+        var last = AppHost.Journal.LastActive();
+        UndoTile.IsEnabled = last is not null;
+        UndoDetail.Text = last is null ? "Geri alınacak taşıma yok" : $"{last.FileName} → {last.FolderName}";
+    }
 
-    private void OrganizeNow_Click(object sender, RoutedEventArgs e) => AppHost.OrganizeNowInBackground();
+    private void Go(Type page) => (Window.GetWindow(this) as MainWindow)?.NavigateTo(page);
 
-    private void QuickAdd_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowQuickAdd();
+    private void AddWidget_Click(object sender, RoutedEventArgs e) => Go(typeof(WidgetsPage));
 
-    private void UndoLast_Click(object sender, RoutedEventArgs e) => HistoryPage.UndoWithFeedback(AppHost.Journal.LastActive());
+    private async void OrganizeNow_Click(object sender, RoutedEventArgs e)
+    {
+        OrganizeTile.IsEnabled = false;
+        try { await MoveActions.OrganizeNowAsync(); }
+        finally { OrganizeTile.IsEnabled = true; }
+    }
 
-    private void OpenDesktop_Click(object sender, RoutedEventArgs e) =>
-        Process.Start(new ProcessStartInfo(AppHost.DesktopDirectory) { UseShellExecute = true });
+    private void UndoLast_Click(object sender, RoutedEventArgs e) => MoveActions.Undo(AppHost.Journal.LastActive());
+
+    private void AutoMoveToggle_Click(object sender, RoutedEventArgs e) => AppHost.SetPaused(AutoMoveToggle.IsChecked != true);
+
+    private void SetUpFolders_Click(object sender, RoutedEventArgs e) => Go(typeof(AutoMovePage));
+
+    private void SeeAll_Click(object sender, RoutedEventArgs e) => AutoMovePage.ShowHistory();
 }
