@@ -93,3 +93,17 @@ Geliştirme yardımcıları: `--export-icon-sheet out.png` (simge kütüphanesi 
 Ayarlar ve geçmiş `%AppData%\Duzenleme` altında (`settings.json`, `journal.json`, `ai-icons/`) tutulur; ayarların son 7 günlük kopyası `yedekler/` klasöründedir.
 
 **Performans:** klasör taramaları ve simge/önizleme yüklemeleri arka planda yapılır (büyük klasörde arayüz donmaz); saat yalnızca dakika (ya da saniye) başında çizilir; widget'lar yazılımla çizilir (7 widget'ta ~85 MB daha az bellek). Donanım çizimine dönmek için `DUZENLEME_GPU=1`.
+
+## Code signing policy (kod imzalama)
+
+Sürümler, [SignPath Foundation](https://signpath.org)'ın ücretsiz açık kaynak programıyla imzalanmak üzere başvuru aşamasındadır. Onaylandığında: *Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).*
+
+- İmzalanan dosyalar yalnızca bu depodaki kaynak koddan, [GitHub Actions](.github/workflows/dotnet-desktop.yml) ile derlenir; her sürüm elle onaylanır.
+- Committers and reviewers: [hasakobey](https://github.com/hasakobey)
+- Approvers: [hasakobey](https://github.com/hasakobey)
+
+**Privacy policy (gizlilik):** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. — Düzenleme, kullanıcı özellikle istemedikçe hiçbir bilgiyi internete göndermez. Tek istisna isteğe bağlı "yapay zekâ ile klasör simgesi" özelliğidir: kullanıcı kendi API anahtarını girip simge istediğinde yalnızca klasör adı ve yazdığı açıklama Anthropic'e gönderilir ([Anthropic gizlilik politikası](https://www.anthropic.com/legal/privacy)).
+
+## Lisans
+
+[MIT](LICENSE) © 2026 hasakobey — kullanmak, değiştirmek ve dağıtmak serbesttir; telif satırı ve lisans metni korunmalıdır. Kullanılan açık kaynak bileşenler ve lisansları: [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) (kurulum ve zip'lerde de programın yanında gelir).

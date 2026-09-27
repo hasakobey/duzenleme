@@ -40,6 +40,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- MIT ve BSD lisansları, bildirimin programla birlikte dağıtılmasını ister: kurulum ve zip'lere girer. -->
+    <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.50.0" />
     <PackageReference Include="SharpVectors.Wpf" Version="1.8.6" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
