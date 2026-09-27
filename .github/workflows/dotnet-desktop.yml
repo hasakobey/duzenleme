@@ -30,7 +30,7 @@ jobs:
         shell: pwsh
         run: |
           $version = ([xml](Get-Content src/Duzenleme/Duzenleme.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Etiket $env:GITHUB_REF_NAME, proje sürümü $version: aynı olmalı." }
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Etiket $env:GITHUB_REF_NAME, proje sürümü ${version}: aynı olmalı." }
 
       - name: Testler
         run: dotnet test Duzenleme.sln -c Release
