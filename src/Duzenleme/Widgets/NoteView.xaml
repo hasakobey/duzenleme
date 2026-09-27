@@ -7,31 +7,52 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="TitleText" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"
                        FontFamily="Segoe UI Variable Text, Segoe UI" TextTrimming="CharacterEllipsis" />
-            <StackPanel x:Name="Swatches" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" />
-            <Button x:Name="RemoveButton" Grid.Column="2" Style="{StaticResource WidgetCloseButton}" Width="22" Height="22" Margin="6,0,-4,0"
+            <!-- Yapılacaklar: biten/toplam ("2/5"); yalnızca liste kipinde ve madde varken görünür. -->
+            <TextBlock x:Name="ProgressText" Grid.Column="1" FontSize="12" Margin="8,0,6,0" VerticalAlignment="Center"
+                       FontFamily="Segoe UI Variable Text, Segoe UI" Visibility="Collapsed" />
+            <StackPanel x:Name="Swatches" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" />
+            <Button x:Name="RemoveButton" Grid.Column="3" Style="{StaticResource WidgetCloseButton}" Width="22" Height="22" Margin="6,0,-4,0"
                     Click="RemoveWidget_Click" />
         </Grid>
-        <TextBox x:Name="Editor" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
-                 VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0"
-                 Padding="0" FontSize="15" FontFamily="Segoe UI Variable Text, Segoe UI"
-                 SpellCheck.IsEnabled="False">
-            <TextBox.Template>
-                <ControlTemplate TargetType="TextBox">
-                    <Grid>
-                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
-                        <TextBlock x:Name="Placeholder" Text="Bir şeyler yaz…" IsHitTestVisible="False"
-                                   Opacity="0.45" Visibility="Collapsed" Margin="2,0,0,0" />
-                    </Grid>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="Text" Value="">
-                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </TextBox.Template>
-        </TextBox>
+        <Grid>
+            <TextBox x:Name="Editor" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0"
+                     Padding="0" FontSize="15" FontFamily="Segoe UI Variable Text, Segoe UI"
+                     SpellCheck.IsEnabled="False">
+                <TextBox.Template>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid>
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+                            <TextBlock x:Name="Placeholder" Text="Bir şeyler yaz…" IsHitTestVisible="False"
+                                       Opacity="0.45" Visibility="Collapsed" Margin="2,0,0,0" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </TextBox.Template>
+            </TextBox>
+
+            <!-- Yapılacaklar (NoteChecklist): onay kutulu satırlar ve en altta "Yeni madde ekle…". Satırlar kodda kurulur. -->
+            <ScrollViewer x:Name="ChecklistScroll" Focusable="False" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed" Background="Transparent">
+                <StackPanel>
+                    <StackPanel x:Name="ChecklistRows" />
+                    <DockPanel x:Name="AddRow" Margin="0,2,0,2">
+                        <TextBlock x:Name="AddGlyph" Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12"
+                                   Width="16" Margin="0,0,8,0" TextAlignment="Center" VerticalAlignment="Center" Opacity="0.55" />
+                        <TextBox x:Name="AddBox" Style="{StaticResource InlineTextBox}" Tag="Yeni madde ekle…" TextWrapping="Wrap"
+                                 AcceptsReturn="False" AutomationProperties.Name="Yeni madde ekle"
+                                 AutomationProperties.AutomationId="Checklist.Add" />
+                    </DockPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </DockPanel>
 </UserControl>

@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 
 namespace Duzenleme.Widgets;
 
@@ -10,6 +9,9 @@ public interface IWidgetView
 
     /// <summary>Başlığa katlanabilir mi (bölme, kutu)?</summary>
     bool Collapsible => false;
+
+    /// <summary>Arka plan (Cam/Koyu/Açık) ve vurgu rengi bu widget'ta etkili mi? Not kendi kağıt rengini kullanır.</summary>
+    bool UsesThemeColors => true;
 
     /// <summary>Katlama/açma isteği (ör. başlığa çift tıklama).</summary>
     event Action? CollapseToggleRequested { add { } remove { } }
@@ -34,8 +36,8 @@ public interface IWidgetView
 
     void ApplyPalette(WidgetPalette palette);
 
-    /// <summary>Sağ tık menüsüne widget'a özel öğeler ekler.</summary>
-    void AddMenuItems(ContextMenu menu);
+    /// <summary>Sağ tık menüsünün widget'a özel bölümlerini doldurur (iskeleti WidgetWindow kurar).</summary>
+    void AddMenuItems(WidgetMenu menu);
 
     /// <summary>Bekleyen değişiklikleri (ör. notun son yazılanları) ayarlara hemen yazar.</summary>
     void Flush() { }

@@ -395,10 +395,10 @@ public partial class FenceView : UserControl, IWidgetView
     private static readonly (string Key, string Label)[] FenceParts =
     [
         ("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("search", "Arama düğmesi"),
-        ("open", "Klasörü aç düğmesi"), ("divider", "Ayraç çizgisi"),
+        ("open", "Klasörü aç düğmesi"), ("divider", "Ayraç çizgisi"), Menus.ClosePart,
     ];
 
-    /// <summary>Kullanıcının kapattığı parçaları gizler.</summary>
+    /// <summary>Kullanıcının kapattığı parçaları gizler. Kaldırma düğmesi kilitliyken de gizlidir.</summary>
     private void ApplyParts()
     {
         Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
@@ -406,6 +406,7 @@ public partial class FenceView : UserControl, IWidgetView
         OpenButton.Visibility = !DesktopMode && _config.Shows("open") ? Visibility.Visible : Visibility.Collapsed;
         Divider.Visibility = _config.Shows("divider") && _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
         CountBadge.Visibility = _config.Shows("count") && Items.ItemsSource is not null ? Visibility.Visible : Visibility.Collapsed;
+        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Items_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -432,9 +433,18 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void CreateFolder_Click(object sender, RoutedEventArgs e)
     {
-        Directory.CreateDirectory(System.IO.Path.Combine(AppHost.DesktopDirectory, FolderName));
+        var path = System.IO.Path.Combine(AppHost.DesktopDirectory, FolderName);
+        // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın; otomatik taşıma kapalıysa dosya da taşınmasın.
+        AppHost.MarkQuietFolder(path);
+        try { Directory.CreateDirectory(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            AppHost.ConsumeQuietFolder(path);
+            MessageBox.Show(ex.Message, AppInfo.Name);
+            return;
+        }
         Refresh();
-        AppHost.OrganizeNowInBackground();
+        AppHost.OrganizeIfActive();
     }
 
     private void FillItemMenu(ContextMenu menu, TileItem item)
@@ -474,7 +484,7 @@ public partial class FenceView : UserControl, IWidgetView
         if (InputDialog.Ask("Yeniden adlandır", "Yeni ad", oldName) is not { Length: > 0 } newName || newName == oldName) return;
         if (newName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
         {
-            MessageBox.Show("Ad şu karakterleri içeremez: \\ / : * ? \" < > |", "Düzenleme");
+            MessageBox.Show("Ad şu karakterleri içeremez: \\ / : * ? \" < > |", AppInfo.Name);
             return;
         }
         var target = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, newName);
@@ -485,7 +495,7 @@ public partial class FenceView : UserControl, IWidgetView
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(ex.Message, "Düzenleme");
+            MessageBox.Show(ex.Message, AppInfo.Name);
         }
         QueueRefresh();
     }
@@ -517,7 +527,7 @@ public partial class FenceView : UserControl, IWidgetView
         try { Directory.CreateDirectory(FileMover.UniquePath(parent, name)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            MessageBox.Show(ex.Message, "Düzenleme");
+            MessageBox.Show(ex.Message, AppInfo.Name);
         }
         QueueRefresh();
     }
@@ -533,7 +543,7 @@ public partial class FenceView : UserControl, IWidgetView
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(ex.Message, "Düzenleme");
+            MessageBox.Show(ex.Message, AppInfo.Name);
         }
     }
 
@@ -562,7 +572,7 @@ public partial class FenceView : UserControl, IWidgetView
             try { AppHost.Organizer.MoveManually(path, folder); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                MessageBox.Show(ex.Message, "Düzenleme");
+                MessageBox.Show(ex.Message, AppInfo.Name);
             }
         }
         Refresh();
@@ -587,7 +597,7 @@ public partial class FenceView : UserControl, IWidgetView
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
         RemoveButton.Foreground = palette.Foreground;
-        RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
+        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Set(Action change)
@@ -603,20 +613,13 @@ public partial class FenceView : UserControl, IWidgetView
         return true;
     }
 
-    public void AddMenuItems(ContextMenu menu)
+    public void AddMenuItems(WidgetMenu menu)
     {
-        if (!DesktopMode && ResolveFolder() is { } folder)
-        {
-            menu.Items.Add(Menus.Item("Klasörü aç", () => TileItem.Launch(folder)));
-            menu.Items.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(folder)));
-        }
+        var folder = DesktopMode ? null : ResolveFolder();
+        if (folder is not null)
+            menu.Primary.Add(Menus.Item("Klasörü aç", () => TileItem.Launch(folder)));
         if (_config.Filter is DesktopFilter.None or DesktopFilter.Folders or DesktopFilter.All)
-            menu.Items.Add(Menus.Item("Yeni klasör…", NewFolder));
-        menu.Items.Add(Menus.Item("Başlığı değiştir…", () =>
-        {
-            if (InputDialog.Ask("Bölme başlığı", "Başlık (boş bırakırsan varsayılan ad kullanılır)", TitleText.Text) is { } title)
-                Set(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
-        }));
+            menu.Primary.Add(Menus.Item("Yeni klasör…", NewFolder));
 
         var pick = new MenuItem { Header = "Ne gösterilsin?" };
         pick.Items.Add(Menus.Hint("Masaüstünden"));
@@ -632,14 +635,17 @@ public partial class FenceView : UserControl, IWidgetView
                 pick.Items.Add(Menus.Toggle(name, !DesktopMode && Core.FolderName.Equal(name, FolderName),
                     () => Set(() => { _config.Filter = DesktopFilter.None; _config.FolderName = name; _config.Title = null; })));
         }
-        menu.Items.Add(pick);
+        menu.Primary.Add(pick);
 
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Choice("Sırala", _config.Sort,
+        menu.Primary.Add(Menus.Item("Başlığı değiştir…", () =>
+        {
+            if (InputDialog.Ask("Bölme başlığı", "Başlık (boş bırakırsan varsayılan ad kullanılır)", TitleText.Text) is { } title)
+                Set(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
+        }));
+        var sort = Menus.Choice("Sırala", _config.Sort,
             [(FenceSort.Newest, "En yeni üstte"), (FenceSort.Name, "Ada göre"), (FenceSort.Type, "Türe göre")],
-            v => Set(() => _config.Sort = v)));
-        menu.Items.Add(Menus.TileOptions(_config, Set, singleClickOption: true));
-        menu.Items.Add(Menus.Parts(_config, FenceParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+            v => Set(() => _config.Sort = v));
+        menu.Primary.Add(Menus.TileOptions(_config, Set, singleClickOption: true, first: sort));
         if (_config.HiddenItems.Count > 0)
         {
             var hidden = new MenuItem { Header = $"Gizlenen öğeler ({_config.HiddenItems.Count})" };
@@ -652,11 +658,15 @@ public partial class FenceView : UserControl, IWidgetView
                     : TileItem.DisplayName(path);
                 hidden.Items.Add(Menus.Item(label + " — göster", () => UnhideItems([path])));
             }
-            menu.Items.Add(hidden);
+            menu.Primary.Add(hidden);
         }
-        menu.Items.Add(Menus.Item("Yenile", Refresh));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", AppHost.Settings.FencesReplaceIcons,
+
+        menu.Appearance.Add(Menus.Parts(_config, FenceParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+
+        if (folder is not null)
+            menu.More.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(folder)));
+        menu.More.Add(Menus.Item("Yenile", Refresh));
+        menu.More.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", AppHost.Settings.FencesReplaceIcons,
             () => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons)));
     }
 

@@ -23,7 +23,6 @@ public sealed class WidgetWindow : Window
     private const double DefaultWidth = 360, DefaultHeight = 270;
 
     private readonly Border _card;
-    private readonly System.Windows.Controls.Button _removeBadge;
     private readonly DropShadowEffect _shadow = new() { BlurRadius = 26, ShadowDepth = 4, Direction = 270, Opacity = 0.32, Color = Colors.Black };
     private readonly DispatcherTimer _saveTimer;
     private bool _positionReady;
@@ -42,8 +41,10 @@ public sealed class WidgetWindow : Window
         ShowInTaskbar = false;
         ShowActivated = false;
         Topmost = false;
-        Title = "Düzenleme widget";
+        Title = $"{AppInfo.Name} widget";
 
+        // Kaldırma düğmesi (×) her widget'ın kendi görünümünde, sağ üstte hep yerinde durur (WidgetCloseButton):
+        // fare widget'a gelince hiçbir şey belirip kaybolmaz.
         _card = new Border
         {
             BorderThickness = new Thickness(1),
@@ -51,16 +52,7 @@ public sealed class WidgetWindow : Window
             Margin = new Thickness(ShadowMargin),
             Child = (UIElement)view,
         };
-        // Saat/tarihte üzerine gelince sol üst köşede yavaşça beliren × (macOS widget'ları gibi): widget'ı kaldırır,
-        // geri alınabilir. Bölme, kutu ve notta × başlıkta hep yerinde durur (içerikleri ve köşe tutamaçları kapanmasın).
-        _removeBadge = RemoveBadge();
-        _removeBadge.Visibility = view.Resizable ? Visibility.Collapsed : Visibility.Visible;
-        _removeBadge.Click += (_, _) => AppHost.Widgets.RemoveWithUndo(Config.Id);
-        System.Windows.Automation.AutomationProperties.SetName(_removeBadge, "Widget'ı kaldır");
-        var root = new Grid();
-        root.Children.Add(_card);
-        root.Children.Add(_removeBadge);
-        Content = root;
+        Content = _card;
         // WPF ilk açılan pencereyi Application.MainWindow yapar; widget ana pencere sayılırsa tema değişikliği
         // (WPF-UI) onun saydam zeminini opak bir dikdörtgene çevirebilir.
         if (Application.Current?.MainWindow == this) Application.Current.MainWindow = null;
@@ -88,8 +80,8 @@ public sealed class WidgetWindow : Window
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveBounds(); };
         // Konum/boyut yalnızca kullanıcı taşıyınca/boyutlandırınca kaydedilir. Monitör çıkarılınca ya da çözünürlük
         // değişince Windows'un pencereyi kaydırması kayıtlı düzeni bozmasın; ekran geri gelince eski yerine döner.
-        MouseEnter += (_, _) => { FadeBadge(!Config.Locked); OnHover(true); };
-        MouseLeave += (_, _) => { FadeBadge(false); OnHover(false); };
+        MouseEnter += (_, _) => OnHover(true);
+        MouseLeave += (_, _) => OnHover(false);
         View.LayoutChanged += () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
         PreviewDragEnter += (_, _) => OnHover(true);
         _rollupTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
@@ -128,46 +120,6 @@ public sealed class WidgetWindow : Window
             SizeChanged += (_, e) => DebugLog.Write($"{tag} SizeChanged {e.NewSize.Width:0}x{e.NewSize.Height:0}");
             DpiChanged += (_, e) => DebugLog.Write($"{tag} DpiChanged {e.OldDpi.PixelsPerDip}->{e.NewDpi.PixelsPerDip}");
         }
-    }
-
-    /// <summary>Koyu, sade yuvarlak ×; yalnızca kendi üstüne gelince kırmızılaşır. Başta görünmez ve tıklanamaz.</summary>
-    private static System.Windows.Controls.Button RemoveBadge()
-    {
-        var glyph = new FrameworkElementFactory(typeof(TextBlock));
-        glyph.SetValue(TextBlock.TextProperty, "\uE711");
-        glyph.SetValue(TextBlock.FontFamilyProperty, new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));
-        glyph.SetValue(TextBlock.FontSizeProperty, 9.0);
-        glyph.SetValue(TextBlock.ForegroundProperty, Brushes.White);
-        glyph.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        glyph.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-        var face = new FrameworkElementFactory(typeof(Border), "Bg");
-        face.SetValue(Border.CornerRadiusProperty, new CornerRadius(11));
-        face.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0xD9, 0x1E, 0x1E, 0x26)));
-        face.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF)));
-        face.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-        face.AppendChild(glyph);
-        var template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = face };
-        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)), "Bg"));
-        template.Triggers.Add(hover);
-        return new System.Windows.Controls.Button
-        {
-            Template = template,
-            Width = 22, Height = 22, Cursor = Cursors.Hand, Focusable = false,
-            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(ShadowMargin - 7, ShadowMargin - 7, 0, 0),
-            ToolTip = "Widget'ı kaldır (geri getirilebilir)",
-            Opacity = 0, IsHitTestVisible = false,
-        };
-    }
-
-    /// <summary>Köşedeki × belirip kaybolurken zıplamasın: kısa bir geçişle yumuşakça görünür/kaybolur.</summary>
-    private void FadeBadge(bool show)
-    {
-        if (_removeBadge.Visibility != Visibility.Visible) return;
-        _removeBadge.IsHitTestVisible = show;
-        _removeBadge.BeginAnimation(OpacityProperty,
-            new System.Windows.Media.Animation.DoubleAnimation(show ? 1 : 0, TimeSpan.FromMilliseconds(show ? 160 : 120)));
     }
 
     public void ApplyStyle()
@@ -222,7 +174,7 @@ public sealed class WidgetWindow : Window
         Opacity = Config.FadeUntilHover && !IsMouseOver && !_revealing ? Math.Min(opacity, 0.35) : opacity;
     }
 
-    // --- Üzerine gelince belirginleşme ve otomatik katlanma ---
+    // --- Fare üstünde değilken soluk durma ve başlığa katlanma ---
     private readonly DispatcherTimer _rollupTimer;
     private bool _rolledUp;
 
@@ -274,17 +226,67 @@ public sealed class WidgetWindow : Window
         AppHost.SaveSettings();
     }
 
+    /// <summary>
+    /// Sağ tık menüsünün iskeleti: üstte widget'ın asıl işleri, altta "Görünüm ▸" ve seyrek kullanılanlar için
+    /// "Diğer ▸", en altta "Kaldır". Widget'a özel parçaları görünüm sınıfı <see cref="WidgetMenu"/> bölümlerine koyar.
+    /// </summary>
     private void FillMenu(ContextMenu menu)
     {
+        var own = new WidgetMenu();
+        View.AddMenuItems(own);
+
         menu.Items.Add(Menus.Item("Yeni widget ekle…", () => (Application.Current as App)?.ShowQuickAdd()));
         menu.Items.Add(new Separator());
-        View.AddMenuItems(menu);
-        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+        if (own.Primary.Count > 0)
+        {
+            foreach (var item in own.Primary) menu.Items.Add(item);
+            menu.Items.Add(new Separator());
+        }
 
+        var look = new MenuItem { Header = "Görünüm" };
+        if (own.Appearance.Count > 0)
+        {
+            foreach (var item in own.Appearance) look.Items.Add(item);
+            look.Items.Add(new Separator());
+        }
+        // Not kendi kağıt rengini kullanır: arka plan ve vurgu rengi orada etkisizdir, gösterilmez.
+        if (View.UsesThemeColors)
+        {
+            look.Items.Add(Menus.Choice("Arka plan", Config.Style,
+                [(WidgetStyle.Glass, "Cam"), (WidgetStyle.Dark, "Koyu"), (WidgetStyle.Light, "Açık")],
+                v => Update(() => Config.Style = v)));
+            look.Items.Add(Menus.Choice("Vurgu rengi", Config.Accent,
+                [(WidgetAccent.Violet, "Mor"), (WidgetAccent.Blue, "Mavi"), (WidgetAccent.Green, "Yeşil"), (WidgetAccent.Orange, "Turuncu"), (WidgetAccent.Pink, "Pembe")],
+                v => Update(() => Config.Accent = v)));
+        }
+        look.Items.Add(Menus.Choice("Ölçek", Math.Round(Config.Scale, 2),
+            [(0.7, "%70"), (0.85, "%85"), (1.0, "Normal (%100)"), (1.25, "%125"), (1.5, "%150"), (2.0, "%200")],
+            v => Update(() => Config.Scale = v)));
+        look.Items.Add(Menus.Choice("Saydamlık", Math.Round(Config.Opacity, 2),
+            [(1.0, "Yok"), (0.85, "%15"), (0.7, "%30"), (0.55, "%45")],
+            v => Update(() => Config.Opacity = v)));
+        look.Items.Add(Menus.Choice("Köşeler", Config.Corners,
+            [(CornerStyle.Round, "Yuvarlak"), (CornerStyle.Soft, "Hafif yuvarlak"), (CornerStyle.Square, "Köşeli")],
+            v => Update(() => Config.Corners = v)));
+        look.Items.Add(Menus.Toggle("Gölge", Config.Shadow, () => Update(() => Config.Shadow = !Config.Shadow)));
+        look.Items.Add(Menus.Toggle("Fare üstünde değilken soluk dursun", Config.FadeUntilHover,
+            () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)));
+        look.Items.Add(new Separator());
+        look.Items.Add(Menus.Hint(View.Resizable
+            ? "Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift"
+            : "Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift"));
+        menu.Items.Add(look);
+
+        var more = new MenuItem { Header = "Diğer" };
+        if (own.More.Count > 0)
+        {
+            foreach (var item in own.More) more.Items.Add(item);
+            more.Items.Add(new Separator());
+        }
         if (View.Collapsible)
         {
-            menu.Items.Add(Menus.Toggle("Başlığa katla", Config.Collapsed, () => SetCollapsed(!Config.Collapsed)));
-            menu.Items.Add(Menus.Toggle("Fare çekilince katla", Config.AutoRollup, () =>
+            more.Items.Add(Menus.Toggle("Başlığa katla", Config.Collapsed, () => SetCollapsed(!Config.Collapsed)));
+            more.Items.Add(Menus.Toggle("Fare üstünde değilken başlığa katla", Config.AutoRollup, () =>
             {
                 Config.AutoRollup = !Config.AutoRollup;
                 AppHost.SaveSettings();
@@ -295,55 +297,30 @@ public sealed class WidgetWindow : Window
                 }
             }));
         }
-
-        var custom = new MenuItem { Header = "Özelleştir" };
-        custom.Items.Add(Menus.Choice("Görünüm", Config.Style,
-            [(WidgetStyle.Glass, "Cam"), (WidgetStyle.Dark, "Koyu"), (WidgetStyle.Light, "Açık")],
-            v => Update(() => Config.Style = v)));
-        custom.Items.Add(Menus.Choice("Vurgu rengi", Config.Accent,
-            [(WidgetAccent.Violet, "Mor"), (WidgetAccent.Blue, "Mavi"), (WidgetAccent.Green, "Yeşil"), (WidgetAccent.Orange, "Turuncu"), (WidgetAccent.Pink, "Pembe")],
-            v => Update(() => Config.Accent = v)));
-        custom.Items.Add(Menus.Choice("Ölçek", Math.Round(Config.Scale, 2),
-            [(0.7, "%70"), (0.85, "%85"), (1.0, "Normal (%100)"), (1.25, "%125"), (1.5, "%150"), (2.0, "%200")],
-            v => Update(() => Config.Scale = v)));
-        custom.Items.Add(Menus.Choice("Saydamlık", Math.Round(Config.Opacity, 2),
-            [(1.0, "Yok"), (0.85, "%15"), (0.7, "%30"), (0.55, "%45")],
-            v => Update(() => Config.Opacity = v)));
-        custom.Items.Add(Menus.Choice("Köşeler", Config.Corners,
-            [(CornerStyle.Round, "Yuvarlak"), (CornerStyle.Soft, "Hafif yuvarlak"), (CornerStyle.Square, "Köşeli")],
-            v => Update(() => Config.Corners = v)));
-        custom.Items.Add(Menus.Toggle("Gölge", Config.Shadow, () => Update(() => Config.Shadow = !Config.Shadow)));
-        custom.Items.Add(Menus.Toggle("Üzerine gelince belirginleş", Config.FadeUntilHover, () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)));
-        custom.Items.Add(new Separator());
-        custom.Items.Add(Menus.Hint(View.Resizable
-            ? "Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift"
-            : "Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift"));
-        menu.Items.Add(custom);
-
-        var placement = new MenuItem { Header = "Yerleşim" };
         // Kilitli widget'ta kaldırma düğmesi de gizlenir (ApplyStyle görünümlere iletir).
-        placement.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () =>
+        more.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () =>
         {
             Config.Locked = !Config.Locked;
             AppHost.SaveSettings();
             ApplyStyle();
         }));
-        placement.Items.Add(Menus.Toggle("Kenarlara yapışsın (mıknatıs)", AppHost.Settings.SnapWidgets, () =>
+        more.Items.Add(Menus.Toggle("Kenarlara yapışsın (mıknatıs)", AppHost.Settings.SnapWidgets, () =>
         {
             AppHost.Settings.SnapWidgets = !AppHost.Settings.SnapWidgets;
             AppHost.SaveSettings();
         }));
-        placement.Items.Add(Menus.Toggle("Widget'lar üst üste binmesin", AppHost.Settings.PreventOverlap, () =>
+        more.Items.Add(Menus.Toggle("Widget'lar üst üste binmesin", AppHost.Settings.PreventOverlap, () =>
         {
             AppHost.Settings.PreventOverlap = !AppHost.Settings.PreventOverlap;
             AppHost.SaveSettings();
             if (AppHost.Settings.PreventOverlap) ResolveOverlap();
         }));
-        placement.Items.Add(new Separator());
-        placement.Items.Add(Menus.Item("Tüm widget'ları düzenli yerleştir", () => AppHost.Widgets.ArrangeAll()));
-        placement.Items.Add(Menus.Hint("Taşırken Alt: yapışmadan · Shift: ızgaraya"));
-        menu.Items.Add(placement);
-        menu.Items.Add(Menus.Item("Çoğalt", () => AppHost.Widgets.Duplicate(Config.Id)));
+        more.Items.Add(Menus.Item("Tüm widget'ları düzenli yerleştir", () => AppHost.Widgets.ArrangeAll()));
+        more.Items.Add(Menus.Item("Çoğalt", () => AppHost.Widgets.Duplicate(Config.Id)));
+        more.Items.Add(new Separator());
+        more.Items.Add(Menus.Hint("Taşırken Alt: yapışmadan · Shift: ızgaraya"));
+        menu.Items.Add(more);
+
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item("Kaldır", () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
     }
@@ -804,7 +781,7 @@ public sealed class WidgetWindow : Window
     }
 
     // --- Öne getirme ---
-    // Widget'lar masaüstü katmanında, pencerelerin arkasında durur. Yeni eklenen ya da "Göster" denen widget
+    // Widget'lar masaüstü katmanında, pencerelerin arkasında durur. Yeni eklenen ya da "Bul" denen widget
     // birkaç saniye vurgulu olarak en öne gelir; kullanıcı nereye eklendiğini görür.
     private bool _revealing;
     private DispatcherTimer? _revealTimer;

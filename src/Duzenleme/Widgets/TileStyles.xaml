@@ -2,9 +2,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        Başlıktaki "widget'ı kaldır" düğmesi. Hep yerinde durur ve sönüktür: fare widget'a gelince hiçbir şey belirip
-        kaybolmaz, başlıktaki düğmeler kaymaz. Yalnızca düğmenin kendisinin üstüne gelince kırmızılaşır.
-        Renk kodda (ApplyPalette) Foreground ile verilir.
+        "Widget'ı kaldır" düğmesi (×). Tüm widget'larda hep yerinde durur ve sönüktür: fare widget'a gelince hiçbir şey
+        belirip kaybolmaz, başlıktaki düğmeler kaymaz (bölme, kutu, notta başlıkta; saat ve tarihte sağ üst köşede).
+        Yalnızca düğmenin kendisinin üstüne gelince kırmızılaşır. Menüde "Görünüm ▸ Göster ▸ Kaldır düğmesi (×)" ile
+        kapatılır; "Konumu kilitle" de gizler. Renk kodda (ApplyPalette) Foreground ile verilir.
     -->
     <Style x:Key="WidgetCloseButton" TargetType="Button">
         <Setter Property="Focusable" Value="False" />
@@ -80,6 +81,71 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bg" Property="Opacity" Value="0.7" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Yapılacaklar satırlarının ve "Yeni madde ekle…" kutusunun yazı alanı: kenarlıksız, saydam, notun metni gibi.
+        WPF-UI'ın örtük TextBox stilini (kenarlık, silme düğmesi, odak çizgisi) ezer. Yer tutucu metin Tag'dan gelir.
+        İçerik alanı Decorator: satır kaydırma çubuğu taşımaz (liste bütün olarak kayar), 200 satırlık liste de hızlı açılır.
+        Yazı rengi, imleç ve seçim rengi kodda (ApplyPalette) verilir.
+    -->
+    <Style x:Key="InlineTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+        <Setter Property="SpellCheck.IsEnabled" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Grid Background="Transparent">
+                        <Decorator x:Name="PART_ContentHost" />
+                        <TextBlock x:Name="Placeholder" Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                   IsHitTestVisible="False" Opacity="0.45" Visibility="Collapsed" Margin="2,0,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Yapılacaklar onay kutusu: 16×16, yuvarlatılmış köşe, 1,5 px kenar. Renkler kodda verilir:
+        Foreground = kenar, Tag = işaretliyken zemin ve kenar (vurgu rengi), Background = işaretliyken ✓ rengi.
+        Geçiş animasyonu yok: işaret tıklanınca anında görünür.
+    -->
+    <Style x:Key="ChecklistBox" TargetType="CheckBox">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border x:Name="Box" CornerRadius="4" BorderThickness="1.5" Background="Transparent"
+                            BorderBrush="{TemplateBinding Foreground}">
+                        <TextBlock x:Name="Mark" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                   Foreground="{TemplateBinding Background}" Visibility="Collapsed"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

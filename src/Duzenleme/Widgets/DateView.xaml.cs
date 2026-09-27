@@ -41,8 +41,10 @@ public partial class DateView : UserControl, IWidgetView
         DayText.Text = today.Day.ToString(Tr);
         MonthText.Text = today.ToString("MMMM", Tr);
         SubText.Text = $"{today.Year} · {today.ToString("dddd", Tr)}";
-        SubText.Visibility = _config.Shows("sub") ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-        Week.Visibility = _config.Shows("week") ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        SubText.Visibility = _config.Shows("sub") ? Visibility.Visible : Visibility.Collapsed;
+        Week.Visibility = _config.Shows("week") ? Visibility.Visible : Visibility.Collapsed;
+        RemoveButton.Foreground = _palette.Foreground;
+        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
         DayText.Foreground = _palette.Accent;
         SubText.Foreground = _palette.Secondary;
 
@@ -87,8 +89,10 @@ public partial class DateView : UserControl, IWidgetView
         Render();
     }
 
-    public void AddMenuItems(ContextMenu menu) =>
-        menu.Items.Add(Menus.Parts(_config, [("sub", "Yıl ve gün adı"), ("week", "Haftalık şerit")], Render));
+    public void AddMenuItems(WidgetMenu menu) =>
+        menu.Appearance.Add(Menus.Parts(_config, [("sub", "Yıl ve gün adı"), ("week", "Haftalık şerit"), Menus.ClosePart], Render));
+
+    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach() => _timer.Stop();
 }

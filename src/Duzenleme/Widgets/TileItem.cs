@@ -181,7 +181,7 @@ public sealed class TileItem : INotifyPropertyChanged
             }
             catch (Exception ex)
             {
-                dispatcher?.BeginInvoke(() => MessageBox.Show(ex.Message, "Düzenleme"));
+                dispatcher?.BeginInvoke(() => MessageBox.Show(ex.Message, AppInfo.Name));
             }
         });
     }

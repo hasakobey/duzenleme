@@ -4,7 +4,8 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              AllowDrop="True">
     <DockPanel>
-        <Grid x:Name="Header" DockPanel.Dock="Top" Background="Transparent" ToolTip="Katlamak için çift tıkla">
+        <!-- Başlığa çift tıklamak katlar/açar (menüde "Diğer ▸ Başlığa katla"). Tooltip yok: üstünde beklemek bir şey açmaz. -->
+        <Grid x:Name="Header" DockPanel.Dock="Top" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />

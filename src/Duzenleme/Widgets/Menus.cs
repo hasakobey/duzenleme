@@ -55,7 +55,7 @@ public static class Menus
     /// <summary>
     /// Liste öğelerine (dosya, kısayol) sağ tık menüsü bağlar. Menü yalnızca bir öğeye sağ tıklanınca açılır;
     /// boş alana sağ tıklanınca liste menüsü devre dışı kalır, olay widget kartına ulaşır ve widget'ın kendi ayar
-    /// menüsü (Özelleştir, Sırala, Kaldır…) açılır. Böylece eski bir seçim yanlış öğenin menüsünü de açmaz.
+    /// menüsü (Simgeler, Görünüm, Kaldır…) açılır. Böylece eski bir seçim yanlış öğenin menüsünü de açmaz.
     /// </summary>
     public static void AttachItemMenu(ListBox list, Action<ContextMenu, TileItem> fill)
     {
@@ -78,6 +78,12 @@ public static class Menus
         return d is not null && ItemsControl.ContainerFromElement(list, d) is ListBoxItem { DataContext: TileItem item } ? item : null;
     }
 
+    /// <summary>
+    /// Kaldırma düğmesi (×) parçası: beş widget türünün "Göster" listesinin sonunda durur. Kapalıyken widget yalnızca
+    /// menüdeki "Kaldır" ile kaldırılır ("Konumu kilitle" de düğmeyi gizler).
+    /// </summary>
+    public static readonly (string Key, string Label) ClosePart = ("close", "Kaldır düğmesi (×)");
+
     /// <summary>"Göster" alt menüsü: widget'ın parçalarını tek tek açıp kapatır.</summary>
     public static MenuItem Parts(WidgetConfig c, IEnumerable<(string Key, string Label)> parts, Action changed)
     {
@@ -95,11 +101,15 @@ public static class Menus
     /// <summary>Tıklanamayan, açıklama amaçlı menü satırı.</summary>
     public static MenuItem Hint(string text) => new() { Header = text, IsEnabled = false };
 
-    /// <summary>Bölme ve kısayol kutusunun "Simgeler" alt menüsü: görünüm, boyut, hizalama, aralık, yazı, adlar.</summary>
-    public static MenuItem TileOptions(WidgetConfig c, Action<Action> change, bool singleClickOption)
+    /// <summary>
+    /// Bölme ve kısayol kutusunun "Simgeler" alt menüsü: düzen, boyut, hizalama, aralık, yazı, adlar.
+    /// <paramref name="first"/> en başa gelir (bölmenin "Sırala" alt menüsü).
+    /// </summary>
+    public static MenuItem TileOptions(WidgetConfig c, Action<Action> change, bool singleClickOption, MenuItem? first = null)
     {
         var parent = new MenuItem { Header = "Simgeler" };
-        parent.Items.Add(Choice("Görünüm", c.View,
+        if (first is not null) parent.Items.Add(first);
+        parent.Items.Add(Choice("Düzen", c.View,
             [(ItemView.Icons, "Izgara"), (ItemView.List, "Liste")], v => change(() => c.View = v)));
         parent.Items.Add(Choice("Boyut", c.IconSize,
             [(IconSize.Small, "Küçük"), (IconSize.Medium, "Orta"), (IconSize.Large, "Büyük"), (IconSize.ExtraLarge, "Çok büyük")],

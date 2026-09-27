@@ -46,22 +46,25 @@ public partial class LauncherView : UserControl, IWidgetView
     public event Action? LayoutChanged;
 
     private static readonly (string Key, string Label)[] LauncherParts =
-        [("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("tabs", "Sekmeler")];
+        [("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("tabs", "Sekmeler"), Menus.ClosePart];
 
     private void ApplyParts()
     {
         Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
         CountText.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
         TabStrip.Visibility = AddTab.Visibility = _config.Shows("tabs") ? Visibility.Visible : Visibility.Collapsed;
+        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
     private LauncherTab Current => _config.Tabs[Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1)];
 
+    private const string DefaultTitle = "Kısayol kutusu";
+
     private void Render()
     {
-        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? "Kısayol kutusu" : _config.Title;
+        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title;
         CountText.Text = $"{_config.Tabs.Sum(t => t.Items.Count)} öğe";
         RenderTabs();
         ApplyParts();
@@ -240,27 +243,26 @@ public partial class LauncherView : UserControl, IWidgetView
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
         RemoveButton.Foreground = palette.Foreground;
-        RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
+        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
         RenderTabs();
     }
 
-    public void AddMenuItems(ContextMenu menu)
+    public void AddMenuItems(WidgetMenu menu)
     {
         if (_lastRemoved is { } last)
         {
-            menu.Items.Add(Menus.Item($"Geri al: \"{TileItem.DisplayName(last.Path)}\" listeye dönsün", UndoRemove));
-            menu.Items.Add(new Separator());
+            menu.Primary.Add(Menus.Item($"Geri al: \"{TileItem.DisplayName(last.Path)}\" listeye dönsün", UndoRemove));
+            menu.Primary.Add(new Separator());
         }
-        menu.Items.Add(Menus.Item("Başlığı değiştir…", () =>
+        menu.Primary.Add(Menus.Item("Uygulama ya da dosya ekle…", AddFiles));
+        menu.Primary.Add(Menus.Item("Sekme ekle…", NewTab));
+        menu.Primary.Add(Menus.Item("Başlığı değiştir…", () =>
         {
             if (InputDialog.Ask("Kutu başlığı", "Başlık", TitleText.Text) is { } title)
-                Change(() => _config.Title = string.IsNullOrWhiteSpace(title) ? null : title);
+                Change(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
         }));
-        menu.Items.Add(Menus.Item("Sekme ekle…", NewTab));
-        menu.Items.Add(Menus.Item("Uygulama ya da dosya ekle…", AddFiles));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
-        menu.Items.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+        menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
+        menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
     }
 
     public bool OnCtrlWheel(int delta)

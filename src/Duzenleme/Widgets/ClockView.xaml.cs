@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -48,10 +49,19 @@ public partial class ClockView : UserControl, IWidgetView
         var now = DateTime.Now;
         TimeText.Text = now.ToString("HH:mm", Tr);
         SecondsText.Text = now.ToString("ss", Tr);
-        SecondsText.Visibility = _config.ShowSeconds ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        SecondsText.Visibility = _config.ShowSeconds ? Visibility.Visible : Visibility.Collapsed;
         GreetingText.Text = Greeting(now.Hour) + " · " + Tr.TextInfo.ToTitleCase(now.ToString("dddd", Tr));
-        GreetingRow.Visibility = _config.Shows("greeting") ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        GreetingRow.Visibility = _config.Shows("greeting") ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    /// <summary>Parçalar değişince (Göster ▸): selam satırı ve kaldırma düğmesi.</summary>
+    private void ApplyParts()
+    {
+        Update();
+        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public static string Greeting(int hour) => hour switch
     {
@@ -67,20 +77,20 @@ public partial class ClockView : UserControl, IWidgetView
         Dot.Fill = palette.Accent;
         GreetingText.Foreground = palette.Secondary;
         Effect = palette.TextShadow ? new DropShadowEffect { BlurRadius = 10, ShadowDepth = 1, Opacity = 0.45, Color = Colors.Black } : null;
+        RemoveButton.Foreground = palette.Foreground;
+        ApplyParts();
     }
 
-    public void AddMenuItems(ContextMenu menu)
+    public void AddMenuItems(WidgetMenu menu)
     {
-        var seconds = new MenuItem { Header = "Saniyeyi göster", IsCheckable = true, IsChecked = _config.ShowSeconds };
-        seconds.Click += (_, _) =>
+        menu.Primary.Add(Menus.Toggle("Saniyeyi göster", _config.ShowSeconds, () =>
         {
             _config.ShowSeconds = !_config.ShowSeconds;
             AppHost.SaveSettings();
             Update();
             Schedule();
-        };
-        menu.Items.Add(seconds);
-        menu.Items.Add(Menus.Parts(_config, [("greeting", "Selam ve gün")], Update));
+        }));
+        menu.Appearance.Add(Menus.Parts(_config, [("greeting", "Selam ve gün"), Menus.ClosePart], ApplyParts));
     }
 
     public void Detach()
