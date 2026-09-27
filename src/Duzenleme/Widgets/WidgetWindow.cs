@@ -23,6 +23,7 @@ public sealed class WidgetWindow : Window
     private const double DefaultWidth = 360, DefaultHeight = 270;
 
     private readonly Border _card;
+    private readonly System.Windows.Controls.Button _removeBadge;
     private readonly DropShadowEffect _shadow = new() { BlurRadius = 26, ShadowDepth = 4, Direction = 270, Opacity = 0.32, Color = Colors.Black };
     private readonly DispatcherTimer _saveTimer;
     private bool _positionReady;
@@ -50,7 +51,14 @@ public sealed class WidgetWindow : Window
             Margin = new Thickness(ShadowMargin),
             Child = (UIElement)view,
         };
-        Content = _card;
+        // Üzerine gelince sol üst köşede çıkan kırmızı × (macOS widget'ları gibi): widget'ı kaldırır, geri alınabilir.
+        _removeBadge = RemoveBadge();
+        _removeBadge.Click += (_, _) => AppHost.Widgets.RemoveWithUndo(Config.Id);
+        System.Windows.Automation.AutomationProperties.SetName(_removeBadge, "Widget'ı kaldır");
+        var root = new Grid();
+        root.Children.Add(_card);
+        root.Children.Add(_removeBadge);
+        Content = root;
         // WPF ilk açılan pencereyi Application.MainWindow yapar; widget ana pencere sayılırsa tema değişikliği
         // (WPF-UI) onun saydam zeminini opak bir dikdörtgene çevirebilir.
         if (Application.Current?.MainWindow == this) Application.Current.MainWindow = null;
@@ -78,8 +86,11 @@ public sealed class WidgetWindow : Window
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveBounds(); };
         // Konum/boyut yalnızca kullanıcı taşıyınca/boyutlandırınca kaydedilir. Monitör çıkarılınca ya da çözünürlük
         // değişince Windows'un pencereyi kaydırması kayıtlı düzeni bozmasın; ekran geri gelince eski yerine döner.
-        MouseEnter += (_, _) => OnHover(true);
-        MouseLeave += (_, _) => OnHover(false);
+        // Köşedeki × yalnızca saat/tarih gibi boyutu sabit widget'larda: onların sol üst köşesi boyutlandırma tutamacı değil.
+        // Bölme, kutu ve notta × başlığın sağ ucundadır (içerikleri ve köşe tutamaçları kapanmasın).
+        MouseEnter += (_, _) => { _removeBadge.Visibility = Config.Locked || View.Resizable ? Visibility.Collapsed : Visibility.Visible; OnHover(true); };
+        MouseLeave += (_, _) => { _removeBadge.Visibility = Visibility.Collapsed; OnHover(false); };
+        View.LayoutChanged += () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
         PreviewDragEnter += (_, _) => OnHover(true);
         _rollupTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _rollupTimer.Tick += (_, _) => { _rollupTimer.Stop(); TryRollUp(); };
@@ -117,6 +128,31 @@ public sealed class WidgetWindow : Window
             SizeChanged += (_, e) => DebugLog.Write($"{tag} SizeChanged {e.NewSize.Width:0}x{e.NewSize.Height:0}");
             DpiChanged += (_, e) => DebugLog.Write($"{tag} DpiChanged {e.OldDpi.PixelsPerDip}->{e.NewDpi.PixelsPerDip}");
         }
+    }
+
+    private static System.Windows.Controls.Button RemoveBadge()
+    {
+        var glyph = new TextBlock
+        {
+            Text = "\uE711", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), FontSize = 9,
+            Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        var face = new FrameworkElementFactory(typeof(Border));
+        face.SetValue(Border.CornerRadiusProperty, new CornerRadius(11));
+        face.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)));
+        face.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromArgb(0x90, 0xFF, 0xFF, 0xFF)));
+        face.SetValue(Border.BorderThicknessProperty, new Thickness(1.5));
+        face.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
+        return new System.Windows.Controls.Button
+        {
+            Content = glyph,
+            Template = new ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = face },
+            Width = 22, Height = 22, Cursor = Cursors.Hand, Focusable = false,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(ShadowMargin - 8, ShadowMargin - 8, 0, 0),
+            ToolTip = "Widget'ı kaldır", Visibility = Visibility.Collapsed,
+            Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = 0.4, Color = Colors.Black },
+        };
     }
 
     public void ApplyStyle()
@@ -269,11 +305,26 @@ public sealed class WidgetWindow : Window
             : "Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift"));
         menu.Items.Add(custom);
 
-        menu.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () => { Config.Locked = !Config.Locked; AppHost.SaveSettings(); }));
+        var placement = new MenuItem { Header = "Yerleşim" };
+        placement.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () => { Config.Locked = !Config.Locked; AppHost.SaveSettings(); }));
+        placement.Items.Add(Menus.Toggle("Kenarlara yapışsın (mıknatıs)", AppHost.Settings.SnapWidgets, () =>
+        {
+            AppHost.Settings.SnapWidgets = !AppHost.Settings.SnapWidgets;
+            AppHost.SaveSettings();
+        }));
+        placement.Items.Add(Menus.Toggle("Widget'lar üst üste binmesin", AppHost.Settings.PreventOverlap, () =>
+        {
+            AppHost.Settings.PreventOverlap = !AppHost.Settings.PreventOverlap;
+            AppHost.SaveSettings();
+            if (AppHost.Settings.PreventOverlap) ResolveOverlap();
+        }));
+        placement.Items.Add(new Separator());
+        placement.Items.Add(Menus.Item("Tüm widget'ları düzenli yerleştir", () => AppHost.Widgets.ArrangeAll()));
+        placement.Items.Add(Menus.Hint("Taşırken Alt: yapışmadan · Shift: ızgaraya"));
+        menu.Items.Add(placement);
         menu.Items.Add(Menus.Item("Çoğalt", () => AppHost.Widgets.Duplicate(Config.Id)));
-        menu.Items.Add(Menus.Item("Tüm widget'ları düzenli yerleştir", () => AppHost.Widgets.ArrangeAll()));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Kaldır", () => AppHost.Widgets.Remove(Config.Id)));
+        menu.Items.Add(Menus.Item("Kaldır", () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
     }
 
     private void Update(Action change)
@@ -281,6 +332,7 @@ public sealed class WidgetWindow : Window
         change();
         ApplyStyle();
         AppHost.SaveSettings();
+        ResolveOverlapAfterLayout(); // ölçek büyüdüyse komşusunun üstüne binmesin
     }
 
     /// <summary>Kaydedilmiş fiziksel konum hâlâ bağlı bir monitörün çalışma alanında mı?</summary>
@@ -349,6 +401,62 @@ public sealed class WidgetWindow : Window
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, px, py, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
     }
+
+    /// <summary>Gölge payı (kartın çevresindeki saydam kenar), fiziksel piksel.</summary>
+    private int MarginPixels => (int)Math.Round(ShadowMargin * VisualTreeHelper.GetDpi(this).DpiScaleX);
+
+    /// <summary>
+    /// Kartın fiziksel dikdörtgeni; görünmüyorsa boş. Katlı (ya da fare çekilince katlanmış) bölme açıldığındaki
+    /// boyutuyla sayılır: altına dizilen widget, bölme açılınca onun altında kalmasın.
+    /// </summary>
+    internal Box? CardBox
+    {
+        get
+        {
+            if (PixelBounds is not { } r) return null;
+            var m = MarginPixels;
+            var bottom = r.Bottom - m;
+            if (IsCollapsedNow && View.Resizable)
+            {
+                var expanded = (int)Math.Round((double.IsNaN(Config.Height) ? DefaultHeight : Config.Height) * VisualTreeHelper.GetDpi(this).DpiScaleY);
+                bottom = Math.Max(bottom, r.Top + expanded - m);
+            }
+            return new Box(r.Left + m, r.Top + m, r.Right - m, bottom);
+        }
+    }
+
+    /// <summary>Kaldırmadan önce bekleyen konum ve içerik değişikliklerini ayarlara yazar.</summary>
+    public void FlushState()
+    {
+        _saveTimer.Stop();
+        SaveBounds();
+        View.Flush();
+    }
+
+    /// <summary>Bırakılan widget başka birinin üstündeyse en yakın boş yere (komşusunun yanına) kaydırır.</summary>
+    private void ResolveOverlap()
+    {
+        if (!AppHost.Settings.PreventOverlap || Config.Locked || CardBox is not { } card) return;
+        var work = NativeMethods.WorkAreaAt(new NativeMethods.POINT { X = (card.Left + card.Right) / 2, Y = (card.Top + card.Bottom) / 2 });
+        var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var moved = WidgetLayout.Separate(card, AppHost.Widgets.OtherCards(this),
+            new Box(work.Left, work.Top, work.Right, work.Bottom), GapPixels(scale));
+        if (moved is not { } target) return;
+        var m = MarginPixels;
+        NativeMethods.SetWindowPos(Handle, IntPtr.Zero, target.Left - m, target.Top - m, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        QueueSave();
+    }
+
+    /// <summary>
+    /// Kartlar arası aralık: gölge payından (14) büyük, yoksa öndeki widget'ın gölgesi komşunun kenarındaki
+    /// tıklamaları yakalar.
+    /// </summary>
+    private static int GapPixels(double scale) => (int)Math.Round(18 * scale);
+
+    /// <summary>Boyutu içeriğe göre değişen widget (saat, tarih) büyüdükten sonra komşusunun üstündeyse kaydırılır.</summary>
+    private void ResolveOverlapAfterLayout() =>
+        Dispatcher.BeginInvoke(ResolveOverlap, DispatcherPriority.Loaded);
 
     /// <summary>Pencerenin fiziksel dikdörtgeni (görünmüyorsa boş).</summary>
     internal NativeMethods.RECT? PixelBounds =>
@@ -498,19 +606,37 @@ public sealed class WidgetWindow : Window
             x = work.Left + (int)Math.Round((x - work.Left) / (double)grid) * grid;
             y = work.Top + (int)Math.Round((y - work.Top) / (double)grid) * grid;
         }
+        // Mıknatıs: komşunun altına/üstüne/yanına ve ekran kenarına aralıklı yapışır (Alt basılıyken kapalı).
+        const int VK_MENU = 0x12;
+        if (AppHost.Settings.SnapWidgets && GetAsyncKeyState(VK_SHIFT) >= 0 && GetAsyncKeyState(VK_MENU) >= 0)
+        {
+            var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var m = MarginPixels;
+            var card = new Box(x + m, y + m, x + current.Width - m, y + current.Height - m);
+            var (sx, sy) = WidgetLayout.Snap(card, AppHost.Widgets.OtherCards(this),
+                new Box(work.Left, work.Top, work.Right, work.Bottom), (int)Math.Round(20 * scale), GapPixels(scale));
+            x += sx;
+            y += sy;
+        }
         const int keep = 80;
         x = Math.Clamp(x, work.Left - w + keep, Math.Max(work.Left - w + keep, work.Right - keep));
         y = Math.Clamp(y, work.Top - 10, Math.Max(work.Top - 10, work.Bottom - keep));
 
+        if (x != current.Left || y != current.Top) _moved = true;
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, x, y, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
     }
+
+    private bool _moved;
 
     private void EndDrag()
     {
         if (!_dragging) return;
         _dragging = false;
         _card.ReleaseMouseCapture();
+        // Yalnızca gerçekten taşındıysa: düz tıklama (ör. başlığa çift tıklama) widget'ı yerinden oynatmasın.
+        if (_moved) ResolveOverlap();
+        _moved = false;
         QueueSave();
     }
 
@@ -598,6 +724,18 @@ public sealed class WidgetWindow : Window
         if (_grip.HasFlag(Grip.Right)) right = Math.Max(s.Right + dx, left + minW);
         if (_grip.HasFlag(Grip.Top)) top = Math.Min(s.Top + dy, bottom - minH);
         if (_grip.HasFlag(Grip.Bottom)) bottom = Math.Max(s.Bottom + dy, top + minH);
+        if (AppHost.Settings.PreventOverlap)
+        {
+            // Çekilen kenar komşu widget'ın kenarında durur (içine girmez).
+            var m = MarginPixels;
+            var gap = GapPixels(dpi.DpiScaleX);
+            var card = WidgetLayout.ClampResize(
+                new Box(s.Left + m, s.Top + m, s.Right - m, s.Bottom - m),
+                new Box(left + m, top + m, right - m, bottom - m),
+                _grip.HasFlag(Grip.Left), _grip.HasFlag(Grip.Top), _grip.HasFlag(Grip.Right), _grip.HasFlag(Grip.Bottom),
+                AppHost.Widgets.OtherCards(this), gap);
+            (left, top, right, bottom) = (card.Left - m, card.Top - m, card.Right + m, card.Bottom + m);
+        }
         // Tek çağrıda taşı + boyutlandır: sol/üst kenardan çekerken karşı kenar titremez.
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, left, top, right - left, bottom - top,
             NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
@@ -617,7 +755,11 @@ public sealed class WidgetWindow : Window
             if (IsCollapsedNow) FitCollapsedHeight();
             else Height = r.Height / dpi.DpiScaleY;
         }
-        else AppHost.SaveSettings();
+        else
+        {
+            AppHost.SaveSettings();
+            ResolveOverlapAfterLayout();
+        }
         QueueSave();
     }
 

@@ -14,7 +14,9 @@ public sealed class WidgetRow(WidgetConfig config)
     /// <summary>Notlar kendi kağıt rengini kullanır.</summary>
     public bool HasStyle => Config.Kind != WidgetKind.Note;
 
-    public string Name => Config.Kind switch
+    public string Name => DisplayName(Config);
+
+    public static string DisplayName(WidgetConfig Config) => Config.Kind switch
     {
         WidgetKind.Clock => "Saat",
         WidgetKind.Date => "Tarih",
@@ -220,7 +222,7 @@ public partial class WidgetsPage : Page
 
     private void Remove_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is WidgetRow row) AppHost.Widgets.Remove(row.Config.Id);
+        if ((sender as FrameworkElement)?.DataContext is WidgetRow row) AppHost.Widgets.RemoveWithUndo(row.Config.Id);
     }
 
     private void SaveLayout_Click(object sender, RoutedEventArgs e)

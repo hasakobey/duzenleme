@@ -14,7 +14,10 @@
     <AssemblyTitle>Düzenleme</AssemblyTitle>
     <!-- Sürüm numarası sade kalsın (1.1.0+abcdef... değil). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
+    <!-- Geliştirme makinesinde Smart App Control, tanımadığı imzasız DLL'i engelleyebiliyor; deterministik derleme
+         her seferinde birebir aynı (yine engellenen) dosyayı üretir. Debug'da her derleme farklı olsun. -->
+    <Deterministic Condition="'$(Configuration)' == 'Debug'">false</Deterministic>
     <Company>hasakobey</Company>
     <Authors>hasakobey</Authors>
     <Copyright>© 2026 hasakobey</Copyright>

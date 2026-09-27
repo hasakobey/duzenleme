@@ -169,12 +169,14 @@ public static class AppHost
     }
 
     /// <summary>Mod açıkken bir türü gösteren son bölme kaldırılırsa o öğeler hiçbir yerde görünmez: mod kapatılır.</summary>
-    public static void EnsureNothingInvisible()
+    public static bool EnsureNothingInvisible(bool notify = true)
     {
-        if (!Settings.FencesReplaceIcons || Widgets.CoversDesktop()) return;
+        if (!Settings.FencesReplaceIcons || Widgets.CoversDesktop()) return false;
         SetFencesManageDesktop(false);
-        Tray?.Notify("Masaüstü simgeleri yeniden gösteriliyor",
-            "Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Araçlar'dan yeniden aç.");
+        if (notify)
+            Tray?.Notify("Masaüstü simgeleri yeniden gösteriliyor",
+                "Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç.");
+        return true;
     }
 
     public static void ApplyDoubleClickSetting()

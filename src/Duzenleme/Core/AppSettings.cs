@@ -63,6 +63,15 @@ public sealed class WidgetConfig
 
     public bool Locked { get; set; }
 
+    /// <summary>Bölmede gösterilmeyen öğeler (yol ya da "::{CLSID}"). Yalnızca gizlenir; dosyalara dokunulmaz.</summary>
+    public List<string> HiddenItems { get; set; } = [];
+
+    /// <summary>Kullanıcının kapattığı widget parçaları (ör. "count", "search", "greeting", "week").</summary>
+    public List<string> HiddenParts { get; set; } = [];
+
+    /// <summary>Parça görünüyor mu?</summary>
+    public bool Shows(string part) => !HiddenParts.Contains(part);
+
     /// <summary>Widget'lar arasındaki sıra: büyük olan öndedir (son tıklanan/eklenen). Hepsi masaüstü katmanında kalır.</summary>
     public long Z { get; set; }
 
@@ -155,6 +164,12 @@ public sealed class AppSettings
     /// (Fences gibi). Dosyalara dokunulmaz; kapatınca ya da uygulamadan çıkınca simgeler geri gelir.
     /// </summary>
     public bool FencesReplaceIcons { get; set; }
+
+    /// <summary>Sürüklerken widget'lar birbirinin ve ekranın kenarına yapışır (alt alta/yan yana dizmek kolay).</summary>
+    public bool SnapWidgets { get; set; } = true;
+
+    /// <summary>Bırakılan ya da büyütülen widget başka bir widget'ın üstüne binmez.</summary>
+    public bool PreventOverlap { get; set; } = true;
 
     /// <summary>Simgeleri biz gizlediysek, çıkışta/çökmeden sonra geri açabilmek için.</summary>
     public bool IconsHiddenByApp { get; set; }

@@ -51,6 +51,11 @@ public partial class FenceView : UserControl, IWidgetView
             if (e.ClickCount == 2) { e.Handled = true; CollapseToggleRequested?.Invoke(); }
         };
         Menus.AttachItemMenu(Items, FillItemMenu);
+        Menus.EnableTileRemove(Items, HideItem);
+        // Başlıktaki × yalnızca fare üstündeyken görünür (kilitli widget'ta hiç).
+        MouseEnter += (_, _) => RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
+        MouseLeave += (_, _) => RemoveButton.Visibility = Visibility.Collapsed;
+
         // Öğeyi başka bir bölmeye, Gezgin'e ya da bir uygulamaya sürükleyebilmek için.
         Menus.EnableDragOut(Items, DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link);
         Items.PreviewMouseLeftButtonUp += OnItemClick;
@@ -66,10 +71,12 @@ public partial class FenceView : UserControl, IWidgetView
     }
 
     public bool Resizable => true;
-    public bool Collapsible => true;
+    // Başlık satırı gizliyse katlanınca geriye hiçbir şey kalmaz: katlama kapanır.
+    public bool Collapsible => _config.Shows("header");
     public Thickness CardPadding => new(14, 12, 14, 12);
     public event Action? CollapseToggleRequested;
     public event Action? MenuRequested;
+    public event Action? LayoutChanged;
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -112,7 +119,7 @@ public partial class FenceView : UserControl, IWidgetView
             DesktopFilter.All => SymbolRegular.Desktop24,
             _ => SymbolRegular.Folder24,
         };
-        OpenButton.Visibility = DesktopMode ? Visibility.Collapsed : Visibility.Visible;
+        ApplyParts();
         EnsureWatchers(sources);
         Items.ItemsPanel = TileItem.Panel(_config);
 
@@ -143,13 +150,16 @@ public partial class FenceView : UserControl, IWidgetView
         }
         if (generation != _generation) return;
 
-        _all = paths.Select(p => TileItem.Create(p, _config)).ToList();
+        PruneHidden(paths, DesktopMode ? AppHost.DesktopDirectory : sources[0]);
+        var hidden = new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase);
+        _all = paths.Where(p => !hidden.Contains(p)).Select(p => TileItem.Create(p, _config)).ToList();
         // Masaüstünde gösterilen sistem simgeleri (Bu Bilgisayar, Geri Dönüşüm Kutusu…) de bölmede yer alsın:
         // Windows simgeleri gizliyken başka yerde görünmezler.
         if (_config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All)
             _all.InsertRange(0, Desktop.DesktopSystemIcons.All.Where(Desktop.DesktopSystemIcons.IsShown)
+                .Where(icon => !IsHidden("::" + icon.Clsid))
                 .Select(icon => TileItem.CreateShell(icon, _config)));
-        CountBadge.Visibility = Visibility.Visible;
+        CountBadge.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
         ShowItems();
         if (_query.Length > 0) DeepSearch();
     }
@@ -166,7 +176,8 @@ public partial class FenceView : UserControl, IWidgetView
             shown.AddRange(_deep.Where(d => !shown.Any(s => string.Equals(s.Path, d.Path, StringComparison.OrdinalIgnoreCase))));
         }
 
-        Items.ItemsSource = shown;
+        // Her seferinde yeni liste: aynı nesne yeniden atanırsa WPF değişikliği görmez.
+        Items.ItemsSource = shown.ToList();
         CountText.Text = q.Length == 0 ? _all.Count.ToString() : $"{shown.Count}";
         if (q.Length > 0 && shown.Count > 0) Items.SelectedIndex = 0;
 
@@ -245,7 +256,8 @@ public partial class FenceView : UserControl, IWidgetView
         };
         if (q.Length < 2 || roots.Count == 0) return;
 
-        var found = await Task.Run(() => FindBelow(roots, q, maxDepth: 5, maxResults: 80));
+        var hidden = new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase);
+        var found = await Task.Run(() => FindBelow(roots, q, maxDepth: 5, maxResults: 80).Where(p => !hidden.Contains(p)).ToList());
         if (generation != _searchGeneration) return;
         _deep = found.Select(p => TileItem.Create(p, _config)).ToList();
         ShowItems();
@@ -347,20 +359,77 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void OnJournalChanged() => QueueRefresh();
 
+    private bool IsHidden(string path) => _config.HiddenItems.Contains(path, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Öğeyi bu bölmede göstermez (dosyaya dokunmaz); "Gizlenen öğeler"den geri getirilir.</summary>
+    private void HideItem(TileItem item)
+    {
+        if (!IsHidden(item.Path)) _config.HiddenItems.Add(item.Path);
+        AppHost.SaveSettings();
+        // Yeni liste: ItemsSource aynı nesneye yeniden atanırsa WPF değişikliği görmez, öğe ekranda kalır.
+        _all = _all.Where(i => !string.Equals(i.Path, item.Path, StringComparison.OrdinalIgnoreCase)).ToList();
+        _deep = _deep.Where(i => !string.Equals(i.Path, item.Path, StringComparison.OrdinalIgnoreCase)).ToList();
+        ShowItems();
+    }
+
+    /// <summary>
+    /// Silinen/taşınan öğenin gizleme kaydını temizler; yoksa sonradan aynı adla gelen yeni dosya da gizlenirdi.
+    /// Yalnızca bu taramada okunan klasördeki kayıtlara bakılır (alt klasörler, Genel Masaüstü ve sistem simgeleri hariç).
+    /// </summary>
+    private void PruneHidden(List<string> enumerated, string directory)
+    {
+        if (_config.HiddenItems.Count == 0) return;
+        // Listede olmaması yetmez (bölmenin türü onu süzmüş olabilir): gerçekten silinmiş/taşınmış olmalı.
+        var present = new HashSet<string>(enumerated, StringComparer.OrdinalIgnoreCase);
+        var dir = directory.TrimEnd('\\', '/');
+        var removed = _config.HiddenItems.RemoveAll(p => !TileItem.IsShellObject(p) && !present.Contains(p) &&
+            string.Equals(System.IO.Path.GetDirectoryName(p), dir, StringComparison.OrdinalIgnoreCase) &&
+            !File.Exists(p) && !Directory.Exists(p));
+        if (removed > 0) AppHost.SaveSettings();
+    }
+
+    private void UnhideItems(IEnumerable<string> paths)
+    {
+        foreach (var path in paths.ToList())
+            _config.HiddenItems.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        AppHost.SaveSettings();
+        Refresh();
+    }
+
+    private static readonly (string Key, string Label)[] FenceParts =
+    [
+        ("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("search", "Arama düğmesi"),
+        ("open", "Klasörü aç düğmesi"), ("divider", "Ayraç çizgisi"),
+    ];
+
+    /// <summary>Kullanıcının kapattığı parçaları gizler.</summary>
+    private void ApplyParts()
+    {
+        Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
+        SearchButton.Visibility = _config.Shows("search") ? Visibility.Visible : Visibility.Collapsed;
+        OpenButton.Visibility = !DesktopMode && _config.Shows("open") ? Visibility.Visible : Visibility.Collapsed;
+        Divider.Visibility = _config.Shows("divider") && _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
+        CountBadge.Visibility = _config.Shows("count") && Items.ItemsSource is not null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void Items_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (Menus.IsOnRemoveButton(e.OriginalSource) || Menus.JustRemoved) return;
         // Boş alana ya da kaydırma çubuğuna çift tıklamak, daha önce seçilmiş bir öğeyi açmasın.
         if (!_config.SingleClick && Menus.ItemAt(Items, e.OriginalSource) is { } item) TileItem.Launch(item.Path);
     }
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
+        if (Menus.IsOnRemoveButton(e.OriginalSource) || Menus.JustRemoved) return;
         if (_config.SingleClick && Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
         {
             TileItem.Launch(item.Path);
             Items.SelectedItem = null;
         }
     }
+
+    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)
     {
@@ -377,6 +446,7 @@ public partial class FenceView : UserControl, IWidgetView
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
         menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
+        menu.Items.Add(Menus.Item("Bu bölmeden kaldır (gizle)", () => HideItem(item)));
         if (TileItem.IsShellObject(item.Path))
         {
             menu.Items.Add(new Separator());
@@ -571,6 +641,21 @@ public partial class FenceView : UserControl, IWidgetView
             [(FenceSort.Newest, "En yeni üstte"), (FenceSort.Name, "Ada göre"), (FenceSort.Type, "Türe göre")],
             v => Set(() => _config.Sort = v)));
         menu.Items.Add(Menus.TileOptions(_config, Set, singleClickOption: true));
+        menu.Items.Add(Menus.Parts(_config, FenceParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+        if (_config.HiddenItems.Count > 0)
+        {
+            var hidden = new MenuItem { Header = $"Gizlenen öğeler ({_config.HiddenItems.Count})" };
+            hidden.Items.Add(Menus.Item("Hepsini yeniden göster", () => UnhideItems(_config.HiddenItems)));
+            hidden.Items.Add(new Separator());
+            foreach (var path in _config.HiddenItems.ToList())
+            {
+                var label = TileItem.IsShellObject(path)
+                    ? Desktop.DesktopSystemIcons.All.FirstOrDefault(i => "::" + i.Clsid == path)?.Name ?? path
+                    : TileItem.DisplayName(path);
+                hidden.Items.Add(Menus.Item(label + " — göster", () => UnhideItems([path])));
+            }
+            menu.Items.Add(hidden);
+        }
         menu.Items.Add(Menus.Item("Yenile", Refresh));
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", AppHost.Settings.FencesReplaceIcons,

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
+using Duzenleme.Core;
 
 namespace Duzenleme.Widgets;
 
@@ -15,8 +16,11 @@ public partial class DateView : UserControl, IWidgetView
     private WidgetPalette _palette = WidgetPalette.Glass;
     private DateTime _shownDate;
 
-    public DateView()
+    private readonly WidgetConfig _config;
+
+    public DateView(WidgetConfig config)
     {
+        _config = config;
         InitializeComponent();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _timer.Tick += (_, _) => { if (DateTime.Today != _shownDate) Render(); };
@@ -37,6 +41,8 @@ public partial class DateView : UserControl, IWidgetView
         DayText.Text = today.Day.ToString(Tr);
         MonthText.Text = today.ToString("MMMM", Tr);
         SubText.Text = $"{today.Year} · {today.ToString("dddd", Tr)}";
+        SubText.Visibility = _config.Shows("sub") ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        Week.Visibility = _config.Shows("week") ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         DayText.Foreground = _palette.Accent;
         SubText.Foreground = _palette.Secondary;
 
@@ -81,7 +87,8 @@ public partial class DateView : UserControl, IWidgetView
         Render();
     }
 
-    public void AddMenuItems(ContextMenu menu) { }
+    public void AddMenuItems(ContextMenu menu) =>
+        menu.Items.Add(Menus.Parts(_config, [("sub", "Yıl ve gün adı"), ("week", "Haftalık şerit")], Render));
 
     public void Detach() => _timer.Stop();
 }

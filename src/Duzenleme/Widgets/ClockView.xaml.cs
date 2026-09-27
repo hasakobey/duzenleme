@@ -50,6 +50,7 @@ public partial class ClockView : UserControl, IWidgetView
         SecondsText.Text = now.ToString("ss", Tr);
         SecondsText.Visibility = _config.ShowSeconds ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         GreetingText.Text = Greeting(now.Hour) + " · " + Tr.TextInfo.ToTitleCase(now.ToString("dddd", Tr));
+        GreetingRow.Visibility = _config.Shows("greeting") ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
     }
 
     public static string Greeting(int hour) => hour switch
@@ -79,6 +80,7 @@ public partial class ClockView : UserControl, IWidgetView
             Schedule();
         };
         menu.Items.Add(seconds);
+        menu.Items.Add(Menus.Parts(_config, [("greeting", "Selam ve gün")], Update));
     }
 
     public void Detach()

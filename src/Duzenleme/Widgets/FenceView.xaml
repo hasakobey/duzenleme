@@ -11,6 +11,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <ui:SymbolIcon x:Name="HeaderIcon" Symbol="Folder24" Filled="True" FontSize="20" Margin="0,0,10,0" VerticalAlignment="Center" />
             <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
@@ -26,6 +27,9 @@
                     ToolTip="Klasörü aç" Click="OpenFolder_Click" Cursor="Hand">
                 <ui:SymbolIcon x:Name="OpenIcon" Symbol="Open24" FontSize="16" />
             </Button>
+            <Button x:Name="RemoveButton" Grid.Column="5" Style="{StaticResource TileRemoveButton}" Margin="6,0,0,0"
+                    VerticalAlignment="Center" Visibility="Collapsed" Click="RemoveWidget_Click"
+                    ToolTip="Widget'ı kaldır" AutomationProperties.Name="Widget'ı kaldır" />
         </Grid>
 
         <DockPanel x:Name="Body">

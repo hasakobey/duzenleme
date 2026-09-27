@@ -39,7 +39,12 @@ public partial class NoteView : UserControl, IWidgetView
             menu.Items.Add(Menus.Item("Not ayarları…", () => MenuRequested?.Invoke()));
         });
         UpdateTitle();
+        // Başlıktaki × yalnızca fare üstündeyken görünür (kilitli widget'ta hiç).
+        MouseEnter += (_, _) => RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
+        MouseLeave += (_, _) => RemoveButton.Visibility = Visibility.Collapsed;
     }
+
+    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public bool Resizable => true;
     public Thickness CardPadding => new(16, 12, 16, 14);
@@ -53,7 +58,11 @@ public partial class NoteView : UserControl, IWidgetView
         AppHost.SaveSettings();
     }
 
-    private void UpdateTitle() => TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? "Not" : _config.Title;
+    private void UpdateTitle()
+    {
+        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? "Not" : _config.Title;
+        HeaderRow.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public WidgetPalette AdjustPalette(WidgetPalette palette) => WidgetPalette.ForNote(_config.NoteColor);
 
@@ -101,6 +110,7 @@ public partial class NoteView : UserControl, IWidgetView
         }));
         menu.Items.Add(Menus.Item("Notu temizle", () => Editor.Clear()));
         menu.Items.Add(Menus.Item("Panoya kopyala", () => { if (Editor.Text.Length > 0) Clipboard.SetText(Editor.Text); }));
+        menu.Items.Add(Menus.Parts(_config, [("header", "Başlık ve renkler")], UpdateTitle));
     }
 
     public void FocusEditor()
@@ -109,6 +119,8 @@ public partial class NoteView : UserControl, IWidgetView
         Keyboard.Focus(Editor);
         Editor.CaretIndex = Editor.Text.Length;
     }
+
+    public void Flush() => Save();
 
     public void Detach() => Save();
 }

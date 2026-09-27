@@ -14,6 +14,7 @@ public sealed class TrayIcon : IDisposable
     private readonly Forms.ToolStripMenuItem _pauseItem;
     private readonly Forms.ToolStripMenuItem _hideItem;
     private Action? _balloonAction;
+    private long _balloonShownAt;
     private readonly List<MoveEntry> _pendingNotices = [];
     private readonly DispatcherTimer _noticeTimer;
 
@@ -63,6 +64,8 @@ public sealed class TrayIcon : IDisposable
         };
         add.DropDownItems.Add(fence);
         menu.Items.Add(add);
+        _undoRemoveItem = new Forms.ToolStripMenuItem("Son kaldırılan widget'ı geri getir", null, (_, _) => AppHost.Widgets.UndoRemove());
+        menu.Items.Add(_undoRemoveItem);
         _manageItem = new Forms.ToolStripMenuItem("Masaüstü simgeleri yalnızca bölmelerde", null,
             (_, _) => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons));
         menu.Items.Add(_manageItem);
@@ -74,12 +77,16 @@ public sealed class TrayIcon : IDisposable
         {
             _pauseItem.Checked = AppHost.Settings.Paused;
             _manageItem.Checked = AppHost.Settings.FencesReplaceIcons;
+            var removed = AppHost.Widgets.LastRemovedName;
+            _undoRemoveItem.Visible = removed is not null;
+            _undoRemoveItem.Text = $"Geri getir: {removed}";
             _hideItem.Text = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
         };
         _icon.ContextMenuStrip = menu;
         _icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) openMainWindow(); };
         _icon.BalloonTipClicked += (_, _) => { var action = _balloonAction ?? openMainWindow; _balloonAction = null; action(); };
-        _icon.BalloonTipClosed += (_, _) => _balloonAction = null;
+        // Yeni bir balon hemen öncekinin yerini alınca eskisinin "kapandı" bildirimi yenisinin eylemini silmesin.
+        _icon.BalloonTipClosed += (_, _) => { if (Environment.TickCount64 - _balloonShownAt > 1500) _balloonAction = null; };
 
         // Toplu düzenlemede tek tek balon yerine tek özet göster.
         _noticeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
@@ -109,26 +116,32 @@ public sealed class TrayIcon : IDisposable
             : string.Join(", ", _pendingNotices.GroupBy(e => e.FolderName).Select(g => $"{g.Count()} dosya → {g.Key}"));
         var title = _pendingNotices.Count == 1 ? "Dosya taşındı" : $"{_pendingNotices.Count} dosya düzenlendi";
         _pendingNotices.Clear();
-        _balloonAction = null;
-        _icon.ShowBalloonTip(3000, title, text, Forms.ToolTipIcon.None);
+        ShowBalloon(3000, title, text, Forms.ToolTipIcon.None, null);
     }
 
     private Forms.ToolStripMenuItem _manageItem = null!;
+    private Forms.ToolStripMenuItem _undoRemoveItem = null!;
 
-    /// <summary>Kısa bilgi balonu.</summary>
-    public void Notify(string title, string text)
+    /// <summary>Tüm balonlar buradan geçer: tıklanınca çalışacak eylem yalnızca bu balona aittir.</summary>
+    private void ShowBalloon(int milliseconds, string title, string text, Forms.ToolTipIcon icon, Action? onClick)
     {
-        _balloonAction = null;
-        _icon.ShowBalloonTip(5000, title, text, Forms.ToolTipIcon.Info);
+        _balloonAction = onClick;
+        _balloonShownAt = Environment.TickCount64;
+        _icon.ShowBalloonTip(milliseconds, title, text, icon);
+    }
+
+    /// <summary>Kısa bilgi balonu; <paramref name="onClick"/> verilirse balona tıklanınca çalışır.</summary>
+    public void Notify(string title, string text, Action? onClick = null)
+    {
+        ShowBalloon(5000, title, text, Forms.ToolTipIcon.Info, onClick);
     }
 
     /// <summary>Yeni klasör için tıklanabilir öneri: balona tıklayınca simge seçici açılır.</summary>
     public void SuggestFolderIcon(string folder)
     {
         var (glyph, _) = Core.FolderIconCatalog.Suggest(Path.GetFileName(folder));
-        _balloonAction = () => Icons.FolderIconWindow.ShowFor(folder);
-        _icon.ShowBalloonTip(6000, $"“{Path.GetFileName(folder)}” klasörüne simge ver",
-            $"Önerilen: {glyph.Label}. Seçmek için tıkla.", Forms.ToolTipIcon.None);
+        ShowBalloon(6000, $"“{Path.GetFileName(folder)}” klasörüne simge ver",
+            $"Önerilen: {glyph.Label}. Seçmek için tıkla.", Forms.ToolTipIcon.None, () => Icons.FolderIconWindow.ShowFor(folder));
     }
 
     private void UndoLast()
@@ -136,17 +149,17 @@ public sealed class TrayIcon : IDisposable
         var last = AppHost.Journal.LastActive();
         if (last is null)
         {
-            _icon.ShowBalloonTip(2000, "Geri alınacak bir şey yok", "Henüz taşınmış bir dosya yok.", Forms.ToolTipIcon.None);
+            ShowBalloon(2000, "Geri alınacak bir şey yok", "Henüz taşınmış bir dosya yok.", Forms.ToolTipIcon.None, null);
             return;
         }
         try
         {
             AppHost.Organizer.Undo(last);
-            _icon.ShowBalloonTip(2000, "Geri alındı", $"{last.FileName} masaüstüne döndü.", Forms.ToolTipIcon.None);
+            ShowBalloon(2000, "Geri alındı", $"{last.FileName} masaüstüne döndü.", Forms.ToolTipIcon.None, null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _icon.ShowBalloonTip(3000, "Geri alınamadı", ex.Message, Forms.ToolTipIcon.Warning);
+            ShowBalloon(3000, "Geri alınamadı", ex.Message, Forms.ToolTipIcon.Warning, null);
         }
     }
 

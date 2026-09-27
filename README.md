@@ -25,6 +25,10 @@ Stardock Fences, iTop Easy Desktop, SlideSlide, ViPad ve LaunchBar Commander'ın
 
 **Widget'lar → "Masaüstümü bölümlere ayır"** tek tıkla Klasörler, Kısayollar, Dosyalar ve masaüstündeki PDF/Resimler gibi klasörler için birer bölme kurar ve **masaüstünü bölmelere devreder**: Windows'un kendi masaüstü simgeleri gizlenir, her şey (Bu Bilgisayar, Geri Dönüşüm Kutusu dahil) yalnızca bölmelerde görünür — Fences gibi. Dosyalara dokunulmaz; "Masaüstü simgelerini yalnızca bölmelerde göster" anahtarı (Araçlar, tepsi menüsü ya da bölmeye sağ tık) kapatılınca ya da uygulamadan çıkınca simgeler geri gelir. Bu modda yeni klasör, yeniden adlandırma ve Geri Dönüşüm Kutusu'na taşıma bölme menüsünden yapılır. Masaüstüne çift tık tüm bölmeleri gizler/gösterir.
 
+**Kaldırmak:** fareyle widget'ın üstüne gel → başlığın sağ ucundaki **×** (saat ve tarihte sol üst köşedeki kırmızı ×) widget'ı kaldırır; bildirime ya da tepsi menüsündeki "Geri getir"e tıklayarak geri al. Bir öğenin üstüne gel → küçük **×** onu bölmeden gizler (dosyaya dokunmaz; sağ tık → "Gizlenen öğeler"den geri getir), kısayol kutusunda listeden çıkarır. Sağ tık → **Göster** ile başlığı, sayıyı, arama düğmesini, sekmeleri, saatin selam satırını, tarihin haftalık şeridini… kapatabilirsin.
+
+**Yerleşim:** sürüklerken widget'lar birbirinin altına/üstüne/yanına ve ekran kenarına mıknatıs gibi yapışır, kenarları hizalanır; bırakılan widget başkasının üstüne binmez, en yakın boş yere kayar; kenardan büyütürken komşusunun kenarında durur. Taşırken `Alt` yapışmayı geçici kapatır, `Shift` ızgaraya hizalar. İkisi de sağ tık → **Yerleşim** menüsünden açılıp kapanır.
+
 Tıkladığın ya da yeni eklediğin widget diğerlerinin önüne geçer (sıra saklanır); "Düzenli yerleştir" hepsini çakışmadan sağdan dizer, önceki düzen "Kayıtlı düzenler"e yedeklenir.
 
 Her widget'a sağ tıkla:

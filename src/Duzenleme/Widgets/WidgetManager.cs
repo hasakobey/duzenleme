@@ -189,7 +189,8 @@ public sealed class WidgetManager
         return config;
     }
 
-    public void Remove(string id)
+    /// <summary>Widget'ı kaldırır. "Simgeler yalnızca bölmelerde" modu bu yüzden kapandıysa true.</summary>
+    public bool Remove(string id, bool notify = true)
     {
         if (_open.Remove(id, out var window))
         {
@@ -198,7 +199,43 @@ public sealed class WidgetManager
         }
         AppHost.Settings.Widgets.RemoveAll(w => w.Id == id);
         AppHost.SaveSettings();
-        AppHost.EnsureNothingInvisible();
+        var modeOff = AppHost.EnsureNothingInvisible(notify);
+        Changed?.Invoke();
+        return modeOff;
+    }
+
+    // ModeTurnedOff: kaldırma yüzünden "simgeler yalnızca bölmelerde" modu kapandıysa geri alınca yeniden açılır.
+    private (WidgetConfig Copy, int Index, bool ModeTurnedOff)? _lastRemoved;
+
+    /// <summary>Son kaldırılan widget'ın adı (tepsi menüsündeki "geri getir" için); yoksa null.</summary>
+    public string? LastRemovedName => _lastRemoved is { } last ? Views.WidgetRow.DisplayName(last.Copy) : null;
+
+    /// <summary>
+    /// Widget'ı kaldırır; tek bir bildirimle ya da tepsi menüsündeki "geri getir" ile ayarları ve yeriyle geri gelir
+    /// (kaldırma yüzünden kapanan "simgeler yalnızca bölmelerde" modu da geri açılır).
+    /// </summary>
+    public void RemoveWithUndo(string id)
+    {
+        var index = AppHost.Settings.Widgets.FindIndex(w => w.Id == id);
+        if (index < 0) return;
+        if (_open.TryGetValue(id, out var window)) window.FlushState(); // son taşıma/yazılanlar da geri gelsin
+        var copy = AppHost.Settings.Widgets[index].Clone();
+        var modeOff = Remove(id, notify: false);
+        _lastRemoved = (copy, index, modeOff);
+        AppHost.Tray?.Notify("Widget kaldırıldı",
+            (modeOff ? "Masaüstü simgeleri yeniden gösteriliyor. " : "") + "Geri getirmek için buraya ya da tepsi menüsüne tıkla.",
+            UndoRemove);
+    }
+
+    public void UndoRemove()
+    {
+        if (_lastRemoved is not { } last) return;
+        _lastRemoved = null;
+        if (AppHost.Settings.Widgets.Any(w => w.Id == last.Copy.Id)) return;
+        AppHost.Settings.Widgets.Insert(Math.Min(last.Index, AppHost.Settings.Widgets.Count), last.Copy);
+        AppHost.SaveSettings();
+        if (TryOpen(last.Copy) is not null) ApplyZOrder();
+        if (last.ModeTurnedOff && !AppHost.Settings.FencesReplaceIcons) AppHost.SetFencesManageDesktop(true);
         Changed?.Invoke();
     }
 
@@ -345,6 +382,10 @@ public sealed class WidgetManager
     /// <summary>Bir sonraki yeni widget'ın yerleşeceği ekrandaki nokta (ör. "Widget ekle" penceresinin yeri); bir kez kullanılır.</summary>
     internal NativeMethods.POINT? PlacementHint { get; set; }
 
+    /// <summary>Diğer görünür widget'ların kart dikdörtgenleri (gölge payı hariç, fiziksel piksel).</summary>
+    internal List<Box> OtherCards(WidgetWindow self) =>
+        _open.Values.Where(w => w != self).Select(w => w.CardBox).OfType<Box>().ToList();
+
     internal NativeMethods.POINT FreeSpot(WidgetKind kind, Size dipSize, WidgetWindow? self = null)
     {
         NativeMethods.GetCursorPos(out var cursor);
@@ -418,7 +459,7 @@ public sealed class WidgetManager
         IWidgetView view = config.Kind switch
         {
             WidgetKind.Clock => new ClockView(config),
-            WidgetKind.Date => new DateView(),
+            WidgetKind.Date => new DateView(config),
             WidgetKind.Note => new NoteView(config),
             WidgetKind.Launcher => new LauncherView(config),
             _ => new FenceView(config),

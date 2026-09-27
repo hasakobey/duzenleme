@@ -14,6 +14,9 @@ public interface IWidgetView
     /// <summary>Katlama/açma isteği (ör. başlığa çift tıklama).</summary>
     event Action? CollapseToggleRequested { add { } remove { } }
 
+    /// <summary>Parça gizlenip gösterilince pencerenin yerleşimi (katlanabilirlik, boyut) yeniden uygulanmalı.</summary>
+    event Action? LayoutChanged { add { } remove { } }
+
     /// <summary>Widget'ın ayar menüsünü açma isteği (ör. dosya menüsündeki "Bölme ayarları…").</summary>
     event Action? MenuRequested { add { } remove { } }
 
@@ -33,6 +36,9 @@ public interface IWidgetView
 
     /// <summary>Sağ tık menüsüne widget'a özel öğeler ekler.</summary>
     void AddMenuItems(ContextMenu menu);
+
+    /// <summary>Bekleyen değişiklikleri (ör. notun son yazılanları) ayarlara hemen yazar.</summary>
+    void Flush() { }
 
     /// <summary>Widget kapanırken zamanlayıcı/izleyici gibi kaynakları bırakır.</summary>
     void Detach();

@@ -29,6 +29,11 @@ public partial class LauncherView : UserControl, IWidgetView
 
         Items.PreviewMouseLeftButtonUp += OnItemClick;
         Menus.AttachItemMenu(Items, FillItemMenu);
+        Menus.EnableTileRemove(Items, RemoveItem);
+        // Başlıktaki × yalnızca fare üstündeyken görünür (kilitli widget'ta hiç).
+        MouseEnter += (_, _) => RemoveButton.Visibility = _config.Locked ? Visibility.Collapsed : Visibility.Visible;
+        MouseLeave += (_, _) => RemoveButton.Visibility = Visibility.Collapsed;
+
         Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link);
         DragEnter += OnDragOver;
         DragOver += OnDragOver;
@@ -38,10 +43,21 @@ public partial class LauncherView : UserControl, IWidgetView
     }
 
     public bool Resizable => true;
-    public bool Collapsible => true;
+    public bool Collapsible => _config.Shows("header");
     public Thickness CardPadding => new(14, 12, 14, 12);
     public event Action? CollapseToggleRequested;
     public event Action? MenuRequested;
+    public event Action? LayoutChanged;
+
+    private static readonly (string Key, string Label)[] LauncherParts =
+        [("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("tabs", "Sekmeler")];
+
+    private void ApplyParts()
+    {
+        Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
+        CountText.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
+        TabStrip.Visibility = AddTab.Visibility = _config.Shows("tabs") ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -52,6 +68,7 @@ public partial class LauncherView : UserControl, IWidgetView
         TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? "Kısayol kutusu" : _config.Title;
         CountText.Text = $"{_config.Tabs.Sum(t => t.Items.Count)} öğe";
         RenderTabs();
+        ApplyParts();
 
         Items.ItemsPanel = TileItem.Panel(_config);
         var items = Current.Items.Select(p => TileItem.Create(p, _config)).ToList();
@@ -121,6 +138,8 @@ public partial class LauncherView : UserControl, IWidgetView
 
     private void AddTab_Click(object sender, RoutedEventArgs e) => NewTab();
 
+    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
+
     private void NewTab()
     {
         if (InputDialog.Ask("Yeni sekme", "Sekme adı", $"Sekme {_config.Tabs.Count + 1}") is not { Length: > 0 } name) return;
@@ -139,8 +158,28 @@ public partial class LauncherView : UserControl, IWidgetView
     }
 
     /// <summary>Dock gibi: tek tıkla açılır.</summary>
+    private (LauncherTab Tab, int Index, string Path)? _lastRemoved;
+
+    /// <summary>Öğeyi listeden çıkarır; kutunun menüsündeki "Geri al" ile yerine döner.</summary>
+    private void RemoveItem(TileItem item)
+    {
+        var tab = Current;
+        var index = tab.Items.FindIndex(p => string.Equals(p, item.Path, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return;
+        _lastRemoved = (tab, index, tab.Items[index]);
+        Change(() => tab.Items.RemoveAt(index));
+    }
+
+    private void UndoRemove()
+    {
+        if (_lastRemoved is not { } last || !_config.Tabs.Contains(last.Tab)) return;
+        _lastRemoved = null;
+        Change(() => last.Tab.Items.Insert(Math.Min(last.Index, last.Tab.Items.Count), last.Path));
+    }
+
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
+        if (Menus.IsOnRemoveButton(e.OriginalSource) || Menus.JustRemoved) return;
         if (Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
         {
             TileItem.Launch(item.Path);
@@ -169,7 +208,7 @@ public partial class LauncherView : UserControl, IWidgetView
             menu.Items.Add(move);
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Listeden kaldır", () => Change(() => Current.Items.Remove(item.Path))));
+        menu.Items.Add(Menus.Item("Listeden kaldır", () => RemoveItem(item)));
         menu.Items.Add(Menus.Item("Kutu ayarları…", () => MenuRequested?.Invoke()));
     }
 
@@ -208,6 +247,11 @@ public partial class LauncherView : UserControl, IWidgetView
 
     public void AddMenuItems(ContextMenu menu)
     {
+        if (_lastRemoved is { } last)
+        {
+            menu.Items.Add(Menus.Item($"Geri al: \"{TileItem.DisplayName(last.Path)}\" listeye dönsün", UndoRemove));
+            menu.Items.Add(new Separator());
+        }
         menu.Items.Add(Menus.Item("Başlığı değiştir…", () =>
         {
             if (InputDialog.Ask("Kutu başlığı", "Başlık", TitleText.Text) is { } title)
@@ -217,6 +261,7 @@ public partial class LauncherView : UserControl, IWidgetView
         menu.Items.Add(Menus.Item("Uygulama ya da dosya ekle…", AddFiles));
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
+        menu.Items.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
     }
 
     public bool OnCtrlWheel(int delta)

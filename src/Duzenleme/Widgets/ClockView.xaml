@@ -9,7 +9,7 @@
                        FontFamily="Segoe UI Variable Display, Segoe UI"
                        VerticalAlignment="Bottom" Margin="6,0,0,15" />
         </StackPanel>
-        <StackPanel Orientation="Horizontal" Margin="3,-4,0,0">
+        <StackPanel x:Name="GreetingRow" Orientation="Horizontal" Margin="3,-4,0,0">
             <Ellipse x:Name="Dot" Width="7" Height="7" VerticalAlignment="Center" Margin="0,1,8,0" />
             <TextBlock x:Name="GreetingText" FontSize="15" FontWeight="SemiBold"
                        FontFamily="Segoe UI Variable Text, Segoe UI" />

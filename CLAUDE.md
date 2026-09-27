@@ -15,7 +15,7 @@ Windows masaüstü düzenleyici (Fences benzeri): masaüstüne düşen dosyalar�
 ## Derleme / paketleme
 - .NET 10 (`global.json`). SDK bu makinede kullanıcı başına `%LOCALAPPDATA%\Microsoft\dotnet` altında; Program Files'taki `dotnet` yalnızca SDK 8 içerir. Yeni kabuklarda PATH'in başına o klasörü ekle (`tools/publish.ps1` ve `.claude/hooks/build-check.ps1` bunu kendisi yapar).
 - `tools/publish.ps1` → `dist/` (Inno Setup ile tek kurulum + mimari başına taşınabilir zip). Kurulum betiği `tools/installer/Duzenleme.iss`; `.iss` ve `.ps1` dosyaları **BOM'lu UTF-8** olmalı, yoksa Türkçe karakterler bozulur.
-- Bu makinede Smart App Control açık: imzasız yeni derlemeler ara sıra "Uygulama Denetimi ilkesi" ile engellenir; yeniden denemek genelde yeter.
+- Bu makinede Smart App Control açık: imzasız yeni derlemeler ara sıra "Uygulama Denetimi ilkesi" ile engellenir (CodeIntegrity günlüğünde 3033/3077). Debug derlemesi bu yüzden deterministik değil: engellenirse yeniden derlemek farklı bir dosya üretir.
 - UI otomasyon testlerinde ana monitör kullanıcının gerçek masaüstüdür: sürükleme/tıklama yalnızca test monitöründe ve `--desktop/--data` ile açılan örnekte yapılır. Kurulu sürüm de aynı süreç adıyla çalışır; süreçleri yoluna göre ayırt et.
 - Widget pencereleri masaüstüne sahipli olduğundan Windows onları `HWND_TOPMOST` yapmaz; öne getirmek için sahiplik geçici olarak kaldırılır (`WidgetWindow.Reveal`).
 - Widget'lar `WS_EX_NOACTIVATE`: WPF, ölçeği farklı monitöre geçişte `SWP_NOACTIVATE` olmadan `SetWindowPos` çağırıp odağı çalar (WM_WINDOWPOSCHANGING'de bayrak eklemek işe yaramaz). Tıklamayla etkinleşme `WM_MOUSEACTIVATE → MA_ACTIVATE` ile serbest; klavye için `ActivateForInput`. Pencere en baştan kayıtlı monitörde oluşturulur.
@@ -26,6 +26,7 @@ Windows masaüstü düzenleyici (Fences benzeri): masaüstüne düşen dosyalar�
 - `--desktop` ile çalışan test örneği gerçek masaüstü simgelerini gizlemez/açmaz (`AppHost.IsTestDesktop`); kullanıcı o an fareyi kullanıyorsa gerçek fareyle test yapma, mesaj göndererek (ör. WM_MOUSEACTIVATE) doğrula.
 - "Masaüstünü bölmeler yönetsin" (`FencesReplaceIcons`): Windows simgeleri gizlenir; Klasörler+Kısayollar+Dosyalar (ya da Tümü) bölmesi her zaman bulunmalı (`EnsureDesktopCoverage`), yoksa mod kapanır (`EnsureNothingInvisible`).
 - Yeni widget'lar imlecin monitörüne yerleşir: test örneğinde imleç kullanıcının ekranındaysa test widget'ı onun masaüstüne düşer. Testte `DUZENLEME_QUICKADD_AT` ile "Widget ekle" penceresini test monitörüne aç, düğmelere UI Automation (InvokePattern) ile bas; iş bitince test örneğini `--exit` ile kapat.
+- Yerleşim kuralları (mıknatıs, çakışma çözme, büyütürken duvar) `Core/WidgetLayout.cs`'te saf geometri olarak durur ve testlenir; `WidgetWindow` kart dikdörtgenini gölge payını çıkararak (`CardBox`) verir.
 - Widget'lar arası sıra `WidgetConfig.Z`; hepsi en alta itildiği için `ApplyZOrder` en öndekinden başlayarak sırayla en alta gönderir.
 
 ## Kurallar
