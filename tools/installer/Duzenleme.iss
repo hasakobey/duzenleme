@@ -1,6 +1,8 @@
-﻿; Düzenleme kurulum sihirbazı (Inno Setup 6.3+). tools/publish.ps1 tarafından derlenir:
-;   ISCC /DAppVersion=1.1.0 /DStageDir=<dist\stage> /DOutputDir=<dist> /DHas_x64=1 /DHas_arm64=1 /DHas_x86=1 Duzenleme.iss
+﻿; NestDesk (eski adı Düzenleme) kurulum sihirbazı (Inno Setup 6.3+). tools/publish.ps1 tarafından derlenir:
+;   ISCC /DAppVersion=2.0.0 /DStageDir=<dist\stage> /DOutputDir=<dist> /DHas_x64=1 /DHas_arm64=1 /DHas_x86=1 Duzenleme.iss
 ; Yönetici izni istemez (kullanıcı başına kurulum) ve bilgisayarın mimarisine uygun sürümü kurar.
+; 2.0.0'da yalnızca görünen ad değişti: exe adı, AppId, Run değeri, tek örnek adı ve veri klasörü bilerek eski adla kalır
+; (güncellemeler aynı kurulumun üzerine yazılsın, "Windows ile başlat" ve ayarlar korunsun; bkz. Core/AppInfo.cs).
 
 #if VER < EncodeVer(6,3,0)
   #error Inno Setup 6.3 veya üstü gerekir (x64compatible/arm64 tanımlayıcıları, IsX64Compatible).
@@ -30,8 +32,13 @@
   #error En az bir mimari (Has_x64 / Has_arm64 / Has_x86) tanımlanmalı.
 #endif
 
-#define AppName "Düzenleme"
+#define AppName "NestDesk"
+; DEĞİŞMEZ (bkz. Core/AppInfo.cs)
 #define AppExe "Duzenleme.exe"
+; 2.0.0 öncesi görünen ad: eski kısayollar bu adla
+#define LegacyName "Düzenleme"
+; DEĞİŞMEZ: AppInfo.RunValueName ("Windows ile başlat" kayıt değerinin adı)
+#define RunValue "Duzenleme"
 #define AppPublisher "hasakobey"
 #define AppUrl "https://github.com/hasakobey/duzenleme"
 #define RunKey "Software\Microsoft\Windows\CurrentVersion\Run"
@@ -54,9 +61,10 @@ VersionInfoCompany={#AppPublisher}
 VersionInfoCopyright=© 2026 {#AppPublisher}
 
 ; Kullanıcı başına kurulum: UAC sorusu yok, standart kullanıcılar da kurabilir.
-; Klasör her zaman %LOCALAPPDATA%\Programs\Duzenleme: kullanıcı yanlışlıkla dolu bir klasör seçemez.
+; Yeni kurulum her zaman %LOCALAPPDATA%\Programs\NestDesk'e gider: kullanıcı yanlışlıkla dolu bir klasör seçemez.
+; Güncelleme önceki kurulumun klasöründe kalır (Inno varsayılanı UsePreviousAppDir): Düzenleme'den gelenler Programs\Duzenleme'de.
 PrivilegesRequired=lowest
-DefaultDirName={autopf}\Duzenleme
+DefaultDirName={autopf}\NestDesk
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 DisableReadyPage=no
@@ -68,7 +76,7 @@ ArchitecturesAllowed={#ArchAllowed}
 ArchitecturesInstallIn64BitMode=x64compatible or arm64
 
 OutputDir={#OutputDir}
-OutputBaseFilename=Duzenleme-Kurulum-{#AppVersion}
+OutputBaseFilename=NestDesk-Kurulum-{#AppVersion}
 SetupIconFile=..\..\src\Duzenleme\Assets\app.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
@@ -93,18 +101,18 @@ Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-turkish.StartupTask=Windows açıldığında Düzenleme'yi başlat (önerilir)
-english.StartupTask=Start Düzenleme when Windows starts (recommended)
-turkish.LaunchApp=Düzenleme'yi şimdi başlat
-english.LaunchApp=Launch Düzenleme now
+turkish.StartupTask=Windows açıldığında NestDesk'i başlat (önerilir)
+english.StartupTask=Start NestDesk when Windows starts (recommended)
+turkish.LaunchApp=NestDesk'i şimdi başlat
+english.LaunchApp=Launch NestDesk now
 turkish.DeleteDataPrompt=Ayarların, notların, widget düzenin ve taşıma geçmişin de silinsin mi?%n%nHayır dersen yeniden kurduğunda kaldığın yerden devam edersin. (Klasörlere verdiğin simgeler klasörlerin içinde durur ve çalışmaya devam eder.)
 english.DeleteDataPrompt=Also delete your settings, notes, widget layout and move history?%n%nChoose No to keep them for a future reinstall. (Folder icons live inside the folders and keep working.)
-turkish.Tagline=Masaüstünü düzenleyen, saat/tarih/not widget'ları sunan modern düzenleyici.
-english.Tagline=A modern desktop organizer with clock, date and note widgets.
-turkish.OtherCopyRunning=Düzenleme'nin başka bir kopyası (eski sürüm ya da taşınabilir) çalışıyor.%n%nSaatin yanındaki tepsi simgesine sağ tıklayıp "Çıkış"ı seç, sonra "Yeniden dene"ye bas.
-english.OtherCopyRunning=Another copy of Düzenleme (an older or portable version) is running.%n%nRight-click its tray icon next to the clock, choose "Çıkış" (Exit), then press Retry.
-turkish.OtherCopyAbort=Düzenleme hâlâ çalıştığı için kurulum iptal edildi. Kapatıp kurulumu yeniden çalıştırabilirsin.
-english.OtherCopyAbort=Setup was cancelled because Düzenleme is still running. Close it and run setup again.
+turkish.Tagline=Masaüstün için derli toplu bir yuva.
+english.Tagline=A tidy home for your desktop.
+turkish.OtherCopyRunning=NestDesk'in (eski adıyla Düzenleme) başka bir kopyası (eski sürüm ya da taşınabilir) çalışıyor.%n%nSaatin yanındaki tepsi simgesine sağ tıklayıp "Çıkış"ı seç, sonra "Yeniden dene"ye bas.
+english.OtherCopyRunning=Another copy of NestDesk (formerly Düzenleme; an older or portable version) is running.%n%nRight-click its tray icon next to the clock, choose "Çıkış" (Exit), then press Retry.
+turkish.OtherCopyAbort=NestDesk hâlâ çalıştığı için kurulum iptal edildi. Kapatıp kurulumu yeniden çalıştırabilirsin.
+english.OtherCopyAbort=Setup was cancelled because NestDesk is still running. Close it and run setup again.
 turkish.QuickAdd=Widget ekle
 english.QuickAdd=Add a widget
 turkish.NoPayload=Bu kurulum programı bu bilgisayarın işlemci mimarisi için dosya içermiyor.
@@ -127,6 +135,14 @@ Source: "{#StageDir}\arm64\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "{#StageDir}\x86\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: InstallArch('x86')
 #endif
 
+[InstallDelete]
+; 2.0.0: görünen ad Düzenleme → NestDesk. Eski adlı Başlat/masaüstü kısayolları kaldırılır; yenileri [Icons] ile oluşur.
+; (Hepsi aynı exe'yi gösterir; görev çubuğu sabitlemeleri de aynı exe'yi gösterdiği için çalışmaya devam eder.)
+Type: files; Name: "{autoprograms}\{#LegacyName}.lnk"
+Type: files; Name: "{autoprograms}\{#LegacyName} - Widget ekle.lnk"
+Type: files; Name: "{autoprograms}\{#LegacyName} - Add a widget.lnk"
+Type: files; Name: "{autodesktop}\{#LegacyName}.lnk"; Tasks: desktopicon
+
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Tagline}"
 ; Başlat menüsünden tek tıkla "Widget ekle" penceresi (uygulama çalışıyorsa ona iletilir).
@@ -136,7 +152,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Comment: "{cm:Tag
 [Registry]
 ; "Windows ile başlat" görevi seçildiyse (uygulamanın Ayarlar'daki anahtarıyla aynı değer).
 ; Kaldırırken değer yalnızca bu kurulumu gösteriyorsa silinir ([Code]: RunValueIsOurs); taşınabilir kopyanınkine dokunulmaz.
-Root: HKCU; Subkey: "{#RunKey}"; ValueType: string; ValueName: "Duzenleme"; ValueData: """{app}\{#AppExe}"" --minimized"; Tasks: startup
+Root: HKCU; Subkey: "{#RunKey}"; ValueType: string; ValueName: "{#RunValue}"; ValueData: """{app}\{#AppExe}"" --minimized"; Tasks: startup
 
 [UninstallDelete]
 ; Eski tek dosyalık sürümün geçici klasöre açtığı dosyalar.
@@ -193,6 +209,7 @@ begin
 end;
 
 { ---------- Çalışan uygulamayı kapatma ---------- }
+{ DEĞİŞMEZ: AppInfo.InstanceIdPrefix. 1.x ile 2.x aynı adı kullanır: kurulum eski sürümü de bu sinyalle kapatır. }
 function InstanceId(): String;
 begin
   Result := 'Duzenleme.' + GetUserNameString;
@@ -243,14 +260,14 @@ begin
     Result := -1;
 end;
 
-{ Bu kurulum klasöründen çalışan bir Düzenleme var mı? (Taşınabilir kopyalar ayrı tutulur.) }
+{ Bu kurulum klasöründen çalışan bir NestDesk var mı? (Süreç adı exe adıdır: Duzenleme. Taşınabilir kopyalar ayrı tutulur.) }
 function InstalledAppRunning(): Boolean;
 begin
   Result := RunPowerShell('if (Get-Process Duzenleme -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ''' +
     QuotedAppDir() + '\*'' }) { exit 0 } else { exit 1 }') = 0;
 end;
 
-{ Son çare: yalnızca bu kurulum klasöründen çalışan Düzenleme'yi kapat (taşınabilir kopyalara dokunma). }
+{ Son çare: yalnızca bu kurulum klasöründen çalışan NestDesk'i kapat (taşınabilir kopyalara dokunma). }
 procedure KillInstalledApp();
 begin
   RunPowerShell('Get-Process Duzenleme -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ''' +
@@ -285,7 +302,7 @@ function RunValueIsOurs(): Boolean;
 var
   Value: String;
 begin
-  Result := RegQueryStringValue(HKCU, '{#RunKey}', 'Duzenleme', Value) and
+  Result := RegQueryStringValue(HKCU, '{#RunKey}', '{#RunValue}', Value) and
     (Pos(Lowercase(ExpandConstant('{app}\')), Lowercase(Value)) > 0);
 end;
 
@@ -329,12 +346,12 @@ begin
     başlangıç kaydı silinir (yoksa her açılışta eski sürüm başlar ve kurulan sürümü engeller).
     Taşınabilir kopyanın kaydı (exe'nin yanında portable.txt olan) korunur. }
   if (CurStep = ssPostInstall) and FreshInstall and (not WizardIsTaskSelected('startup')) and
-     RegQueryStringValue(HKCU, '{#RunKey}', 'Duzenleme', Value) and (not RunValueIsOurs()) then
+     RegQueryStringValue(HKCU, '{#RunKey}', '{#RunValue}', Value) and (not RunValueIsOurs()) then
   begin
     StringChangeEx(Value, '"', '', True);
     StringChangeEx(Value, ' --minimized', '', True);
     if not FileExists(AddBackslash(ExtractFileDir(Value)) + 'portable.txt') then
-      RegDeleteValue(HKCU, '{#RunKey}', 'Duzenleme');
+      RegDeleteValue(HKCU, '{#RunKey}', '{#RunValue}');
   end;
 end;
 
@@ -351,7 +368,7 @@ begin
       RestoreDesktopIconsIfHidden();
     end;
     if RunValueIsOurs() then
-      RegDeleteValue(HKCU, '{#RunKey}', 'Duzenleme');
+      RegDeleteValue(HKCU, '{#RunKey}', '{#RunValue}');
   end;
   if CurUninstallStep = usPostUninstall then
   begin

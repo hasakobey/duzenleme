@@ -87,7 +87,7 @@
                             </StackPanel>
                             <ui:InfoBar x:Name="NoKeyInfo" Margin="0,12,0,0" IsClosable="False" Severity="Informational"
                                         Title="API anahtarı eklenmemiş"
-                                        Message="Bu özellik isteğe bağlı. Ayarlar &gt; Yapay zekâ bölümünden Claude API anahtarını ekleyince açılır; hazır simgeler anahtarsız da çalışır." />
+                                        Message="Bu özellik isteğe bağlı. Ayarlar → Gelişmiş → Yapay zekâ ile klasör simgesi bölümünden Claude API anahtarını ekleyince açılır; hazır simgeler anahtarsız da çalışır." />
                             <TextBlock x:Name="HistoryHeader" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0,14,0,6" Text="Önceki üretimler" />
                             <ItemsControl x:Name="HistoryList">
                                 <ItemsControl.ItemsPanel>

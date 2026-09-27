@@ -1,11 +1,12 @@
-﻿# Düzenleme'yi her Windows bilgisayarında çalışacak şekilde paketler.
+﻿# NestDesk'i her Windows bilgisayarında çalışacak şekilde paketler.
 #
 #   powershell -File tools/publish.ps1              # x64 + arm64 + x86, kurulum programı ve taşınabilir zip'ler
 #   powershell -File tools/publish.ps1 -Arch x64    # yalnızca bir mimari (hızlı deneme; kurulum yalnızca x64 kabul eder)
 #
 # Çıktılar (dist/):
-#   Duzenleme-Kurulum-<sürüm>.exe                  tek kurulum sihirbazı; bilgisayarın mimarisine uygun sürümü kurar
-#   Duzenleme-<sürüm>-<mimari>-tasinabilir.zip     kurulumsuz kullanım (içinde portable.txt var)
+#   NestDesk-Kurulum-<sürüm>.exe                   tek kurulum sihirbazı; bilgisayarın mimarisine uygun sürümü kurar
+#   NestDesk-<sürüm>-<mimari>-tasinabilir.zip      kurulumsuz kullanım (içinde portable.txt var)
+# Program dosyası bilerek Duzenleme.exe kalır (eski adı; Run kaydı ve kurulum güncellemesi buna bağlı, bkz. Core/AppInfo.cs).
 #
 # İsteğe bağlı kod imzalama (imzasız dosyalarda Windows SmartScreen "bilinmeyen yayımcı" uyarısı gösterir,
 # Smart App Control açık bilgisayarlar ise çalıştırmayı engelleyebilir). Şunlardan biri ayarlıysa imzalanır:
@@ -78,8 +79,8 @@ foreach ($a in $Arch) {
     # Taşınabilir zip: portable.txt sayesinde ayarlar exe'nin yanındaki data klasöründe tutulur.
     $portable = Join-Path $stage "portable-$a"
     Copy-Item $out $portable -Recurse
-    Set-Content (Join-Path $portable 'portable.txt') 'Bu dosya varsa Düzenleme ayarlarını bu klasördeki "data" klasöründe tutar.' -Encoding UTF8
-    Compress-Archive -Path (Join-Path $portable '*') -DestinationPath (Join-Path $dist "Duzenleme-$version-$a-tasinabilir.zip") -CompressionLevel Optimal
+    Set-Content (Join-Path $portable 'portable.txt') 'Bu dosya varsa NestDesk ayarlarını bu klasördeki "data" klasöründe tutar.' -Encoding UTF8
+    Compress-Archive -Path (Join-Path $portable '*') -DestinationPath (Join-Path $dist "NestDesk-$version-$a-tasinabilir.zip") -CompressionLevel Optimal
 }
 
 # --- Kurulum programı ---

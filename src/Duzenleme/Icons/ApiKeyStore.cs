@@ -9,7 +9,8 @@ namespace Duzenleme.Icons;
 /// </summary>
 public static class ApiKeyStore
 {
-    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("Duzenleme.ApiKey.v1");
+    internal const string EntropyText = "Duzenleme.ApiKey.v1"; // DEĞİŞMEZ: değişirse kayıtlı anahtar çözülemez
+    private static readonly byte[] Entropy = Encoding.UTF8.GetBytes(EntropyText);
 
     public static bool HasKey => !string.IsNullOrEmpty(AppHost.Settings.AiKeyProtected);
 

@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Düzenleme'nin Microsoft Store (MSIX) paket bildirimi ŞABLONU. tools/package-msix.ps1 doldurur:
+  NestDesk'in (eski adı Düzenleme) Microsoft Store (MSIX) paket bildirimi ŞABLONU. tools/package-msix.ps1 doldurur:
     {{Name}}, {{Publisher}}, {{PublisherDisplayName}}   tools/store/identity.json (Partner Center > Ürün kimliği)
     {{Version}}                                         Duzenleme.csproj <Version> + ".0" (Store son parçanın 0 olmasını ister)
     {{Arch}}                                            x64 / arm64 / x86
+  Görünen ad (DisplayName) Partner Center'da ayrılan ürün adıyla birebir aynı olmalı: NestDesk (Core/AppInfo.cs Name).
+  Application Id, Executable ve TaskId bilerek eski adla kalır (tests/Duzenleme.Tests/IdentityTests.cs sabitler).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -16,7 +18,7 @@
   <Identity Name="{{Name}}" Publisher="{{Publisher}}" Version="{{Version}}" ProcessorArchitecture="{{Arch}}" />
 
   <Properties>
-    <DisplayName>Düzenleme</DisplayName>
+    <DisplayName>NestDesk</DisplayName>
     <PublisherDisplayName>{{PublisherDisplayName}}</PublisherDisplayName>
     <Description>Masaüstüne düşen dosyaları klasörlerine taşır; saat, tarih ve klasör bölmesi widget'ları sunar.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
@@ -35,10 +37,11 @@
   </Resources>
 
   <Applications>
+    <!-- DEĞİŞMEZ: AUMID, başlangıç görevi ve sabitlemeler bunlara bağlı (Application Id, Executable, TaskId). -->
     <Application Id="Duzenleme" Executable="Duzenleme.exe" EntryPoint="Windows.FullTrustApplication">
       <!-- Görseller ölçek/targetsize nitelikli dosyalardır (Square44x44Logo.scale-200.png …); resources.pri çözümler. -->
       <uap:VisualElements
-        DisplayName="Düzenleme"
+        DisplayName="NestDesk"
         Description="Masaüstüne düşen dosyaları klasörlerine taşır; saat, tarih ve klasör bölmesi widget'ları sunar."
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -58,24 +61,26 @@
              koymaktı: şemaya uygun ama başlangıç etkinleştirmesinde Application düzeyindeki Parameters'ın uygulanacağı
              belgelenmemiş; ayrıca pakete fazladan bir AUMID ekler (süreç o kimlikle çalışır: görev çubuğu gruplaması ve
              Ayarlar > Başlangıç'taki ad/simge ona göre olur).
-             (XML yorumunda iki tire yazılamadığı için parametre adları burada geçmiyor.) -->
+             (XML yorumunda iki tire yazılamadığı için parametre adları burada geçmiyor.)
+             DEĞİŞMEZ: Executable ve TaskId (AppInfo.StartupTaskId); DisplayName Ayarlar > Başlangıç'ta görünen addır. -->
         <desktop:Extension Category="windows.startupTask" Executable="Duzenleme.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="--minimized">
-          <desktop:StartupTask TaskId="DuzenlemeStartup" Enabled="false" DisplayName="Düzenleme" />
+          <desktop:StartupTask TaskId="DuzenlemeStartup" Enabled="false" DisplayName="NestDesk" />
         </desktop:Extension>
       </Extensions>
     </Application>
 
-    <!-- Başlat menüsünde tek tıkla widget ekleme (Inno kurulumundaki "Düzenleme - Widget ekle" kısayolunun karşılığı).
+    <!-- Başlat menüsünde tek tıkla widget ekleme (Inno kurulumundaki "NestDesk - Widget ekle" kısayolunun karşılığı).
          Uygulama çalışıyorsa istek yalnızca çalışan örneğe iletilir ve bu süreç hemen kapanır.
          Bilinen bedel: bu da ayrı bir AUMID'dir (başlangıç görevi için yukarıda reddedilen yolun bedeli). Uygulama kapalıyken
          buradan açılırsa tek örneğin sahibi bu süreç olur; tepsi, widget'lar ve ana pencere oturum boyunca PFN!WidgetEkle
-         kimliğiyle çalışır: görev çubuğu grubu, sabitleme hedefi ve tepsi bildirimlerinin kaynağı "Düzenleme – Widget ekle"
+         kimliğiyle çalışır: görev çubuğu grubu, sabitleme hedefi ve tepsi bildirimlerinin kaynağı "NestDesk – Widget ekle"
          görünebilir. Başlangıç görevinde bu her oturum açılışında olurdu; burada yalnızca bu seyrek durumda olur, o yüzden
          şimdilik kabul edildi. Kalıcı çözüm uygulamada: bu kimlikle ilk örnek olunca ana uygulamayı (PFN!Duzenleme) aynı
-         parametreyle IApplicationActivationManager üzerinden etkinleştirip kapanmak. -->
+         parametreyle IApplicationActivationManager üzerinden etkinleştirip kapanmak.
+         DEĞİŞMEZ: Application Id ve Executable (AUMID ve sabitlemeler bunlara bağlı). -->
     <Application Id="WidgetEkle" Executable="Duzenleme.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="--add">
       <uap:VisualElements
-        DisplayName="Düzenleme – Widget ekle"
+        DisplayName="NestDesk – Widget ekle"
         Description="Masaüstüne yeni bir widget (saat, tarih, klasör bölmesi…) ekler."
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -87,7 +92,7 @@
 
   <!-- unvirtualizedResources bilerek YOK. Paketli uygulamanın HKCU yazmaları pakete özel gizli bir kovana gider
        (Microsoft Learn: "All writes under HKCU are copied on write to a private per-user, per-app location"); uygulama
-       yazdığını okur ama Gezgin görmez. Bu, Masaüstü sayfasındaki Windows sistem simgesi anahtarlarını
+       yazdığını okur ama Gezgin görmez. Bu, Ayarlar > Masaüstü'ndeki Windows masaüstü simgeleri anahtarlarını
        (Explorer\HideDesktopIcons\NewStartPanel) etkiler. Bildirimle aşmanın tek yolu desktop6/virtualization
        RegistryWriteVirtualization + unvirtualizedResources; Microsoft bu kısıtlı yeteneği "belirli PC oyunları ve dış konumlu
        paketler için, başka senaryolar için değil" diye tanımlıyor (onaylanmazsa gönderim sertifikasyondan kalır) ve eski

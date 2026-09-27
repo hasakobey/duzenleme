@@ -11,7 +11,7 @@ namespace Duzenleme.Icons;
 /// </summary>
 public static class FolderIconService
 {
-    private const string IconPrefix = ".duzenleme-";
+    internal const string IconPrefix = ".duzenleme-"; // DEĞİŞMEZ: eski simgeler bu önekle tanınır
     private const uint FCSM_ICONFILE = 0x00000010;
     private const uint FCS_FORCEWRITE = 0x00000002;
     private const int SHCNE_UPDATEDIR = 0x00001000;

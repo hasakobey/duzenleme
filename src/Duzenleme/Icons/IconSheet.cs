@@ -23,7 +23,7 @@ public static class IconSheet
         using (var dc = visual.RenderOpen())
         {
             dc.DrawRectangle(new LinearGradientBrush(Color.FromRgb(0x1B, 0x1B, 0x26), Color.FromRgb(0x12, 0x12, 0x1A), 90), null, new Rect(0, 0, width, height));
-            dc.DrawText(Text("Düzenleme · Klasör simgeleri", face, 26, Brushes.White), new Point(24, 22));
+            dc.DrawText(Text($"{AppInfo.Name} · Klasör simgeleri", face, 26, Brushes.White), new Point(24, 22));
             dc.DrawText(Text("Hazır kütüphane (API anahtarı gerekmez) — klasör adına göre otomatik önerilir, 10 renkle değiştirilebilir",
                 face, 13, new SolidColorBrush(Color.FromArgb(170, 255, 255, 255))), new Point(24, 60));
 

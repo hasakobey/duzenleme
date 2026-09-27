@@ -1,7 +1,7 @@
-Düzenleme — üçüncü taraf yazılım bildirimleri / THIRD-PARTY SOFTWARE NOTICES
+NestDesk — üçüncü taraf yazılım bildirimleri / THIRD-PARTY SOFTWARE NOTICES
 
-Düzenleme, aşağıdaki açık kaynak bileşenleri kullanır ve onlarla birlikte dağıtılır.
-Düzenleme itself is licensed under the MIT License (see LICENSE).
+NestDesk, aşağıdaki açık kaynak bileşenleri kullanır ve onlarla birlikte dağıtılır.
+NestDesk itself is licensed under the MIT License (see LICENSE).
 This software incorporates the components listed below, distributed under their own licenses.
 
 1. .NET Runtime ve Windows Desktop (WPF) — MIT License — https://github.com/dotnet/runtime, https://github.com/dotnet/wpf

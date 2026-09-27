@@ -108,7 +108,7 @@ public sealed class DesktopDoubleClick : IDisposable
             if (_hook != IntPtr.Zero) UnhookWindowsHookEx(_hook);
             _hook = IntPtr.Zero;
         })
-        { IsBackground = true, Name = "Düzenleme çift tık kancası" };
+        { IsBackground = true, Name = $"{Core.AppInfo.Name} çift tık kancası" };
         _thread.Start();
         ready.Wait(TimeSpan.FromSeconds(2));
     }

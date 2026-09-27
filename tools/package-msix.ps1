@@ -1,4 +1,4 @@
-﻿# Düzenleme'yi Microsoft Store'a gönderilecek MSIX paketi olarak hazırlar (Store paketi kendisi imzalar).
+﻿# NestDesk'i Microsoft Store'a gönderilecek MSIX paketi olarak hazırlar (Store paketi kendisi imzalar).
 #
 #   powershell -File tools/package-msix.ps1               # x64 + arm64 + x86, tek .msixbundle
 #   powershell -File tools/package-msix.ps1 -Arch x64     # yalnızca bir mimari (hızlı deneme)
@@ -6,9 +6,10 @@
 #   powershell -File tools/package-msix.ps1 -TestSign     # yan yükleme denemesi için kendinden imzalı sertifikayla imzala
 #
 # Çıktılar (dist-store/; dist/ içinde değil, çünkü tools/publish.ps1 her çalıştığında bütün dist/ klasörünü siler):
-#   Duzenleme-<sürüm>.msixbundle          Partner Center'a yüklenecek dosya
-#   Duzenleme-DenemeImzasi.pfx / .cer     yalnızca -TestSign ile; paket, .cer yerel makinenin "Güvenilen Kişiler"
+#   NestDesk-<sürüm>.msixbundle           Partner Center'a yüklenecek dosya
+#   NestDesk-DenemeImzasi.pfx / .cer      yalnızca -TestSign ile; paket, .cer yerel makinenin "Güvenilen Kişiler"
 #                                         deposuna eklenmeden (yönetici izni gerekir) kurulamaz
+# Paketin içindeki program dosyası bilerek Duzenleme.exe kalır (AppxManifest.xml: Executable, Application Id, TaskId).
 # Her şey önce geçici klasörde üretilir; dist-store/ içindeki eski çıktı ancak çalıştırma baştan sona başarılı olunca
 # yenisiyle değiştirilir (yarıda kalan çalıştırma son sağlam paketi silmez).
 #
@@ -248,10 +249,10 @@ try {
         $password = [Convert]::ToBase64String($random)
         # Paketin Publisher'ı ile sertifika konusu birebir aynı olmalı; 1.3.6.1.5.5.7.3.3 = kod imzalama.
         $cert = New-SelfSignedCertificate -Type Custom -Subject $identity.Publisher -KeyUsage DigitalSignature `
-            -FriendlyName 'Düzenleme MSIX deneme imzası' -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddYears(1) `
+            -FriendlyName 'NestDesk MSIX deneme imzası' -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddYears(1) `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
-        $pfx = Join-Path $staging 'Duzenleme-DenemeImzasi.pfx'
-        $cer = Join-Path $staging 'Duzenleme-DenemeImzasi.cer'
+        $pfx = Join-Path $staging 'NestDesk-DenemeImzasi.pfx'
+        $cer = Join-Path $staging 'NestDesk-DenemeImzasi.cer'
         try {
             Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
             Export-Certificate -Cert $cert -FilePath $cer | Out-Null
@@ -307,7 +308,7 @@ try {
         Write-Manifest $a (Join-Path $layout 'AppxManifest.xml')
 
         Write-Host "==> $a paketleniyor…"
-        $msix = Join-Path $packages "Duzenleme_${packageVersion}_$a.msix"
+        $msix = Join-Path $packages "NestDesk_${packageVersion}_$a.msix"
         Invoke-Tool $makeappx @('pack', '/d', $layout, '/p', $msix, '/o')
         Sign-Package $msix
         Remove-Item $layout -Recurse -Force
@@ -315,7 +316,7 @@ try {
 
     # --- Store'a yüklenecek paket kümesi ---
     Write-Host '==> .msixbundle oluşturuluyor…'
-    $bundle = Join-Path $staging "Duzenleme-$version.msixbundle"
+    $bundle = Join-Path $staging "NestDesk-$version.msixbundle"
     Invoke-Tool $makeappx @('bundle', '/d', $packages, '/p', $bundle, '/bv', $packageVersion, '/o')
     Sign-Package $bundle
 

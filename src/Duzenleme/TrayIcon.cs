@@ -11,7 +11,7 @@ namespace Duzenleme;
 public sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon _icon;
-    private readonly Forms.ToolStripMenuItem _pauseItem;
+    private readonly Forms.ToolStripMenuItem _autoMoveItem;
     private readonly Forms.ToolStripMenuItem _hideItem;
     private Action? _balloonAction;
     private long _balloonShownAt;
@@ -24,58 +24,34 @@ public sealed class TrayIcon : IDisposable
         _icon = new Forms.NotifyIcon
         {
             Icon = new System.Drawing.Icon(iconStream, Forms.SystemInformation.SmallIconSize),
-            Text = "Düzenleme",
+            Text = AppInfo.Name,
             Visible = true,
         };
 
-        _pauseItem = new Forms.ToolStripMenuItem("İzlemeyi duraklat", null, (_, _) => AppHost.SetPaused(!AppHost.Settings.Paused));
+        // İşaretli = otomatik taşıma açık (Paused'ın tersi).
+        _autoMoveItem = new Forms.ToolStripMenuItem("Otomatik taşıma", null, (_, _) => AppHost.SetPaused(!AppHost.Settings.Paused));
         var menu = new Forms.ContextMenuStrip();
+        // Her ekleme yolu aynı "Widget ekle" penceresini açar (bölme, araç ve "Masaüstümü bölmelere ayır" orada).
         menu.Items.Add(new Forms.ToolStripMenuItem("Widget ekle…", null, (_, _) => quickAdd()) { Font = new System.Drawing.Font(menu.Font, System.Drawing.FontStyle.Bold) });
-        menu.Items.Add(new Forms.ToolStripMenuItem("Düzenleme'yi aç", null, (_, _) => openMainWindow()));
+        menu.Items.Add(new Forms.ToolStripMenuItem($"{AppInfo.Name}'i aç", null, (_, _) => openMainWindow()));
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add(_pauseItem);
+        menu.Items.Add(_autoMoveItem);
         menu.Items.Add("Masaüstünü şimdi düzenle", null, (_, _) => AppHost.OrganizeNowInBackground());
         menu.Items.Add("Son taşımayı geri al", null, (_, _) => UndoLast());
         _hideItem = new Forms.ToolStripMenuItem("Masaüstünü gizle", null, (_, _) => AppHost.ToggleDesktop());
         menu.Items.Add(_hideItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
-        var add = new Forms.ToolStripMenuItem("Widget ekle");
-        add.DropDownItems.Add("Saat", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Clock));
-        add.DropDownItems.Add("Tarih", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Date));
-        add.DropDownItems.Add("Not", null, (_, _) => AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id));
-        add.DropDownItems.Add("Kısayol kutusu", null, (_, _) => AppHost.Widgets.Add(WidgetKind.Launcher));
-        var fence = new Forms.ToolStripMenuItem("Bölme");
-        fence.DropDownItems.Add("(yükleniyor)");
-        // Klasör listesi değişebilir: alt menü her açılışta yeniden kurulur.
-        fence.DropDownOpening += (_, _) =>
-        {
-            fence.DropDownItems.Clear();
-            foreach (var filter in DesktopItems.Filters)
-            {
-                var f = filter;
-                fence.DropDownItems.Add(f == DesktopFilter.All ? "Tüm masaüstü" : DesktopItems.Label(f), null, (_, _) => AppHost.Widgets.AddFence(f));
-            }
-            var folders = AppHost.Organizer.ExistingFolders().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList();
-            if (folders.Count > 0) fence.DropDownItems.Add(new Forms.ToolStripSeparator());
-            foreach (var name in folders)
-                fence.DropDownItems.Add(name, null, (_, _) => AppHost.Widgets.Add(WidgetKind.Fence, name));
-            fence.DropDownItems.Add(new Forms.ToolStripSeparator());
-            fence.DropDownItems.Add("Masaüstümü bölümlere ayır", null, (_, _) => AppHost.Widgets.AddStarterFences());
-        };
-        add.DropDownItems.Add(fence);
-        menu.Items.Add(add);
         _undoRemoveItem = new Forms.ToolStripMenuItem("Son kaldırılan widget'ı geri getir", null, (_, _) => AppHost.Widgets.UndoRemove());
         menu.Items.Add(_undoRemoveItem);
         _manageItem = new Forms.ToolStripMenuItem("Masaüstü simgeleri yalnızca bölmelerde", null,
             (_, _) => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons));
         menu.Items.Add(_manageItem);
         menu.Items.Add("Widget'ları öne getir (5 sn)", null, (_, _) => AppHost.Widgets.RevealAll());
-        menu.Items.Add("Widget'ları düzenli yerleştir", null, (_, _) => AppHost.Widgets.ArrangeAll());
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Çıkış", null, (_, _) => exit());
         menu.Opening += (_, _) =>
         {
-            _pauseItem.Checked = AppHost.Settings.Paused;
+            _autoMoveItem.Checked = !AppHost.Settings.Paused;
             _manageItem.Checked = AppHost.Settings.FencesReplaceIcons;
             var removed = AppHost.Widgets.LastRemovedName;
             _undoRemoveItem.Visible = removed is not null;
@@ -164,7 +140,7 @@ public sealed class TrayIcon : IDisposable
     }
 
     private void UpdateTooltip() =>
-        _icon.Text = AppHost.Settings.Paused ? "Düzenleme — duraklatıldı" : "Düzenleme — masaüstü izleniyor";
+        _icon.Text = $"{AppInfo.Name} — otomatik taşıma {(AppHost.Settings.Paused ? "kapalı" : "açık")}";
 
     public void Dispose()
     {
