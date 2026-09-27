@@ -4,6 +4,10 @@ Windows için modern masaüstü düzenleyici. Masaüstüne düşen dosyaları **
 
 Stardock Fences, iTop Easy Desktop, SlideSlide, ViPad ve LaunchBar Commander'ın öne çıkan özelliklerinden esinlenildi.
 
+**Download / İndir:** [Releases](https://github.com/hasakobey/duzenleme/releases) — `Duzenleme-Kurulum-<sürüm>.exe` (installer) or portable zips, free.
+
+> **English:** Düzenleme is a free, open source (MIT) desktop organizer for Windows 10/11, similar to Stardock Fences. It moves files dropped on the desktop into folders the user created (e.g. PDFs into a `PDF` folder, undoable), and adds desktop widgets: fences that show desktop items or folder contents, clock, date, sticky notes and an app launcher. Built with .NET 10 WPF; the installer and portable builds are produced by GitHub Actions from this repository.
+
 ## Özellikler
 
 ### Otomatik düzenleme
