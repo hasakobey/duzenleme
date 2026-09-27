@@ -28,6 +28,13 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        // Koruma: App'i başka bir süreç (ör. test çalıştırıcısı) oluşturduysa WPF kurucusu OnStartup'ı kuyruğa koyar ve
+        // hizmetler o sürecin argümanlarıyla, yani gerçek masaüstü ve gerçek ayarlar üzerinde başlardı.
+        if (System.Reflection.Assembly.GetEntryAssembly() != typeof(App).Assembly)
+        {
+            Shutdown();
+            return;
+        }
         var args = ParseArgs(e.Args);
 
         // Geliştirme: simge kütüphanesinin önizlemesini üret ve çık.
@@ -235,7 +242,7 @@ public partial class App : Application
         Views.QuickAddWindow.ShowNearCursor();
     }
 
-    /// <summary>Karşılamayı açar. rerun: var olanları silmeden yeniden kurulum (Ayarlar → Karşılama turu, --welcome).</summary>
+    /// <summary>Karşılamayı açar. rerun: var olanları silmeden yeniden kurulum (Ayarlar → Yardım → Karşılama, --welcome).</summary>
     public void ShowWelcome(bool rerun = false)
     {
         if (!_started || _exiting) return;
@@ -254,7 +261,20 @@ public partial class App : Application
         // Karşılama tamamlanmadan ana pencere açılmaz: tepsi, kısayol ve ikinci örnek de önce karşılamayı gösterir.
         if (!AppHost.Settings.FirstRunDone) { ShowWelcome(); return; }
         if (!_started || _exiting) return;
-        _mainWindow ??= new MainWindow();
+        if (_mainWindow is null)
+        {
+            // Açılış süresi ölçümü (DUZENLEME_DEBUGLOG açıksa): oluşturmadan ilk Loaded'a dek.
+            var opening = System.Diagnostics.Stopwatch.StartNew();
+            var window = new MainWindow();
+            RoutedEventHandler? onLoaded = null;
+            onLoaded = (_, _) =>
+            {
+                window.Loaded -= onLoaded;
+                DebugLog.Write($"ana pencere açıldı: {opening.ElapsedMilliseconds} ms");
+            };
+            window.Loaded += onLoaded;
+            _mainWindow = window;
+        }
         // WPF ilk oluşturulan pencereyi (bir widget) ana pencere yapar; tema değişikliği yanlış pencereye gitmesin.
         MainWindow = _mainWindow;
         _mainWindow.Show();

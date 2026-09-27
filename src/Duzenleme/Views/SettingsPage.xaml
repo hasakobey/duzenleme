@@ -448,11 +448,11 @@
                 <ui:SymbolIcon Symbol="Sparkle24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Karşılama turu" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="Karşılama" />
                     <TextBlock Style="{StaticResource Muted}" Text="Bölmeleri, otomatik taşımayı ve widget'ları adım adım yeniden kur. Var olanlar silinmez." />
                 </StackPanel>
                 <ui:Button Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center" Content="Başlat"
-                           AutomationProperties.AutomationId="Settings.Welcome" AutomationProperties.HelpText="Karşılama turu"
+                           AutomationProperties.AutomationId="Settings.Welcome" AutomationProperties.HelpText="Karşılamayı yeniden aç"
                            Click="Welcome_Click" />
             </Grid>
         </Border>

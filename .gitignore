@@ -487,5 +487,5 @@ $RECYCLE.BIN/
 dist/
 dist-store/
 
-# Düzenleme masaüstündeki bu klasöre simge verirse oluşan dosya (desktop.ini yukarıda yok sayılıyor)
+# NestDesk masaüstündeki bu klasöre simge verirse oluşan dosya (desktop.ini yukarıda yok sayılıyor)
 .duzenleme-*.ico
