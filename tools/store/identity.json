@@ -1,6 +1,6 @@
 {
   "_aciklama": "Partner Center > Uygulama > Ürün yönetimi > Ürün kimliği sayfasındaki Package/Identity/Name, Package/Identity/Publisher ve Package/Properties/PublisherDisplayName değerleri; üçü de oradan birebir kopyalanmalı (PublisherDisplayName hesap adından tahmin edilmemeli). YERTUTUCU/sıfır GUID'li değerlerle üretilen paket Store'a yüklenemez; package-msix.ps1 -Strict bu durumda durur.",
-  "Name": "YERTUTUCU.Duzenleme",
-  "Publisher": "CN=00000000-0000-0000-0000-000000000000",
-  "PublisherDisplayName": "YERTUTUCU"
+  "Name": "Hasako.NestDesk",
+  "Publisher": "CN=898CFBEC-36BD-4B02-93C0-56493E211E0F",
+  "PublisherDisplayName": "Hasako"
 }
