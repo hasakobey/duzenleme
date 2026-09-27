@@ -12,10 +12,10 @@ namespace Duzenleme;
 public static class StartupRegistration
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "Duzenleme";
+    private const string ValueName = AppInfo.RunValueName;
 
     /// <summary>Paket manifestindeki desktop:StartupTask kimliği (manifestle aynı olmalı).</summary>
-    public const string TaskId = "DuzenlemeStartup";
+    public const string TaskId = AppInfo.StartupTaskId;
 
     /// <summary>Windows'un Başlangıç uygulamaları ayar sayfası (görev kullanıcı ya da ilke nedeniyle kilitliyse).</summary>
     public const string StartupAppsSettingsUri = "ms-settings:startupapps";
@@ -37,6 +37,8 @@ public static class StartupRegistration
 
     public static void Set(bool enabled)
     {
+        // Test örneği (--desktop) gerçek Run değerini test exe'sine çevirmesin.
+        if (AppHost.IsTestDesktop) { DebugLog.Write("başlangıç kaydı değiştirilmedi (test masaüstü)"); return; }
         // Paketliyken yazılan Run değeri yalnızca pakete özel kopyada kalır ve oturum açılışında okunmaz.
         if (PackageInfo.IsPackaged) return;
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
@@ -50,8 +52,10 @@ public static class StartupRegistration
     /// <summary>
     /// Store sürümünde görevi açar ya da kapatır ve sonraki durumu döndürür (paketsizken null). Paketli masaüstü
     /// uygulamasında Windows onay sormaz; kullanıcı görevi Windows'tan kapattıysa ya da ilke varsa durum değişmez.
+    /// Test örneğinde (--desktop) değiştirmez, yalnızca durumu okur.
     /// </summary>
-    public static Task<StartupTaskState?> SetTaskEnabledAsync(bool enabled) => RunTask(enabled);
+    public static Task<StartupTaskState?> SetTaskEnabledAsync(bool enabled) =>
+        AppHost.IsTestDesktop ? GetTaskStateAsync() : RunTask(enabled);
 
     // WinRT çağrıları bekleyerek yapılır (bkz. WinRt): arayüz donmasın diye arka planda.
     private static Task<StartupTaskState?> RunTask(bool? enable) =>

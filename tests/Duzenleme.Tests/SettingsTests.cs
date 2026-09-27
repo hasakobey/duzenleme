@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Duzenleme.Core;
 
 namespace Duzenleme.Tests;
@@ -90,7 +91,7 @@ public class SettingsTests
     public void Old_settings_file_loads_with_new_defaults()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
-        File.WriteAllText(path, """{ "Paused": true, "Widgets": [ { "Kind": "Clock", "Left": "NaN" } ] }""");
+        File.WriteAllText(path, """{ "Paused": true, "FirstRunDone": true, "Widgets": [ { "Kind": "Clock", "Left": "NaN" } ] }""");
         try
         {
             var s = JsonFile.Load(path, () => new AppSettings());
@@ -99,7 +100,51 @@ public class SettingsTests
             Assert.True(s.DoubleClickHidesDesktop);
             Assert.Equal(1.0, s.Widgets[0].Scale);
             Assert.NotEmpty(s.Rules);
+            // 1.x kullanıcısı: karşılamayı görmez, "Düzenleme artık NestDesk" balonunu bir kez görür.
+            Assert.True(s.FirstRunDone);
+            Assert.False(s.RenameNoticeShown);
+            Assert.False(s.CloseToTrayHintShown);
+            Assert.False(s.Widgets[0].NoteChecklist);
         }
         finally { File.Delete(path); }
+    }
+
+    /// <summary>Eski sürüm yeni alanları yok sayar (System.Text.Json varsayılanı); ayarları bozuk sayıp silmez.</summary>
+    [Fact]
+    public void Unknown_properties_are_ignored()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(path, """{ "Widgets": [ { "Kind": "Note", "GelecekOzellik": true, "NoteText": "x" } ], "GelecekAyar": 1 }""");
+        try
+        {
+            var s = JsonFile.Load(path, () => new AppSettings());
+            Assert.Equal("x", Assert.Single(s.Widgets).NoteText);
+            Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + ".bozuk-*"));
+        }
+        finally { File.Delete(path); }
+    }
+
+    /// <summary>
+    /// Kalıcı enum'a yeni üye eklenirse eski sürüm dosyayı okuyamaz ve bütün ayarları ".bozuk-*" yapar. Yeni özellikler
+    /// (ör. Yapılacaklar) yalnızca bilinen enum adlarıyla yazılmalı.
+    /// </summary>
+    [Fact]
+    public void New_features_use_only_known_enum_names()
+    {
+        var json = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Note, NoteChecklist = true }, JsonFile.Options);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Contains(doc.RootElement.GetProperty("Kind").GetString(), new[] { "Clock", "Date", "Fence", "Note", "Launcher" });
+        Assert.True(doc.RootElement.GetProperty("NoteChecklist").GetBoolean());
+    }
+
+    [Fact]
+    public void Layout_snapshot_keeps_checklist_flag()
+    {
+        var snap = LayoutSnapshot.Capture("Liste", [new WidgetConfig { Kind = WidgetKind.Note, NoteChecklist = true, NoteText = "☐ süt" }]);
+
+        var restored = Assert.Single(snap.Restore());
+        Assert.True(restored.NoteChecklist);
+        Assert.Equal("☐ süt", restored.NoteText);
     }
 }

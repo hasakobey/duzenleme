@@ -1,0 +1,9 @@
+<Page x:Class="Duzenleme.Views.AutoMovePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="Otomatik taşıma">
+    <!-- GEÇİCİ: Paket B1 doldurur (kurallar, bekleyen dosyalar, son taşınanlar, gelişmiş). -->
+    <StackPanel Style="{StaticResource PageRoot}">
+        <TextBlock Style="{StaticResource PageTitle}" Text="Otomatik taşıma" />
+    </StackPanel>
+</Page>

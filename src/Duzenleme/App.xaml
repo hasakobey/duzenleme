@@ -35,6 +35,18 @@
                 <Setter Property="TextWrapping" Value="Wrap" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             </Style>
+            <Style x:Key="PageRoot" TargetType="StackPanel">
+                <!-- Alt boşluk 96: bildirim şeridi son satırı kalıcı olarak örtmesin. -->
+                <Setter Property="Margin" Value="32,4,32,96" />
+                <Setter Property="MaxWidth" Value="920" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+            </Style>
+            <Style x:Key="ActionTile" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                <Setter Property="Height" Value="76" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Padding" Value="16,10" />
+            </Style>
             <Style x:Key="Surface" TargetType="Border">
                 <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />

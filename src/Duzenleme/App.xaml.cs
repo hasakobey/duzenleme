@@ -53,7 +53,7 @@ public partial class App : Application
         if (e.Args.Length == 0 && PackageInfo.LaunchedByStartupTask()) args = args with { Minimized = true };
 
         // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir.
-        var id = "Duzenleme." + Environment.UserName + (args.Desktop is null ? "" : ".test");
+        var id = AppInfo.InstanceIdPrefix + Environment.UserName + (args.Desktop is null ? "" : ".test");
 
         // Kurulum/kaldırma programı için: çalışan örneği düzgünce kapat (masaüstü simgeleri geri açılır) ve kapanmasını bekle.
         if (args.Exit)
@@ -105,7 +105,7 @@ public partial class App : Application
         {
             // Yarım başlamış, görünmez bir örnek tek-örnek kilidini tutup sonraki açılışları engellemesin.
             DebugLog.Write("STARTUP " + ex);
-            System.Windows.MessageBox.Show(StartupErrorMessage(ex), "Düzenleme başlatılamadı",
+            System.Windows.MessageBox.Show(StartupErrorMessage(ex), $"{AppInfo.Name} başlatılamadı",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             _exiting = true;
             try { AppHost.DoubleClick?.Dispose(); AppHost.Hotkeys?.Dispose(); AppHost.Tray?.Dispose(); } catch { }
@@ -116,6 +116,14 @@ public partial class App : Application
     private void StartServices(Args args)
     {
         AppHost.Initialize(args.Desktop, args.Data);
+        if (!AppHost.Settings.FirstRunDone)
+        {
+            // Yeni kullanıcı: karşılamada onay verene dek hiçbir dosya taşınmaz. (SetPaused kullanılmaz: false'ta taşıma başlatır.)
+            // "Düzenleme artık NestDesk" balonu da yalnızca eski sürümden gelenler içindir.
+            AppHost.Settings.Paused = true;
+            AppHost.Settings.RenameNoticeShown = true;
+            AppHost.SaveSettings();
+        }
         ApplyTheme(AppHost.Settings.Theme);
         // Windows teması, yüksek karşıtlık ya da vurgu rengi değişince uygulama da uyum sağlasın.
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
@@ -135,7 +143,9 @@ public partial class App : Application
         }
         _newFolders = new NewFolderWatcher(AppHost.DesktopDirectory, folder => Dispatcher.BeginInvoke(() =>
         {
-            if (AppHost.Settings.SuggestFolderIcons) AppHost.Tray?.SuggestFolderIcon(folder);
+            // Uygulamanın kendi açtığı klasör (bölme, "Klasörü oluştur", karşılama) için "simge ver" balonu çıkmaz.
+            var quiet = AppHost.ConsumeQuietFolder(folder);
+            if (AppHost.Settings.SuggestFolderIcons && !quiet) AppHost.Tray?.SuggestFolderIcon(folder);
         }));
         AppHost.Watcher.Start();
         if (!AppHost.Settings.Paused) AppHost.OrganizeNowInBackground();
@@ -147,18 +157,27 @@ public partial class App : Application
             catch (Exception ex) { DebugLog.Write($"klasör simgesi onarımı: {ex}"); }
         });
 
-        if (!AppHost.Settings.FirstRunDone)
-        {
-            // İlk açılışta saat ve tarih widget'larını hazır getir.
-            AppHost.Widgets.Add(WidgetKind.Clock);
-            AppHost.Widgets.Add(WidgetKind.Date);
-            AppHost.Settings.FirstRunDone = true;
-            AppHost.SaveSettings();
-        }
-
         _started = true;
-        if (args.Add) Dispatcher.BeginInvoke(ShowQuickAdd, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if (args.Add) Dispatcher.BeginInvoke(ShowQuickAdd, DispatcherPriority.ApplicationIdle);
+        else if (args.Welcome) ShowWelcome(rerun: AppHost.Settings.FirstRunDone);
+        else if (!AppHost.Settings.FirstRunDone)
+        {
+            // Windows ile sessizce başladıysa karşılama kendiliğinden açılmaz; balondan açılır.
+            if (args.Minimized)
+                AppHost.Tray?.Notify($"{AppInfo.Name} kuruluma hazır", "Masaüstünü birkaç adımda düzenlemek için buraya tıkla.", () => ShowWelcome());
+            else ShowWelcome();
+        }
         else if (!args.Minimized) ShowMainWindow();
+
+        if (AppHost.Settings.FirstRunDone && !AppHost.Settings.RenameNoticeShown)
+        {
+            AppHost.Settings.RenameNoticeShown = true;
+            AppHost.Settings.CloseToTrayHintShown = true;   // mevcut kullanıcı tepsiyi zaten biliyor; ilk gün iki balon görmesin
+            AppHost.SaveSettings();
+            Dispatcher.BeginInvoke(() => AppHost.Tray?.Notify($"{AppInfo.FormerName} artık {AppInfo.Name}",
+                "Adı ve ana penceresi yenilendi; ayarların, widget'ların ve kuralların olduğu gibi duruyor. Açmak için tıkla.",
+                ShowMainWindow), DispatcherPriority.ApplicationIdle);
+        }
     }
 
     private static string StartupErrorMessage(Exception ex) => ex switch
@@ -216,8 +235,24 @@ public partial class App : Application
         Views.QuickAddWindow.ShowNearCursor();
     }
 
+    /// <summary>Karşılamayı açar. rerun: var olanları silmeden yeniden kurulum (Ayarlar → Karşılama turu, --welcome).</summary>
+    public void ShowWelcome(bool rerun = false)
+    {
+        if (!_started || _exiting) return;
+        Views.Welcome.Show(rerun || AppHost.Settings.FirstRunDone);
+    }
+
+    /// <summary>Ana pencereyi açıp verilen sayfaya geçer (karşılama bitmediyse önce karşılama gelir).</summary>
+    public void ShowPage(Type page)
+    {
+        ShowMainWindow();
+        if (AppHost.Settings.FirstRunDone) _mainWindow?.NavigateTo(page);
+    }
+
     public void ShowMainWindow()
     {
+        // Karşılama tamamlanmadan ana pencere açılmaz: tepsi, kısayol ve ikinci örnek de önce karşılamayı gösterir.
+        if (!AppHost.Settings.FirstRunDone) { ShowWelcome(); return; }
         if (!_started || _exiting) return;
         _mainWindow ??= new MainWindow();
         // WPF ilk oluşturulan pencereyi (bir widget) ana pencere yapar; tema değişikliği yanlış pencereye gitmesin.
@@ -279,17 +314,20 @@ public partial class App : Application
     {
         // Tek bir hata tüm uygulamayı (ve masaüstü izlemeyi) kapatmasın.
         DebugLog.Write("UNHANDLED " + e.Exception);
-        System.Windows.MessageBox.Show(e.Exception.Message, "Düzenleme — beklenmeyen hata", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        System.Windows.MessageBox.Show(e.Exception.Message, $"{AppInfo.Name} — beklenmeyen hata", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         e.Handled = true;
     }
 
-    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add);
+    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome);
 
-    /// <summary>--desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır.</summary>
+    /// <summary>
+    /// --desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır;
+    /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak).
+    /// </summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        bool minimized = false, exit = false, add = false;
+        bool minimized = false, exit = false, add = false, welcome = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -299,8 +337,9 @@ public partial class App : Application
                 case "--minimized": minimized = true; break;
                 case "--exit": exit = true; break;
                 case "--add": add = true; break;
+                case "--welcome": welcome = true; break;
             }
         }
-        return new Args(desktop, data, minimized, exit, add);
+        return new Args(desktop, data, minimized, exit, add, welcome);
     }
 }

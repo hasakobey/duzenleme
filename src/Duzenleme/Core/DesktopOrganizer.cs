@@ -19,6 +19,13 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
             ? Directory.EnumerateDirectories(DesktopDirectory).Select(d => Path.GetFileName(d)!)
             : [];
 
+    /// <summary>Önizleme için masaüstündeki dosyalar (dosyaya dokunmaz, kilit denemez). IO hataları çağırana gider.</summary>
+    public IReadOnlyList<DesktopFile> SnapshotFiles() =>
+        Directory.Exists(DesktopDirectory)
+            ? new DirectoryInfo(DesktopDirectory).EnumerateFiles()
+                .Select(f => new DesktopFile(f.Name, f.Attributes, journal.WasUndone(f.FullName))).ToList()
+            : [];
+
     public RuleDecision Decide(string path) =>
         _engine.Decide(DesktopDirectory, Path.GetFileName(path), File.GetAttributes(path), ExistingFolders());
 

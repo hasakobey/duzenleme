@@ -118,6 +118,10 @@ public sealed class WidgetConfig
     public string NoteText { get; set; } = "";
     public NoteColor NoteColor { get; set; } = NoteColor.Yellow;
 
+    /// <summary>Not onay kutulu liste (Yapılacaklar) olarak gösterilsin. Maddeler NoteText'te satır satır "☐ " / "☑ " önekiyle
+    /// tutulur: bu alanı tanımayan eski sürüm listeyi okunur düz not olarak gösterir ve metni korur.</summary>
+    public bool NoteChecklist { get; set; }
+
     // Kısayol kutusu
     public List<LauncherTab> Tabs { get; set; } = [];
     public int ActiveTab { get; set; }
@@ -150,7 +154,16 @@ public sealed class AppSettings
     public bool Paused { get; set; }
     public bool ShowNotifications { get; set; } = true;
     public AppTheme Theme { get; set; } = AppTheme.System;
+
+    /// <summary>Karşılama tamamlandı ya da atlandı. (1.x'te "ilk açılış yapıldı": mevcut kullanıcılarda zaten true, karşılamayı görmezler.)</summary>
     public bool FirstRunDone { get; set; }
+
+    /// <summary>"Düzenleme artık NestDesk" balonu gösterildi mi? Yeni kullanıcıda ilk açılışta gösterilmeden true yapılır.</summary>
+    public bool RenameNoticeShown { get; set; }
+
+    /// <summary>Ana pencere ilk kapatıldığında "arka planda çalışıyor" balonu gösterildi mi?</summary>
+    public bool CloseToTrayHintShown { get; set; }
+
     public List<WidgetConfig> Widgets { get; set; } = [];
 
     /// <summary>Boş masaüstüne çift tıklamak simgeleri gizler/gösterir.</summary>

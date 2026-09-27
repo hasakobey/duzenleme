@@ -86,9 +86,16 @@ public sealed class WidgetManager
         if (kind == WidgetKind.Launcher)
             config.Tabs = [new LauncherTab { Name = "Uygulamalar" }, new LauncherTab { Name = "Dosyalar" }];
         if (kind == WidgetKind.Note)
-            config.NoteColor = (NoteColor)(AppHost.Settings.Widgets.Count(w => w.Kind == WidgetKind.Note) % 5);
+            config.NoteColor = NextNoteColor();
         return AddConfig(config);
     }
+
+    /// <summary>Onay kutulu liste (Yapılacaklar): Kind yine Note'tur, yeni enum üyesi yoktur (eski sürümler düz not görür).</summary>
+    public WidgetConfig AddChecklist() =>
+        AddConfig(new WidgetConfig { Kind = WidgetKind.Note, NoteChecklist = true, NoteColor = NextNoteColor(), Z = DateTime.UtcNow.Ticks });
+
+    /// <summary>Yeni notun kağıt rengi: notlar sırayla sarı, pembe, yeşil, mavi, mor olur.</summary>
+    private static NoteColor NextNoteColor() => (NoteColor)(AppHost.Settings.Widgets.Count(w => w.Kind == WidgetKind.Note) % 5);
 
     /// <summary>
     /// Klasör bölmesi seçenekleri: kural klasörleri (PDF, Resimler…; masaüstünde yoksa eklenirken açılır) ve
@@ -114,13 +121,17 @@ public sealed class WidgetManager
     {
         if (!AppHost.Organizer.ExistingFolders().Any(f => FolderName.Equal(f, name)))
         {
-            try { System.IO.Directory.CreateDirectory(System.IO.Path.Combine(AppHost.DesktopDirectory, name)); }
+            var path = System.IO.Path.Combine(AppHost.DesktopDirectory, name);
+            // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın; otomatik taşıma kapalıysa dosya da taşınmasın.
+            AppHost.MarkQuietFolder(path);
+            try { System.IO.Directory.CreateDirectory(path); }
             catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
             {
-                MessageBox.Show(ex.Message, "Düzenleme");
+                AppHost.ConsumeQuietFolder(path);
+                MessageBox.Show(ex.Message, AppInfo.Name);
                 return null;
             }
-            AppHost.OrganizeNowInBackground();
+            AppHost.OrganizeIfActive();
         }
         return Add(WidgetKind.Fence, name);
     }
@@ -130,28 +141,20 @@ public sealed class WidgetManager
         AddConfig(new WidgetConfig { Kind = WidgetKind.Fence, Filter = filter, Sort = FenceSort.Name, Z = DateTime.UtcNow.Ticks });
 
     /// <summary>
-    /// "Masaüstümü bölümlere ayır": Klasörler, Kısayollar, Dosyalar ve masaüstünde var olan kural klasörleri
-    /// (PDF, Resimler…) için birer bölme açar; zaten olanları tekrar eklemez. Eklenen bölme sayısını döner.
+    /// "Masaüstümü bölmelere ayır": Klasörler, Kısayollar, Dosyalar ve masaüstünde var olan kural klasörleri
+    /// (PDF, Resimler…) için birer bölme açar; zaten olanları tekrar eklemez (bkz. <see cref="StarterFences.Plan"/>).
+    /// near verilirse bölmeler o noktanın monitörüne yerleşir. Eklenen bölme sayısını döner.
     /// </summary>
-    public int AddStarterFences()
+    internal int AddStarterFences(NativeMethods.POINT? near = null)
     {
-        var existing = AppHost.Settings.Widgets.Where(w => w.Kind == WidgetKind.Fence).ToList();
-        var added = 0;
-        foreach (var filter in new[] { DesktopFilter.Folders, DesktopFilter.Shortcuts, DesktopFilter.Files })
+        var plan = StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, AppHost.Organizer.ExistingFolders());
+        foreach (var fence in plan)
         {
-            if (existing.Any(w => w.Filter == filter)) continue;
-            AddFence(filter);
-            added++;
+            if (near is { } point) PlacementHint = point;
+            if (fence.Folder is { } folder) Add(WidgetKind.Fence, folder);
+            else AddFence(fence.Filter);
         }
-        var folders = AppHost.Organizer.ExistingFolders().ToList();
-        foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
-        {
-            if (folders.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder)) is not { } folder) continue;
-            if (existing.Any(w => w.Filter == DesktopFilter.None && FolderName.Equal(w.FolderName ?? "", folder))) continue;
-            Add(WidgetKind.Fence, folder);
-            added++;
-        }
-        return added;
+        return plan.Count;
     }
 
     public void Duplicate(string id)
@@ -182,7 +185,7 @@ public sealed class WidgetManager
             // Açılamayan widget listede "eklendi" görünüp masaüstünde hiç çıkmasın.
             AppHost.Settings.Widgets.Remove(config);
             AppHost.SaveSettings();
-            MessageBox.Show("Widget açılamadı. Ayrıntı için DUZENLEME_DEBUGLOG ile günlük tutulabilir.", "Düzenleme",
+            MessageBox.Show("Widget açılamadı. Ayrıntı için DUZENLEME_DEBUGLOG ile günlük tutulabilir.", AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Changed?.Invoke();
@@ -208,23 +211,26 @@ public sealed class WidgetManager
     private (WidgetConfig Copy, int Index, bool ModeTurnedOff)? _lastRemoved;
 
     /// <summary>Son kaldırılan widget'ın adı (tepsi menüsündeki "geri getir" için); yoksa null.</summary>
-    public string? LastRemovedName => _lastRemoved is { } last ? Views.WidgetRow.DisplayName(last.Copy) : null;
+    public string? LastRemovedName => _lastRemoved is { } last ? WidgetText.DisplayName(last.Copy) : null;
 
     /// <summary>
     /// Widget'ı kaldırır; tek bir bildirimle ya da tepsi menüsündeki "geri getir" ile ayarları ve yeriyle geri gelir
-    /// (kaldırma yüzünden kapanan "simgeler yalnızca bölmelerde" modu da geri açılır).
+    /// (kaldırma yüzünden kapanan "simgeler yalnızca bölmelerde" modu da geri açılır). notify=false: tepsi balonu
+    /// çıkmaz (çağıran kendi bildirimini gösterir), geri getirme yine çalışır. Mod bu yüzden kapandıysa true.
     /// </summary>
-    public void RemoveWithUndo(string id)
+    public bool RemoveWithUndo(string id, bool notify = true)
     {
         var index = AppHost.Settings.Widgets.FindIndex(w => w.Id == id);
-        if (index < 0) return;
+        if (index < 0) return false;
         if (_open.TryGetValue(id, out var window)) window.FlushState(); // son taşıma/yazılanlar da geri gelsin
         var copy = AppHost.Settings.Widgets[index].Clone();
         var modeOff = Remove(id, notify: false);
         _lastRemoved = (copy, index, modeOff);
-        AppHost.Tray?.Notify("Widget kaldırıldı",
-            (modeOff ? "Masaüstü simgeleri yeniden gösteriliyor. " : "") + "Geri getirmek için buraya ya da tepsi menüsüne tıkla.",
-            UndoRemove);
+        if (notify)
+            AppHost.Tray?.Notify("Widget kaldırıldı",
+                (modeOff ? "Masaüstü simgeleri yeniden gösteriliyor. " : "") + "Geri getirmek için buraya ya da tepsi menüsüne tıkla.",
+                UndoRemove);
+        return modeOff;
     }
 
     public void UndoRemove()
@@ -247,18 +253,36 @@ public sealed class WidgetManager
                (filters.Contains(DesktopFilter.Folders) && filters.Contains(DesktopFilter.Shortcuts) && filters.Contains(DesktopFilter.Files));
     }
 
-    /// <summary>Eksik Klasörler/Kısayollar/Dosyalar bölmelerini ekler (masaüstünü bölmeler yönetecekse).</summary>
-    public void EnsureDesktopCoverage()
+    /// <summary>
+    /// Eksik Klasörler/Kısayollar/Dosyalar bölmelerini ekler (masaüstünü bölmeler yönetecekse). near verilirse bölmeler o
+    /// noktanın monitörüne yerleşir.
+    /// </summary>
+    internal void EnsureDesktopCoverage(NativeMethods.POINT? near = null)
     {
         if (CoversDesktop()) return;
         var filters = AppHost.Settings.Widgets.Where(w => w.Kind == WidgetKind.Fence).Select(w => w.Filter).ToHashSet();
         foreach (var filter in new[] { DesktopFilter.Folders, DesktopFilter.Shortcuts, DesktopFilter.Files })
-            if (!filters.Contains(filter)) AddFence(filter);
+        {
+            if (filters.Contains(filter)) continue;
+            if (near is { } point) PlacementHint = point;
+            AddFence(filter);
+        }
     }
 
-    /// <summary>Kayıtlı bir düzeni uygular: mevcut widget'lar kapanır, düzendekiler açılır.</summary>
+    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı düzenler'de durur).</summary>
+    public const string ApplyBackupName = "Düzen uygulanmadan önce";
+
+    /// <summary>
+    /// Kayıtlı bir düzeni uygular: mevcut widget'lar kapanır, düzendekiler açılır. Önceki yerleşim önce
+    /// "Düzen uygulanmadan önce" adıyla kaydedilir (yedeğin kendisi uygulanıyorsa yedek alınmaz).
+    /// </summary>
     public void ApplyLayout(LayoutSnapshot layout)
     {
+        if (layout.Name != ApplyBackupName)
+        {
+            AppHost.Settings.Layouts.RemoveAll(l => l.Name == ApplyBackupName);
+            AppHost.Settings.Layouts.Add(LayoutSnapshot.Capture(ApplyBackupName, AppHost.Settings.Widgets));
+        }
         foreach (var (id, window) in _open.ToList())
         {
             _closingOnPurpose.Add(id);
@@ -352,6 +376,23 @@ public sealed class WidgetManager
     public void Restyle(string id)
     {
         if (_open.TryGetValue(id, out var window)) window.ApplyStyle();
+    }
+
+    /// <summary>
+    /// Arka planı (Cam/Koyu/Açık) ve/veya vurgu rengini bütün widget'lara uygular; null olan değişmez. Notlar atlanır:
+    /// kendi kağıt rengini kullanırlar.
+    /// </summary>
+    public void SetLookForAll(WidgetStyle? style, WidgetAccent? accent)
+    {
+        var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
+        foreach (var config in targets)
+        {
+            if (style is { } s) config.Style = s;
+            if (accent is { } a) config.Accent = a;
+        }
+        AppHost.SaveSettings();
+        foreach (var config in targets) Restyle(config.Id);
+        Changed?.Invoke();
     }
 
     public void SetHidden(bool hidden)

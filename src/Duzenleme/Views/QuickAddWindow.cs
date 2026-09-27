@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using Duzenleme.Core;
 using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
 using Button = Wpf.Ui.Controls.Button;
@@ -12,7 +11,8 @@ namespace Duzenleme.Views;
 
 /// <summary>
 /// Tek tıkla widget/bölme ekleme penceresi. Tepsi menüsünden, widget'ların sağ tık menüsünden, Ctrl+Alt+B ile ve
-/// Başlat menüsündeki "Widget ekle" kısayolundan açılır; bir düğmeye basınca widget eklenir, pencere kapanır.
+/// Başlat menüsündeki "Widget ekle" kısayolundan açılır; bir kutucuğa basınca widget eklenir, pencere kapanır.
+/// Kutucuklar <see cref="WidgetCatalog"/>'tan gelir (Widget'lar sayfası ve karşılamayla aynı liste).
 /// </summary>
 internal sealed class QuickAddWindow : FluentWindow
 {
@@ -60,44 +60,33 @@ internal sealed class QuickAddWindow : FluentWindow
         });
         body.Children.Add(Muted("Birine tıkla, hemen masaüstüne gelsin. Sonra sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.", 4));
 
-        body.Children.Add(Section("Bölmeler · masaüstünü bölümlere ayırır"));
+        body.Children.Add(Section("Bölmeler"));
         var fences = new WrapPanel();
-        fences.Children.Add(Tile("Klasörlerim", SymbolRegular.Folder24, "Masaüstündeki klasörler", () => AppHost.Widgets.AddFence(DesktopFilter.Folders)));
-        fences.Children.Add(Tile("Kısayollarım", SymbolRegular.Apps24, "Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu", () => AppHost.Widgets.AddFence(DesktopFilter.Shortcuts)));
-        fences.Children.Add(Tile("Dosyalarım", SymbolRegular.DocumentMultiple24, "Masaüstünde duran dosyalar", () => AppHost.Widgets.AddFence(DesktopFilter.Files)));
-        fences.Children.Add(Tile("Tüm masaüstü", SymbolRegular.Desktop24, "Masaüstündeki her şey tek bölmede", () => AppHost.Widgets.AddFence(DesktopFilter.All)));
-        foreach (var (name, exists) in AppHost.Widgets.FolderFenceChoices())
-        {
-            var icon = name.Equals("PDF", StringComparison.OrdinalIgnoreCase) ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24;
-            var tip = exists ? $"\"{name}\" klasörünün içi" : $"Masaüstünde \"{name}\" klasörü açılır; uygun dosyalar oraya taşınır";
-            fences.Children.Add(Tile(name, icon, tip, () => AppHost.Widgets.AddFolderFence(name)));
-        }
+        WidgetCatalog.AddTiles(fences, WidgetCatalog.Fences(), Run);
         body.Children.Add(fences);
 
         body.Children.Add(Section("Araçlar"));
         var tools = new WrapPanel();
-        tools.Children.Add(Tile("Saat", SymbolRegular.Clock24, "Büyük dijital saat", () => AppHost.Widgets.Add(WidgetKind.Clock)));
-        tools.Children.Add(Tile("Tarih", SymbolRegular.CalendarLtr24, "Gün, ay ve haftalık şerit", () => AppHost.Widgets.Add(WidgetKind.Date)));
-        tools.Children.Add(Tile("Not", SymbolRegular.Note24, "Yapışkan not; yazdıkça kaydedilir",
-            () => AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id)));
-        tools.Children.Add(Tile("Kısayol kutusu", SymbolRegular.AppsAddIn24, "Sekmeli uygulama rafı; tek tıkla açar",
-            () => AppHost.Widgets.Add(WidgetKind.Launcher)));
+        WidgetCatalog.AddTiles(tools, WidgetCatalog.Tools, Run);
         body.Children.Add(tools);
 
         var footer = new DockPanel { Margin = new Thickness(0, 14, 0, 0), LastChildFill = false };
         var all = new Button
         {
-            Content = "Hepsini kur: masaüstümü bölümlere ayır", Appearance = ControlAppearance.Primary,
+            Content = "Masaüstümü bölmelere ayır", Appearance = ControlAppearance.Primary,
             Icon = new SymbolIcon { Symbol = SymbolRegular.Sparkle24 },
             ToolTip = "Klasörler, Kısayollar, Dosyalar ve PDF gibi klasörler için bölme kurar; masaüstü simgeleri yalnızca bölmelerde görünür",
         };
-        all.Click += (_, _) => Run(() =>
+        System.Windows.Automation.AutomationProperties.SetAutomationId(all, "Add.SplitDesktop");
+        all.Click += (_, _) => SplitDesktop();
+        var more = new Button { Content = "Widget'ları yönet…", Margin = new Thickness(8, 0, 0, 0) };
+        System.Windows.Automation.AutomationProperties.SetAutomationId(more, "Add.Manage");
+        more.Click += (_, _) =>
         {
-            AppHost.Widgets.AddStarterFences();
-            AppHost.SetFencesManageDesktop(true);
-        });
-        var more = new Button { Content = "Diğer ayarlar…", Margin = new Thickness(8, 0, 0, 0) };
-        more.Click += (_, _) => { Close(); (Application.Current as App)?.ShowMainWindow(); };
+            _closing = true;
+            Close();
+            (Application.Current as App)?.ShowPage(typeof(WidgetsPage));
+        };
         DockPanel.SetDock(more, Dock.Right);
         footer.Children.Add(all);
         footer.Children.Add(more);
@@ -128,35 +117,33 @@ internal sealed class QuickAddWindow : FluentWindow
         Text = text, FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 18, 0, 8),
     };
 
-    private Button Tile(string label, SymbolRegular icon, string tip, Action add)
+    /// <summary>Bu pencerenin ortası: yeni widget'lar bu pencerenin bulunduğu ekrana yerleşir.</summary>
+    private NativeMethods.POINT? Center()
     {
-        var content = new StackPanel();
-        content.Children.Add(new SymbolIcon { Symbol = icon, FontSize = 26, HorizontalAlignment = HorizontalAlignment.Center });
-        content.Children.Add(new TextBlock
-        {
-            Text = label, Margin = new Thickness(0, 6, 0, 0), TextAlignment = TextAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 110,
-        });
-        var button = new Button
-        {
-            Content = content, Width = 128, Height = 82, Margin = new Thickness(0, 0, 8, 8), ToolTip = tip,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-        };
-        System.Windows.Automation.AutomationProperties.SetName(button, label);
-        System.Windows.Automation.AutomationProperties.SetHelpText(button, tip);
-        button.Click += (_, _) => Run(add);
-        return button;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        return NativeMethods.GetWindowRect(hwnd, out var r)
+            ? new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 }
+            : null;
     }
 
     /// <summary>Widget'ı bu pencerenin bulunduğu ekrana ekler ve pencereyi kapatır.</summary>
-    private void Run(Action add)
+    private void Run(WidgetChoice choice)
     {
-        var hwnd = new WindowInteropHelper(this).Handle;
-        if (NativeMethods.GetWindowRect(hwnd, out var r))
-            AppHost.Widgets.PlacementHint = new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 };
+        var near = Center();
         _closing = true;
         Close();
-        add();
+        WidgetCatalog.Invoke(choice, near);
+    }
+
+    /// <summary>"Masaüstümü bölmelere ayır": başlangıç bölmelerini kurup modu açar; bildirimden geri alınabilir.</summary>
+    private void SplitDesktop()
+    {
+        var near = Center();
+        _closing = true;
+        Close();
+        var ids = DesktopFences.TurnOn(allStarters: true, near);
+        Notice.Show(DesktopFences.Describe(ids.Count), NoticeKind.Success, "Geri al", () => DesktopFences.Undo(ids),
+            trayHint: "Geri almak için buraya tıkla.");
     }
 
     /// <summary>Pencereyi imlecin üstünde ortalar; ekrandan taşmasın.</summary>

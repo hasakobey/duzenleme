@@ -95,7 +95,7 @@ public static class AppHost
         // Store (MSIX) paketinin klasörü salt okunurdur ve portable.txt taşımaz: paketliyken taşınabilir mod denenmez.
         var portable = dataOverride is null && !PackageInfo.IsPackaged ? PortableDataDirectory() : null;
         IsPortable = portable is not null;
-        DataDirectory = dataOverride ?? portable ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Duzenleme");
+        DataDirectory = dataOverride ?? portable ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppInfo.DataFolderName);
         DesktopDirectory = desktopOverride ?? ResolveDesktop();
         IsTestDesktop = desktopOverride is not null;
         // Kurulan programların kısayolları çoğunlukla Genel Masaüstü'ndedir; "Kısayollar" bölmesi onları da göstersin.
@@ -137,8 +137,35 @@ public static class AppHost
         if (!paused) OrganizeNowInBackground();
     }
 
-    public static void OrganizeNowInBackground() =>
-        Task.Run(() => Organizer.OrganizeAll());
+    /// <summary>
+    /// Masaüstündeki uygun dosyaları şimdi taşır ve taşınanları döner. Açık komutlar ("Masaüstünü şimdi düzenle", tepsi,
+    /// Ctrl+Alt+O) otomatik taşıma kapalıyken de çalışır.
+    /// </summary>
+    public static Task<List<MoveEntry>> OrganizeNowAsync() => Task.Run(() => Organizer.OrganizeAll());
+
+    public static void OrganizeNowInBackground() => _ = OrganizeNowAsync();
+
+    /// <summary>
+    /// Otomatik taşıma açıksa masaüstünü şimdi düzenler. Klasör oluşturan kod bunu kullanır: kapalıyken yeni klasör
+    /// açmak dosya taşımaya başlamamalı (yeni kullanıcı karşılamada onay verene dek hiçbir dosya taşınmaz).
+    /// </summary>
+    public static void OrganizeIfActive()
+    {
+        if (!Settings.Paused) OrganizeNowInBackground();
+    }
+
+    // Uygulamanın kendi açtığı klasörler: masaüstünde yeni klasör görülünce çıkan "simge ver" balonu bunlar için çıkmaz.
+    // Yalnızca UI iş parçacığından çağrılır (klasör izleyicisinin geri çağrısı da Dispatcher'a aktarılır).
+    private static readonly HashSet<string> _quietFolders = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Az sonra oluşturulacak klasörü "sessiz" işaretler (Directory.CreateDirectory'den önce çağrılır).</summary>
+    public static void MarkQuietFolder(string path) => _quietFolders.Add(QuietKey(path));
+
+    /// <summary>Klasör sessiz işaretliyse işareti kaldırır ve true döner.</summary>
+    public static bool ConsumeQuietFolder(string path) => _quietFolders.Remove(QuietKey(path));
+
+    // İzleyicinin verdiği yolla (FileSystemWatcher.FullPath) aynı biçim: tam yol, sonda ayraç yok. Diske dokunmaz.
+    private static string QuietKey(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
     /// <summary>Masaüstü simgelerini (ve ayara göre widget'ları) gizler ya da gösterir.</summary>
     public static void ToggleDesktop() => SetDesktopHidden(!DesktopHidden);
@@ -208,7 +235,8 @@ public static class AppHost
         SetFencesManageDesktop(false);
         if (notify)
             Tray?.Notify("Masaüstü simgeleri yeniden gösteriliyor",
-                "Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç.");
+                "Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç.",
+                () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
         return true;
     }
 

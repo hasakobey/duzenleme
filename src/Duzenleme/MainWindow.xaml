@@ -3,8 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:pages="clr-namespace:Duzenleme.Views"
-                 Title="Düzenleme"
-                 Width="1060" Height="720" MinWidth="760" MinHeight="480"
+                 Width="980" Height="700" MinWidth="720" MinHeight="480"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
@@ -16,28 +15,51 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- Sayfa geçişi animasyonsuz (Transition="None"): kayma ve solma yok. -->
         <ui:NavigationView x:Name="RootNavigation" Grid.Row="1"
                            PaneDisplayMode="Left"
                            IsBackButtonVisible="Collapsed"
                            IsPaneToggleVisible="False"
-                           OpenPaneLength="232"
+                           OpenPaneLength="200"
+                           Transition="None"
                            TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}">
             <ui:NavigationView.Header>
                 <Border Height="8" />
             </ui:NavigationView.Header>
             <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem Content="Genel bakış" Icon="{ui:SymbolIcon Home24}" TargetPageType="{x:Type pages:HomePage}" />
-                <ui:NavigationViewItem Content="Masaüstü" Icon="{ui:SymbolIcon Desktop24}" TargetPageType="{x:Type pages:DesktopPage}" />
-                <ui:NavigationViewItem Content="Kurallar" Icon="{ui:SymbolIcon FolderArrowRight24}" TargetPageType="{x:Type pages:RulesPage}" />
-                <ui:NavigationViewItem Content="Widget'lar" Icon="{ui:SymbolIcon Apps24}" TargetPageType="{x:Type pages:WidgetsPage}" />
-                <ui:NavigationViewItem Content="Geçmiş" Icon="{ui:SymbolIcon History24}" TargetPageType="{x:Type pages:HistoryPage}" />
+                <ui:NavigationViewItem Content="Ana sayfa" ToolTip="Ana sayfa" Icon="{ui:SymbolIcon Home24}"
+                                       TargetPageType="{x:Type pages:HomePage}" AutomationProperties.AutomationId="Nav.Home" />
+                <ui:NavigationViewItem Content="Widget'lar" ToolTip="Widget'lar" Icon="{ui:SymbolIcon Apps24}"
+                                       TargetPageType="{x:Type pages:WidgetsPage}" AutomationProperties.AutomationId="Nav.Widgets" />
+                <ui:NavigationViewItem Content="Otomatik taşıma" ToolTip="Otomatik taşıma" Icon="{ui:SymbolIcon FolderArrowRight24}"
+                                       TargetPageType="{x:Type pages:AutoMovePage}" AutomationProperties.AutomationId="Nav.AutoMove" />
             </ui:NavigationView.MenuItems>
             <ui:NavigationView.FooterMenuItems>
-                <ui:NavigationViewItem Content="Ayarlar" Icon="{ui:SymbolIcon Settings24}" TargetPageType="{x:Type pages:SettingsPage}" />
+                <ui:NavigationViewItem Content="Ayarlar" ToolTip="Ayarlar" Icon="{ui:SymbolIcon Settings24}"
+                                       TargetPageType="{x:Type pages:SettingsPage}" AutomationProperties.AutomationId="Nav.Settings" />
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>
 
-        <ui:TitleBar x:Name="TitleBar" Grid.Row="0" Title="Düzenleme" CloseWindowByDoubleClickOnIcon="False">
+        <!-- Bildirim şeridi: kapatılana, yenisi gelene, sayfa değişene ya da pencere gizlenene dek durur. Zamanlayıcı ve animasyon yok. -->
+        <Border x:Name="NoticeBar" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                Margin="24" Padding="16,10" CornerRadius="10" MaxWidth="640"
+                Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                AutomationProperties.AutomationId="Notice">
+            <DockPanel>
+                <ui:SymbolIcon x:Name="NoticeIcon" DockPanel.Dock="Left" FontSize="18" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <ui:Button x:Name="NoticeClose" DockPanel.Dock="Right" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
+                           ToolTip="Kapat" AutomationProperties.Name="Kapat" AutomationProperties.AutomationId="Notice.Close"
+                           VerticalAlignment="Center" Click="NoticeClose_Click" />
+                <ui:Button x:Name="NoticeAction" DockPanel.Dock="Right" Margin="12,0,4,0" VerticalAlignment="Center"
+                           AutomationProperties.AutomationId="Notice.Action" Click="NoticeAction_Click" />
+                <TextBlock x:Name="NoticeText" TextWrapping="Wrap" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                           AutomationProperties.AutomationId="Notice.Text" />
+            </DockPanel>
+        </Border>
+
+        <ui:TitleBar x:Name="TitleBar" Grid.Row="0" CloseWindowByDoubleClickOnIcon="False">
             <ui:TitleBar.Icon>
                 <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
             </ui:TitleBar.Icon>
