@@ -169,8 +169,7 @@ public partial class WidgetsPage : Page
     {
         if (FencesModeToggle.IsChecked == true)
         {
-            var ids = DesktopFences.TurnOn(allStarters: false, WindowCenter());
-            Notice.Show(DesktopFences.Describe(ids.Count), NoticeKind.Success, "Geri al", () => DesktopFences.Undo(ids));
+            DesktopFences.TurnOnWithNotice(allStarters: false, WindowCenter());
         }
         else
         {
@@ -228,9 +227,11 @@ public partial class WidgetsPage : Page
         if ((sender as FrameworkElement)?.DataContext is not WidgetRow row) return;
         if (!AppHost.Settings.Widgets.Any(w => w.Id == row.Config.Id)) return;
         var name = WidgetText.DisplayName(row.Config); // kaldırmadan önce
-        var modeOff = AppHost.Widgets.RemoveWithUndo(row.Config.Id, notify: false);
+        var id = row.Config.Id;
+        var modeOff = AppHost.Widgets.RemoveWithUndo(id, notify: false);
+        // "Geri al" bu widget'ı getirir: bildirim açıkken masaüstünden başka bir widget kaldırılsa da.
         Notice.Show($"{name} kaldırıldı." + (modeOff ? " Masaüstü simgeleri yeniden gösteriliyor." : ""),
-            NoticeKind.Info, "Geri al", AppHost.Widgets.UndoRemove);
+            NoticeKind.Info, "Geri al", () => AppHost.Widgets.UndoRemove(id));
     }
 
     private void StyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -130,6 +130,8 @@ public partial class AutoMovePage : Page
 
     private readonly DispatcherTimer _recountDelay = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private List<RuleRow> _rows = [];
+    /// <summary>Satırların kurulduğu liste: ayarlardaki liste başka yerden yenisiyle değiştirilince satırlar yeniden kurulur.</summary>
+    private List<Rule>? _builtFrom;
     private Dictionary<string, int> _pending = [];
     private int _recountVersion;
     private int _journalQueued;
@@ -144,7 +146,7 @@ public partial class AutoMovePage : Page
         Loaded += (_, _) =>
         {
             _current = this;
-            AppHost.SettingsChanged += RefreshCard;
+            AppHost.SettingsChanged += OnSettingsChanged;
             AppHost.Journal.Changed += OnJournalChanged;
             WatchHostActivation(true);
             CreateMissing.IsChecked = AppHost.Settings.CreateMissingFolders;
@@ -158,7 +160,7 @@ public partial class AutoMovePage : Page
         Unloaded += (_, _) =>
         {
             if (_current == this) _current = null;
-            AppHost.SettingsChanged -= RefreshCard;
+            AppHost.SettingsChanged -= OnSettingsChanged;
             AppHost.Journal.Changed -= OnJournalChanged;
             WatchHostActivation(false);
             _recountDelay.Stop();
@@ -193,6 +195,7 @@ public partial class AutoMovePage : Page
     private void Host_Activated(object? sender, EventArgs e)
     {
         RefreshCard();
+        if (RebuildIfRulesReplaced()) return;
         RefreshStatuses();
         ScheduleRecount();
     }
@@ -215,7 +218,14 @@ public partial class AutoMovePage : Page
 
     // ---- Durum kartı ----
 
-    // Ayarlar her kaydedildiğinde çağrılır (widget taşımak da kaydeder): yalnızca kart; kural listesi yeniden kurulmaz.
+    // Ayarlar her kaydedildiğinde (widget taşımak da kaydeder): kart; kural listesi yalnızca başka yerden yenisiyle
+    // değiştirildiyse yeniden kurulur (satır içi düzenlemede odak kaybolmasın).
+    private void OnSettingsChanged()
+    {
+        RefreshCard();
+        RebuildIfRulesReplaced();
+    }
+
     private void RefreshCard()
     {
         var on = !AppHost.Settings.Paused;
@@ -240,12 +250,25 @@ public partial class AutoMovePage : Page
 
     private void BuildRules()
     {
-        _rows = AppHost.Settings.Rules.Select((rule, i) => new RuleRow(rule, i, OnRuleChanged)).ToList();
+        _builtFrom = AppHost.Settings.Rules;
+        _rows = _builtFrom.Select((rule, i) => new RuleRow(rule, i, OnRuleChanged)).ToList();
         RefreshStatuses();
         RuleList.ItemsSource = _rows;
         var empty = _rows.Count == 0;
         NoRules.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         RuleHeader.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Kural listesi bu sayfa dışında yenisiyle değiştirildiyse (ör. karşılamanın "Bitti"si) satırları yeniden kurar: eski
+    /// satırlar artık listede olmayan kurallara yazar, değişiklikler sessizce kaybolurdu. Yeniden kurulduysa true.
+    /// </summary>
+    private bool RebuildIfRulesReplaced()
+    {
+        if (ReferenceEquals(_builtFrom, AppHost.Settings.Rules)) return false;
+        BuildRules();
+        ScheduleRecount();
+        return true;
     }
 
     /// <summary>Satır değişti: hemen kaydedilir; bekleyen sayısı kısa bir aradan sonra yeniden hesaplanır.</summary>
@@ -314,8 +337,8 @@ public partial class AutoMovePage : Page
     {
         // Liste yerine yenisi atanır: izleyici iş parçacığı eski listeyi güvenle okumaya devam eder.
         AppHost.Settings.Rules = [.. AppHost.Settings.Rules, new Rule { TargetFolder = "Yeni klasör", Extensions = [] }];
+        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
-        BuildRules();
         var row = _rows[^1];
         Dispatcher.BeginInvoke(() => FocusFolderBox(row), DispatcherPriority.ContextIdle);
     }
@@ -334,8 +357,8 @@ public partial class AutoMovePage : Page
     private void AddDefaults_Click(object sender, RoutedEventArgs e)
     {
         AppHost.Settings.Rules = Rule.Defaults();
+        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
-        BuildRules();
         Recount();
     }
 
@@ -345,8 +368,8 @@ public partial class AutoMovePage : Page
         var rule = row.Rule;
         var index = AppHost.Settings.Rules.IndexOf(rule);
         AppHost.Settings.Rules = AppHost.Settings.Rules.Where(r => r != rule).ToList();
+        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
-        BuildRules();
         ScheduleRecount();
         var name = rule.TargetFolder.Trim();
         Notice.Show(name.Length > 0 ? $"\"{name}\" kuralı silindi." : "Kural silindi.", NoticeKind.Info, "Geri al", () => RestoreRule(rule, index));
@@ -360,10 +383,9 @@ public partial class AutoMovePage : Page
         var list = new List<Rule>(rules);
         list.Insert(Math.Clamp(index, 0, list.Count), rule);
         AppHost.Settings.Rules = list;
+        if (IsLoaded) BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
-        if (!IsLoaded) return;
-        BuildRules();
-        ScheduleRecount();
+        if (IsLoaded) ScheduleRecount();
     }
 
     private void CreateFolder_Click(object sender, RoutedEventArgs e)
@@ -443,8 +465,8 @@ public partial class AutoMovePage : Page
                 "Varsayılana döndür"))
             return;
         AppHost.Settings.Rules = Rule.Defaults();
+        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
-        BuildRules();
         Recount();
         Notice.Show("Kurallar varsayılana döndü.", NoticeKind.Success);
     }

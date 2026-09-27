@@ -72,7 +72,7 @@ OTOMATİK TAŞIMA
 • Her taşıma "Otomatik taşıma" sayfasında listelenir ve tek tıkla geri alınır; geri aldığın dosya bir daha kendiliğinden taşınmaz.
 
 BÖLMELER
-• Masaüstünü bölmelere ayır: klasörler, kısayollar, dosyalar ya da bir klasörün içi (ör. PDF) ayrı panellerde.
+• Masaüstünü bölmelere ayır: klasörler, kısayollar, dosyalar ya da bir klasörün içi (ör. PDF) ayrı bölmelerde.
 • "Masaüstümü bölmelere ayır" tek tıkla hepsini kurar. İstersen Windows'un masaüstü simgeleri gizlenir, her şey yalnızca bölmelerde görünür. Dosyalara dokunulmaz; modu kapatınca ya da uygulamadan çıkınca simgeler geri gelir.
 • Bölmede yazdıkça ara (alt klasörler dahil), dosyaları bölmeden bölmeye sürükleyerek taşı, resim, video ve PDF önizlemelerini gör; istersen bölme, fare üzerinden çekilince başlığına katlansın.
 • Boş masaüstüne çift tıkla ya da Ctrl+Alt+H'ye bas: simgeler ve widget'lar gizlenir, tekrarlayınca geri gelir.
@@ -109,7 +109,7 @@ Masaüstüne düşen dosyaları masaüstünde oluşturduğun klasörlere kendili
 PDF, resim, belge, arşiv, video ve müzik için hazır kurallar; klasör adları ve uzantılar değiştirilebilir
 Her taşıma geri alınabilir; geri alınan dosya bir daha taşınmaz
 Kısayollar, sistem dosyaları ve inmekte olan dosyalar asla taşınmaz; hiçbir dosyanın üzerine yazılmaz
-Bölmeler: klasörler, kısayollar, dosyalar ya da bir klasörün içi masaüstünde ayrı panellerde
+Bölmeler: klasörler, kısayollar, dosyalar ya da bir klasörün içi masaüstünde ayrı bölmelerde
 İsteğe bağlı: Windows masaüstü simgelerini gizle, her şey yalnızca bölmelerde görünsün; çıkınca simgeler geri gelir
 Bölmede anında arama, sürükle-bırakla taşıma, resim/video/PDF önizlemesi, kendiliğinden katlanma
 Boş masaüstüne çift tıkla ya da Ctrl+Alt+H: masaüstünü gizle ve göster

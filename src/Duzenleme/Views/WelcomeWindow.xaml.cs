@@ -320,7 +320,8 @@ public partial class WelcomeWindow : FluentWindow
     private void BuildFolderChips()
     {
         var style = (Style)FindResource("FolderChip");
-        var choices = Onboarding.FolderChoices(AppHost.Settings.Rules, _existingFolders, _files);
+        var createMissing = AppHost.Settings.CreateMissingFolders;
+        var choices = Onboarding.FolderChoices(AppHost.Settings.Rules, _existingFolders, _files, createMissing);
         foreach (var choice in choices)
         {
             var content = new StackPanel();
@@ -345,6 +346,8 @@ public partial class WelcomeWindow : FluentWindow
         }
         if (choices.Count == 0)
             FolderHint.Text = $"Henüz taşıma kuralı yok; kuralları {AppInfo.Name}'teki \"Otomatik taşıma\" sayfasından ekleyebilirsin.";
+        else if (createMissing)
+            FolderHint.Text = "\"Klasör yoksa oluştur\" açık: işaretlediğin klasörler, oraya gidecek ilk dosya gelince oluşturulur.";
         UpdateChipStates();
     }
 
@@ -384,9 +387,9 @@ public partial class WelcomeWindow : FluentWindow
         else
         {
             var watch = Stopwatch.StartNew();
-            // "Bitti"de uygulanacak kurallarla: seçili klasörün kuralı açılır, seçilmeyen var olan klasörünki kapanır.
-            var rules = Onboarding.ApplyFolderSelection(AppHost.Settings.Rules, selected, _existingFolders);
-            var moves = MovePlan.Build(_files, _existingFolders, rules, assumeFolders: selected);
+            // "Bitti"de uygulanacak kurallarla ve açılacak klasörlerle; "Klasör yoksa oluştur" da hesaba katılır.
+            var moves = Onboarding.PreviewMoves(AppHost.Settings.Rules, selected, _existingFolders, _files,
+                AppHost.Settings.CreateMissingFolders);
             _pending = moves.Count;
             if (moves.Count == 0)
                 ShowPreview(warning: false, "Şu an masaüstünde taşınacak dosya yok. Bundan sonra gelen dosyalar taşınır.");

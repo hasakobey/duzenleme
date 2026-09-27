@@ -123,14 +123,8 @@ public partial class App : Application
     private void StartServices(Args args)
     {
         AppHost.Initialize(args.Desktop, args.Data);
-        if (!AppHost.Settings.FirstRunDone)
-        {
-            // Yeni kullanıcı: karşılamada onay verene dek hiçbir dosya taşınmaz. (SetPaused kullanılmaz: false'ta taşıma başlatır.)
-            // "Düzenleme artık NestDesk" balonu da yalnızca eski sürümden gelenler içindir.
-            AppHost.Settings.Paused = true;
-            AppHost.Settings.RenameNoticeShown = true;
-            AppHost.SaveSettings();
-        }
+        // Yeni kullanıcı: karşılamada onay verene dek hiçbir dosya taşınmaz. (SetPaused kullanılmaz: false'ta taşıma başlatır.)
+        if (Onboarding.PrepareNewUser(AppHost.Settings)) AppHost.SaveSettings();
         ApplyTheme(AppHost.Settings.Theme);
         // Windows teması, yüksek karşıtlık ya da vurgu rengi değişince uygulama da uyum sağlasın.
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;

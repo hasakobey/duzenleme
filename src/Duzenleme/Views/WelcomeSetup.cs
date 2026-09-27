@@ -45,9 +45,11 @@ internal static class WelcomeSetup
         if (c.AutoMove == true)
         {
             var existing = ExistingFolders();
-            var rules = Onboarding.ApplyFolderSelection(settings.Rules, c.MoveFolders, existing);
+            // "Klasör yoksa oluştur" açıkken seçilmeyen kurallar kapanır ve klasörler şimdi açılmaz (önizlemeyle aynı hesap).
+            var createMissing = settings.CreateMissingFolders;
+            var rules = Onboarding.ApplyFolderSelection(settings.Rules, c.MoveFolders, existing, createMissing);
             settings.Rules = rules;
-            foreach (var name in Onboarding.FoldersToCreate(rules, c.MoveFolders, existing))
+            foreach (var name in Onboarding.FoldersToCreate(rules, c.MoveFolders, existing, createMissing))
             {
                 var path = Path.Combine(AppHost.DesktopDirectory, name);
                 // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın.

@@ -145,6 +145,132 @@ public class OnboardingTests
         Assert.Equal(["Resimler", "Belgeler"], create);
     }
 
+    // "Klasör yoksa oluştur" açıkken: klasörü olmayan kural da taşır.
+
+    [Fact]
+    public void Enabled_rules_are_on_by_default_when_missing_folders_are_created()
+    {
+        var rules = Rule.Defaults();
+        rules.First(r => r.TargetFolder == "Müzik").Enabled = false;
+
+        var choices = Onboarding.FolderChoices(rules, ["PDF"], [], createMissing: true);
+
+        Assert.True(choices.First(c => c.Folder == "Videolar").DefaultOn);
+        Assert.False(choices.First(c => c.Folder == "Müzik").DefaultOn);
+    }
+
+    [Fact]
+    public void Unselected_missing_folder_rule_is_disabled_when_missing_folders_are_created()
+    {
+        var result = Onboarding.ApplyFolderSelection(Rule.Defaults(), ["PDF"], ["PDF"], createMissing: true);
+
+        Assert.True(result.First(r => r.TargetFolder == "PDF").Enabled);
+        Assert.All(result.Where(r => r.TargetFolder != "PDF"), r => Assert.False(r.Enabled));
+    }
+
+    [Fact]
+    public void No_folder_is_created_up_front_when_missing_folders_are_created()
+    {
+        Assert.Empty(Onboarding.FoldersToCreate(Rule.Defaults(), ["PDF", "Resimler"], [], createMissing: true));
+    }
+
+    [Fact]
+    public void Preview_does_not_hide_moves_of_unselected_rules()
+    {
+        // İnceleme bulgusu: yalnızca PDF seçili, "yoksa oluştur" açık. rapor.docx ne önizlemede ne de gerçekte taşınmalı.
+        var files = new[] { F("a.pdf"), F("rapor.docx") };
+
+        var moves = Onboarding.PreviewMoves(Rule.Defaults(), ["PDF"], ["PDF"], files, createMissing: true);
+
+        var move = Assert.Single(moves);
+        Assert.Equal(("a.pdf", "PDF"), (move.FileName, move.Folder));
+        var applied = Onboarding.ApplyFolderSelection(Rule.Defaults(), ["PDF"], ["PDF"], createMissing: true);
+        var engine = new RuleEngine(() => new AppSettings { Rules = applied, CreateMissingFolders = true });
+        Assert.False(engine.Decide("", "rapor.docx", FileAttributes.Normal, ["PDF"]).ShouldMove);
+    }
+
+    [Fact]
+    public void Preview_with_created_missing_folders_lists_files_for_new_folders()
+    {
+        var moves = Onboarding.PreviewMoves(Rule.Defaults(), ["PDF", "Belgeler"], ["PDF"], [F("rapor.docx")], createMissing: true);
+
+        var move = Assert.Single(moves);
+        Assert.Equal("Belgeler", move.Folder);
+        Assert.False(move.FolderExists);
+    }
+
+    /// <summary>
+    /// Karşılamanın önizlemesi, "Bitti"den sonra taşıyıcının vereceği kararla birebir aynıdır: rastgele kurallar, klasörler,
+    /// dosyalar, seçimler ve "Klasör yoksa oluştur" için. Ayrıca yalnızca seçilen klasörlere dosya gider.
+    /// </summary>
+    [Fact]
+    public void Preview_matches_what_the_mover_does_after_finish()
+    {
+        string[] folderNames = ["PDF", "pdf ", "Resimler", "Belgeler", "Arşivler", "ARSIVLER", "Müzik", " "];
+        string[] extensions = ["pdf", "jpg", ".png", "*.docx", "zip", "RAR", "mp3", ""];
+        string[] fileNames = ["a.pdf", "b.PDF", "c.jpg", "d.png", "e.docx", "f.zip", "g.rar", "h.mp3", "i.lnk", "j.txt", "k", "l.crdownload", "~$m.docx"];
+
+        for (var seed = 0; seed < 500; seed++)
+        {
+            var random = new Random(seed);
+            T Pick<T>(T[] items) => items[random.Next(items.Length)];
+
+            var rules = Enumerable.Range(0, random.Next(0, 7)).Select(_ => new Rule
+            {
+                TargetFolder = Pick(folderNames),
+                Extensions = Enumerable.Range(0, random.Next(0, 3)).Select(_ => Pick(extensions)).ToList(),
+                Enabled = random.Next(4) > 0,
+            }).ToList();
+            var existing = folderNames.Where(n => n.Trim().Length > 0 && random.Next(3) == 0)
+                .Select(n => n.Trim().ToLowerInvariant()).Distinct().ToList();
+            var files = fileNames.Where(_ => random.Next(2) == 0)
+                .Select(n => new DesktopFile(n, random.Next(10) == 0 ? FileAttributes.Hidden : FileAttributes.Normal, random.Next(6) == 0))
+                .ToList();
+            var createMissing = random.Next(2) == 0;
+            var selected = Onboarding.FolderChoices(rules, existing, files, createMissing)
+                .Where(_ => random.Next(2) == 0).Select(c => c.Folder).ToList();
+
+            // Taşıyıcı: "Bitti"de yazılan kurallar, açılan klasörler; geri alınmış dosyalara dokunmaz.
+            var applied = Onboarding.ApplyFolderSelection(rules, selected, existing, createMissing);
+            var after = existing.Concat(Onboarding.FoldersToCreate(applied, selected, existing, createMissing)).ToList();
+            var engine = new RuleEngine(() => new AppSettings { Rules = applied, CreateMissingFolders = createMissing });
+            var expected = files.Where(f => !f.WasUndone)
+                .Select(f => (f.Name, Decision: engine.Decide(@"C:\Masaüstü", f.Name, f.Attributes, after)))
+                .Where(x => x.Decision.ShouldMove)
+                .Select(x => $"{x.Name} → {FolderName.Fold(Path.GetFileName(x.Decision.TargetDirectory!))}")
+                .ToList();
+
+            var preview = Onboarding.PreviewMoves(rules, selected, existing, files, createMissing);
+            var actual = preview.Select(m => $"{m.FileName} → {FolderName.Fold(m.Folder)}").ToList();
+
+            Assert.True(expected.SequenceEqual(actual),
+                $"tohum {seed}: taşıyıcı [{string.Join(", ", expected)}], önizleme [{string.Join(", ", actual)}]");
+            Assert.All(preview, m => Assert.Contains(selected, s => FolderName.Equal(s, m.Folder)));
+        }
+    }
+
+    // Yeni kullanıcı
+
+    [Fact]
+    public void New_user_is_paused_until_welcome_is_finished()
+    {
+        var settings = new AppSettings { FirstRunDone = false, Paused = false };
+
+        Assert.True(Onboarding.PrepareNewUser(settings));
+        Assert.True(settings.Paused);
+        Assert.True(settings.RenameNoticeShown);
+    }
+
+    [Fact]
+    public void Existing_user_is_left_alone()
+    {
+        var settings = new AppSettings { FirstRunDone = true, Paused = false, RenameNoticeShown = false };
+
+        Assert.False(Onboarding.PrepareNewUser(settings));
+        Assert.False(settings.Paused);
+        Assert.False(settings.RenameNoticeShown);
+    }
+
     // FencePlanText
 
     [Fact]

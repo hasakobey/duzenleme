@@ -207,16 +207,16 @@ public sealed class WidgetManager
         return modeOff;
     }
 
-    // ModeTurnedOff: kaldırma yüzünden "simgeler yalnızca bölmelerde" modu kapandıysa geri alınca yeniden açılır.
-    private (WidgetConfig Copy, int Index, bool ModeTurnedOff)? _lastRemoved;
+    private readonly RemovedWidgets _removed = new();
 
     /// <summary>Son kaldırılan widget'ın adı (tepsi menüsündeki "geri getir" için); yoksa null.</summary>
-    public string? LastRemovedName => _lastRemoved is { } last ? WidgetText.DisplayName(last.Copy) : null;
+    public string? LastRemovedName => _removed.Latest is { } last ? WidgetText.DisplayName(last.Copy) : null;
 
     /// <summary>
-    /// Widget'ı kaldırır; tek bir bildirimle ya da tepsi menüsündeki "geri getir" ile ayarları ve yeriyle geri gelir
-    /// (kaldırma yüzünden kapanan "simgeler yalnızca bölmelerde" modu da geri açılır). notify=false: tepsi balonu
-    /// çıkmaz (çağıran kendi bildirimini gösterir), geri getirme yine çalışır. Mod bu yüzden kapandıysa true.
+    /// Widget'ı kaldırır; tek bir bildirimle (<see cref="UndoRemove(string)"/>) ya da tepsi menüsündeki "geri getir" ile
+    /// ayarları ve yeriyle geri gelir (kaldırma yüzünden kapanan "simgeler yalnızca bölmelerde" modu da geri açılır).
+    /// notify=false: tepsi balonu çıkmaz (çağıran kendi bildirimini gösterir), geri getirme yine çalışır. Mod bu yüzden
+    /// kapandıysa true.
     /// </summary>
     public bool RemoveWithUndo(string id, bool notify = true)
     {
@@ -225,18 +225,27 @@ public sealed class WidgetManager
         if (_open.TryGetValue(id, out var window)) window.FlushState(); // son taşıma/yazılanlar da geri gelsin
         var copy = AppHost.Settings.Widgets[index].Clone();
         var modeOff = Remove(id, notify: false);
-        _lastRemoved = (copy, index, modeOff);
+        _removed.Add(new RemovedWidget(copy, index, modeOff));
         if (notify)
             AppHost.Tray?.Notify("Widget kaldırıldı",
                 (modeOff ? "Masaüstü simgeleri yeniden gösteriliyor. " : "") + "Geri getirmek için buraya ya da tepsi menüsüne tıkla.",
-                UndoRemove);
+                () => UndoRemove(id));
         return modeOff;
     }
 
+    /// <summary>En son kaldırılan widget'ı geri getirir (tepsi menüsü).</summary>
     public void UndoRemove()
     {
-        if (_lastRemoved is not { } last) return;
-        _lastRemoved = null;
+        if (_removed.Latest is { } last) UndoRemove(last.Copy.Id);
+    }
+
+    /// <summary>
+    /// Bu widget'ı geri getirir (bildirimdeki "Geri al"). Arada başka widget kaldırılmış olsa da yalnızca bu gelir; zaten
+    /// geri geldiyse bir şey yapmaz.
+    /// </summary>
+    public void UndoRemove(string id)
+    {
+        if (_removed.Take(id) is not { } last) return;
         if (AppHost.Settings.Widgets.Any(w => w.Id == last.Copy.Id)) return;
         AppHost.Settings.Widgets.Insert(Math.Min(last.Index, AppHost.Settings.Widgets.Count), last.Copy);
         AppHost.SaveSettings();

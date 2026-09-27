@@ -117,7 +117,7 @@ powershell -File tools/publish.ps1 -Arch x64  # hızlı deneme (yalnızca x64)
 powershell -File tools/package-msix.ps1 -Strict  # dist-store/: Microsoft Store'a yüklenecek .msixbundle (kimlik: tools/store/identity.json)
 ```
 
-Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--add` ("Widget ekle" penceresi; uygulama çalışıyorsa ona iletilir), `--welcome` (karşılamayı aç; ilk açılış tamamlandıysa var olanları silmeden yeniden kurulum), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
+Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--add` ("Widget ekle" penceresi; uygulama çalışıyorsa ona iletilir), `--welcome` (karşılamayı aç; ilk açılış tamamlandıysa var olanları silmeden yeniden kurulum. Yalnızca uygulama kapalıyken çalışır: çalışan bir örnek varsa yalnızca ana penceresi öne gelir, karşılamayı oradan **Ayarlar → Yardım → Karşılama** açar), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
 
 Test ortam değişkenleri: `DUZENLEME_WINDOW_AT="x,y"` (fiziksel piksel) verilirse ana pencere ve karşılama bu noktanın monitöründe açılır; `DUZENLEME_QUICKADD_AT` aynısını "Widget ekle" penceresi için yapar. Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. `--desktop` ile açılan test örneği gerçek masaüstü simgelerine ve "Windows ile başlat" kaydına dokunmaz.
 

@@ -35,11 +35,27 @@ public static class Onboarding
     public const int PreviewLineLimit = 4;
 
     /// <summary>
+    /// Açılışta, karşılama tamamlanmadıysa (yeni kullanıcı): otomatik taşıma kapatılır, karşılamada onay verilene dek hiçbir
+    /// dosya taşınmaz; eski addan yeni ada geçiş balonu da gösterilmiş sayılır (yalnızca eski sürümden gelenler içindir).
+    /// Ayar değiştiyse true döner (çağıran kaydeder).
+    /// </summary>
+    public static bool PrepareNewUser(AppSettings settings)
+    {
+        if (settings.FirstRunDone) return false;
+        settings.Paused = true;
+        settings.RenameNoticeShown = true;
+        return true;
+    }
+
+    /// <summary>
     /// Kural klasörü başına bir seçenek, kuralların sırasıyla. Adı boş ya da uzantısız kurallar gösterilmez; aynı klasörü
     /// hedefleyen kurallar (FolderName.Equal) tek seçenekte birleşir. Varsayılan işaret: kural etkin ve (klasör masaüstünde
     /// var ya da şu an o klasöre gidecek en az bir dosya var). Kapalı kuralın klasörüne dosya gitmez (FilesNow 0).
+    /// createMissing ("Klasör yoksa oluştur" açık): etkin kural klasörü olmasa da zaten çalışır, bu yüzden işaretli gelir
+    /// (karşılamayı geçip gitmek çalışan kuralı kapatmasın).
     /// </summary>
-    public static List<FolderChoice> FolderChoices(IReadOnlyList<Rule> rules, IEnumerable<string> existingFolders, IReadOnlyList<DesktopFile> files)
+    public static List<FolderChoice> FolderChoices(IReadOnlyList<Rule> rules, IEnumerable<string> existingFolders, IReadOnlyList<DesktopFile> files,
+        bool createMissing = false)
     {
         var existing = existingFolders.ToList();
         // Her kural klasörü varmış gibi: şu an hangi dosya nereye giderdi?
@@ -61,7 +77,7 @@ public static class Onboarding
             var enabled = group.Any(r => r.Enabled);
             var extensions = group.SelectMany(r => r.Extensions).Select(Rule.NormalizeExtension)
                 .Where(e => e.Length > 0).Distinct().ToList();
-            choices.Add(new FolderChoice(folder, real is not null, filesNow, enabled && (real is not null || filesNow > 0),
+            choices.Add(new FolderChoice(folder, real is not null, filesNow, enabled && (real is not null || filesNow > 0 || createMissing),
                 string.Join(", ", extensions)));
         }
         return choices;
@@ -70,9 +86,12 @@ public static class Onboarding
     /// <summary>
     /// Seçime göre kuralların yeni listesi (kurallar kopyalanır; verilen liste ve kurallar değişmez, çünkü izleyici arka
     /// planda okur): seçili klasörün kuralı açılır; seçili değil ve klasör masaüstünde var → kapanır (o klasöre dosya
-    /// gitmesin); seçili değil ve klasör yok → olduğu gibi kalır. Seçenek olmayan kurallar (adsız/uzantısız) aynen kopyalanır.
+    /// gitmesin); seçili değil ve klasör yok → olduğu gibi kalır (klasörü olmayan kural dosyaya dokunmaz). createMissing
+    /// ("Klasör yoksa oluştur" açık): klasörü olmayan kural da taşıdığı için seçilmeyen her kural kapanır.
+    /// Seçenek olmayan kurallar (adsız/uzantısız) aynen kopyalanır.
     /// </summary>
-    public static List<Rule> ApplyFolderSelection(IReadOnlyList<Rule> rules, IEnumerable<string> selected, IEnumerable<string> existingFolders)
+    public static List<Rule> ApplyFolderSelection(IReadOnlyList<Rule> rules, IEnumerable<string> selected, IEnumerable<string> existingFolders,
+        bool createMissing = false)
     {
         var chosen = selected.ToList();
         var existing = existingFolders.ToList();
@@ -81,14 +100,33 @@ public static class Onboarding
             var copy = new Rule { TargetFolder = rule.TargetFolder, Extensions = [.. rule.Extensions], Enabled = rule.Enabled };
             if (!IsChoice(rule)) return copy;
             if (chosen.Any(s => FolderName.Equal(s, rule.TargetFolder))) copy.Enabled = true;
-            else if (existing.Any(f => FolderName.Equal(f, rule.TargetFolder))) copy.Enabled = false;
+            else if (createMissing || existing.Any(f => FolderName.Equal(f, rule.TargetFolder))) copy.Enabled = false;
             return copy;
         }).ToList();
     }
 
-    /// <summary>Seçili olup masaüstünde olmayan kural klasörleri: kuralların sırasıyla, tekrarsız, adları kırpılmış.</summary>
-    public static List<string> FoldersToCreate(IReadOnlyList<Rule> rules, IEnumerable<string> selected, IEnumerable<string> existingFolders)
+    /// <summary>
+    /// Karşılamanın önizlemesi: "Bitti"de uygulanacak kurallarla (<see cref="ApplyFolderSelection"/>) ve açılacak klasörlerle
+    /// (<see cref="FoldersToCreate"/>) şu an masaüstündeki hangi dosya nereye taşınır? Taşıyıcının kararıyla aynıdır
+    /// ("Klasör yoksa oluştur" dahil).
+    /// </summary>
+    public static List<PlannedMove> PreviewMoves(IReadOnlyList<Rule> rules, IEnumerable<string> selected, IEnumerable<string> existingFolders,
+        IReadOnlyList<DesktopFile> files, bool createMissing)
     {
+        var chosen = selected.ToList();
+        var existing = existingFolders.ToList();
+        var applied = ApplyFolderSelection(rules, chosen, existing, createMissing);
+        return MovePlan.Build(files, existing, applied, FoldersToCreate(applied, chosen, existing, createMissing), createMissing);
+    }
+
+    /// <summary>
+    /// Seçili olup masaüstünde olmayan kural klasörleri: kuralların sırasıyla, tekrarsız, adları kırpılmış. createMissing
+    /// ("Klasör yoksa oluştur" açık): hiçbiri; taşıyıcı klasörü ilk dosya gelince açar (boş klasör kalabalığı olmasın).
+    /// </summary>
+    public static List<string> FoldersToCreate(IReadOnlyList<Rule> rules, IEnumerable<string> selected, IEnumerable<string> existingFolders,
+        bool createMissing = false)
+    {
+        if (createMissing) return [];
         var chosen = selected.ToList();
         var existing = existingFolders.ToList();
         var create = new List<string>();

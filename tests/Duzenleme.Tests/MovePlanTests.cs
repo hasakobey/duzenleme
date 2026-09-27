@@ -29,6 +29,15 @@ public class MovePlanTests
     }
 
     [Fact]
+    public void Missing_folder_is_planned_when_missing_folders_are_created()
+    {
+        var move = Assert.Single(MovePlan.Build([F("a.pdf"), F("b.lnk")], [], Rule.Defaults(), createMissing: true));
+
+        Assert.Equal("PDF", move.Folder);
+        Assert.False(move.FolderExists);
+    }
+
+    [Fact]
     public void Folder_name_on_desktop_wins_over_rule_spelling()
     {
         var move = Assert.Single(MovePlan.Build([F("yedek.zip")], ["arsivler"], Rule.Defaults()));

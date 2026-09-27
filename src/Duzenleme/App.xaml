@@ -8,6 +8,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
+                <!-- WPF-UI'nin menü ve kaydırma çubuğu stillerinin animasyonsuz sürümleri: ControlsDictionary'den sonra gelmeli. -->
+                <ResourceDictionary Source="Views/QuietStyles.xaml" />
                 <ResourceDictionary Source="Widgets/TileStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 

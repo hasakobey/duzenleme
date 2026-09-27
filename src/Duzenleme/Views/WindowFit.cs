@@ -45,14 +45,22 @@ public static class WindowFit
             return;
         }
 
-        // Pencereyi en baştan hedef monitörde oluştur: sonradan ölçeği (DPI) farklı bir monitöre taşınırsa WPF onu yeniden
-        // boyutlar. Konum henüz pencere yokken sistem ölçeğiyle çevrilir; SourceInitialized kesin fiziksel yere oturtur.
+        StartOn(window, point);
+        window.SourceInitialized += (_, _) => FitAt(window, point);
+    }
+
+    /// <summary>
+    /// Pencereyi en baştan noktanın monitöründe oluşturur (yalnızca başlangıç yeri; gösterilmeden çağrılır). Sonradan ölçeği
+    /// (DPI) farklı bir monitöre taşınırsa WPF onu yeniden boyutlar ve önceden okunan boyut yanlış kalır. Konum henüz pencere
+    /// yokken sistem ölçeğiyle çevrilir; kesin fiziksel yeri çağıran sonra verir.
+    /// </summary>
+    internal static void StartOn(Window window, NativeMethods.POINT point)
+    {
         var area = NativeMethods.WorkAreaAt(point);
         var systemScale = SystemScale();
         window.WindowStartupLocation = WindowStartupLocation.Manual;
         window.Left = (area.Left + 8) / systemScale;
         window.Top = (area.Top + 8) / systemScale;
-        window.SourceInitialized += (_, _) => FitAt(window, point);
     }
 
     /// <summary>DUZENLEME_WINDOW_AT="x,y" (fiziksel piksel); yoksa ya da okunamazsa null.</summary>

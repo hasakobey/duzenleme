@@ -327,23 +327,7 @@
                     <TextBlock x:Name="FolderHint" Style="{StaticResource Muted}" Margin="0,0,0,10"
                                Text="İşaretlediğin klasörler masaüstünde yoksa oluşturulur." />
 
-                    <Border x:Name="PreviewBox" CornerRadius="8" BorderThickness="1" Padding="14,8" Margin="0,0,0,10"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <ui:SymbolIcon x:Name="PreviewIcon" FontSize="18" Margin="0,1,10,0" VerticalAlignment="Top" />
-                            <StackPanel Grid.Column="1">
-                                <TextBlock x:Name="PreviewText" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           AutomationProperties.AutomationId="Welcome.Preview" />
-                                <TextBlock x:Name="PreviewNote" Style="{StaticResource Muted}" Margin="0,4,0,0"
-                                           AutomationProperties.AutomationId="Welcome.PreviewNote" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
+                    <!-- Seçenekler önizlemenin üstünde: dolu bir masaüstünde de kaydırmadan görünsün (zorunlu karar). -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -364,6 +348,23 @@
                             </StackPanel>
                         </RadioButton>
                     </Grid>
+
+                    <Border x:Name="PreviewBox" CornerRadius="8" BorderThickness="1" Padding="14,8" Margin="0,0,0,4"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon x:Name="PreviewIcon" FontSize="18" Margin="0,1,10,0" VerticalAlignment="Top" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="PreviewText" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                           AutomationProperties.AutomationId="Welcome.Preview" />
+                                <TextBlock x:Name="PreviewNote" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                           AutomationProperties.AutomationId="Welcome.PreviewNote" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
                 <!-- Adım 3: Araçlar ve başlangıç -->

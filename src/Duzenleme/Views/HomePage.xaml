@@ -10,10 +10,13 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
+        <!-- Dar pencerede (varsayılan 980 DIP) açıklama yarım kalmasın: en çok iki satır, ancak o da sığmazsa "…". -->
         <Style x:Key="TileText" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="Opacity" Value="0.8" />
             <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="MaxHeight" Value="34" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
     </Page.Resources>

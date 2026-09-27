@@ -17,18 +17,18 @@ public static class MovePlan
     /// <summary>Bu dosyalar şimdi taşınsaydı nereye giderdi? Dosya sistemine dokunmaz. RuleEngine.Decide kullanılır
     /// (.lnk/.url/desktop.ini/gizli/sistem/yarım indirme hariç); WasUndone olanlar hariç. assumeFolders: masaüstünde yok ama
     /// varmış sayılacak klasörler (karşılamada oluşturulacaklar; "bekleyen" sayımında tüm kural klasörleri).
-    /// Folder: masaüstündeki gerçek ad (ör. "arsivler"), yoksa kuraldaki ad. CreateMissingFolders her zaman false sayılır.</summary>
+    /// createMissing: "Klasör yoksa oluştur" ayarı (AppSettings.CreateMissingFolders); açıkken etkin her kural, klasörü
+    /// olmasa da taşır (taşıyıcı klasörü açar). Folder: masaüstündeki gerçek ad (ör. "arsivler"), yoksa kuraldaki ad.</summary>
     public static List<PlannedMove> Build(IReadOnlyList<DesktopFile> files, IEnumerable<string> existingFolders,
-        IReadOnlyList<Rule> rules, IEnumerable<string>? assumeFolders = null)
+        IReadOnlyList<Rule> rules, IEnumerable<string>? assumeFolders = null, bool createMissing = false)
     {
         var existing = existingFolders.ToList();
         var known = new List<string>(existing);
         foreach (var name in assumeFolders ?? [])
             if (!string.IsNullOrWhiteSpace(name) && !known.Any(k => FolderName.Equal(k, name))) known.Add(name.Trim());
 
-        // Kurallar kopyalanmaz; motor yalnızca okur. "Yoksa oluştur" önizlemede hesaba katılmaz: varsayılan kapalıdır ve
-        // açıkken her kural klasörü zaten assumeFolders ile verilir.
-        var settings = new AppSettings { Rules = rules as List<Rule> ?? rules.ToList(), CreateMissingFolders = false };
+        // Kurallar kopyalanmaz; motor yalnızca okur. Karar taşıyıcınınkiyle aynı olsun diye "yoksa oluştur" da verilir.
+        var settings = new AppSettings { Rules = rules as List<Rule> ?? rules.ToList(), CreateMissingFolders = createMissing };
         var engine = new RuleEngine(() => settings);
 
         var moves = new List<PlannedMove>();

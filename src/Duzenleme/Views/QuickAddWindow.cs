@@ -51,15 +51,21 @@ internal sealed class QuickAddWindow : FluentWindow
         // FluentWindow'un varsayılan en küçük boyutu içerikten büyük.
         MinWidth = 0;
         MinHeight = 0;
+        // Pencere en baştan imlecin monitöründe oluşur (ölçeği farklıysa sonradan büyüyüp ekrandan taşmasın) ve o ekranın
+        // çalışma alanından uzun olamaz: kutucuklar kayar, başlık ve alttaki düğmeler hep görünür.
+        WindowFit.StartOn(this, anchor);
+        MaxHeight = Math.Max(240, NativeMethods.WorkAreaAt(anchor).Height / NativeMethods.ScaleAt(anchor) - 16);
 
-        var body = new StackPanel { Margin = new Thickness(22, 2, 22, 20), Width = 560 };
-        body.Children.Add(new TextBlock
+        const double width = 560;
+        var header = new StackPanel { Margin = new Thickness(22, 2, 22, 0), Width = width };
+        header.Children.Add(new TextBlock
         {
             Text = "Masaüstüne ne eklemek istersin?", FontSize = 20, FontWeight = FontWeights.SemiBold,
             Foreground = (System.Windows.Media.Brush)FindResource("TextFillColorPrimaryBrush"),
         });
-        body.Children.Add(Muted("Birine tıkla, hemen masaüstüne gelsin. Sonra sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.", 4));
+        header.Children.Add(Muted("Birine tıkla, hemen masaüstüne gelsin. Sonra sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.", 4));
 
+        var body = new StackPanel { Margin = new Thickness(22, 0, 22, 0), Width = width };
         body.Children.Add(Section("Bölmeler"));
         var fences = new WrapPanel();
         WidgetCatalog.AddTiles(fences, WidgetCatalog.Fences(), Run);
@@ -70,7 +76,13 @@ internal sealed class QuickAddWindow : FluentWindow
         WidgetCatalog.AddTiles(tools, WidgetCatalog.Tools, Run);
         body.Children.Add(tools);
 
-        var footer = new DockPanel { Margin = new Thickness(0, 14, 0, 0), LastChildFill = false };
+        var scroller = new ScrollViewer
+        {
+            Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false,
+        };
+
+        var footer = new DockPanel { Margin = new Thickness(22, 14, 22, 20), Width = width, LastChildFill = false };
         var all = new Button
         {
             Content = "Masaüstümü bölmelere ayır", Appearance = ControlAppearance.Primary,
@@ -90,17 +102,24 @@ internal sealed class QuickAddWindow : FluentWindow
         DockPanel.SetDock(more, Dock.Right);
         footer.Children.Add(all);
         footer.Children.Add(more);
-        body.Children.Add(footer);
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.Children.Add(new TitleBar { Title = "Widget ekle", ShowMaximize = false, ShowMinimize = false });
-        Grid.SetRow(body, 1);
-        root.Children.Add(body);
+        Grid.SetRow(header, 1);
+        root.Children.Add(header);
+        Grid.SetRow(scroller, 2);
+        root.Children.Add(scroller);
+        Grid.SetRow(footer, 3);
+        root.Children.Add(footer);
         Content = root;
 
         Loaded += (_, _) => PlaceNearAnchor();
+        // Yine de ölçeği farklı bir monitöre geçerse (WPF boyutu değiştirir) yer yeni boyuta göre bir kez daha hesaplanır.
+        DpiChanged += (_, _) => { if (IsLoaded) Dispatcher.BeginInvoke(PlaceNearAnchor); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
         // Açılır menü gibi: başka yere tıklanınca kapanır.
         Deactivated += (_, _) => { if (!_closing) Close(); };
@@ -141,14 +160,14 @@ internal sealed class QuickAddWindow : FluentWindow
         var near = Center();
         _closing = true;
         Close();
-        var ids = DesktopFences.TurnOn(allStarters: true, near);
-        Notice.Show(DesktopFences.Describe(ids.Count), NoticeKind.Success, "Geri al", () => DesktopFences.Undo(ids),
-            trayHint: "Geri almak için buraya tıkla.");
+        // Mod zaten açıksa "Geri al" onu kapatmaz; yalnızca eklenen bölmeleri kaldırır.
+        DesktopFences.TurnOnWithNotice(allStarters: true, near, trayHint: "Geri almak için buraya tıkla.");
     }
 
-    /// <summary>Pencereyi imlecin üstünde ortalar; ekrandan taşmasın.</summary>
+    /// <summary>Pencereyi imlecin üstünde ortalar; ekrandan taşmasın. Boyut pencere imlecin monitöründeyken okunur.</summary>
     private void PlaceNearAnchor()
     {
+        if (_closing) return;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (!NativeMethods.GetWindowRect(hwnd, out var r)) return;
         var work = NativeMethods.WorkAreaAt(_anchor);
