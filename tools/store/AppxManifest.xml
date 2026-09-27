@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Düzenleme'nin Microsoft Store (MSIX) paket bildirimi ŞABLONU. tools/package-msix.ps1 doldurur:
+    {{Name}}, {{Publisher}}, {{PublisherDisplayName}}   tools/store/identity.json (Partner Center > Ürün kimliği)
+    {{Version}}                                         Duzenleme.csproj <Version> + ".0" (Store son parçanın 0 olmasını ister)
+    {{Arch}}                                            x64 / arm64 / x86
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap10 desktop rescap">
+
+  <Identity Name="{{Name}}" Publisher="{{Publisher}}" Version="{{Version}}" ProcessorArchitecture="{{Arch}}" />
+
+  <Properties>
+    <DisplayName>Düzenleme</DisplayName>
+    <PublisherDisplayName>{{PublisherDisplayName}}</PublisherDisplayName>
+    <Description>Masaüstüne düşen dosyaları klasörlerine taşır; saat, tarih ve klasör bölmesi widget'ları sunar.</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <!-- 19041 (Windows 10 2004): uap10:Parameters bu sürümle geldi; daha eski Windows'ta "Widget ekle" ve
+       tepsiye küçülmüş başlangıç parametresiz açılırdı. -->
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <!-- İlk dil varsayılandır (resources.pri de tr-TR varsayılanıyla üretilir). -->
+  <Resources>
+    <Resource Language="tr-TR" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Duzenleme" Executable="Duzenleme.exe" EntryPoint="Windows.FullTrustApplication">
+      <!-- Görseller ölçek/targetsize nitelikli dosyalardır (Square44x44Logo.scale-200.png …); resources.pri çözümler. -->
+      <uap:VisualElements
+        DisplayName="Düzenleme"
+        Description="Masaüstüne düşen dosyaları klasörlerine taşır; saat, tarih ve klasör bölmesi widget'ları sunar."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Windows ile başlat. Paketli uygulamada HKCU\...\Run yerine bu kullanılır; uygulama
+             StartupTask.GetAsync("DuzenlemeStartup") ile açar/kapatır. Enabled="false": Store kuralı gereği
+             kullanıcı açmadan otomatik başlamaz.
+
+             Tepsiye küçülmüş açılış parametresi doğrudan bu uzantıya verilir: desktop:Extension'ın belgelenmiş
+             uap10:Parameters özniteliği ("command line parameters to pass to the extension; only supported for desktop
+             apps that have package identity") yalnızca başlangıç görevi etkinleştirmesine eklenir, Başlat menüsünden
+             açılışı etkilemez. Mağazadaki Firefox MSIX'i de başlangıç görevi uzantısına uap10:Parameters="-os-autostart" verir.
+             Değerlendirilip seçilmeyen yol, görevi AppListEntry="none" ve Parameters'lı üçüncü, gizli bir Application'a
+             koymaktı: şemaya uygun ama başlangıç etkinleştirmesinde Application düzeyindeki Parameters'ın uygulanacağı
+             belgelenmemiş; ayrıca pakete fazladan bir AUMID ekler (süreç o kimlikle çalışır: görev çubuğu gruplaması ve
+             Ayarlar > Başlangıç'taki ad/simge ona göre olur).
+             (XML yorumunda iki tire yazılamadığı için parametre adları burada geçmiyor.) -->
+        <desktop:Extension Category="windows.startupTask" Executable="Duzenleme.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="--minimized">
+          <desktop:StartupTask TaskId="DuzenlemeStartup" Enabled="false" DisplayName="Düzenleme" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+
+    <!-- Başlat menüsünde tek tıkla widget ekleme (Inno kurulumundaki "Düzenleme - Widget ekle" kısayolunun karşılığı).
+         Uygulama çalışıyorsa istek yalnızca çalışan örneğe iletilir ve bu süreç hemen kapanır.
+         Bilinen bedel: bu da ayrı bir AUMID'dir (başlangıç görevi için yukarıda reddedilen yolun bedeli). Uygulama kapalıyken
+         buradan açılırsa tek örneğin sahibi bu süreç olur; tepsi, widget'lar ve ana pencere oturum boyunca PFN!WidgetEkle
+         kimliğiyle çalışır: görev çubuğu grubu, sabitleme hedefi ve tepsi bildirimlerinin kaynağı "Düzenleme – Widget ekle"
+         görünebilir. Başlangıç görevinde bu her oturum açılışında olurdu; burada yalnızca bu seyrek durumda olur, o yüzden
+         şimdilik kabul edildi. Kalıcı çözüm uygulamada: bu kimlikle ilk örnek olunca ana uygulamayı (PFN!Duzenleme) aynı
+         parametreyle IApplicationActivationManager üzerinden etkinleştirip kapanmak. -->
+    <Application Id="WidgetEkle" Executable="Duzenleme.exe" EntryPoint="Windows.FullTrustApplication" uap10:Parameters="--add">
+      <uap:VisualElements
+        DisplayName="Düzenleme – Widget ekle"
+        Description="Masaüstüne yeni bir widget (saat, tarih, klasör bölmesi…) ekler."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <!-- unvirtualizedResources bilerek YOK. Paketli uygulamanın HKCU yazmaları pakete özel gizli bir kovana gider
+       (Microsoft Learn: "All writes under HKCU are copied on write to a private per-user, per-app location"); uygulama
+       yazdığını okur ama Gezgin görmez. Bu, Masaüstü sayfasındaki Windows sistem simgesi anahtarlarını
+       (Explorer\HideDesktopIcons\NewStartPanel) etkiler. Bildirimle aşmanın tek yolu desktop6/virtualization
+       RegistryWriteVirtualization + unvirtualizedResources; Microsoft bu kısıtlı yeteneği "belirli PC oyunları ve dış konumlu
+       paketler için, başka senaryolar için değil" diye tanımlıyor (onaylanmazsa gönderim sertifikasyondan kalır) ve eski
+       söz dizimi Windows 10'da bütün HKCU sanallaştırmasını kapatır. Bu yüzden uygulama paketliyken bu anahtarlara yazmamalı,
+       kullanıcıyı Windows'un "Masaüstü simgesi ayarları"na yönlendirmeli. -->
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

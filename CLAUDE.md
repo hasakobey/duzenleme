@@ -31,6 +31,8 @@ Windows masaüstü düzenleyici (Fences benzeri): masaüstüne düşen dosyalar�
 - "Masaüstüne çift tıkla" yalnızca kök penceresi (`GetAncestor(GA_ROOT)`) Progman ya da DefView taşıyan WorkerW olan tıklamalarda çalışır: Gezgin pencereleri ve dosya iletişim kutuları da `SHELLDLL_DefView` içerir (eskiden klasörde her çift tıklama widget'ları gizleyip açıyordu).
 - Explorer'ın pencerelerine UI iş parçacığından eşzamanlı çağrı yapma (Explorer meşgulken widget'lar donar): `ShowWindowAsync`, `SendMessageTimeout`; öğe açma (`TileItem.Launch`) arka planda.
 - Widget'ta fare üstüne gelince yerleşim değişmemeli: başlıktaki × hep yerinde (sönük) durur; öğe kaldırma sağ tık menüsündedir.
+- Microsoft Store sürümü (MSIX, `tools/package-msix.ps1` → `dist-store/`, kimlik `tools/store/identity.json`): paketliyken (`PackageInfo.IsPackaged`) HKCU yazmaları ve %AppData%'ya yeni yazılan dosyalar pakete özel yere gider. Explorer'ın okuması gereken kayıt defteri değerlerine (Run, HideDesktopIcons) paketliyken yazma; başlangıç `StartupTask` (TaskId `DuzenlemeStartup`, `WinRt.cs` ile projeksiyonsuz COM). TargetFramework'e Windows SDK sürümü ekleme (WinRT projeksiyonu ~25 MB).
+- Yapay zekâ istemcisi `AiIconGenerator.CreateClient` ile kurulur (SDK'nın ANTHROPIC_* ortam değişkenlerini yok sayar); her SVG `ToDrawing` içinde temizlenir (dış `url()`/DTD çizici tarafından ağa istek attırır). Gizlilik sözü PRIVACY.md'de: yeni bir ağ kullanımı eklersen orayı ve Store metinlerini (`tools/store/listing.md`) güncelle.
 
 ## Kurallar
 - Dosya yalnızca hedef klasör masaüstünde **zaten varsa** taşınır ("yoksa oluştur" ayarı varsayılan kapalı).

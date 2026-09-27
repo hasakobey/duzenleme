@@ -49,6 +49,9 @@ public partial class App : Application
             return;
         }
 
+        // Store (MSIX) sürümü: başlangıç görevi exe'yi argümansız açar; --minimized gibi tepside sessizce başlasın.
+        if (e.Args.Length == 0 && PackageInfo.LaunchedByStartupTask()) args = args with { Minimized = true };
+
         // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir.
         var id = "Duzenleme." + Environment.UserName + (args.Desktop is null ? "" : ".test");
 
@@ -72,10 +75,15 @@ public partial class App : Application
         _addSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".add");
         if (!isFirst)
         {
-            // Çalışan örnek penceresini öne getirebilsin (yoksa Windows yalnızca görev çubuğunda yanıp söndürür).
-            const int ASFW_ANY = -1;
-            AllowSetForegroundWindow(ASFW_ANY);
-            (args.Add ? _addSignal : _showSignal).Set();
+            // Store sürümünün arka plan açılışları (başlangıç görevi, güncelleme sonrası yeniden başlatma) zaten çalışan
+            // örneğin penceresini öne getirmesin.
+            if (!(PackageInfo.IsPackaged && args.Minimized))
+            {
+                // Çalışan örnek penceresini öne getirebilsin (yoksa Windows yalnızca görev çubuğunda yanıp söndürür).
+                const int ASFW_ANY = -1;
+                AllowSetForegroundWindow(ASFW_ANY);
+                (args.Add ? _addSignal : _showSignal).Set();
+            }
             Shutdown();
             return;
         }
@@ -90,6 +98,8 @@ public partial class App : Application
         try
         {
             StartServices(args);
+            // Store sürümü: güncelleme uygulamayı kapatınca Windows onu tepside yeniden başlatsın (paketsizken bir şey yapmaz).
+            PackageInfo.RegisterRestartAfterUpdate();
         }
         catch (Exception ex)
         {

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,15 +23,21 @@ public sealed class SystemIconRow(SystemIcon icon) : INotifyPropertyChanged
     public ImageSource? Icon => ShellIcons.ForShellObject("::" + Icon_.Clsid);
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    /// <summary>Store sürümünde anahtar yalnızca durumu gösterir (bkz. DesktopSystemIcons.CanChange).</summary>
+    public bool CanChange => DesktopSystemIcons.CanChange;
+
     public bool Shown
     {
         get => DesktopSystemIcons.IsShown(Icon_);
         set
         {
             DesktopSystemIcons.SetShown(Icon_, value);
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Shown)));
+            Reload();
         }
     }
+
+    /// <summary>Durumu yeniden okur (ör. kullanıcı Windows ayarından dönünce).</summary>
+    public void Reload() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Shown)));
 }
 
 /// <summary>Masaüstündeki bir öğe; kategori kurallardan türetilir.</summary>
@@ -54,6 +61,8 @@ public partial class DesktopPage : Page
     private List<DesktopItemRow> _items = [];
     private string _category = All;
     private readonly DispatcherTimer _searchDelay = new() { Interval = TimeSpan.FromMilliseconds(200) };
+    private List<SystemIconRow> _systemIcons = [];
+    private Window? _host;
 
     public DesktopPage()
     {
@@ -61,11 +70,18 @@ public partial class DesktopPage : Page
         _searchDelay.Tick += (_, _) => { _searchDelay.Stop(); ApplyFilter(); };
         Loaded += (_, _) =>
         {
-            SystemIcons.ItemsSource = DesktopSystemIcons.All.Select(i => new SystemIconRow(i)).ToList();
+            _systemIcons = DesktopSystemIcons.All.Select(i => new SystemIconRow(i)).ToList();
+            SystemIcons.ItemsSource = _systemIcons;
             SuggestToggle.IsChecked = AppHost.Settings.SuggestFolderIcons;
             AppHost.DesktopVisibilityChanged += UpdateHideButton;
             AppHost.Journal.Changed += ReloadAsync;
             FolderIconWindow.IconChanged += OnIconChanged;
+            if (!DesktopSystemIcons.CanChange)
+            {
+                // Store sürümü: değişiklik Windows'un ayarından; kullanıcı oradan dönünce anahtarlar yenilensin.
+                SystemIconsNote.Visibility = Visibility.Visible;
+                WatchHostActivation(true);
+            }
             UpdateHideButton();
             Reload();
         };
@@ -74,8 +90,18 @@ public partial class DesktopPage : Page
             AppHost.DesktopVisibilityChanged -= UpdateHideButton;
             AppHost.Journal.Changed -= ReloadAsync;
             FolderIconWindow.IconChanged -= OnIconChanged;
+            WatchHostActivation(false);
         };
     }
+
+    private void WatchHostActivation(bool watch)
+    {
+        if (_host is not null) _host.Activated -= Host_Activated;
+        _host = watch ? Window.GetWindow(this) : null;
+        if (_host is not null) _host.Activated += Host_Activated;
+    }
+
+    private void Host_Activated(object? sender, EventArgs e) => _systemIcons.ForEach(row => row.Reload());
 
     private void OnIconChanged(string _) => Dispatcher.BeginInvoke(Reload, DispatcherPriority.Background);
 
@@ -216,6 +242,9 @@ public partial class DesktopPage : Page
     {
         if ((sender as FrameworkElement)?.DataContext is SystemIconRow row) TileItem.Launch(DesktopSystemIcons.ShellPath(row.Icon_));
     }
+
+    private void OpenIconSettings_Click(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(DesktopSystemIcons.SettingsUri) { UseShellExecute = true });
 
     private void ToggleDesktop_Click(object sender, RoutedEventArgs e) => AppHost.ToggleDesktop();
 

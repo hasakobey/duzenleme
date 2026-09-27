@@ -33,10 +33,17 @@ public partial class SettingsPage : Page
 
     private bool _loading;
 
+    private Window? _host;
+
+    // Store sürümü: başlangıç görevi isteklerinin sırası ve bir değişikliğin sürüp sürmediği.
+    private int _startupQuery;
+    private bool _startupChanging;
+
     public SettingsPage()
     {
         InitializeComponent();
         Loaded += (_, _) => Load();
+        Unloaded += (_, _) => WatchHostActivation(false);
     }
 
     private void Load()
@@ -44,21 +51,96 @@ public partial class SettingsPage : Page
         _loading = true;
         var s = AppHost.Settings;
         ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
-        StartupToggle.IsChecked = StartupRegistration.IsEnabled;
+        LoadStartup();
         NotifyToggle.IsChecked = s.ShowNotifications;
         DoubleClickToggle.IsChecked = s.DoubleClickHidesDesktop;
         HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
         DesktopPath.Text = AppHost.DesktopDirectory;
-        DataPath.Text = AppHost.DataDirectory;
+        LoadDataFolder();
+        VersionText.Text = "Düzenleme " + Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+        LoadHotkeys();
+        UpdateKeyStatus();
+        _loading = false;
+    }
+
+    private void LoadStartup()
+    {
+        if (!PackageInfo.IsPackaged)
+        {
+            StartupToggle.IsChecked = StartupRegistration.IsEnabled;
+            return;
+        }
+        // Store sürümü: manifestteki başlangıç görevi. Durum gelene dek anahtar kapalı ve dokunulmaz.
+        StartupToggle.IsEnabled = false;
+        UpdateStartupTask(enable: null);
+        // Kullanıcı Ayarlar'dan ya da Görev Yöneticisi'nden dönünce durum yenilensin.
+        WatchHostActivation(true);
+    }
+
+    /// <summary>
+    /// Store sürümü: görevin durumunu okur (enable null) ya da değiştirir, sonra kartı gösterir. Yalnızca son isteğin
+    /// sonucu gösterilir; değişiklik sürerken pencere etkinleşmesiyle gelen okuma eski durumu göstermesin diye atlanır.
+    /// </summary>
+    private async void UpdateStartupTask(bool? enable)
+    {
+        if (enable is null && _startupChanging) return;
+        var query = ++_startupQuery;
+        if (enable is not null)
+        {
+            _startupChanging = true;
+            StartupToggle.IsEnabled = false;
+        }
+        try
+        {
+            var state = enable is { } value
+                ? await StartupRegistration.SetTaskEnabledAsync(value)
+                : await StartupRegistration.GetTaskStateAsync();
+            if (query == _startupQuery) ShowStartupTask(state);
+        }
+        finally
+        {
+            if (enable is not null) _startupChanging = false;
+        }
+    }
+
+    private void ShowStartupTask(StartupTaskState? state)
+    {
+        var view = PackagedApp.DescribeStartupTask(state);
+        StartupToggle.IsChecked = view.IsOn;
+        StartupToggle.IsEnabled = true;
+        StartupToggle.Visibility = view.ShowToggle ? Visibility.Visible : Visibility.Collapsed;
+        StartupSettingsButton.Visibility = view.ShowToggle ? Visibility.Collapsed : Visibility.Visible;
+        StartupState.Text = view.Note ?? "";
+        StartupState.Visibility = view.Note is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void WatchHostActivation(bool watch)
+    {
+        if (_host is not null) _host.Activated -= Host_Activated;
+        _host = watch ? Window.GetWindow(this) : null;
+        if (_host is not null) _host.Activated += Host_Activated;
+    }
+
+    private void Host_Activated(object? sender, EventArgs e) => UpdateStartupTask(enable: null);
+
+    private void LoadDataFolder()
+    {
+        // Store sürümünde ayarlar Gezgin'in gördüğü pakete özel klasörde durur (bkz. AppHost.DataDirectoryOnDisk).
+        var folder = AppHost.DataDirectoryOnDisk;
+        DataPath.Text = folder;
+        if (PackageInfo.IsPackaged)
+        {
+            // Taşınabilir mod paketliyken yoktur. Pakete ayrılmış klasör uygulamayla birlikte silinir: kullanıcı bilsin.
+            var own = !string.Equals(folder, AppHost.DataDirectory, StringComparison.OrdinalIgnoreCase);
+            PortableText.Text = "Microsoft Store sürümüne ayrılmış klasör; uygulama kaldırılınca Windows içindekileri de siler.";
+            PortableText.Visibility = own ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
         PortableText.Text = AppHost.IsPortable
             ? "Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe."
             : AppHost.PortableFallback
                 ? "portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik %AppData%\\Duzenleme'de. Programı yazılabilir bir klasöre taşı."
                 : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
-        VersionText.Text = "Düzenleme " + Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
-        LoadHotkeys();
-        UpdateKeyStatus();
-        _loading = false;
     }
 
     private void LoadHotkeys()
@@ -147,7 +229,7 @@ public partial class SettingsPage : Page
     {
         Icons.ApiKeyStore.Save(null);
         UpdateKeyStatus();
-        ShowKey("Silindi", "API anahtarı bu bilgisayardan kaldırıldı.", InfoBarSeverity.Informational);
+        ShowKey("Silindi", "API anahtarı ayarlardan kaldırıldı. Eski ayar yedeklerinde (yedekler klasörü) şifreli kopyası kalabilir.", InfoBarSeverity.Informational);
     }
 
     private void ShowKey(string title, string message, InfoBarSeverity severity)
@@ -186,7 +268,14 @@ public partial class SettingsPage : Page
         App.ApplyTheme(AppHost.Settings.Theme);
     }
 
-    private void StartupToggle_Click(object sender, RoutedEventArgs e) => StartupRegistration.Set(StartupToggle.IsChecked == true);
+    private void StartupToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (PackageInfo.IsPackaged) UpdateStartupTask(StartupToggle.IsChecked == true);
+        else StartupRegistration.Set(StartupToggle.IsChecked == true);
+    }
+
+    private void OpenStartupSettings_Click(object sender, RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(StartupRegistration.StartupAppsSettingsUri) { UseShellExecute = true });
 
     private void NotifyToggle_Click(object sender, RoutedEventArgs e)
     {
@@ -198,7 +287,7 @@ public partial class SettingsPage : Page
         Process.Start(new ProcessStartInfo(AppHost.DesktopDirectory) { UseShellExecute = true });
 
     private void OpenData_Click(object sender, RoutedEventArgs e) =>
-        Process.Start(new ProcessStartInfo(AppHost.DataDirectory) { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(AppHost.DataDirectoryOnDisk) { UseShellExecute = true });
 
     private void Exit_Click(object sender, RoutedEventArgs e) => ((App)Application.Current).ExitApp();
 }

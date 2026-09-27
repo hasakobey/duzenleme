@@ -31,6 +31,20 @@ public static class DesktopSystemIcons
         new("{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}", "Denetim Masası", "Klasik Windows ayarları", false),
     ];
 
+    /// <summary>
+    /// Simgeler buradan açılıp kapatılabilir mi? Store (MSIX) sürümünde HKCU yazmaları pakete özel bir kayıt kopyasına
+    /// gider: Gezgin değişikliği hiç görmez, uygulama ise sonra kendi kopyasını okur. Paketliyken bu anahtara hiç
+    /// yazılmaz; okuma birleşik görünümden yapıldığı için o zaman gerçek durum okunur (Masaüstü sayfası ve bölmeler
+    /// Windows masaüstüyle uyuşur). Değişiklik orada Windows'un "Masaüstü simgesi ayarları"ndan (<see cref="SettingsUri"/>).
+    /// </summary>
+    public static bool CanChange => !PackageInfo.IsPackaged;
+
+    /// <summary>
+    /// Windows'un Temalar sayfası: "Masaüstü simgesi ayarları" bağlantısı burada. Ayarlar uygulaması paket dışında çalışır;
+    /// desk.cpl'yi bu süreçten açmak işe yaramazdı (alt süreç paket bağlamında kalır, yazmaları da sanallaşır).
+    /// </summary>
+    public const string SettingsUri = "ms-settings:themes";
+
     public static bool IsShown(SystemIcon icon)
     {
         using var key = Registry.CurrentUser.OpenSubKey(Key);
@@ -39,6 +53,7 @@ public static class DesktopSystemIcons
 
     public static void SetShown(SystemIcon icon, bool shown)
     {
+        if (!CanChange) return;
         using var key = Registry.CurrentUser.CreateSubKey(Key);
         key.SetValue(icon.Clsid, shown ? 0 : 1, RegistryValueKind.DWord);
         Refresh();

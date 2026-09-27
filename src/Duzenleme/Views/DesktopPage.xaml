@@ -25,12 +25,24 @@
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,10,0,0" TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                             <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" Height="34" TextTrimming="CharacterEllipsis" />
-                            <ui:ToggleSwitch IsChecked="{Binding Shown, Mode=TwoWay}" Margin="0,8,0,0" OnContent="Görünür" OffContent="Gizli" />
+                            <ui:ToggleSwitch IsChecked="{Binding Shown, Mode=TwoWay}" IsEnabled="{Binding CanChange}" Margin="0,8,0,0"
+                                             OnContent="Görünür" OffContent="Gizli" />
                         </StackPanel>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <!-- Store sürümü: anahtarlar yalnızca durumu gösterir; değişiklik Windows'un ayarından (bkz. DesktopSystemIcons.CanChange). -->
+        <ui:CardControl x:Name="SystemIconsNote" Icon="{ui:SymbolIcon Info24}" Margin="0,10,0,0" Visibility="Collapsed">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Bu simgeleri Windows ayarlarından aç/kapat" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource Muted}"
+                               Text="Microsoft Store sürümü bu Windows ayarını kendisi değiştiremez. Açılan Temalar sayfasında &quot;Masaüstü simgesi ayarları&quot;na tıkla; buraya dönünce durum yenilenir." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:Button Content="Temalar sayfasını aç" Icon="{ui:SymbolIcon Open24}" Click="OpenIconSettings_Click" />
+        </ui:CardControl>
 
         <WrapPanel Margin="0,14,0,0">
             <ui:Button x:Name="HideButton" Icon="{ui:SymbolIcon EyeOff24}" Content="Tüm simgeleri gizle" Click="ToggleDesktop_Click" Margin="0,0,8,8" />

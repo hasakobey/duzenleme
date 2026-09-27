@@ -26,9 +26,16 @@
                 <StackPanel>
                     <TextBlock Text="Windows ile başlat" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                     <TextBlock Style="{StaticResource Muted}" Text="Oturum açınca tepside sessizce başlar; widget'lar ve masaüstü izleme hazır olur." />
+                    <!-- Store sürümü: görev kullanıcı/ilke yüzünden buradan değiştirilemiyorsa nedeni. -->
+                    <TextBlock x:Name="StartupState" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="Collapsed" />
                 </StackPanel>
             </ui:CardControl.Header>
-            <ui:ToggleSwitch x:Name="StartupToggle" Click="StartupToggle_Click" />
+            <Grid>
+                <ui:ToggleSwitch x:Name="StartupToggle" Click="StartupToggle_Click" />
+                <!-- Store sürümü: kullanıcı görevi Windows'tan kapattıysa, ilke yönetiyorsa ya da durum okunamadıysa anahtarın yerine. -->
+                <ui:Button x:Name="StartupSettingsButton" Content="Başlangıç ayarlarını aç" Icon="{ui:SymbolIcon Open24}"
+                           Click="OpenStartupSettings_Click" Visibility="Collapsed" />
+            </Grid>
         </ui:CardControl>
 
         <ui:CardControl Icon="{ui:SymbolIcon Alert24}" Margin="0,0,0,6">

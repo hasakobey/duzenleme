@@ -35,15 +35,54 @@ public static partial class AiIconGenerator
     [GeneratedRegex(@"<(script|foreignObject|image|style|iframe|audio|video)\b[\s\S]*?(</\1\s*>|/>)", RegexOptions.IgnoreCase)]
     private static partial Regex DangerousElements();
 
-    [GeneratedRegex(@"\s(on\w+|href|xlink:href)\s*=\s*(""[^""]*""|'[^']*')", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\s(on\w+|href|xlink:href|src)\s*=\s*(""[^""]*""|'[^']*')", RegexOptions.IgnoreCase)]
     private static partial Regex DangerousAttributes();
+
+    // DTD (dış varlıklar) ve xml-stylesheet: çizici bunları okurken dışarı bağlanabilir.
+    [GeneratedRegex(@"<!DOCTYPE[^\[>]*(\[[\s\S]*?\])?\s*>|<!ENTITY[\s\S]*?>|<\?xml-stylesheet[\s\S]*?\?>", RegexOptions.IgnoreCase)]
+    private static partial Regex DangerousDeclarations();
+
+    // Belge dışını gösteren url(...) (fill, stroke, mask, clip-path, marker, style içinde); url(#kimlik) kalır.
+    [GeneratedRegex(@"url\(\s*(?!['""]?\s*#)[^)]*\)", RegexOptions.IgnoreCase)]
+    private static partial Regex ExternalUrls();
+
+    public const string ApiBaseUrl = "https://api.anthropic.com";
+
+    /// <summary>
+    /// İstemci her zaman Anthropic'e ve yalnızca kullanıcının anahtarıyla bağlanır. SDK ortam değişkenlerini okur
+    /// (ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_CUSTOM_HEADERS; ör. geliştirici araçları tanımlar): onlara
+    /// bırakılırsa klasör adı ve anahtar başka bir sunucuya ya da başka kimlik bilgileriyle gidebilir.
+    /// </summary>
+    public static AnthropicClient CreateClient(string apiKey, string baseUrl = ApiBaseUrl) => new()
+    {
+        ApiKey = apiKey,
+        BaseUrl = baseUrl,
+        AuthToken = null,
+        Handlers = [new OnlyAnthropicHeaders()],
+    };
+
+    /// <summary>İstekte yalnızca SDK'nın kendi başlıkları kalır (ortamdan gelen Authorization ve özel başlıklar atılır).</summary>
+    private sealed class OnlyAnthropicHeaders : System.Net.Http.DelegatingHandler
+    {
+        protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken ct)
+        {
+            foreach (var name in request.Headers.Select(h => h.Key).ToList())
+                if (!IsAllowed(name)) request.Headers.Remove(name);
+            return base.SendAsync(request, ct);
+        }
+
+        private static bool IsAllowed(string name) =>
+            name.Equals("X-Api-Key", StringComparison.OrdinalIgnoreCase) || name.Equals("User-Agent", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Accept", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("anthropic-", StringComparison.OrdinalIgnoreCase) || name.StartsWith("X-Stainless-", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>Anahtarın geçerli olduğunu ücretsiz bir çağrıyla (model bilgisi) doğrular.</summary>
     public static async Task<string?> ValidateKeyAsync(string apiKey, CancellationToken ct = default)
     {
         try
         {
-            AnthropicClient client = new() { ApiKey = apiKey };
+            var client = CreateClient(apiKey);
             await client.Models.Retrieve(Model, cancellationToken: ct);
             return null;
         }
@@ -56,7 +95,7 @@ public static partial class AiIconGenerator
     /// <summary>Açıklamaya göre SVG üretir ve güvenli hale getirilmiş SVG metnini döner.</summary>
     public static async Task<string> GenerateSvgAsync(string apiKey, string folderName, string description, CancellationToken ct = default)
     {
-        AnthropicClient client = new() { ApiKey = apiKey };
+        var client = CreateClient(apiKey);
         var prompt = $"""
             Folder name: {folderName}
             What the icon should show: {(string.IsNullOrWhiteSpace(description) ? folderName : description)}
@@ -92,20 +131,25 @@ public static partial class AiIconGenerator
         return Sanitize(match.Value);
     }
 
-    /// <summary>Model çıktısı güvenilmez veridir: çalıştırılabilir ya da dışarı bağlanan her şey atılır.</summary>
+    /// <summary>
+    /// Model çıktısı ve diskteki SVG'ler güvenilmez veridir: çalıştırılabilir ya da dışarı bağlanan her şey atılır
+    /// (çizici dış url(), DTD ve bağlantıları okurken ağa istek atar).
+    /// </summary>
     public static string Sanitize(string svg)
     {
+        svg = DangerousDeclarations().Replace(svg, "");
         svg = DangerousElements().Replace(svg, "");
         svg = DangerousAttributes().Replace(svg, "");
+        svg = ExternalUrls().Replace(svg, "none");
         return svg;
     }
 
-    /// <summary>SVG'yi WPF çizimine dönüştürür.</summary>
+    /// <summary>SVG'yi WPF çizimine dönüştürür; her yoldan gelen SVG (geçmiş, seçilen dosya) önce temizlenir.</summary>
     public static Drawing ToDrawing(string svg)
     {
         var settings = new WpfDrawingSettings { IncludeRuntime = false, TextAsGeometry = true };
         using var reader = new FileSvgReader(settings);
-        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svg));
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(Sanitize(svg)));
         var drawing = reader.Read(stream) ?? throw new AiIconException("Üretilen SVG çizilemedi.");
         drawing.Freeze();
         return drawing;

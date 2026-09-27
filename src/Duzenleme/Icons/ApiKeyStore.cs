@@ -5,7 +5,7 @@ namespace Duzenleme.Icons;
 
 /// <summary>
 /// API anahtarını Windows DPAPI ile (yalnızca bu Windows kullanıcısının çözebileceği şekilde) şifreleyerek saklar.
-/// Ayar dosyası kopyalansa bile anahtar başka bir bilgisayarda/hesapta okunamaz.
+/// Ayar dosyası kopyalansa bile anahtar başka bir hesapta okunamaz (dolaşım profilinde aynı hesap başka bilgisayarda çözebilir).
 /// </summary>
 public static class ApiKeyStore
 {

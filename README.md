@@ -74,6 +74,8 @@ Widget'lar monitör takılıp çıkarılınca ya da uykudan uyanınca kayıtlı 
 - Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur.
 - "Uygulamalar ve özellikler"den kaldırılabilir; kaldırırken ayarların silinip silinmeyeceğini sorar.
 
+**Microsoft Store (MSIX):** Store sürümünü Microsoft imzalar ve günceller; uyarı çıkmaz. Aynı program, yalnızca birkaç fark var: "Windows ile başlat" Windows'un başlangıç görevidir (Ayarlar → Uygulamalar → Başlangıç'ta da görünür) ve ayarlar paketin kendi klasöründe tutulur (önceden kurulum sürümü kullanıldıysa var olan ayarlar okunmaya devam eder). Masaüstünün "Bu Bilgisayar, Geri Dönüşüm Kutusu…" simgeleri Store sürümünde Windows'un Temalar → Masaüstü simgesi ayarlarından açılıp kapatılır.
+
 **Taşınabilir kullanım:** `Duzenleme-<sürüm>-<mimari>-tasinabilir.zip` dosyasını yazılabilir bir klasöre çıkar ve `Duzenleme.exe`'yi çalıştır. İçindeki `portable.txt` sayesinde ayarlar exe'nin yanındaki `data` klasöründe tutulur (USB bellekte taşınabilir).
 
 > **İmza hakkında:** Paket kod imzası olmadan derlenir. Bu yüzden Windows SmartScreen ilk açılışta "Windows bilgisayarınızı korudu" uyarısı gösterebilir (**Ek bilgi → Yine de çalıştır**). **Smart App Control** açık bilgisayarlar imzasız programları engelleyebilir. Kalıcı çözüm bir kod imzalama sertifikasıdır (ör. Microsoft Trusted Signing); `tools/publish.ps1` sertifika verildiğinde tüm dosyaları ve kurulumu otomatik imzalar (dosyanın başındaki açıklamaya bak).
@@ -88,6 +90,7 @@ dotnet run --project src/Duzenleme -- --desktop C:\tmp\Desktop --data C:\tmp\dat
 dotnet run --project src/Duzenleme            # gerçek masaüstünü izler!
 powershell -File tools/publish.ps1            # dist/: kurulum sihirbazı + 3 taşınabilir zip
 powershell -File tools/publish.ps1 -Arch x64  # hızlı deneme (yalnızca x64)
+powershell -File tools/package-msix.ps1 -Strict  # dist-store/: Microsoft Store'a yüklenecek .msixbundle (kimlik: tools/store/identity.json)
 ```
 
 Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--add` ("Widget ekle" penceresi; uygulama çalışıyorsa ona iletilir), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.

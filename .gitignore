@@ -483,8 +483,9 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# Yayın çıktısı
+# Yayın çıktısı (dist-store/: tools/package-msix.ps1'in Store paketi)
 dist/
+dist-store/
 
 # Düzenleme masaüstündeki bu klasöre simge verirse oluşan dosya (desktop.ini yukarıda yok sayılıyor)
 .duzenleme-*.ico

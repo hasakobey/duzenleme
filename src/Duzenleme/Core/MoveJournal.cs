@@ -40,7 +40,7 @@ public sealed class MoveJournal
         lock (_lock)
         {
             _entries.Add(entry);
-            if (_entries.Count > MaxEntries) _entries.RemoveRange(0, _entries.Count - MaxEntries);
+            Trim();
             Save();
         }
         Changed?.Invoke();
@@ -76,6 +76,21 @@ public sealed class MoveJournal
             Save();
         }
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Geçmiş sınırı aşınca önce en eski normal kayıtlar silinir. Geri alınanlar ("bir daha taşıma" kararı) korunur;
+    /// silinseydi masaüstünde bekleyen o dosya sonraki taramada yeniden taşınırdı. Onlar da sınırı aşarsa en eskileri gider.
+    /// </summary>
+    private void Trim()
+    {
+        var excess = _entries.Count - MaxEntries;
+        for (var i = 0; i < _entries.Count && excess > 0;)
+        {
+            if (_entries[i].Undone) i++;
+            else { _entries.RemoveAt(i); excess--; }
+        }
+        if (excess > 0) _entries.RemoveRange(0, excess);
     }
 
     private void Save() => JsonFile.Save(_path, _entries);

@@ -36,6 +36,23 @@ public static class AppHost
 
     private static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
+    /// <summary>
+    /// Veri klasörünün diskteki (Gezgin'in gördüğü) yeri. Store (MSIX) sürümünde Windows %AppData% altına yeni yazılan
+    /// dosyaları pakete özel LocalCache klasörüne yönlendirir; paket dışındaki Gezgin onları DataDirectory'de göremez.
+    /// Paketsizken DataDirectory'nin kendisi.
+    /// </summary>
+    public static string DataDirectoryOnDisk
+    {
+        get
+        {
+            if (PackageInfo.FamilyName is not { } family) return DataDirectory;
+            var redirected = PackagedApp.RedirectedRoamingPath(DataDirectory,
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), family);
+            return PackagedApp.DataFolderToShow(DataDirectory, redirected, File.Exists, Directory.Exists);
+        }
+    }
+
     /// <summary>Taşınabilir mod istendi ama klasöre yazılamadığı için %AppData% kullanılıyor.</summary>
     public static bool PortableFallback { get; private set; }
 
@@ -75,7 +92,8 @@ public static class AppHost
 
     public static void Initialize(string? desktopOverride, string? dataOverride)
     {
-        var portable = dataOverride is null ? PortableDataDirectory() : null;
+        // Store (MSIX) paketinin klasörü salt okunurdur ve portable.txt taşımaz: paketliyken taşınabilir mod denenmez.
+        var portable = dataOverride is null && !PackageInfo.IsPackaged ? PortableDataDirectory() : null;
         IsPortable = portable is not null;
         DataDirectory = dataOverride ?? portable ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Duzenleme");
         DesktopDirectory = desktopOverride ?? ResolveDesktop();
