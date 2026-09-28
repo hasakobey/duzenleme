@@ -385,7 +385,7 @@ public partial class LauncherView : UserControl, IWidgetView
         }
         else
         {
-            var remove = Menus.Item(L.T("Widget'tan kaldır"), () => RemoveItem(item));
+            var remove = Menus.Item(L.T("Widget'tan kaldır", "kutu"), () => RemoveItem(item));
             remove.InputGestureText = KeyNames.Delete;
             remove.ToolTip = L.T("Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al");
             menu.Items.Add(remove);

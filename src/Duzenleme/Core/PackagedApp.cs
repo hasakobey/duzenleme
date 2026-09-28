@@ -49,7 +49,7 @@ public static class PackagedApp
     }
 
     /// <summary>
-    /// Başlat'taki "NestDesk – Add a widget" girişi ayrı bir uygulama kimliğidir (PFN!AddWidget). Uygulama kapalıyken oradan
+    /// Başlat'taki "NestDesk – Add widget" girişi ayrı bir uygulama kimliğidir (PFN!AddWidget). Uygulama kapalıyken oradan
     /// açılan süreç tek örnek olursa tepsi, bildirimler ve görev çubuğu oturum boyunca o kimlikle çalışırdı. Süreç bu kimlikle
     /// açıldıysa ana uygulamanın kimliği (PFN!NestDesk; onu "--add" ile başlatıp kapanır), değilse null.
     /// </summary>

@@ -172,7 +172,7 @@ internal static partial class En
         new("Açık kalma süresi", "Uptime"),
         new("{0} / {1} · {2}", "{0} / {1} · {2}"),
         new("{0} · şarj oluyor", "{0} · charging"),
-        new("{0} · takılı", "{0} · plugged in"),
+        new("{0} · prize takılı", "{0} · plugged in"),
         new("Disk ({0})", "Disk ({0})"),
         new("{0} boş", "{0} free"),
         new("Görev Yöneticisi'ni aç", "Open Task Manager"),
@@ -194,7 +194,7 @@ internal static partial class En
         new("Açmak için çift tıkla", "Double-click to open"),
         new("Öğe sayısı ve boyut", "Item count and size"),
         new("Boşalt düğmesi", "Empty button"),
-        new("Bırakın, Geri Dönüşüm Kutusu'na gitsin", "Drop to move to the Recycle Bin"),
+        new("Bırak, Geri Dönüşüm Kutusu'na gitsin", "Drop to move to the Recycle Bin"),
         new("Geri Dönüşüm Kutusu zaten boş", "The Recycle Bin is already empty"),
         new("Silinecek bir şey yok.", "There's nothing to delete."),
         new("Geri Dönüşüm Kutusu boşaltılsın mı?", "Empty the Recycle Bin?"),
@@ -218,6 +218,6 @@ internal static partial class En
         new("Bitenler alta insin", "Move checked items to the bottom"),
 
         // Widget menüsü
-        new("Boyut: kenarlardan sürükle · {0} · Izgaraya hizala: Shift", "Size: drag the edges · {0} · Snap to grid: Shift"),
+        new("Boyut: kenarlardan sürükle · {0} · Izgaraya hizala: Shift", "Size: drag the edges · {0} · Align to grid: Shift"),
     ]);
 }

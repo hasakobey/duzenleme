@@ -779,7 +779,7 @@ public partial class FenceView : UserControl, IWidgetView
         DesktopFilter.Shortcuts => L.T("Masaüstünde kısayol yok."),
         DesktopFilter.Files => L.T("Masaüstünde dosya kalmadı.\nHepsi yerli yerinde!"),
         DesktopFilter.All => L.T("Masaüstü boş."),
-        _ => L.T("Klasör boş.\nDosyaları buraya sürükleyin."),
+        _ => L.T("Klasör boş.\nDosyaları buraya sürükle."),
     };
 
     private void ShowEmpty(SymbolRegular icon, string text, bool showCreate, bool showPick = false)
@@ -891,7 +891,7 @@ public partial class FenceView : UserControl, IWidgetView
         var open = Menus.Item(L.T("Aç"), () => TileItem.Launch(item.Path));
         open.InputGestureText = KeyNames.Enter;
         menu.Items.Add(open);
-        var remove = Menus.Item(L.T("Widget'tan kaldır"), () => HideItem(item));
+        var remove = Menus.Item(L.T("Widget'tan kaldır", "bölme"), () => HideItem(item));
         remove.ToolTip = L.T("Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler");
         menu.Items.Add(remove);
         if (TileItem.IsShellObject(item.Path))

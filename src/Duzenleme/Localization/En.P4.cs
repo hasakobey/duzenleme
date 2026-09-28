@@ -10,7 +10,7 @@ internal static partial class En
     internal static void AddP4() => Add(
     [
         // Widget menüsünün iskeleti (WidgetWindow.FillMenu)
-        new("Yeni widget ekle…", "Add a new widget…"),
+        new("Yeni widget ekle…", "Add widget…"),
         new("Windows masaüstüne göz at", "Peek at the Windows desktop"),
         new("{0}'e dön", "Back to {0}"),
         new("Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir", "Windows desktop icons appear and widgets step aside for a moment"),

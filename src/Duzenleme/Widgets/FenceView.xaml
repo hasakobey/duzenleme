@@ -88,7 +88,7 @@
                 </StackPanel>
 
                 <Border x:Name="DropOverlay" CornerRadius="12" BorderThickness="2" Visibility="Collapsed" IsHitTestVisible="False">
-                    <TextBlock Text="{l:T 'Bırakın, klasöre taşınsın'}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <TextBlock Text="{l:T 'Bırak, klasöre taşınsın'}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Margin="8,0" />
                 </Border>
             </Grid>

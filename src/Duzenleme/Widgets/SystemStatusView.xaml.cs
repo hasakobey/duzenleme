@@ -135,7 +135,7 @@ public partial class SystemStatusView : UserControl, IWidgetView
         if (battery is { } b && _config.Shows("battery"))
         {
             var level = b.Percent is { } p ? L.Percent(p / 100.0) : "?";
-            Set("battery", b.Charging ? L.F("{0} · şarj oluyor", level) : b.PluggedIn ? L.F("{0} · takılı", level) : level, (b.Percent ?? 0) / 100.0);
+            Set("battery", b.Charging ? L.F("{0} · şarj oluyor", level) : b.PluggedIn ? L.F("{0} · prize takılı", level) : level, (b.Percent ?? 0) / 100.0);
         }
 
         if (_config.Shows("uptime")) Set("uptime", MeasureText.Uptime(SystemStats.Uptime), 0);

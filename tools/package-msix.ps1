@@ -14,7 +14,7 @@
 # yenisiyle değiştirilir (yarıda kalan çalıştırma son sağlam paketi silmez).
 #
 # Store kimliği tools/store/identity.json'dan, paket bildirimi tools/store/AppxManifest.xml şablonundan gelir; bildirimdeki
-# ms-resource: metinleri (açıklamalar, "Add a widget" girişinin adı) tools/store/Strings/<dil>/Resources.resw'den (en-US
+# ms-resource: metinleri (açıklamalar, "Add widget" girişinin adı) tools/store/Strings/<dil>/Resources.resw'den (en-US
 # varsayılan + tr-TR) resources.pri'ye girer. Görseller src/Duzenleme/Assets/app.ico'dan üretilir. makeappx/makepri/signtool
 # için Windows SDK kurmak gerekmez: sürümü sabit Microsoft.Windows.SDK.BuildTools NuGet paketi bir kez
 # %LOCALAPPDATA%\DuzenlemeBuildTools altına indirilir (önbellek klasörünün adı eski; değiştirmek yeniden indirtir).

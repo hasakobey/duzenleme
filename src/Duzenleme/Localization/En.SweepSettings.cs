@@ -134,7 +134,7 @@ internal static partial class En
             "Key verified. You can now use \"Generate\" in the folder icon window."),
         new("Silindi", "Deleted"),
         new("API anahtarı ayarlardan kaldırıldı. Eski ayar yedeklerinde (yedekler klasörü) şifreli kopyası kalabilir.",
-            "The API key was removed from settings. An encrypted copy may remain in older settings backups (the yedekler folder)."),
+            "The API key was removed from settings. An encrypted copy may remain in older settings backups (the backups folder, named \"yedekler\")."),
         new("Anahtarın yoksa: ", "Don't have a key? "),
         new("Neyin gönderildiği: ", "What's sent: "),
 

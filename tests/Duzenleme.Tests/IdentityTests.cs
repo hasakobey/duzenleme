@@ -130,7 +130,7 @@ public class IdentityTests
             {
                 Assert.True(data.TryGetValue(key, out var value) && value.Length > 0, $"{language}/Resources.resw: {key} eksik ya da boş");
             }
-            // "Add a widget" girişi de ürün adıyla başlar.
+            // "Add widget" girişi de ürün adıyla başlar.
             Assert.StartsWith(AppInfo.Name + " ", data["AddWidgetName"]);
         }
     }
@@ -176,7 +176,8 @@ public class IdentityTests
         Assert.Contains("Get-Process NestDesk,Duzenleme", text);
         // İki dildeki "Widget ekle" kısayolu da silinir (öbür dilde kurulmuş eski sürümünki kırık kalmasın).
         Assert.Contains("{autoprograms}\\{#AppName} - Widget ekle.lnk", text);
-        Assert.Contains("{autoprograms}\\{#AppName} - Add a widget.lnk", text);
+        Assert.Contains("{autoprograms}\\{#AppName} - Add widget.lnk", text);
+        Assert.Contains("{autoprograms}\\{#AppName} - Add a widget.lnk", text); // 2.1 ön sürümlerindeki ad
         Assert.Contains("--restore-desktop", text);
         Assert.Contains("MigrateRunValue(ExpandConstant('{app}'))", text);
     }

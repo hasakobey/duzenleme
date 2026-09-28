@@ -132,7 +132,7 @@ english.OtherCopyRunning=Another copy of NestDesk (an older or portable version)
 turkish.OtherCopyRunning=NestDesk'in başka bir kopyası (eski sürüm ya da taşınabilir) çalışıyor.%n%nSaatin yanındaki tepsi simgesine sağ tıklayıp "Çıkış"ı (İngilizce sürümde "Exit") seç, sonra "Yeniden dene"ye bas.
 english.OtherCopyAbort=Setup was cancelled because NestDesk is still running. Close it and run setup again.
 turkish.OtherCopyAbort=NestDesk hâlâ çalıştığı için kurulum iptal edildi. Kapatıp kurulumu yeniden çalıştırabilirsin.
-english.QuickAdd=Add a widget
+english.QuickAdd=Add widget
 turkish.QuickAdd=Widget ekle
 english.NoPayload=This setup does not contain files for this computer's processor architecture.
 turkish.NoPayload=Bu kurulum programı bu bilgisayarın işlemci mimarisi için dosya içermiyor.
@@ -164,6 +164,7 @@ Type: files; Name: "{app}\Duzenleme.runtimeconfig.json"
 ; "Widget ekle" kısayolunun adı kurulum diline bağlı: iki dildeki hâli de silinir, şimdiki dilinkini [Icons] yeniden oluşturur
 ; (öbür dilde kurulmuş eski sürümün kısayolu eski exe'yi gösterip kırık kalmasın).
 Type: files; Name: "{autoprograms}\{#AppName} - Widget ekle.lnk"
+Type: files; Name: "{autoprograms}\{#AppName} - Add widget.lnk"
 Type: files; Name: "{autoprograms}\{#AppName} - Add a widget.lnk"
 ; 2.0.0 öncesi (Düzenleme) adlı Başlat kısayolları.
 Type: files; Name: "{autoprograms}\{#LegacyName}.lnk"

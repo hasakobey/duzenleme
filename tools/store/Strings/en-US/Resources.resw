@@ -19,8 +19,8 @@
     <comment>Package and Start menu description of the main app.</comment>
   </data>
   <data name="AddWidgetName" xml:space="preserve">
-    <value>NestDesk – Add a widget</value>
-    <comment>Start menu name of the second entry that opens the "Add a widget" window.</comment>
+    <value>NestDesk – Add widget</value>
+    <comment>Start menu name of the second entry that opens the "Add widget" window (same term as the app, tray and installer).</comment>
   </data>
   <data name="AddWidgetDescription" xml:space="preserve">
     <value>Adds a new widget (panel, clock, calendar, note, timer…) to the desktop.</value>

@@ -5,7 +5,7 @@
     {{Version}}                                         Duzenleme.csproj <Version> + ".0" (Store son parçanın 0 olmasını ister)
     {{Arch}}                                            x64 / arm64 / x86
   Görünen ad (DisplayName) Partner Center'da ayrılan ürün adıyla birebir aynı olmalı: NestDesk (Core/AppInfo.cs Name); iki
-  dilde de aynı olduğu için düz yazılır. Açıklamalar ve "Add a widget" girişinin adı ms-resource: ile tools/store/Strings/
+  dilde de aynı olduğu için düz yazılır. Açıklamalar ve "Add widget" girişinin adı ms-resource: ile tools/store/Strings/
   <dil>/Resources.resw'den gelir (en-US varsayılan, tr-TR); package-msix.ps1 ve IdentityTests her anahtarın iki dilde de
   bulunduğunu denetler (makeappx eksik anahtarı fark etmez).
   Kimlikler 2.1.0'da yeni ada geçti (paket henüz yayımlanmadı): Executable NestDesk.exe, Application Id NestDesk / AddWidget,
@@ -75,7 +75,7 @@
       </Extensions>
     </Application>
 
-    <!-- Başlat menüsünde tek tıkla widget ekleme (Inno kurulumundaki "NestDesk - Add a widget" kısayolunun karşılığı).
+    <!-- Başlat menüsünde tek tıkla widget ekleme (Inno kurulumundaki "NestDesk - Add widget" kısayolunun karşılığı).
          Uygulama çalışıyorsa istek çalışan örneğe iletilir ve bu süreç hemen kapanır. Uygulama kapalıyken buradan açılırsa
          süreç ayrı bir AUMID (PFN!AddWidget) taşır; tepsi, bildirimler ve görev çubuğu oturum boyunca o kimlikle çalışmasın
          diye uygulama ana kimliği (PFN!NestDesk) aynı parametreyle IApplicationActivationManager üzerinden başlatıp kapanır

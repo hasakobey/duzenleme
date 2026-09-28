@@ -50,7 +50,9 @@ internal static partial class En
         new("{0}\n(asıl adı: {1})\n{2}", "{0}\n(actual name: {1})\n{2}"),
         new("{0}\n{1}\n(bulunamadı)", "{0}\n{1}\n(not found)"),
         new("Geri Dönüşüm Kutusu'na taşı", "Move to Recycle Bin"),
-        new("Widget'tan kaldır", "Remove from widget"),
+        // Aynı Türkçe, iki anlam: bölmede öğe yalnızca bu bölmede gizlenir (dosyaya dokunulmaz), kutuda kutudan çıkar.
+        new("Widget'tan kaldır", "Hide in this panel", Context: "bölme"),
+        new("Widget'tan kaldır", "Remove from box", Context: "kutu"),
         new("Bu bölmede ara", "Search this panel"),
         new("Klasör oluşturulamadı: {0}", "Couldn't create the folder: {0}"),
         new("Öğe ekle", "Add item"),

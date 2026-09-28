@@ -17,7 +17,7 @@ internal static partial class En
 
         // Bölme (FenceView): durumlar ve arama
         new("Ara…  (Enter: aç)", "Search…  (Enter: open)"),
-        new("Bırakın, klasöre taşınsın", "Drop to move into the folder"),
+        new("Bırak, klasöre taşınsın", "Drop to move into the folder"),
         new("Masaüstü klasörü bulunamadı.", "Couldn't find the desktop folder."),
         new("Masaüstü şu an okunamıyor.", "Can't read the desktop right now."),
         new("Masaüstünde \"{0}\" klasörü yok.", "There's no \"{0}\" folder on the desktop."),
@@ -26,7 +26,7 @@ internal static partial class En
         new("Masaüstünde kısayol yok.", "There are no shortcuts on the desktop."),
         new("Masaüstünde dosya kalmadı.\nHepsi yerli yerinde!", "No files left on the desktop.\nEverything is in its place!"),
         new("Masaüstü boş.", "The desktop is empty."),
-        new("Klasör boş.\nDosyaları buraya sürükleyin.", "This folder is empty.\nDrag files here."),
+        new("Klasör boş.\nDosyaları buraya sürükle.", "This folder is empty.\nDrag files here."),
 
         // Bölme: öğe menüsü
         new("Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler",
@@ -39,7 +39,7 @@ internal static partial class En
         // Kısayol kutusu (LauncherView)
         new("Uygulama, kısayol, dosya ya da klasörü buraya sürükle. Tek tıkla açılır.",
             "Drag an app, shortcut, file or folder here. It opens with a single click."),
-        new("Bırakın, kısayol olarak eklensin", "Drop to add as a shortcut"),
+        new("Bırak, kısayol olarak eklensin", "Drop to add as a shortcut"),
         new("Sağ tık: yeniden adlandır, taşı, sil", "Right-click to rename, move or delete"),
         new("Sola taşı", "Move left"),
         new("Sağa taşı", "Move right"),
