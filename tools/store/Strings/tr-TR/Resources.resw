@@ -15,12 +15,12 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AppDescription" xml:space="preserve">
-    <value>Masaüstüne düşen dosyaları klasörlerine taşır; bölme, saat, tarih, not, yapılacaklar ve kısayol kutusu widget'ları sunar.</value>
+    <value>Masaüstünü bölmelere ayırır, istersen masaüstüne düşen dosyaları kendi klasörlerine taşır ve saat, takvim, not, yapılacaklar, zamanlayıcı ve kısayol kutusu widget'ları ekler.</value>
   </data>
   <data name="AddWidgetName" xml:space="preserve">
     <value>NestDesk – Widget ekle</value>
   </data>
   <data name="AddWidgetDescription" xml:space="preserve">
-    <value>Masaüstüne yeni bir widget (saat, tarih, klasör bölmesi…) ekler.</value>
+    <value>Masaüstüne yeni bir widget (bölme, saat, takvim, not, zamanlayıcı…) ekler.</value>
   </data>
 </root>

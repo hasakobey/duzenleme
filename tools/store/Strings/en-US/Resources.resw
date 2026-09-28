@@ -15,7 +15,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AppDescription" xml:space="preserve">
-    <value>Moves files dropped on your desktop into their folders and adds desktop widgets: panels, clock, date, notes, to-do lists and a shortcut box.</value>
+    <value>Splits your desktop into panels, moves files dropped on it into your own folders if you want, and adds widgets: clock, calendar, notes, to-do lists, timers and a shortcut box.</value>
     <comment>Package and Start menu description of the main app.</comment>
   </data>
   <data name="AddWidgetName" xml:space="preserve">
@@ -23,6 +23,6 @@
     <comment>Start menu name of the second entry that opens the "Add a widget" window.</comment>
   </data>
   <data name="AddWidgetDescription" xml:space="preserve">
-    <value>Adds a new widget (clock, date, panel…) to the desktop.</value>
+    <value>Adds a new widget (panel, clock, calendar, note, timer…) to the desktop.</value>
   </data>
 </root>
