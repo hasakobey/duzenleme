@@ -516,18 +516,18 @@ public sealed class WidgetWindow : Window
 
     private bool _placedByPixels;
 
-    // OnSourceInitialized bitti mi (pencere kayıtlı fiziksel konumuna oturtuldu mu)?
-    private bool _sourceReady;
+    // OnSourceInitialized bitti mi (pencere kayıtlı fiziksel konumuna oturtuldu mu)? Bitmeden gelen yerleşim bekler.
+    private bool _sourceReady, _placePending;
 
     private void PlaceOnScreen()
     {
+        if (_closed) return;
         // İçeriğe göre boyutlanan widget'ta (saat, tarih…) WPF Loaded'ı pencere oluşurken, OnSourceInitialized'dan ÖNCE
         // tetikleyebiliyor. O an pencere henüz kayıtlı yerinde değil (ölçeği farklı monitörde DIP konumu kayar): konum
-        // okunup kaydedilirse her açılışta widget biraz kayardı. Pencere yerine oturunca yapılır.
+        // okunup kaydedilirse her açılışta widget biraz kayardı. Yerleşim OnSourceInitialized bitince yapılır.
         if (!_sourceReady)
         {
-            DebugLog.Write($"[{Config.Kind}] yerleşim pencere oluşunca");
-            Dispatcher.BeginInvoke(PlaceOnScreen, DispatcherPriority.Loaded);
+            _placePending = true;
             return;
         }
         if (View.Resizable)
@@ -826,6 +826,11 @@ public sealed class WidgetWindow : Window
             _placedByPixels = true;
         }
         _sourceReady = true;
+        if (_placePending)
+        {
+            _placePending = false;
+            Dispatcher.BeginInvoke(PlaceOnScreen, DispatcherPriority.Loaded);
+        }
     }
 
     /// <summary>
