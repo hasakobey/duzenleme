@@ -4,7 +4,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:l="clr-namespace:Duzenleme.Localization"
       xmlns:views="clr-namespace:Duzenleme.Views"
-      Title="Ayarlar">
+      Title="{l:T 'Ayarlar'}">
     <Page.Resources>
         <!-- Ayar satırı: Border Surface + Grid [simge | başlık + açıklama | denetim]. -->
         <Style x:Key="Row" TargetType="Border" BasedOn="{StaticResource Surface}">
@@ -29,7 +29,7 @@
         <TextBlock x:Name="Subtitle" Style="{StaticResource PageSubtitle}" />
 
         <!-- ================= Genel ================= -->
-        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,8" Text="Genel" />
+        <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,8" Text="{l:T 'Genel'}" />
         <!-- Dil: başlık iki dilde, seçenekler kendi dillerinde (kod tarafında); değişiklik yeniden başlatınca uygulanır. -->
         <Border Style="{StaticResource Row}">
             <Grid>
@@ -62,17 +62,17 @@
                 <ui:SymbolIcon Symbol="Power24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Windows ile başlat" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Oturum açınca tepside sessizce başlar; widget'lar ve otomatik taşıma hazır olur." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Windows ile başlat'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Oturum açınca tepside sessizce başlar; widget\'lar ve otomatik taşıma hazır olur.'}" />
                     <!-- Store sürümü: görev kullanıcı/ilke yüzünden buradan değiştirilemiyorsa nedeni; test örneğinde uyarı. -->
                     <TextBlock x:Name="StartupState" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="Collapsed"
                                AutomationProperties.AutomationId="Settings.StartupState" />
                 </StackPanel>
                 <Grid Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
                     <ui:ToggleSwitch x:Name="StartupToggle" Checked="StartupToggle_Changed" Unchecked="StartupToggle_Changed"
-                                     AutomationProperties.AutomationId="Settings.Startup" AutomationProperties.Name="Windows ile başlat" />
+                                     AutomationProperties.AutomationId="Settings.Startup" AutomationProperties.Name="{l:T 'Windows ile başlat'}" />
                     <!-- Store sürümü: kullanıcı görevi Windows'tan kapattıysa, ilke yönetiyorsa ya da durum okunamadıysa anahtarın yerine. -->
-                    <ui:Button x:Name="StartupSettingsButton" Content="Başlangıç ayarlarını aç" Icon="{ui:SymbolIcon Open24}"
+                    <ui:Button x:Name="StartupSettingsButton" Content="{l:T 'Başlangıç ayarlarını aç'}" Icon="{ui:SymbolIcon Open24}"
                                Click="OpenStartupSettings_Click" Visibility="Collapsed" />
                 </Grid>
             </Grid>
@@ -87,11 +87,11 @@
                 <ui:SymbolIcon Symbol="Alert24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Taşıma bildirimleri" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Bir dosya taşındığında kısa bir bildirim göster." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Taşıma bildirimleri'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Bir dosya taşındığında kısa bir bildirim göster.'}" />
                 </StackPanel>
                 <ui:ToggleSwitch x:Name="NotifyToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Checked="NotifyToggle_Changed" Unchecked="NotifyToggle_Changed"
-                                 AutomationProperties.AutomationId="Settings.Notifications" AutomationProperties.Name="Taşıma bildirimleri" />
+                                 AutomationProperties.AutomationId="Settings.Notifications" AutomationProperties.Name="{l:T 'Taşıma bildirimleri'}" />
             </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
@@ -104,16 +104,16 @@
                 <ui:SymbolIcon Symbol="PaintBrush24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Tema" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tema'}" />
                     <TextBlock Style="{StaticResource Muted}"
-                               Text="Bu pencerenin görünümü. Widget'ların görünümü Widget'lar sayfasından ya da widget'a sağ tıklayarak ayarlanır." />
+                               Text="{l:T 'Bu pencerenin görünümü. Widget\'ların görünümü Widget\'lar sayfasından ya da widget\'a sağ tıklayarak ayarlanır.'}" />
                 </StackPanel>
                 <ComboBox x:Name="ThemeBox" Grid.Column="2" Width="160" Margin="16,0,0,0" VerticalAlignment="Center"
                           SelectionChanged="ThemeBox_SelectionChanged"
-                          AutomationProperties.AutomationId="Settings.Theme" AutomationProperties.Name="Tema">
-                    <ComboBoxItem Content="Sistem" />
-                    <ComboBoxItem Content="Koyu" />
-                    <ComboBoxItem Content="Açık" />
+                          AutomationProperties.AutomationId="Settings.Theme" AutomationProperties.Name="{l:T 'Tema'}">
+                    <ComboBoxItem Content="{l:T 'Sistem'}" />
+                    <ComboBoxItem Content="{l:T 'Koyu'}" />
+                    <ComboBoxItem Content="{l:T 'Açık'}" />
                 </ComboBox>
             </Grid>
         </Border>
@@ -141,7 +141,7 @@
         </Border>
 
         <!-- ================= Masaüstü ================= -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Masaüstü" />
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Masaüstü'}" />
         <!-- Windows masaüstü simgeleri: Widget'lar sayfası, tepsi ve widget menüleriyle aynı üç seçenek (DesktopModes). -->
         <Border Style="{StaticResource Row}">
             <StackPanel>
@@ -154,12 +154,12 @@
                     <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Windows masaüstü simgeleri" />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Windows masaüstü simgeleri'}" />
                         <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.IconModeText" />
                     </StackPanel>
                     <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" Margin="16,0,0,0" VerticalAlignment="Center"
                               SelectionChanged="IconModeBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Settings.IconMode" AutomationProperties.Name="Windows masaüstü simgeleri" />
+                              AutomationProperties.AutomationId="Settings.IconMode" AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
                 </Grid>
                 <!-- Kutulara taşınanlar: sayı, klasör, hepsini geri koy; ortak masaüstü izni (yalnızca bu kipte). -->
                 <StackPanel x:Name="BoxPanel" Margin="36,12,0,0" Visibility="Collapsed">
@@ -171,10 +171,10 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="BoxCountText" Style="{StaticResource Muted}" VerticalAlignment="Center"
                                    AutomationProperties.AutomationId="Settings.BoxCount" />
-                        <ui:Button x:Name="OpenBoxFolderButton" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="Klasörü aç"
+                        <ui:Button x:Name="OpenBoxFolderButton" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="{l:T 'Klasörü aç'}"
                                    Icon="{ui:SymbolIcon FolderOpen24}" AutomationProperties.AutomationId="Settings.OpenBoxFolder"
                                    Click="OpenBoxFolder_Click" />
-                        <ui:Button x:Name="ReturnAllButton" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center" Content="Hepsini masaüstüne geri koy"
+                        <ui:Button x:Name="ReturnAllButton" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center" Content="{l:T 'Hepsini masaüstüne geri koy'}"
                                    Icon="{ui:SymbolIcon ArrowUndo24}" AutomationProperties.AutomationId="Settings.ReturnAll"
                                    Click="ReturnAll_Click" />
                     </Grid>
@@ -184,12 +184,12 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" Text="Ortak masaüstündeki öğeler de taşınsın" />
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Ortak masaüstündeki öğeler de taşınsın'}" />
                             <TextBlock Style="{StaticResource Muted}"
-                                       Text="Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; izin yoksa kutuya yalnızca bağlantı olarak eklenir." />
+                                       Text="{l:T 'Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; izin yoksa kutuya yalnızca bağlantı olarak eklenir.'}" />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="PublicBoxToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Checked="PublicBoxToggle_Changed" Unchecked="PublicBoxToggle_Changed"
-                                         AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="Ortak masaüstündeki öğeler de taşınsın" />
+                                         AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="{l:T 'Ortak masaüstündeki öğeler de taşınsın'}" />
                     </Grid>
                 </StackPanel>
             </StackPanel>
@@ -206,7 +206,7 @@
                     <ui:SymbolIcon Symbol="Glance24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock x:Name="PeekTitle" Style="{StaticResource RowTitle}" Text="Windows masaüstüne göz at" />
+                        <TextBlock x:Name="PeekTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Windows masaüstüne göz at'}" />
                         <TextBlock x:Name="PeekText" Style="{StaticResource Muted}" />
                     </StackPanel>
                     <ui:Button x:Name="PeekButton" Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center"
@@ -218,10 +218,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="Göz atarken widget'ları gizle" />
+                        <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="{l:T 'Göz atarken widget\'ları gizle'}" />
                         <ui:ToggleSwitch x:Name="PeekHidesWidgetsToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                                          Checked="PeekHidesWidgets_Changed" Unchecked="PeekHidesWidgets_Changed" AutomationProperties.AutomationId="Settings.PeekHidesWidgets"
-                                         AutomationProperties.Name="Göz atarken widget'ları gizle" />
+                                         AutomationProperties.Name="{l:T 'Göz atarken widget\'ları gizle'}" />
                     </Grid>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
@@ -229,27 +229,27 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="Göz atarken açık pencereleri küçült" />
-                            <TextBlock Style="{StaticResource Muted}" Text="Win+D gibi; dönünce pencereler geri gelir. Çift tıklayınca masaüstü zaten öndedir." />
+                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Göz atarken açık pencereleri küçült'}" />
+                            <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Win+D gibi; dönünce pencereler geri gelir. Çift tıklayınca masaüstü zaten öndedir.'}" />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="PeekShowsDesktopToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                                          Checked="PeekShowsDesktop_Changed" Unchecked="PeekShowsDesktop_Changed" AutomationProperties.AutomationId="Settings.PeekShowsDesktop"
-                                         AutomationProperties.Name="Göz atarken açık pencereleri küçült" />
+                                         AutomationProperties.Name="{l:T 'Göz atarken açık pencereleri küçült'}" />
                     </Grid>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="Kendiliğinden geri dön" />
+                        <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="{l:T 'Kendiliğinden geri dön'}" />
                         <ComboBox x:Name="PeekMinutesBox" Grid.Column="1" Width="170" Margin="16,0,0,0" VerticalAlignment="Center"
                                   SelectionChanged="PeekMinutesBox_SelectionChanged"
-                                  AutomationProperties.AutomationId="Settings.PeekMinutes" AutomationProperties.Name="Kendiliğinden geri dön">
-                            <ComboBoxItem Content="1 dakika sonra" />
-                            <ComboBoxItem Content="2 dakika sonra" />
-                            <ComboBoxItem Content="5 dakika sonra" />
-                            <ComboBoxItem Content="10 dakika sonra" />
-                            <ComboBoxItem Content="Ben dönene dek" />
+                                  AutomationProperties.AutomationId="Settings.PeekMinutes" AutomationProperties.Name="{l:T 'Kendiliğinden geri dön'}">
+                            <ComboBoxItem Content="{l:T '1 dakika sonra'}" />
+                            <ComboBoxItem Content="{l:T '2 dakika sonra'}" />
+                            <ComboBoxItem Content="{l:T '5 dakika sonra'}" />
+                            <ComboBoxItem Content="{l:T '10 dakika sonra'}" />
+                            <ComboBoxItem Content="{l:T 'Ben dönene dek'}" />
                         </ComboBox>
                     </Grid>
                 </StackPanel>
@@ -265,16 +265,16 @@
                 <ui:SymbolIcon Symbol="CursorClick24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Boş masaüstüne çift tıklayınca" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Boş masaüstüne çift tıklayınca'}" />
                     <TextBlock x:Name="DoubleClickText" Style="{StaticResource Muted}" />
                 </StackPanel>
                 <ComboBox x:Name="DoubleClickBox" Grid.Column="2" Width="250" Margin="16,0,0,0" VerticalAlignment="Center"
                           SelectionChanged="DoubleClickBox_SelectionChanged"
-                          AutomationProperties.AutomationId="Settings.DoubleClick" AutomationProperties.Name="Boş masaüstüne çift tıklayınca">
-                    <ComboBoxItem Content="Otomatik (önerilen)" />
-                    <ComboBoxItem Content="Masaüstünü gizle / göster" />
-                    <ComboBoxItem Content="Windows masaüstüne göz at" />
-                    <ComboBoxItem Content="Hiçbir şey yapma" />
+                          AutomationProperties.AutomationId="Settings.DoubleClick" AutomationProperties.Name="{l:T 'Boş masaüstüne çift tıklayınca'}">
+                    <ComboBoxItem Content="{l:T 'Otomatik (önerilen)'}" />
+                    <ComboBoxItem Content="{l:T 'Masaüstünü gizle / göster'}" />
+                    <ComboBoxItem Content="{l:T 'Windows masaüstüne göz at'}" />
+                    <ComboBoxItem Content="{l:T 'Hiçbir şey yapma'}" />
                 </ComboBox>
             </Grid>
         </Border>
@@ -288,11 +288,11 @@
                 <ui:SymbolIcon Symbol="Apps24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Gizlerken widget'ları da gizle" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Kapalıyken yalnızca masaüstü simgeleri gizlenir; saat, not ve bölmeler kalır." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Gizlerken widget\'ları da gizle'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Kapalıyken yalnızca masaüstü simgeleri gizlenir; saat, not ve bölmeler kalır.'}" />
                 </StackPanel>
                 <ui:ToggleSwitch x:Name="HideWidgetsToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Checked="HideWidgetsToggle_Changed" Unchecked="HideWidgetsToggle_Changed"
-                                 AutomationProperties.AutomationId="Settings.HideWidgets" AutomationProperties.Name="Gizlerken widget'ları da gizle" />
+                                 AutomationProperties.AutomationId="Settings.HideWidgets" AutomationProperties.Name="{l:T 'Gizlerken widget\'ları da gizle'}" />
             </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
@@ -323,13 +323,13 @@
                 <ui:SymbolIcon Symbol="Target24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Yeni widget'ların yeri" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Yeni widget\'ların yeri'}" />
                     <TextBlock Style="{StaticResource Muted}"
-                               Text="Kısayolla (ör. yeni not) ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Yeni widget birkaç saniye vurgulu olarak öne gelir." />
+                               Text="{l:T 'Kısayolla (ör. yeni not) ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Yeni widget birkaç saniye vurgulu olarak öne gelir.'}" />
                 </StackPanel>
                 <ComboBox x:Name="PlacementBox" Grid.Column="2" Width="250" Margin="16,0,0,0" VerticalAlignment="Center"
                           SelectionChanged="PlacementBox_SelectionChanged"
-                          AutomationProperties.AutomationId="Settings.NewWidgetPlacement" AutomationProperties.Name="Yeni widget'ların yeri" />
+                          AutomationProperties.AutomationId="Settings.NewWidgetPlacement" AutomationProperties.Name="{l:T 'Yeni widget\'ların yeri'}" />
             </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
@@ -343,11 +343,11 @@
                     <ui:SymbolIcon Symbol="DesktopToolbox24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Sistem simgeleri" />
-                        <TextBlock Style="{StaticResource Muted}" Text="Bu Bilgisayar, Geri Dönüşüm Kutusu, Ağ…" />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Sistem simgeleri'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Bu Bilgisayar, Geri Dönüşüm Kutusu, Ağ…'}" />
                     </StackPanel>
                     <ui:Button x:Name="SystemIconsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                               AutomationProperties.AutomationId="Settings.SystemIcons" AutomationProperties.HelpText="Sistem simgeleri" />
+                               AutomationProperties.AutomationId="Settings.SystemIcons" AutomationProperties.HelpText="{l:T 'Sistem simgeleri'}" />
                 </Grid>
                 <StackPanel x:Name="SystemIconsContent" Margin="36,12,0,0">
                     <ItemsControl x:Name="SystemIconList" IsTabStop="False">
@@ -366,17 +366,17 @@
                                         <TextBlock Text="{Binding Description}" Style="{StaticResource Muted}" />
                                     </StackPanel>
                                     <ui:Button Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Appearance="Transparent"
-                                               Icon="{ui:SymbolIcon Open24}" Content="Aç" ToolTip="Gezgin'de aç"
+                                               Icon="{ui:SymbolIcon Open24}" Content="{l:T 'Aç'}" ToolTip="{l:T 'Gezgin\'de aç'}"
                                                AutomationProperties.Name="{Binding OpenName}" Click="SystemIconOpen_Click" />
                                     <ui:ToggleSwitch Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center"
                                                      IsChecked="{Binding Shown, Mode=TwoWay}" IsEnabled="{Binding CanChange}"
-                                                     OnContent="Görünür" OffContent="Gizli" AutomationProperties.Name="{Binding Name}" />
+                                                     OnContent="{l:T 'Görünür'}" OffContent="{l:T 'Gizli'}" AutomationProperties.Name="{Binding Name}" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <TextBlock x:Name="SystemIconsTestNote" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="Collapsed"
-                               Text="Test örneğinde değiştirilmez." />
+                               Text="{l:T 'Test örneğinde değiştirilmez.'}" />
                     <!-- Store sürümü: anahtarlar yalnızca durumu gösterir; değişiklik Windows'un ayarından (bkz. DesktopSystemIcons.CanChange). -->
                     <Grid x:Name="SystemIconsStoreNote" Margin="0,12,0,0" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
@@ -387,22 +387,22 @@
                         <ui:SymbolIcon Symbol="Info24" FontSize="20" Margin="0,0,12,0" VerticalAlignment="Center"
                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" Text="Bu simgeleri Windows ayarlarından aç/kapat" />
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Bu simgeleri Windows ayarlarından aç/kapat'}" />
                             <TextBlock Style="{StaticResource Muted}"
-                                       Text="Microsoft Store sürümü bu Windows ayarını kendisi değiştiremez. Açılan Temalar sayfasında &quot;Masaüstü simgesi ayarları&quot;na tıkla; buraya dönünce durum yenilenir." />
+                                       Text="{l:T 'Microsoft Store sürümü bu Windows ayarını kendisi değiştiremez. Açılan Temalar sayfasında &quot;Masaüstü simgesi ayarları&quot;na tıkla; buraya dönünce durum yenilenir.'}" />
                         </StackPanel>
                         <ui:Button Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Icon="{ui:SymbolIcon Open24}"
-                                   Content="Temalar sayfasını aç" AutomationProperties.AutomationId="Settings.OpenThemes"
+                                   Content="{l:T 'Temalar sayfasını aç'}" AutomationProperties.AutomationId="Settings.OpenThemes"
                                    Click="OpenIconSettings_Click" />
                     </Grid>
                     <TextBlock x:Name="FencesNote" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="Collapsed"
-                               Text="Masaüstü şu an bölmelerde; açtığın simgeler &quot;Kısayollar&quot; bölmesinde görünür." />
+                               Text="{l:T 'Masaüstü şu an bölmelerde; açtığın simgeler &quot;Kısayollar&quot; bölmesinde görünür.'}" />
                 </StackPanel>
             </StackPanel>
         </Border>
 
         <!-- ================= Klasör simgeleri ================= -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Klasör simgeleri" />
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Klasör simgeleri'}" />
         <Border Style="{StaticResource Row}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -413,11 +413,11 @@
                 <ui:SymbolIcon Symbol="FolderAdd24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Yeni klasöre simge öner" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Masaüstünde klasör açıp adını verdiğinde bildirim gelir; tıklayınca simge seçici açılır." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Yeni klasöre simge öner'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Masaüstünde klasör açıp adını verdiğinde bildirim gelir; tıklayınca simge seçici açılır.'}" />
                 </StackPanel>
                 <ui:ToggleSwitch x:Name="SuggestToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Checked="SuggestToggle_Changed" Unchecked="SuggestToggle_Changed"
-                                 AutomationProperties.AutomationId="Settings.SuggestIcons" AutomationProperties.Name="Yeni klasöre simge öner" />
+                                 AutomationProperties.AutomationId="Settings.SuggestIcons" AutomationProperties.Name="{l:T 'Yeni klasöre simge öner'}" />
             </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
@@ -430,10 +430,10 @@
                 <ui:SymbolIcon Symbol="Sparkle24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Tüm klasörlere önerilen simgeyi ver" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Özel simgesi olmayan masaüstü klasörlerine adlarına uygun hazır simge verir." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tüm klasörlere önerilen simgeyi ver'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Özel simgesi olmayan masaüstü klasörlerine adlarına uygun hazır simge verir.'}" />
                 </StackPanel>
-                <ui:Button x:Name="BeautifyButton" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Content="Simgeleri ver"
+                <ui:Button x:Name="BeautifyButton" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Content="{l:T 'Simgeleri ver'}"
                            AutomationProperties.AutomationId="Settings.BeautifyAll" Click="BeautifyAll_Click" />
             </Grid>
         </Border>
@@ -448,11 +448,11 @@
                     <ui:SymbolIcon Symbol="Color24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Bir klasörün simgesini değiştir" />
-                        <TextBlock Style="{StaticResource Muted}" Text="Masaüstündeki klasörlerden birini seç." />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Bir klasörün simgesini değiştir'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Masaüstündeki klasörlerden birini seç.'}" />
                     </StackPanel>
                     <ui:Button x:Name="FolderIconsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                               AutomationProperties.AutomationId="Settings.FolderIcons" AutomationProperties.HelpText="Bir klasörün simgesini değiştir" />
+                               AutomationProperties.AutomationId="Settings.FolderIcons" AutomationProperties.HelpText="{l:T 'Bir klasörün simgesini değiştir'}" />
                 </Grid>
                 <StackPanel x:Name="FolderIconsContent" Margin="36,12,0,0">
                     <ItemsControl x:Name="FolderIconList" IsTabStop="False">
@@ -468,22 +468,22 @@
                                            Width="24" Height="24" Margin="0,0,12,0" VerticalAlignment="Center" />
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="özel simge" Style="{StaticResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                        <TextBlock Text="{l:T 'özel simge'}" Style="{StaticResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center"
                                                    Visibility="{Binding CustomVisibility}" />
                                     </StackPanel>
                                     <ui:Button Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Icon="{ui:SymbolIcon Color24}"
-                                               Content="Simge seç" AutomationProperties.Name="{Binding ChooseName}" Click="ChooseIcon_Click" />
+                                               Content="{l:T 'Simge seç'}" AutomationProperties.Name="{Binding ChooseName}" Click="ChooseIcon_Click" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock x:Name="FolderIconsEmpty" Style="{StaticResource Muted}" Visibility="Collapsed" Text="Masaüstünde klasör yok." />
+                    <TextBlock x:Name="FolderIconsEmpty" Style="{StaticResource Muted}" Visibility="Collapsed" Text="{l:T 'Masaüstünde klasör yok.'}" />
                 </StackPanel>
             </StackPanel>
         </Border>
 
         <!-- ================= Gelişmiş ================= -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Gelişmiş" />
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Gelişmiş'}" />
         <Border Style="{StaticResource Row}">
             <StackPanel>
                 <Grid>
@@ -495,12 +495,12 @@
                     <ui:SymbolIcon Symbol="Keyboard24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Klavye kısayolları" />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Klavye kısayolları'}" />
                         <TextBlock Style="{StaticResource Muted}"
-                                   Text="Kutuya tıkla ve yeni tuş birleşimine bas (en az bir Ctrl/Alt/Shift/Win). Silmek için Backspace." />
+                                   Text="{l:T 'Kutuya tıkla ve yeni tuş birleşimine bas (en az bir Ctrl/Alt/Shift/Win). Silmek için Backspace.'}" />
                     </StackPanel>
                     <ui:Button x:Name="HotkeysFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                               AutomationProperties.AutomationId="Settings.Hotkeys" AutomationProperties.HelpText="Klavye kısayolları" />
+                               AutomationProperties.AutomationId="Settings.Hotkeys" AutomationProperties.HelpText="{l:T 'Klavye kısayolları'}" />
                 </Grid>
                 <StackPanel x:Name="HotkeysContent" Margin="36,12,0,0">
                     <ItemsControl x:Name="HotkeyList" IsTabStop="False">
@@ -525,7 +525,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <ui:Button Content="Kısayolları varsayılana döndür" Icon="{ui:SymbolIcon ArrowReset24}" Margin="0,8,0,0"
+                    <ui:Button Content="{l:T 'Kısayolları varsayılana döndür'}" Icon="{ui:SymbolIcon ArrowReset24}" Margin="0,8,0,0"
                                AutomationProperties.AutomationId="Settings.ResetHotkeys" Click="ResetHotkeys_Click" />
                 </StackPanel>
             </StackPanel>
@@ -541,15 +541,15 @@
                     <ui:SymbolIcon Symbol="Sparkle24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Yapay zekâ ile klasör simgesi (isteğe bağlı)" />
-                        <TextBlock Style="{StaticResource Muted}" Text="Kendi Claude API anahtarınla açıklamaya göre simge üret." />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Yapay zekâ ile klasör simgesi (isteğe bağlı)'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Kendi Claude API anahtarınla açıklamaya göre simge üret.'}" />
                     </StackPanel>
                     <ui:Button x:Name="AiFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                               AutomationProperties.AutomationId="Settings.Ai" AutomationProperties.HelpText="Yapay zekâ ile klasör simgesi" />
+                               AutomationProperties.AutomationId="Settings.Ai" AutomationProperties.HelpText="{l:T 'Yapay zekâ ile klasör simgesi'}" />
                 </Grid>
                 <StackPanel x:Name="AiContent" Margin="36,12,0,0">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="Claude API anahtarı" FontWeight="SemiBold" VerticalAlignment="Center"
+                        <TextBlock Text="{l:T 'Claude API anahtarı'}" FontWeight="SemiBold" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock x:Name="KeyStatus" Style="{StaticResource Muted}" Margin="10,0,0,0" VerticalAlignment="Center" />
                     </StackPanel>
@@ -561,17 +561,17 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <ui:PasswordBox x:Name="KeyBox" PlaceholderText="sk-ant-…" Icon="{ui:SymbolIcon Key24}"
-                                        AutomationProperties.Name="Claude API anahtarı" />
-                        <ui:Button x:Name="SaveKeyButton" Grid.Column="1" Margin="10,0,0,0" Appearance="Primary" Content="Kaydet ve doğrula"
+                                        AutomationProperties.Name="{l:T 'Claude API anahtarı'}" />
+                        <ui:Button x:Name="SaveKeyButton" Grid.Column="1" Margin="10,0,0,0" Appearance="Primary" Content="{l:T 'Kaydet ve doğrula'}"
                                    Click="SaveKey_Click" />
-                        <ui:Button Grid.Column="2" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Content="Sil" Click="DeleteKey_Click" />
+                        <ui:Button Grid.Column="2" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Content="{l:T 'Sil'}" Click="DeleteKey_Click" />
                     </Grid>
                     <ui:InfoBar x:Name="KeyFeedback" Margin="0,10,0,0" IsClosable="True" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0">
-                        <Run Text="Anahtarın yoksa: " /><Hyperlink NavigateUri="https://console.anthropic.com/settings/keys" RequestNavigate="Link_RequestNavigate">console.anthropic.com</Hyperlink>
+                        <Run Text="{l:T 'Anahtarın yoksa: '}" /><Hyperlink NavigateUri="https://console.anthropic.com/settings/keys" RequestNavigate="Link_RequestNavigate">console.anthropic.com</Hyperlink>
                     </TextBlock>
                     <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0">
-                        <Run Text="Neyin gönderildiği: " /><Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="Settings.AiPrivacy">Gizlilik politikası</Hyperlink>
+                        <Run Text="{l:T 'Neyin gönderildiği: '}" /><Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="Settings.AiPrivacy"><Run Text="{l:T 'Gizlilik politikası'}" /></Hyperlink>
                     </TextBlock>
                 </StackPanel>
             </StackPanel>
@@ -586,12 +586,12 @@
                 <ui:SymbolIcon Symbol="FolderProhibited24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Klasör simgelerinin hepsini kaldır" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Klasör simgelerinin hepsini kaldır'}" />
                     <TextBlock x:Name="RemoveIconsText" Style="{StaticResource Muted}" />
                 </StackPanel>
-                <ui:Button x:Name="RemoveIconsButton" Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center" Content="Kaldır"
+                <ui:Button x:Name="RemoveIconsButton" Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center" Content="{l:T 'Kaldır'}"
                            AutomationProperties.AutomationId="Settings.RemoveAllFolderIcons"
-                           AutomationProperties.Name="Klasör simgelerinin hepsini kaldır" Click="RemoveAllFolderIcons_Click" />
+                           AutomationProperties.Name="{l:T 'Klasör simgelerinin hepsini kaldır'}" Click="RemoveAllFolderIcons_Click" />
             </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
@@ -605,11 +605,11 @@
                     <ui:SymbolIcon Symbol="FolderOpen24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Dosya konumları" />
-                        <TextBlock Style="{StaticResource Muted}" Text="Masaüstü ve ayar klasörleri" />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Dosya konumları'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Masaüstü ve ayar klasörleri'}" />
                     </StackPanel>
                     <ui:Button x:Name="LocationsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                               AutomationProperties.AutomationId="Settings.Locations" AutomationProperties.HelpText="Dosya konumları" />
+                               AutomationProperties.AutomationId="Settings.Locations" AutomationProperties.HelpText="{l:T 'Dosya konumları'}" />
                 </Grid>
                 <StackPanel x:Name="LocationsContent" Margin="36,12,0,0">
                     <Grid Margin="0,0,0,12">
@@ -618,11 +618,11 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" Text="İzlenen masaüstü" />
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'İzlenen masaüstü'}" />
                             <TextBlock x:Name="DesktopPath" Style="{StaticResource Muted}" />
                         </StackPanel>
-                        <ui:Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="Aç" Icon="{ui:SymbolIcon Open24}"
-                                   AutomationProperties.AutomationId="Settings.OpenDesktop" AutomationProperties.Name="Masaüstü klasörünü aç"
+                        <ui:Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="{l:T 'Aç'}" Icon="{ui:SymbolIcon Open24}"
+                                   AutomationProperties.AutomationId="Settings.OpenDesktop" AutomationProperties.Name="{l:T 'Masaüstü klasörünü aç'}"
                                    Click="OpenDesktop_Click" />
                     </Grid>
                     <Grid>
@@ -631,12 +631,12 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" Text="Ayar ve geçmiş dosyaları" />
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Ayar ve geçmiş dosyaları'}" />
                             <TextBlock x:Name="DataPath" Style="{StaticResource Muted}" />
                             <TextBlock x:Name="PortableText" Style="{StaticResource Muted}" Margin="0,2,0,0" />
                         </StackPanel>
-                        <ui:Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="Aç" Icon="{ui:SymbolIcon Open24}"
-                                   AutomationProperties.AutomationId="Settings.OpenData" AutomationProperties.Name="Ayar klasörünü aç"
+                        <ui:Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="{l:T 'Aç'}" Icon="{ui:SymbolIcon Open24}"
+                                   AutomationProperties.AutomationId="Settings.OpenData" AutomationProperties.Name="{l:T 'Ayar klasörünü aç'}"
                                    Click="OpenData_Click" />
                     </Grid>
                 </StackPanel>
@@ -644,7 +644,7 @@
         </Border>
 
         <!-- ================= Yardım ================= -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Yardım" />
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Yardım'}" />
         <Border Style="{StaticResource Row}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -655,17 +655,17 @@
                 <ui:SymbolIcon Symbol="Sparkle24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Karşılama" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Bölmeleri, otomatik taşımayı ve widget'ları adım adım yeniden kur. Var olanlar silinmez." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Karşılama'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Bölmeleri, otomatik taşımayı ve widget\'ları adım adım yeniden kur. Var olanlar silinmez.'}" />
                 </StackPanel>
-                <ui:Button Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center" Content="Başlat"
-                           AutomationProperties.AutomationId="Settings.Welcome" AutomationProperties.HelpText="Karşılamayı yeniden aç"
+                <ui:Button Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center" Content="{l:T 'Başlat'}"
+                           AutomationProperties.AutomationId="Settings.Welcome" AutomationProperties.HelpText="{l:T 'Karşılamayı yeniden aç'}"
                            Click="Welcome_Click" />
             </Grid>
         </Border>
 
         <!-- ================= Hakkında ================= -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Hakkında" />
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Hakkında'}" />
         <Border Style="{StaticResource Surface}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -680,12 +680,12 @@
                     <TextBlock x:Name="ChannelText" Style="{StaticResource Muted}" Margin="0,10,0,0" AutomationProperties.AutomationId="Settings.Channel" />
                     <TextBlock x:Name="PrivacyText" Style="{StaticResource Muted}" Margin="0,4,0,0" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0">
-                        <Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="Settings.Privacy">Gizlilik politikası</Hyperlink>
+                        <Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="Settings.Privacy"><Run Text="{l:T 'Gizlilik politikası'}" /></Hyperlink>
                     </TextBlock>
                     <DockPanel Margin="0,14,0,0" LastChildFill="False">
-                        <ui:Button x:Name="ReleasesButton" Icon="{ui:SymbolIcon Open24}" Content="İndirme sayfasını aç"
+                        <ui:Button x:Name="ReleasesButton" Icon="{ui:SymbolIcon Open24}" Content="{l:T 'İndirme sayfasını aç'}"
                                    AutomationProperties.AutomationId="Settings.Releases" Click="Releases_Click" />
-                        <ui:Button DockPanel.Dock="Right" Appearance="Danger" Icon="{ui:SymbolIcon Power24}" Content="Uygulamadan çık"
+                        <ui:Button DockPanel.Dock="Right" Appearance="Danger" Icon="{ui:SymbolIcon Power24}" Content="{l:T 'Uygulamadan çık'}"
                                    AutomationProperties.AutomationId="Settings.Exit" Click="Exit_Click" />
                     </DockPanel>
                 </StackPanel>

@@ -19,8 +19,8 @@ public sealed class HotkeyRow(HotkeyAction action, string label, SymbolRegular i
     public HotkeyAction Action { get; } = action;
     public string Label { get; } = label;
     public SymbolRegular Icon { get; } = icon;
-    public string Text { get; } = string.IsNullOrEmpty(text) ? "Yok" : text;
-    public string Status => failure ?? "Etkin";
+    public string Text { get; } = string.IsNullOrEmpty(text) ? L.T("Yok") : text;
+    public string Status => failure ?? L.T("Etkin");
     public Brush StatusBrush => (Brush)Application.Current.FindResource(failure is null ? "TextFillColorTertiaryBrush" : "SystemFillColorCriticalBrush");
 }
 
@@ -33,7 +33,7 @@ public sealed class SystemIconRow(SystemIcon icon) : INotifyPropertyChanged
 
     /// <summary>Simgesi arka planda, ekranın piksel boyutunda yüklenir (ShellIconImage).</summary>
     public string IconPath => "::" + Item.Clsid;
-    public string OpenName => $"Aç: {Item.Name}";
+    public string OpenName => L.F("Aç: {0}", Item.Name);
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -70,7 +70,7 @@ public sealed class FolderIconRow : INotifyPropertyChanged
 
     public string Path { get; }
     public string Name { get; }
-    public string ChooseName => $"Simge seç: {Name}";
+    public string ChooseName => L.F("Simge seç: {0}", Name);
 
     /// <summary>Simgesi arka planda, ekranın piksel boyutunda yüklenir (ShellIconImage); simge değişince sürüm artar.</summary>
     public string IconPath => Path;
@@ -96,15 +96,16 @@ public sealed class FolderIconRow : INotifyPropertyChanged
 /// </summary>
 public partial class SettingsPage : Page
 {
-    private static readonly (HotkeyAction Action, string Label, SymbolRegular Icon)[] HotkeyActions =
+    // => özelliği: etiketler her okumada arayüz dilinde (static alanda dil o anki hâlinde donardı).
+    private static (HotkeyAction Action, string Label, SymbolRegular Icon)[] HotkeyActions =>
     [
-        (HotkeyAction.ToggleDesktop, "Masaüstünü gizle / göster", SymbolRegular.EyeOff24),
-        (HotkeyAction.OrganizeNow, "Masaüstünü şimdi düzenle", SymbolRegular.Sparkle24),
-        (HotkeyAction.OpenApp, $"{AppInfo.Name}'i aç", SymbolRegular.WindowNew24),
-        (HotkeyAction.NewNote, "Yeni not", SymbolRegular.NoteAdd24),
-        (HotkeyAction.PeekWidgets, "Widget'ları öne getir (5 sn)", SymbolRegular.Eye24),
-        (HotkeyAction.QuickAdd, "Widget ekle penceresi", SymbolRegular.Add24),
-        (HotkeyAction.PeekDesktop, "Windows masaüstüne göz at", SymbolRegular.Glance24),
+        (HotkeyAction.ToggleDesktop, L.T("Masaüstünü gizle / göster"), SymbolRegular.EyeOff24),
+        (HotkeyAction.OrganizeNow, L.T("Masaüstünü şimdi düzenle"), SymbolRegular.Sparkle24),
+        (HotkeyAction.OpenApp, L.F("{0}'i aç", AppInfo.Name), SymbolRegular.WindowNew24),
+        (HotkeyAction.NewNote, L.T("Yeni not"), SymbolRegular.NoteAdd24),
+        (HotkeyAction.PeekWidgets, L.T("Widget'ları öne getir (5 sn)"), SymbolRegular.Eye24),
+        (HotkeyAction.QuickAdd, L.T("Widget ekle penceresi"), SymbolRegular.Add24),
+        (HotkeyAction.PeekDesktop, L.T("Windows masaüstüne göz at"), SymbolRegular.Glance24),
     ];
 
     private bool _loading;
@@ -122,14 +123,11 @@ public partial class SettingsPage : Page
     public SettingsPage()
     {
         InitializeComponent();
-        Subtitle.Text = $"{AppInfo.Name}'in nasıl çalışacağını seç.";
-        AiText.Text = "Anahtarı girersen klasör simgesi penceresinde yazdığın açıklamaya göre yeni simge üretebilirsin. Anahtar yalnızca " +
-                      "bu bilgisayarda, Windows hesabına bağlı şifrelenerek saklanır. Üretim başına küçük bir API ücreti (birkaç sent) " +
-                      "Anthropic hesabına yansır. Anahtar zorunlu değil; hazır simgeler anahtarsız çalışır. " +
-                      $"{AppInfo.Name} internete yalnızca anahtarı doğrularken ve sen \"Üret\"e bastığında Anthropic'e bağlanır; " +
-                      "simge için yalnızca klasör adı ve yazdığın açıklama gönderilir.";
-        RemoveIconsText.Text = $"Masaüstündeki klasörlere {AppInfo.Name}'in verdiği simgeleri kaldırır. {AppInfo.Name}'i kaldırmadan " +
-                               "önce kullanabilirsin: simgeler klasörlerin içinde durduğu için kendiliğinden silinmez.";
+        Subtitle.Text = L.F("{0}'in nasıl çalışacağını seç.", AppInfo.Name);
+        AiText.Text = L.F("Anahtarı girersen klasör simgesi penceresinde yazdığın açıklamaya göre yeni simge üretebilirsin. Anahtar yalnızca bu bilgisayarda, Windows hesabına bağlı şifrelenerek saklanır. Üretim başına küçük bir API ücreti (birkaç sent) Anthropic hesabına yansır. Anahtar zorunlu değil; hazır simgeler anahtarsız çalışır. {0} internete yalnızca anahtarı doğrularken ve sen \"Üret\"e bastığında Anthropic'e bağlanır; simge için yalnızca klasör adı ve yazdığın açıklama gönderilir.",
+            AppInfo.Name);
+        RemoveIconsText.Text = L.F("Masaüstündeki klasörlere {0}'in verdiği simgeleri kaldırır. {0}'i kaldırmadan önce kullanabilirsin: simgeler klasörlerin içinde durduğu için kendiliğinden silinmez.",
+            AppInfo.Name);
         LoadAbout();
 
         Fold.Attach(SystemIconsFold, SystemIconsContent, LoadSystemIcons);
@@ -306,7 +304,7 @@ public partial class SettingsPage : Page
     /// <summary>Anahtarın altındaki not. Test örneği (--desktop) gerçek başlangıç kaydını değiştirmez; bunu söyler.</summary>
     private void ShowStartupNote(string? note)
     {
-        if (AppHost.IsTestDesktop) note = "Test örneğinde değiştirilmez.";
+        if (AppHost.IsTestDesktop) note = L.T("Test örneğinde değiştirilmez.");
         StartupState.Text = note ?? "";
         StartupState.Visibility = note is null ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -394,10 +392,10 @@ public partial class SettingsPage : Page
             DoubleClickBox.SelectedIndex = Array.IndexOf(DesktopState.DoubleClickChoices, doubleClick);
             DoubleClickText.Text = doubleClick switch
             {
-                DesktopState.DoubleClickToggle => "Simgeler (ve ayara göre widget'lar) gizlenir; yeniden çift tıklayınca geri gelir.",
-                DesktopState.DoubleClickPeek => "Windows'un simgeleri görünür, widget'lar kısa süre çekilir; yeniden çift tıklayınca dönülür.",
-                DesktopState.DoubleClickNone => "Çift tıklama yalnızca Windows'un kendi işini yapar.",
-                _ => "Bölmeler masaüstünü yönetirken Windows masaüstüne göz atar, yoksa masaüstünü gizler/gösterir. Simgeye çift tıklamak yine dosyayı açar.",
+                DesktopState.DoubleClickToggle => L.T("Simgeler (ve ayara göre widget'lar) gizlenir; yeniden çift tıklayınca geri gelir."),
+                DesktopState.DoubleClickPeek => L.T("Windows'un simgeleri görünür, widget'lar kısa süre çekilir; yeniden çift tıklayınca dönülür."),
+                DesktopState.DoubleClickNone => L.T("Çift tıklama yalnızca Windows'un kendi işini yapar."),
+                _ => L.T("Bölmeler masaüstünü yönetirken Windows masaüstüne göz atar, yoksa masaüstünü gizler/gösterir. Simgeye çift tıklamak yine dosyayı açar."),
             };
             PeekHidesWidgetsToggle.IsChecked = s.PeekHidesWidgets;
             PeekShowsDesktopToggle.IsChecked = s.PeekShowsDesktop;
@@ -428,8 +426,8 @@ public partial class SettingsPage : Page
         var active = DesktopModes.Current == IconMode.BoxItemsLeave;
         BoxPanel.Visibility = active || moved > 0 ? Visibility.Visible : Visibility.Collapsed;
         BoxCountText.Text = moved == 0
-            ? $"Henüz kutuya taşınan öğe yok. Taşınanlar {BoxMover.Root} klasöründe durur."
-            : $"{moved} öğe kutularda; dosyalar {BoxMover.Root} klasöründe.";
+            ? L.F("Henüz kutuya taşınan öğe yok. Taşınanlar {0} klasöründe durur.", BoxMover.Root)
+            : L.P(moved, "{0} öğe kutularda; dosyalar {1} klasöründe.", BoxMover.Root);
         ReturnAllButton.IsEnabled = moved > 0;
         OpenBoxFolderButton.IsEnabled = moved > 0;
         PublicBoxRow.Visibility = active && !AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
@@ -441,8 +439,8 @@ public partial class SettingsPage : Page
     {
         var moved = BoxMover.MovedCount;
         if (moved == 0) return;
-        if (Confirm.Ask(Window.GetWindow(this), "Kutulardaki öğeler masaüstüne geri konsun mu?",
-                $"{moved} öğe masaüstüne döner ve kutularda kalır.", "Masaüstüne geri koy", danger: false))
+        if (Confirm.Ask(Window.GetWindow(this), L.T("Kutulardaki öğeler masaüstüne geri konsun mu?"),
+                L.P(moved, "{0} öğe masaüstüne döner ve kutularda kalır."), L.T("Masaüstüne geri koy"), danger: false))
             BoxMover.ReturnAll();
     }
 
@@ -457,12 +455,14 @@ public partial class SettingsPage : Page
     private void UpdatePeek()
     {
         var peeking = AppHost.Peeking;
-        PeekTitle.Text = peeking ? "Windows masaüstüne göz atılıyor" : "Windows masaüstüne göz at";
-        PeekButton.Content = peeking ? $"{AppInfo.Name}'e dön" : "Göz at";
-        System.Windows.Automation.AutomationProperties.SetName(PeekButton, peeking ? $"{AppInfo.Name}'e dön" : "Windows masaüstüne göz at");
+        PeekTitle.Text = peeking ? L.T("Windows masaüstüne göz atılıyor") : L.T("Windows masaüstüne göz at");
+        var back = L.F("{0}'e dön", AppInfo.Name);
+        PeekButton.Content = peeking ? back : L.T("Göz at");
+        System.Windows.Automation.AutomationProperties.SetName(PeekButton, peeking ? back : L.T("Windows masaüstüne göz at"));
         var shortcut = AppHost.Settings.Hotkeys.PeekDesktop;
-        PeekText.Text = "Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir; ekranın üstündeki çubuktan dönülür. " +
-                        (string.IsNullOrWhiteSpace(shortcut) ? "Kısayol atanmamış." : $"Kısayol: {shortcut}");
+        PeekText.Text = string.IsNullOrWhiteSpace(shortcut)
+            ? L.T("Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir; ekranın üstündeki çubuktan dönülür. Kısayol atanmamış.")
+            : L.F("Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir; ekranın üstündeki çubuktan dönülür. Kısayol: {0}", shortcut);
     }
 
     private void Peek_Click(object sender, RoutedEventArgs e) => AppHost.TogglePeek(AppHost.PeekOrigin.Settings);
@@ -524,11 +524,11 @@ public partial class SettingsPage : Page
     {
         var hidden = AppHost.DesktopHidden;
         HideNowIcon.Symbol = hidden ? SymbolRegular.Eye24 : SymbolRegular.EyeOff24;
-        HideNowTitle.Text = hidden ? "Masaüstünü göster" : "Masaüstünü şimdi gizle";
-        HideNowButton.Content = hidden ? "Göster" : "Gizle";
+        HideNowTitle.Text = hidden ? L.T("Masaüstünü göster") : L.T("Masaüstünü şimdi gizle");
+        HideNowButton.Content = hidden ? L.T("Göster") : L.T("Gizle");
         System.Windows.Automation.AutomationProperties.SetName(HideNowButton, HideNowTitle.Text);
         var shortcut = AppHost.Settings.Hotkeys.ToggleDesktop;
-        HideNowShortcut.Text = string.IsNullOrWhiteSpace(shortcut) ? "Kısayol atanmamış" : $"Kısayol: {shortcut}";
+        HideNowShortcut.Text = string.IsNullOrWhiteSpace(shortcut) ? L.T("Kısayol atanmamış") : L.F("Kısayol: {0}", shortcut);
     }
 
     private void HideNow_Click(object sender, RoutedEventArgs e) => AppHost.ToggleDesktop();
@@ -568,7 +568,7 @@ public partial class SettingsPage : Page
         var folders = DesktopFolders();
         if (folders.Count == 0)
         {
-            Notice.Show("Masaüstünde klasör yok.", NoticeKind.Info);
+            Notice.Show(L.T("Masaüstünde klasör yok."), NoticeKind.Info);
             return;
         }
         var done = 0;
@@ -586,9 +586,9 @@ public partial class SettingsPage : Page
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException) { }
         }
         if (done > 0)
-            Notice.Show($"{done} klasöre adına uygun simge verildi. Beğenmediğini \"Bir klasörün simgesini değiştir\"den değiştirebilirsin.");
+            Notice.Show(L.P(done, "{0} klasöre adına uygun simge verildi. Beğenmediğini \"Bir klasörün simgesini değiştir\"den değiştirebilirsin."));
         else
-            Notice.Show("Değişiklik yok: tüm klasörlerin zaten özel simgesi var.", NoticeKind.Info);
+            Notice.Show(L.T("Değişiklik yok: tüm klasörlerin zaten özel simgesi var."), NoticeKind.Info);
         if (_folderIcons is not null) LoadFolderIcons();
     }
 
@@ -670,14 +670,14 @@ public partial class SettingsPage : Page
     // ---- Gelişmiş: yapay zekâ ----
 
     private void UpdateKeyStatus() =>
-        KeyStatus.Text = ApiKeyStore.HasKey ? $"Kayıtlı ({ApiKeyStore.Masked()})" : "Eklenmedi";
+        KeyStatus.Text = ApiKeyStore.HasKey ? L.F("Kayıtlı ({0})", ApiKeyStore.Masked()) : L.T("Eklenmedi");
 
     private async void SaveKey_Click(object sender, RoutedEventArgs e)
     {
         var key = KeyBox.Password.Trim();
         if (key.Length == 0)
         {
-            ShowKey("Anahtar boş", "Önce anahtarı yapıştır.", InfoBarSeverity.Warning);
+            ShowKey(L.T("Anahtar boş"), L.T("Önce anahtarı yapıştır."), InfoBarSeverity.Warning);
             return;
         }
         SaveKeyButton.IsEnabled = false;
@@ -686,13 +686,13 @@ public partial class SettingsPage : Page
             var error = await AiIconGenerator.ValidateKeyAsync(key);
             if (error is not null)
             {
-                ShowKey("Kaydedilmedi", error, InfoBarSeverity.Error);
+                ShowKey(L.T("Kaydedilmedi"), error, InfoBarSeverity.Error);
                 return;
             }
             ApiKeyStore.Save(key);
             KeyBox.Password = "";
             UpdateKeyStatus();
-            ShowKey("Kaydedildi", "Anahtar doğrulandı. Klasör simgesi penceresinde \"Üret\" artık kullanılabilir.", InfoBarSeverity.Success);
+            ShowKey(L.T("Kaydedildi"), L.T("Anahtar doğrulandı. Klasör simgesi penceresinde \"Üret\" artık kullanılabilir."), InfoBarSeverity.Success);
         }
         finally
         {
@@ -704,7 +704,7 @@ public partial class SettingsPage : Page
     {
         ApiKeyStore.Save(null);
         UpdateKeyStatus();
-        ShowKey("Silindi", "API anahtarı ayarlardan kaldırıldı. Eski ayar yedeklerinde (yedekler klasörü) şifreli kopyası kalabilir.", InfoBarSeverity.Informational);
+        ShowKey(L.T("Silindi"), L.T("API anahtarı ayarlardan kaldırıldı. Eski ayar yedeklerinde (yedekler klasörü) şifreli kopyası kalabilir."), InfoBarSeverity.Informational);
     }
 
     private void ShowKey(string title, string message, InfoBarSeverity severity)
@@ -729,10 +729,10 @@ public partial class SettingsPage : Page
     /// </summary>
     private async void RemoveAllFolderIcons_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm.Ask(Window.GetWindow(this), "Klasör simgelerinin hepsi kaldırılsın mı?",
-                $"{AppInfo.Name}'in verdiği bütün klasör simgeleri silinir ve klasörler Windows'un varsayılan simgesine döner. " +
-                "Klasörlere ve içlerindeki dosyalara dokunulmaz. Simgeleri yeniden vermek istersen \"Klasör simgeleri\" bölümünü kullan.",
-                "Hepsini kaldır"))
+        if (!Confirm.Ask(Window.GetWindow(this), L.T("Klasör simgelerinin hepsi kaldırılsın mı?"),
+                L.F("{0}'in verdiği bütün klasör simgeleri silinir ve klasörler Windows'un varsayılan simgesine döner. Klasörlere ve içlerindeki dosyalara dokunulmaz. Simgeleri yeniden vermek istersen \"Klasör simgeleri\" bölümünü kullan.",
+                    AppInfo.Name),
+                L.T("Hepsini kaldır")))
             return;
         RemoveIconsButton.IsEnabled = false;
         try
@@ -750,9 +750,9 @@ public partial class SettingsPage : Page
             removed.ForEach(ShellIcons.Forget);
             if (_folderIcons is not null) LoadFolderIcons();
             var text = removed.Count > 0
-                ? $"{removed.Count} klasörün simgesi kaldırıldı; masaüstü birkaç saniye içinde yenilenir."
-                : $"Kaldırılacak simge yok: {AppInfo.Name}'in verdiği bir klasör simgesi bulunamadı.";
-            if (failed > 0) text += $" {failed} klasöre erişilemediği için dokunulamadı.";
+                ? L.P(removed.Count, "{0} klasörün simgesi kaldırıldı; masaüstü birkaç saniye içinde yenilenir.")
+                : L.F("Kaldırılacak simge yok: {0}'in verdiği bir klasör simgesi bulunamadı.", AppInfo.Name);
+            if (failed > 0) text += " " + L.P(failed, "{0} klasöre erişilemediği için dokunulamadı.");
             Notice.Show(text, failed > 0 ? NoticeKind.Warning : removed.Count > 0 ? NoticeKind.Success : NoticeKind.Info);
         }
         finally
@@ -772,17 +772,17 @@ public partial class SettingsPage : Page
         {
             // Taşınabilir mod paketliyken yoktur. Pakete ayrılmış klasör uygulamayla birlikte silinir: kullanıcı bilsin.
             var own = !string.Equals(folder, AppHost.DataDirectory, StringComparison.OrdinalIgnoreCase);
-            PortableText.Text = "Microsoft Store sürümüne ayrılmış klasör; uygulama kaldırılınca Windows içindekileri de siler.";
+            PortableText.Text = L.T("Microsoft Store sürümüne ayrılmış klasör; uygulama kaldırılınca Windows içindekileri de siler.");
             PortableText.Visibility = own ? Visibility.Visible : Visibility.Collapsed;
             return;
         }
         PortableText.Text = AppHost.IsPortable
-            ? "Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe."
+            ? L.T("Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe.")
             : AppHost.PortableFallback
-                ? "portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik yukarıdaki klasörde. Programı yazılabilir bir klasöre taşı."
+                ? L.T("portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik yukarıdaki klasörde. Programı yazılabilir bir klasöre taşı.")
                 : AppHost.DataFolderSource == DataFolderSource.MoveFailed
-                    ? $"Klasör o sırada kullanımda olduğu için {AppInfo.DataFolderName} adıyla yeniden adlandırılamadı; bir sonraki açılışta yeniden denenecek."
-                    : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
+                    ? L.F("Klasör o sırada kullanımda olduğu için {0} adıyla yeniden adlandırılamadı; bir sonraki açılışta yeniden denenecek.", AppInfo.DataFolderName)
+                    : L.T("Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.");
     }
 
     private void OpenDesktop_Click(object sender, RoutedEventArgs e) =>
@@ -801,11 +801,11 @@ public partial class SettingsPage : Page
         VersionText.Text = $"{AppInfo.Name} {AppInfo.Version}";
         TaglineText.Text = AppInfo.Tagline;
         ChannelText.Text = PackageInfo.IsPackaged
-            ? "Microsoft Store sürümü · Güncellemeler Microsoft Store'dan kendiliğinden gelir."
+            ? L.T("Microsoft Store sürümü · Güncellemeler Microsoft Store'dan kendiliğinden gelir.")
             : AppHost.IsPortable
-                ? "Taşınabilir sürüm · Güncellemek için yeni zip'i bu klasörün üzerine çıkar; data klasörün korunur."
-                : "Kurulum sürümü · Güncellemek için indirme sayfasından yeni kurulum dosyasını çalıştır; ayarların korunur.";
-        PrivacyText.Text = $"{AppInfo.Name} güncelleme denetlemez ve kendiliğinden internete bağlanmaz. Ayarların ve notların yalnızca bu bilgisayarda.";
+                ? L.T("Taşınabilir sürüm · Güncellemek için yeni zip'i bu klasörün üzerine çıkar; data klasörün korunur.")
+                : L.T("Kurulum sürümü · Güncellemek için indirme sayfasından yeni kurulum dosyasını çalıştır; ayarların korunur.");
+        PrivacyText.Text = L.F("{0} güncelleme denetlemez ve kendiliğinden internete bağlanmaz. Ayarların ve notların yalnızca bu bilgisayarda.", AppInfo.Name);
         // Store sürümünü Store günceller; indirme sayfası yalnızca kurulum/taşınabilir sürüm için.
         ReleasesButton.Visibility = PackageInfo.IsPackaged ? Visibility.Collapsed : Visibility.Visible;
     }
