@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Duzenleme.Core;
 
 namespace Duzenleme.Tests;
@@ -8,8 +8,9 @@ public class PathProbeTests
     private int _stats;
     private int _rootChecks;
 
-    // Süre ölçen testler: 2 çekirdekli CI makinesinde paralel çalışan diğer testler iş parçacığı havuzunu doldurunca
-    // Task.Delay'in devamı saniyelerce kuyrukta bekliyordu. Havuzun alt sınırı yükseltilir (yalnızca bu test süreci).
+    // Süre ölçen testler: 2 çekirdekli CI makinesinde paralel testler iş parçacığı havuzunu ve xUnit'in iki iş parçacıklı
+    // eşitleme bağlamını doldurunca await'in devamı saniyelerce kuyrukta bekliyordu. Havuzun alt sınırı yükseltilir ve süre
+    // ölçen await'ler ConfigureAwait(false) ile xUnit bağlamına dönmez.
     static PathProbeTests()
     {
         ThreadPool.GetMinThreads(out var workers, out var io);
@@ -67,8 +68,8 @@ public class PathProbeTests
         var probe = Probe(rootExists: _ => { Thread.Sleep(3000); return false; });
         var clock = Stopwatch.StartNew();
 
-        var first = await probe.CheckAsync(@"\\nas\paylasim\a.exe");
-        var second = await probe.CheckAsync(@"\\nas\paylasim\b.exe");
+        var first = await probe.CheckAsync(@"\\nas\paylasim\a.exe").ConfigureAwait(false);
+        var second = await probe.CheckAsync(@"\\nas\paylasim\b.exe").ConfigureAwait(false);
 
         Assert.Null(first);
         Assert.Null(second);
@@ -92,7 +93,7 @@ public class PathProbeTests
         var probe = Probe(stat: _ => { Thread.Sleep(3000); return PathState.Absent; });
         var clock = Stopwatch.StartNew();
 
-        Assert.Null(await probe.CheckAsync(@"\\nas\paylasim\takilan.exe"));
+        Assert.Null(await probe.CheckAsync(@"\\nas\paylasim\takilan.exe").ConfigureAwait(false));
         Assert.True(clock.ElapsedMilliseconds < 2000);
         // Sunucu bir süre "yanıt vermiyor" sayılır: sonraki öğe hiç sorulmaz.
         Assert.Null(await probe.CheckAsync(@"\\nas\paylasim\diger.exe"));
