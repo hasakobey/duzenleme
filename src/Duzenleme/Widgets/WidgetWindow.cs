@@ -82,6 +82,18 @@ public sealed class WidgetWindow : Window
         // (WPF-UI) onun saydam zeminini opak bir dikdörtgene çevirebilir.
         if (Application.Current?.MainWindow == this) Application.Current.MainWindow = null;
 
+        // Klavye: kart odak alabilir (sekme durağı değil). Pencere tıklamayla etkinleşip içinde odaklı bir şey yoksa (başlığa
+        // tıklandı) odak karta verilir: F2 ve widget'ın diğer kısayolları hep bu pencereye ulaşır.
+        _card.Focusable = true;
+        _card.FocusVisualStyle = null;
+        KeyboardNavigation.SetIsTabStop(_card, false);
+        // (Etkinleşen pencerede WPF odağı pencerenin kendisine verir: kartın menüsü Menü tuşu / Shift+F10 ile de açılsın.)
+        Activated += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            if (IsActive && (Keyboard.FocusedElement is null || ReferenceEquals(Keyboard.FocusedElement, this))) FocusCard();
+        }, DispatcherPriority.Input);
+        PreviewKeyDown += OnPreviewKey;
+
         _card.MouseLeftButtonDown += (_, e) => { if (!BeginResize(e)) BeginDrag(e); };
         _card.MouseMove += (_, e) =>
         {
@@ -1074,6 +1086,32 @@ public sealed class WidgetWindow : Window
 
     /// <summary>Klavye girişi için widget'ı bilerek etkinleştirir (yeni not, arama kutusu).</summary>
     public void ActivateForInput() => Activate();
+
+    /// <summary>Klavye odağını kartın kendisine verir (düzenleme bitince; F2 yeniden çalışsın).</summary>
+    public void FocusCard() => Keyboard.Focus(_card);
+
+    /// <summary>
+    /// F2: görünüm seçili öğeyi (bölme: dosyayı diskte, kutu: yalnızca görünen adı) ya da başlığı yerinde yeniden adlandırır.
+    /// Alt/Ctrl/Shift ile basılan F2'ye dokunulmaz.
+    /// </summary>
+    private void OnPreviewKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
+    }
+
+    /// <summary>Kartın ortası (fiziksel piksel): widget'tan açılan küçük pencereler bu monitörde açılsın.</summary>
+    internal NativeMethods.POINT CenterPoint
+    {
+        get
+        {
+            if (CardBox is { } card) return new NativeMethods.POINT { X = (card.Left + card.Right) / 2, Y = (card.Top + card.Bottom) / 2 };
+            NativeMethods.GetCursorPos(out var cursor);
+            return cursor;
+        }
+    }
+
+    /// <summary>Kartın fiziksel dikdörtgeni (gölge payı hariç; katlı bölmede görünen başlık kadar); görünmüyorsa null.</summary>
+    internal Box? VisibleCardBox => PixelBounds is { } r ? new Box(r.Left + MarginPixels, r.Top + MarginPixels, r.Right - MarginPixels, r.Bottom - MarginPixels) : null;
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {

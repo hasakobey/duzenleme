@@ -16,14 +16,22 @@ public partial class LauncherView : UserControl, IWidgetView
     private readonly WidgetConfig _config;
     private WidgetPalette _palette = WidgetPalette.Glass;
 
+    // Yerinde yeniden adlandırma: başlık ve öğenin görünen adı (dosyaya dokunulmaz, bkz. ItemLooks).
+    private readonly TitleEditor _titleEditor;
+    private TileRename? _rename;
+    private bool _renderDeferred;
+    private string? _selectAfterRender;
+
     public LauncherView(WidgetConfig config)
     {
         _config = config;
-        if (_config.Tabs.Count == 0) _config.Tabs.Add(new LauncherTab());
+        if (_config.Tabs.Count == 0) _config.Tabs.Add(new LauncherTab { Name = L.T("Uygulamalar") });
         InitializeComponent();
 
+        _titleEditor = new TitleEditor(this, Header, TitleText, HeaderIconButton, () => DefaultTitle, CommitTitle, PickIcon, ApplyParts);
         Header.MouseLeftButtonDown += (_, e) =>
         {
+            Items.SelectedItem = null; // F2 artık başlığı adlandırır
             if (e.ClickCount == 2) { e.Handled = true; CollapseToggleRequested?.Invoke(); }
         };
         Header.SizeChanged += (_, e) => { if (e.WidthChanged) ApplyParts(); };
@@ -31,6 +39,7 @@ public partial class LauncherView : UserControl, IWidgetView
         Loaded += (_, _) => UpdateIconSizes();
 
         Items.PreviewMouseLeftButtonUp += OnItemClick;
+        Items.KeyDown += OnItemsKey;
         Menus.AttachItemMenu(Items, FillItemMenu);
 
         Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link);
@@ -38,8 +47,9 @@ public partial class LauncherView : UserControl, IWidgetView
         DragOver += OnDragOver;
         DragLeave += (_, _) => DropOverlay.Visibility = Visibility.Collapsed;
         Drop += OnDrop;
-        // Öğeler masaüstünden kutuya taşınınca ya da geri konunca yolları değişir.
+        // Öğeler masaüstünden kutuya taşınınca ya da geri konunca yolları değişir; bir bölmede yeniden adlandırılınca da.
         BoxMover.Changed += Render;
+        AppHost.PathRenamed += OnPathRenamed;
         Render();
     }
 
@@ -60,11 +70,12 @@ public partial class LauncherView : UserControl, IWidgetView
     private void ApplyParts()
     {
         Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
-        HeaderIcon.Visibility = Visibility.Visible;
+        HeaderIconButton.Visibility = Visibility.Visible;
         CountText.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
         TabStrip.Visibility = AddTab.Visibility = _config.Shows("tabs") ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
-        HeaderFitter.Fit(Header, TitleText, [CountText, HeaderIcon], [RemoveButton]);
+        // Başlık düzenlenirken kutuya yer açılır, simge düğmesi (seçiciyi açar) gizlenmez.
+        _titleEditor.Fit([CountText, HeaderIconButton], [RemoveButton]);
     }
 
     private List<TileItem> _tiles = [];
@@ -93,11 +104,18 @@ public partial class LauncherView : UserControl, IWidgetView
 
     private LauncherTab Current => _config.Tabs[Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1)];
 
-    private const string DefaultTitle = "Kısayol kutusu";
+    private static string DefaultTitle => L.T("Kısayol kutusu");
 
     private void Render()
     {
+        // Öğenin adı düzenlenirken liste yeniden kurulmaz (kutu ve yazılan kaybolurdu); düzenleme bitince yapılır.
+        if (_rename is { IsActive: true })
+        {
+            _renderDeferred = true;
+            return;
+        }
         TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title;
+        HeaderIcon.Symbol = WidgetIcons.For(_config);
         CountText.Text = $"{_config.Tabs.Sum(t => t.Items.Count)} öğe";
         RenderTabs();
         ApplyParts();
@@ -109,11 +127,44 @@ public partial class LauncherView : UserControl, IWidgetView
         }
         // Yollar arka planda denetlenir (ağ yolları süre sınırıyla): kapalı bir NAS'taki öğe açılışı ya da sekme
         // değiştirmeyi bekletmez; sonuç gelince öğe soluklaşır ya da simgesini alır.
-        // Simgeler bu ekranın gerçek piksel boyutunda istenir (yol denetimi bitince).
+        // Simgeler bu ekranın gerçek piksel boyutunda istenir (yol denetimi bitince). Kullanıcının verdiği ad ve simge
+        // (ItemLooks) öğenin yoluna bağlıdır: sekme değişse de gider.
         var dpi = IconDpi;
-        _tiles = Current.Items.Select(p => TileItem.CreateUnchecked(p, _config, pixelsPerDip: dpi)).ToList();
+        var looks = ItemLooks.Lookup(_config);
+        _glyphColor = TileItem.GlyphColor(_config);
+        _tiles = Current.Items.Select(p =>
+        {
+            looks.TryGetValue(p, out var look);
+            return TileItem.CreateUnchecked(p, _config, look?.Name, pixelsPerDip: dpi, icon: look?.Icon);
+        }).ToList();
         Items.ItemsSource = _tiles;
         EmptyState.Visibility = _tiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_selectAfterRender is { } path)
+        {
+            _selectAfterRender = null;
+            if (_tiles.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is { } item) SelectAndFocus(item);
+        }
+    }
+
+    /// <summary>Fluent simgeli öğelerin çizildiği vurgu rengi (değişince öğeler yeniden kurulur).</summary>
+    private System.Windows.Media.Color _glyphColor;
+
+    /// <summary>Öğeyi seçer ve (widget etkinse) odaklar: Gezgin gibi F2 ve yön tuşları hemen çalışır.</summary>
+    private void SelectAndFocus(TileItem item)
+    {
+        Items.SelectedItem = item;
+        Items.ScrollIntoView(item);
+        if (Window.GetWindow(this)?.IsActive != true) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (Items.ItemContainerGenerator.ContainerFromItem(item) is ListBoxItem container) container.Focus();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void OnPathRenamed(string oldPath, string newPath, bool isDirectory)
+    {
+        // AppHost kutuların yollarını zaten güncelledi; bu kutuda etkilenen öğe varsa yeniden çizilir.
+        if (_config.Tabs.Any(t => t.Items.Any(p => PathRenames.Map(p, newPath, newPath, isDirectory) is not null))) Render();
     }
 
     private string _panelKey = "";
@@ -150,12 +201,16 @@ public partial class LauncherView : UserControl, IWidgetView
         }
     }
 
+    /// <summary>Sekme adı soran küçük pencere widget'ın monitöründe açılsın (birincil monitörde değil).</summary>
+    private NativeMethods.POINT? DialogPoint => (Window.GetWindow(this) as WidgetWindow)?.CenterPoint;
+
     private void FillTabMenu(ContextMenu menu, int index)
     {
         var tab = _config.Tabs[index];
-        menu.Items.Add(Menus.Item("Yeniden adlandır…", () =>
+        menu.Items.Add(Menus.Item(L.T("Yeniden adlandır…"), () =>
         {
-            if (InputDialog.Ask("Sekme adı", "Ad", tab.Name) is { Length: > 0 } name) Change(() => tab.Name = name);
+            if (InputDialog.Ask(L.T("Sekmeyi yeniden adlandır"), L.T("Sekme adı"), tab.Name, DialogPoint) is { Length: > 0 } name)
+                Change(() => tab.Name = name);
         }));
         if (index > 0)
             menu.Items.Add(Menus.Item("Sola taşı", () => Change(() => Swap(index, index - 1))));
@@ -170,6 +225,8 @@ public partial class LauncherView : UserControl, IWidgetView
                 {
                     _config.Tabs.RemoveAt(index);
                     _config.ActiveTab = Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1);
+                    // Başka sekmede kalmayan öğelerin adları ve simgeleri de gider (son silinen öğe "Geri al" için tutulur).
+                    ItemLooks.Prune(_config, _lastRemoved is { } last ? [last.Path] : null);
                 });
                 // Sekmedeki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
                 BoxMover.Reconcile();
@@ -190,7 +247,8 @@ public partial class LauncherView : UserControl, IWidgetView
 
     private void NewTab()
     {
-        if (InputDialog.Ask("Yeni sekme", "Sekme adı", $"Sekme {_config.Tabs.Count + 1}") is not { Length: > 0 } name) return;
+        if (InputDialog.Ask(L.T("Yeni sekme"), L.T("Sekme adı"), L.F("Sekme {0}", _config.Tabs.Count + 1), DialogPoint) is not { Length: > 0 } name)
+            return;
         Change(() =>
         {
             _config.Tabs.Add(new LauncherTab { Name = name });
@@ -207,8 +265,8 @@ public partial class LauncherView : UserControl, IWidgetView
         Render();
     }
 
-    /// <summary>Dock gibi: tek tıkla açılır.</summary>
-    private (LauncherTab Tab, int Index, string Path)? _lastRemoved;
+    /// <summary>Son kaldırılan öğe (menüdeki "Geri al" için); kullanıcının verdiği ad ve simgesiyle.</summary>
+    private (LauncherTab Tab, int Index, string Path, ItemLook? Look)? _lastRemoved;
 
     /// <summary>
     /// Öğeyi listeden çıkarır; kutunun menüsündeki "Geri al" ile yerine döner. Masaüstünden kutuya taşınmış öğe (başka kutuda
@@ -220,8 +278,15 @@ public partial class LauncherView : UserControl, IWidgetView
         var index = tab.Items.FindIndex(p => string.Equals(p, item.Path, StringComparison.OrdinalIgnoreCase));
         if (index < 0) return;
         var moved = BoxMover.IsMoved(item.Path);
-        _lastRemoved = (tab, index, tab.Items[index]);
-        Change(() => tab.Items.RemoveAt(index));
+        var path = tab.Items[index];
+        // Öğe başka sekmede de duruyorsa adı ve simgesi orada kalır.
+        var elsewhere = _config.Tabs.Where(t => t != tab).Any(t => t.Items.Contains(path, StringComparer.OrdinalIgnoreCase));
+        _lastRemoved = (tab, index, path, elsewhere ? null : ItemLooks.Get(_config, path));
+        Change(() =>
+        {
+            tab.Items.RemoveAt(index);
+            if (!elsewhere) ItemLooks.Reset(_config, path);
+        });
         if (!moved) return;
         BoxMover.Reconcile();
         if (!BoxPlan.Referenced(AppHost.Settings.Widgets).Contains(item.Path))
@@ -233,7 +298,11 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         if (_lastRemoved is not { } last || !_config.Tabs.Contains(last.Tab)) return;
         _lastRemoved = null;
-        Change(() => last.Tab.Items.Insert(Math.Min(last.Index, last.Tab.Items.Count), last.Path));
+        Change(() =>
+        {
+            last.Tab.Items.Insert(Math.Min(last.Index, last.Tab.Items.Count), last.Path);
+            ItemLooks.Restore(_config, last.Path, last.Look);
+        });
         // Öğe bu arada masaüstüne geri konduysa kutu onu yeniden bulur (kip açıksa yeniden taşınır).
         BoxMover.Reconcile();
     }
@@ -272,7 +341,18 @@ public partial class LauncherView : UserControl, IWidgetView
 
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
-        menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
+        var open = Menus.Item(L.T("Aç"), () => TileItem.Launch(item.Path));
+        open.InputGestureText = KeyNames.Enter;
+        menu.Items.Add(open);
+        // Kutudaki ad ve simge yalnızca bu kutuda görünür; dosyanın kendisine dokunulmaz.
+        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginLabelRename(item));
+        rename.InputGestureText = KeyNames.F2;
+        rename.ToolTip = L.T("Yalnızca kutuda görünen ad değişir; dosyanın adı değişmez.");
+        menu.Items.Add(rename);
+        menu.Items.Add(Menus.Item(L.T("Simgeyi değiştir…"), () => PickItemIcon(item)));
+        if (ItemLooks.Get(_config, item.Path) is { IsEmpty: false })
+            menu.Items.Add(Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
+        menu.Items.Add(new Separator());
         var moved = BoxMover.IsMoved(item.Path);
         if (moved)
         {
@@ -286,7 +366,8 @@ public partial class LauncherView : UserControl, IWidgetView
         }
         else
         {
-            var remove = Menus.Item("Widget'tan kaldır", () => RemoveItem(item));
+            var remove = Menus.Item(L.T("Widget'tan kaldır"), () => RemoveItem(item));
+            remove.InputGestureText = KeyNames.Delete;
             remove.ToolTip = "Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al";
             menu.Items.Add(remove);
             // Kip sonradan açıldıysa önceden eklenen masaüstü öğesi de tek tek kutuya alınabilir.
@@ -335,6 +416,9 @@ public partial class LauncherView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _titleEditor.ApplyPalette(palette);
+        // Fluent simgeli öğeler vurgu renginde çizilir: renk değiştiyse öğeler yeniden kurulur.
+        if (TileItem.GlyphColor(_config) != _glyphColor && _tiles.Any(t => t.HasCustomIcon)) Render();
         Foreground = palette.Foreground;
         HeaderIcon.Foreground = palette.Accent;
         CountText.Foreground = palette.Secondary;
@@ -356,13 +440,15 @@ public partial class LauncherView : UserControl, IWidgetView
             menu.Primary.Add(Menus.Item($"Geri al: \"{TileItem.DisplayName(last.Path)}\" listeye dönsün", UndoRemove));
             menu.Primary.Add(new Separator());
         }
-        menu.Primary.Add(Menus.Item("Uygulama ya da dosya ekle…", AddFiles));
+        var add = new MenuItem { Header = L.T("Öğe ekle") };
+        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), AddFiles));
+        add.Items.Add(Menus.Item(L.T("Klasör…"), AddFolders));
+        menu.Primary.Add(add);
         menu.Primary.Add(Menus.Item("Sekme ekle…", NewTab));
-        menu.Primary.Add(Menus.Item("Başlığı değiştir…", () =>
-        {
-            if (InputDialog.Ask("Kutu başlığı", "Başlık", TitleText.Text) is { } title)
-                Change(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
-        }));
+        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
+        rename.InputGestureText = KeyNames.F2;
+        menu.Primary.Add(rename);
+        menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
         menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
         // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes).
@@ -394,5 +480,132 @@ public partial class LauncherView : UserControl, IWidgetView
         AddItems(dialog.FileNames);
     }
 
-    public void Detach() => BoxMover.Changed -= Render;
+    /// <summary>Klasör seçici (eskiden klasör yalnızca sürükleyerek eklenebiliyordu).</summary>
+    private void AddFolders()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = L.T("Kısayol kutusuna klasör ekle"),
+            Multiselect = true,
+            InitialDirectory = AppHost.DesktopDirectory,
+        };
+        if (dialog.ShowDialog() != true) return;
+        AddItems(dialog.FolderNames);
+    }
+
+    // --- Yerinde yeniden adlandırma (F2) ve simgeler ---
+
+    /// <summary>F2: seçili öğenin kutudaki adı (liste odaktayken), yoksa başlık.</summary>
+    public bool TryBeginRename()
+    {
+        if (_titleEditor.IsEditing || _rename is { IsActive: true }) return true;
+        if (Items.IsKeyboardFocusWithin && Items.SelectedItem is TileItem item) return BeginLabelRename(item);
+        return BeginTitleEdit();
+    }
+
+    /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>
+    private bool BeginTitleEdit()
+    {
+        if (_titleEditor.Begin()) return true;
+        if (InputDialog.Ask(L.T("Kutuyu yeniden adlandır"), L.T("Ad (boş bırakırsan varsayılan ad kullanılır)"), TitleText.Text, DialogPoint) is { } title)
+            CommitTitle(string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
+        return true;
+    }
+
+    private void CommitTitle(string? title)
+    {
+        if (string.Equals(_config.Title, title, StringComparison.Ordinal)) return;
+        _config.Title = title;
+        AppHost.SaveSettings();
+        TitleText.Text = title ?? DefaultTitle;
+        ApplyParts();
+    }
+
+    private void PickIcon()
+    {
+        if (Window.GetWindow(this) is not WidgetWindow window) return;
+        Views.IconPicker.ForWidget(window, _config, TitleText.Text,
+            preview: icon => HeaderIcon.Symbol = WidgetIcons.Symbol(icon) ?? WidgetIcons.DefaultFor(_config),
+            commit: icon =>
+            {
+                _config.Icon = icon;
+                AppHost.SaveSettings();
+                HeaderIcon.Symbol = WidgetIcons.For(_config);
+            });
+    }
+
+    /// <summary>Öğenin kutuda görünen adını yerinde düzenler (dosyanın adı değişmez; boş bırakmak asıl ada döndürür).</summary>
+    private bool BeginLabelRename(TileItem item)
+    {
+        _rename?.Cancel();
+        var path = item.Path;
+        var text = item.Name;
+        TileRename? rename = null;
+        rename = TileRename.Begin(Items, item, text, 0, text.Length, ItemLooks.MaxName, fileName: false, _palette,
+            commit: edited =>
+            {
+                if (ItemLooks.SetName(_config, path, edited, TileItem.DisplayName(path)))
+                {
+                    AppHost.SaveSettings();
+                    _renderDeferred = true;
+                    _selectAfterRender = path;
+                }
+                return true;
+            },
+            ended: () =>
+            {
+                if (_rename == rename) _rename = null;
+                if (!_renderDeferred) return;
+                _renderDeferred = false;
+                Render();
+            });
+        _rename = rename;
+        return true;
+    }
+
+    /// <summary>Öğenin simgesi: Fluent simgesi, Windows simgesi ya da resim; seçerken öğe hemen o simgeyle görünür.</summary>
+    private void PickItemIcon(TileItem item)
+    {
+        if (Window.GetWindow(this) is not WidgetWindow window) return;
+        var path = item.Path;
+        var original = ItemLooks.Get(_config, path)?.Icon;
+        void Show(string? icon)
+        {
+            var index = _tiles.FindIndex(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) return;
+            _tiles[index] = TileItem.CreateUnchecked(path, _config, _tiles[index].Renamed ? _tiles[index].Name : null, IconDpi, icon);
+            Items.ItemsSource = null;
+            Items.ItemsSource = _tiles;
+        }
+        Views.IconPicker.ForItem(window, item, original, preview: Show, commit: icon =>
+        {
+            if (ItemLooks.SetIcon(_config, path, icon)) AppHost.SaveSettings();
+            Render();
+        });
+    }
+
+    /// <summary>Liste odaktayken: Enter açar, Delete kutudan çıkarır ("Geri al" menüde).</summary>
+    private void OnItemsKey(object sender, KeyEventArgs e)
+    {
+        if (e.OriginalSource is not ListBoxItem || Items.SelectedItem is not TileItem item || Keyboard.Modifiers != ModifierKeys.None) return;
+        switch (e.Key)
+        {
+            case Key.Enter when !item.Missing:
+                TileItem.Launch(item.Path);
+                e.Handled = true;
+                break;
+            case Key.Delete:
+                RemoveItem(item);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    public void Detach()
+    {
+        _rename?.Cancel();
+        _titleEditor.Cancel();
+        BoxMover.Changed -= Render;
+        AppHost.PathRenamed -= OnPathRenamed;
+    }
 }

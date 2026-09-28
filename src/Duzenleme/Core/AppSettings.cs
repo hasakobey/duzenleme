@@ -135,6 +135,34 @@ public sealed class WidgetConfig
     /// üretilir ve sonra değişmez; başlık değişse de öğeler aynı klasörde kalır.
     /// </summary>
     public string? BoxFolder { get; set; }
+
+    // 2.1 P5 — ad ve simge
+    // (Metin ve sözlük: eski sürüm bilmediği alanları yok sayar. Kalıcı enum'a üye eklenmedi.)
+
+    /// <summary>
+    /// Başlık simgesi (<see cref="IconRef"/>: "sym:Games24", "res:yol,sıra", "img:dosya"); boş ya da tanınmıyorsa türün
+    /// varsayılanı (<c>WidgetIcons.For</c>). Başlıkta yalnızca "sym:" çizilir; diğerleri varsayılana düşer.
+    /// </summary>
+    public string? Icon { get; set; }
+
+    /// <summary>
+    /// Kısayol kutusu: öğe başına görünen ad ve simge; anahtar öğenin yolu (büyük/küçük harf duyarsız aranır, bkz.
+    /// <see cref="ItemLooks"/>). Dosyaya dokunmaz. Öğe taşınınca ya da yeniden adlandırılınca anahtar da taşınır.
+    /// </summary>
+    public Dictionary<string, ItemLook>? ItemLooks { get; set; }
+}
+
+/// <summary>Kısayol kutusundaki bir öğenin kullanıcının verdiği adı ve simgesi (boş olan varsayılandır).</summary>
+public sealed class ItemLook
+{
+    /// <summary>Görünen ad; null ise dosyanın adı.</summary>
+    public string? Name { get; set; }
+
+    /// <summary>Simge (<see cref="IconRef"/>); null ise dosyanın kendi simgesi.</summary>
+    public string? Icon { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Name) && string.IsNullOrWhiteSpace(Icon);
 }
 
 /// <summary>Kaydedilmiş widget düzeni (Fences'taki düzen anlık görüntüleri gibi).</summary>

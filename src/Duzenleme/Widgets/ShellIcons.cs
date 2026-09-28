@@ -87,7 +87,7 @@ public static class ShellIcons
         return Previewable.Contains(Path.GetExtension(path)) && (attributes & (Cloud | FileAttributes.Directory)) == 0;
     }
 
-    private static readonly BlockingCollection<(string Path, int Pixels, bool Preview, Action<ImageSource?> Done, Dispatcher Dispatcher)> Queue = new();
+    private static readonly BlockingCollection<(Func<ImageSource?> Load, Action<ImageSource?> Done, Dispatcher Dispatcher)> Queue = new();
     private static Thread? _worker;
 
     /// <summary>
@@ -98,7 +98,86 @@ public static class ShellIcons
     public static void Request(string path, int pixels, bool preview, Action<ImageSource?> done)
     {
         EnsureWorker();
-        Queue.Add((path, pixels, preview, done, Dispatcher.CurrentDispatcher));
+        // "::{CLSID}" kabuk nesneleri (Geri Dönüşüm Kutusu…) de burada, istenen boyutta yüklenir: arayüzde yavaş sürücüyü beklemesin.
+        Queue.Add((() => For(path, pixels, preview), done, Dispatcher.CurrentDispatcher));
+    }
+
+    // --- Kullanıcının seçtiği simgeler (kısayol kutusu öğesi: "res:" ve "img:", bkz. Core.IconRef) ---
+
+    /// <summary>
+    /// .ico/.exe/.dll içindeki bir simgeyi (Windows'un "Simge Değiştir" penceresinde seçilen) istenen piksel boyutunda arka
+    /// planda yükler. Yol ortam değişkeni taşıyabilir. Yüklenemezse null bildirilir (çağıran dosyanın kendi simgesine döner).
+    /// </summary>
+    public static void RequestResource(string file, int index, int pixels, Action<ImageSource?> done)
+    {
+        EnsureWorker();
+        Queue.Add((() => Cache.GetOrAdd(ResourceKey(file, index, pixels),
+            _ => LoadResource(Environment.ExpandEnvironmentVariables(file), index, pixels)), done, Dispatcher.CurrentDispatcher));
+    }
+
+    /// <summary>Kullanıcının seçtiği resmi (veri klasöründeki kopyası) istenen boyuta yakın çözünürlükte arka planda yükler.</summary>
+    public static void RequestImage(string file, int pixels, Action<ImageSource?> done)
+    {
+        EnsureWorker();
+        Queue.Add((() => Cache.GetOrAdd(ImageKey(file, pixels), _ => LoadImage(file, pixels)), done, Dispatcher.CurrentDispatcher));
+    }
+
+    /// <summary>Önbellekteki kaynak simgesi (diske dokunmaz).</summary>
+    public static bool TryCachedResource(string file, int index, int pixels, out ImageSource? icon) =>
+        Cache.TryGetValue(ResourceKey(file, index, pixels), out icon);
+
+    /// <summary>Önbellekteki resim (diske dokunmaz).</summary>
+    public static bool TryCachedImage(string file, int pixels, out ImageSource? icon) =>
+        Cache.TryGetValue(ImageKey(file, pixels), out icon);
+
+    private static string ResourceKey(string file, int index, int pixels) => $"kaynak|{file}|{index}|{pixels}";
+
+    private static string ImageKey(string file, int pixels) => $"resim|{file}|{pixels}";
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHDefExtractIcon(string iconFile, int index, uint flags, out IntPtr large, out IntPtr small, uint iconSize);
+
+    private static ImageSource? LoadResource(string file, int index, int pixels)
+    {
+        var size = Math.Clamp(pixels, 16, 256);
+        // Düşük sözcük büyük simgenin, yüksek sözcük küçük simgenin boyutu.
+        if (SHDefExtractIcon(file, index, 0, out var large, out var small, (uint)(size | (16 << 16))) != 0) return null;
+        if (small != IntPtr.Zero) NativeMethods.DestroyIcon(small);
+        return FromIcon(large);
+    }
+
+    private static ImageSource? LoadImage(string file, int pixels)
+    {
+        try
+        {
+            if (!File.Exists(file)) return null;
+            if (string.Equals(Path.GetExtension(file), ".ico", StringComparison.OrdinalIgnoreCase))
+            {
+                // .ico: istenen boyuta en yakın (tercihen büyük) kare; WPF Image kendi başına ilk kareyi gösterirdi.
+                using var stream = File.OpenRead(file);
+                var decoder = new IconBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                var frame = decoder.Frames
+                    .OrderBy(f => f.PixelWidth >= pixels ? f.PixelWidth - pixels : 10000 + pixels - f.PixelWidth).FirstOrDefault();
+                frame?.Freeze();
+                return frame;
+            }
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            bitmap.UriSource = new Uri(file, UriKind.Absolute);
+            // Büyük fotoğraf simge boyutunda çözülür (bellek ve süre).
+            bitmap.DecodePixelWidth = Math.Clamp(pixels * 2, 16, 512);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or
+                                       InvalidOperationException or COMException)
+        {
+            DebugLog.Write($"simge resmi yüklenemedi {file}: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>Bir toplu bildirim en çok bu kadar bekletilir (sıra boşalınca hemen gider).</summary>
@@ -114,13 +193,11 @@ public static class ShellIcons
             {
                 var batch = new List<(Action<ImageSource?> Done, ImageSource? Icon, Dispatcher Dispatcher)>();
                 var batchStarted = 0L;
-                foreach (var (path, pixels, preview, done, dispatcher) in Queue.GetConsumingEnumerable())
+                foreach (var (load, done, dispatcher) in Queue.GetConsumingEnumerable())
                 {
                     ImageSource? icon = null;
-                    // "::{CLSID}" kabuk nesneleri (Geri Dönüşüm Kutusu…) de burada, istenen boyutta yüklenir: arayüzde yavaş
-                    // sürücüyü beklemesin.
-                    try { icon = For(path, pixels, preview); }
-                    catch (Exception ex) { DebugLog.Write($"simge yüklenemedi {path}: {ex.Message}"); }
+                    try { icon = load(); }
+                    catch (Exception ex) { DebugLog.Write($"simge yüklenemedi: {ex.Message}"); }
                     if (batch.Count == 0) batchStarted = Environment.TickCount64;
                     batch.Add((done, icon, dispatcher));
                     if (Queue.Count == 0 || Environment.TickCount64 - batchStarted >= BatchMilliseconds) Deliver(batch);

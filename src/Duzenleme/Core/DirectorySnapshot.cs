@@ -149,6 +149,31 @@ public sealed class DirectorySnapshot : IDisposable
         Request();
     }
 
+    /// <summary>
+    /// Uygulamanın kendisinin az önce yeniden adlandırdığı öğeyi okumayı beklemeden listede yeni adına çevirir (bölmede F2:
+    /// eski ad bir an bile geri görünmesin); ardından klasör yeniden okunup gerçek kayıtla eşitlenir.
+    /// </summary>
+    public void NoteRenamed(string oldPath, string newPath)
+    {
+        var renamed = false;
+        lock (_lock)
+        {
+            if (_disposed || _state != SnapshotState.Ready) return;
+            var list = Volatile.Read(ref _entries).ToList();
+            if (list.FirstOrDefault(e => string.Equals(e.Path, oldPath, StringComparison.OrdinalIgnoreCase)) is { } entry)
+            {
+                // Yalnızca büyük/küçük harf değiştiyse de aynı kayıt güncellenir; hedef adda başka kayıt varsa o kalkar.
+                list.RemoveAll(e => !ReferenceEquals(e, entry) && string.Equals(e.Path, newPath, StringComparison.OrdinalIgnoreCase));
+                list[list.IndexOf(entry)] = entry with { Path = newPath, Name = Path.GetFileName(newPath) };
+                Volatile.Write(ref _entries, list);
+                Interlocked.Increment(ref _version);
+                renamed = true;
+            }
+        }
+        if (renamed) RaiseChanged();
+        Request();
+    }
+
     /// <summary>Yarım indirmenin oluşması, öznitelik değişmesi ya da başka bir yarım ada dönmesi görünümü değiştirmez.</summary>
     internal static bool IsNoise(FileSystemEventArgs e)
     {

@@ -132,7 +132,8 @@ public sealed class WidgetManager
     {
         var config = new WidgetConfig { Kind = kind, FolderName = folderName, Z = DateTime.UtcNow.Ticks };
         if (kind == WidgetKind.Launcher)
-            config.Tabs = [new LauncherTab { Name = "Uygulamalar" }, new LauncherTab { Name = "Dosyalar" }];
+            // Sekme adları eklenirken arayüz dilinde bir kez yazılır (dil değişince yeniden adlandırılmaz).
+            config.Tabs = [new LauncherTab { Name = L.T("Uygulamalar") }, new LauncherTab { Name = L.T("Dosyalar") }];
         if (kind == WidgetKind.Note)
             config.NoteColor = NextNoteColor();
         return AddConfig(config);
@@ -224,6 +225,10 @@ public sealed class WidgetManager
         // Yer bu eklemeye aittir: ipucu hemen tüketilir (pencere yerleşene dek pencerede durur).
         var place = PlacementHint ?? WidgetPlacement.FromSettings();
         PlacementHint = null;
+        // Eklerken seçilen ad ve simge ("Yeni bölme…"): pencere açılmadan yazılır, widget ilk çizimde doğru görünür.
+        var setup = NextSetup;
+        NextSetup = null;
+        setup?.Invoke(config);
         AppHost.Settings.Widgets.Add(config);
         AppHost.SaveSettings();
         // Masaüstü gizliyse ya da göz atılıyorsa widget'lar geri gelir (durumu AppHost değiştirir; tepsi ve Ayarlar da güncellenir).
@@ -360,6 +365,22 @@ public sealed class WidgetManager
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Yeni eklenen bölme/kutu/notun başlığını yerinde düzenlemeye açar (Gezgin'deki "Yeni klasör" gibi; başlık seçili,
+    /// bölme ve kutuda simgesi tıklanınca seçici açılır; notta başlıktan sonra yazı alanına geçilir). Pencere yerleşip öne
+    /// geldikten sonra; başlığı olmayan widget'ta (saat, tarih) bir şey yapmaz, odak çalınmaz.
+    /// </summary>
+    public void BeginRename(string id)
+    {
+        if (!_open.TryGetValue(id, out var window)) return;
+        window.Dispatcher.BeginInvoke(() =>
+        {
+            if (!_open.ContainsKey(id)) return;
+            if (window.View is NoteView note) note.BeginNaming();
+            else window.View.TryBeginRename();
+        }, DispatcherPriority.ApplicationIdle);
+    }
+
     /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir.</summary>
     public void FocusNote(string id)
     {
@@ -494,6 +515,12 @@ public sealed class WidgetManager
     /// Yoksa ayardaki kip imlecin yerinde kullanılır (<see cref="WidgetPlacement.FromSettings"/>).
     /// </summary>
     internal WidgetPlacement? PlacementHint { get; set; }
+
+    /// <summary>
+    /// Bir sonraki yeni widget'ın ayarına eklenirken uygulanacak son dokunuş (ör. "Yeni bölme…"de seçilen ad ve simge);
+    /// <see cref="PlacementHint"/> gibi eklerken tüketilir. Eklenemezse çağıran temizler.
+    /// </summary>
+    internal Action<WidgetConfig>? NextSetup { get; set; }
 
     /// <summary>Diğer görünür widget'ların kart dikdörtgenleri (gölge payı hariç, fiziksel piksel).</summary>
     internal List<Box> OtherCards(WidgetWindow? self) =>

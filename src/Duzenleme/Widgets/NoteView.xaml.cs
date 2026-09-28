@@ -25,6 +25,7 @@ public partial class NoteView : UserControl, IWidgetView
 
     private readonly WidgetConfig _config;
     private readonly DispatcherTimer _saveTimer;
+    private readonly TitleEditor _titleEditor;
     private WidgetPalette _palette;
 
     // Kip değişirken (satırlar kurulurken, düz metin yüklenirken) kayıt yapılmaz: yarım kurulmuş liste notu silmesin.
@@ -62,6 +63,18 @@ public partial class NoteView : UserControl, IWidgetView
         {
             e.Handled = true;
             FocusText(AddBox);
+        };
+
+        // Başlık yerinde düzenlenir (F2, "Yeniden adlandır"); notun başlık simgesi yok. Yeni eklenen notta başlıktan sonra
+        // (Enter, Tab, Esc) yazı alanına geçilir.
+        _titleEditor = new TitleEditor(this, HeaderRow, TitleText, null, () => DefaultTitle, CommitTitle, null, () => { })
+        {
+            Ended = keyboard =>
+            {
+                if (!_bodyAfterTitle) return;
+                _bodyAfterTitle = false;
+                if (keyboard) FocusEditor();
+            },
         };
 
         ApplyMode();
@@ -151,6 +164,7 @@ public partial class NoteView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _titleEditor.ApplyPalette(palette);
         Editor.Foreground = palette.Foreground;
         Editor.CaretBrush = palette.Foreground;
         Editor.SelectionBrush = palette.Accent;
@@ -196,7 +210,9 @@ public partial class NoteView : UserControl, IWidgetView
             menu.Primary.Add(Menus.Item("Düz nota çevir", ToPlainNote));
         }
         else menu.Primary.Add(Menus.Item("Onay kutulu listeye çevir", ToChecklist));
-        menu.Primary.Add(Menus.Item("Başlığı değiştir…", RenameTitle));
+        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
+        rename.InputGestureText = KeyNames.F2;
+        menu.Primary.Add(rename);
         if (!_config.NoteChecklist) menu.Primary.Add(Menus.Item("Notu temizle", () => Editor.Clear()));
 
         menu.Appearance.Add(Menus.Parts(_config, [("header", "Başlık ve renkler"), Menus.ClosePart], UpdateTitle));
@@ -204,11 +220,44 @@ public partial class NoteView : UserControl, IWidgetView
         menu.More.Add(Menus.Item("Panoya kopyala", CopyToClipboard));
     }
 
-    private void RenameTitle()
+    /// <summary>F2 (yazarken de: F2'nin metinde bir anlamı yok): başlık yerinde düzenlenir; önce yazılanlar kaydedilir.</summary>
+    public bool TryBeginRename()
     {
-        var dialogTitle = _config.NoteChecklist ? "Liste başlığı" : "Not başlığı";
-        if (InputDialog.Ask(dialogTitle, "Başlık", TitleText.Text) is not { } title) return;
-        _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title;
+        if (_titleEditor.IsEditing) return true;
+        return BeginTitleEdit();
+    }
+
+    // Yeni eklenen not: başlık bitince yazı alanına geçilir.
+    private bool _bodyAfterTitle;
+
+    /// <summary>
+    /// "Widget ekle"den eklenen not: önce başlığı (seçili) adlandırılır, Enter/Tab/Esc ile yazı alanına geçilir. Başlık satırı
+    /// gizliyse doğrudan yazı alanı.
+    /// </summary>
+    internal void BeginNaming()
+    {
+        (Window.GetWindow(this) as WidgetWindow)?.ActivateForInput();
+        _bodyAfterTitle = true;
+        if (_titleEditor.Begin()) return;
+        _bodyAfterTitle = false;
+        FocusEditor();
+    }
+
+    /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>
+    private bool BeginTitleEdit()
+    {
+        Save();
+        if (_titleEditor.Begin()) return true;
+        var dialogTitle = _config.NoteChecklist ? L.T("Listeyi yeniden adlandır") : L.T("Notu yeniden adlandır");
+        if (InputDialog.Ask(dialogTitle, L.T("Başlık"), TitleText.Text, (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is { } title)
+            CommitTitle(string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
+        return true;
+    }
+
+    private void CommitTitle(string? title)
+    {
+        if (string.Equals(_config.Title, title, StringComparison.Ordinal)) return;
+        _config.Title = title;
         AppHost.SaveSettings();
         UpdateTitle();
     }
@@ -254,7 +303,11 @@ public partial class NoteView : UserControl, IWidgetView
 
     public void Flush() => Save();
 
-    public void Detach() => Save();
+    public void Detach()
+    {
+        _titleEditor.Cancel();
+        Save();
+    }
 
     // --- Yapılacaklar ---
     // Satırlar hafiftir (onay kutusu + TextBlock): 200 maddelik liste de hızlı açılır. Yalnızca düzenlenen satırda bir

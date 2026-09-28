@@ -554,6 +554,61 @@ public static class AppHost
             () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
     }
 
+    // --- Yeniden adlandırma ve simgeler ---
+
+    /// <summary>
+    /// Uygulama bir dosyayı ya da klasörü yeniden adlandırdı (eski yol, yeni yol, klasör mü). Ayarlar, taşıma geçmişi ve kutu
+    /// kayıtları güncellendikten sonra, UI iş parçacığında tetiklenir (görünümler yeni yolu gösterebilsin).
+    /// </summary>
+    public static event Action<string, string, bool>? PathRenamed;
+
+    /// <summary>
+    /// Uygulamanın kendi yaptığı yeniden adlandırmayı (bölmede F2) her yere işler. Taşıma geçmişi ve kutu kayıtları hemen,
+    /// çağıranın iş parçacığında güncellenir (izleyici yeni adı görmeden: geri alınmış dosya yeniden taşınmasın); widget
+    /// ayarları (bölmelerin gizlenenleri, kutu öğeleri, öğe adları/simgeleri, klasörü yeniden adlandırılan bölme) UI iş
+    /// parçacığında. Gezgin'de yapılan yeniden adlandırmalar izlenmez (bilinen sınır). Herhangi bir iş parçacığından çağrılır.
+    /// </summary>
+    public static void NotePathRenamed(string oldPath, string newPath, bool isDirectory)
+    {
+        try
+        {
+            Journal?.NoteRename(oldPath, newPath, isDirectory);
+            BoxMoves?.NoteRename(oldPath, newPath, isDirectory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DebugLog.Write($"yeniden adlandırma kaydedilemedi: {ex.Message}");
+        }
+        if (!OnUiThread(() => ApplyRenameToWidgets(oldPath, newPath, isDirectory))) return;
+        ApplyRenameToWidgets(oldPath, newPath, isDirectory);
+    }
+
+    private static void ApplyRenameToWidgets(string oldPath, string newPath, bool isDirectory)
+    {
+        var changed = PathRenames.Apply(Settings.Widgets, oldPath, newPath, isDirectory, DesktopDirectory);
+        // Kutunun klasörü (NestDesk\<kutu>) yeniden adlandırıldıysa kutu yeni klasörü kullanır.
+        if (isDirectory && BoxPlan.ParentOf(oldPath) is { } parent &&
+            string.Equals(parent, Path.TrimEndingDirectorySeparator(BoxMover.Root), StringComparison.OrdinalIgnoreCase))
+        {
+            var oldName = Path.GetFileName(Path.TrimEndingDirectorySeparator(oldPath));
+            foreach (var box in Settings.Widgets.Where(w => w.Kind == WidgetKind.Launcher &&
+                                                            string.Equals(w.BoxFolder, oldName, StringComparison.OrdinalIgnoreCase)))
+            {
+                box.BoxFolder = Path.GetFileName(Path.TrimEndingDirectorySeparator(newPath));
+                changed = true;
+            }
+        }
+        if (changed)
+        {
+            SaveSettings();
+            RefreshPinnedPaths();
+        }
+        PathRenamed?.Invoke(oldPath, newPath, isDirectory);
+    }
+
+    /// <summary>Kullanıcının seçtiği simge resimlerinin kopyaları (bkz. <see cref="IconFiles"/>).</summary>
+    public static string IconsDirectory => Path.Combine(DataDirectory, IconFiles.FolderName);
+
     // --- Kutular ---
 
     /// <summary>

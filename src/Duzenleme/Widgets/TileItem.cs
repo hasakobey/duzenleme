@@ -64,7 +64,20 @@ public sealed class TileItem : INotifyPropertyChanged
     public Visibility LabelVisibility { get; init; }
     public Thickness Pad { get; init; }
     public double Dim => Missing ? 0.45 : 1;
-    public string Tooltip => Missing ? $"{Name}\n{Path}\n(bulunamadı)" : $"{Name}\n{Path}";
+
+    /// <summary>Dosyanın kendi görünen adı (kısayol kutusunda kullanıcı başka bir ad verdiyse <see cref="Name"/>'den farklı).</summary>
+    public string OriginalName => DisplayName(Path);
+
+    /// <summary>Kullanıcı bu öğeye kendi adını vermiş mi (kısayol kutusu)?</summary>
+    public bool Renamed => !IsShellObject(Path) && !string.Equals(Name, OriginalName, StringComparison.Ordinal);
+
+    public string Tooltip => (Renamed, Missing) switch
+    {
+        (true, true) => L.F("{0}\n(asıl adı: {1})\n{2}\n(bulunamadı)", Name, OriginalName, Path),
+        (true, false) => L.F("{0}\n(asıl adı: {1})\n{2}", Name, OriginalName, Path),
+        (false, true) => L.F("{0}\n{1}\n(bulunamadı)", Name, Path),
+        _ => $"{Name}\n{Path}",
+    };
 
     /// <summary>
     /// 32-bit sürüm 64-bit Windows'ta çalışırken System32 yolları SysWOW64'e yönlenir; kısayol kutusundaki
@@ -102,9 +115,16 @@ public sealed class TileItem : INotifyPropertyChanged
     /// Kısayol kutusundaki gibi durumu bilinmeyen yol: öğe hemen gösterilir, var mı/klasör mü arka planda (ağ yollarında
     /// süre sınırıyla) öğrenilir; sonuç gelince soluklaşır ya da simgesi yüklenir. Arayüz iş parçacığı diske bakmaz.
     /// </summary>
-    public static TileItem CreateUnchecked(string path, WidgetConfig config, string? name = null, double pixelsPerDip = 0)
+    /// <param name="icon">Kullanıcının seçtiği simge (<see cref="IconRef"/>; kısayol kutusu); yüklenemezse dosyanın kendi simgesi.</param>
+    public static TileItem CreateUnchecked(string path, WidgetConfig config, string? name = null, double pixelsPerDip = 0, string? icon = null)
     {
-        var item = Layout(config, path, name ?? DisplayName(path), missing: false, pixelsPerDip);
+        var item = Layout(config, path, string.IsNullOrWhiteSpace(name) ? DisplayName(path) : name, missing: false, pixelsPerDip);
+        if (IconRef.Parse(icon) is { } custom)
+        {
+            item._custom = custom;
+            // Simge durumu beklemez: seçilen simge yol denetlenirken de (ulaşılamayan ağ yolunda da) görünür.
+            item.UpdateIconSize(pixelsPerDip, config.Scale);
+        }
         var native = NativePath(path);
         if (PathProbe.Shared.TryGetCached(native, out var known))
         {
@@ -154,6 +174,11 @@ public sealed class TileItem : INotifyPropertyChanged
     {
         _pixelsPerDip = pixelsPerDip;
         _widgetScale = widgetScale;
+        if (_custom is { } custom)
+        {
+            RequestCustom(custom);
+            return;
+        }
         if (_iconPath is not { } path) return;
         var pixels = IconSizing.DevicePixels(IconPx, pixelsPerDip > 0 ? pixelsPerDip : NativeMethods.SystemPixelsPerDip, widgetScale);
         if (pixels == _pixels) return;
@@ -171,6 +196,56 @@ public sealed class TileItem : INotifyPropertyChanged
         ShellIcons.Request(path, pixels, preview, icon => { if (_pixels == pixels) Icon = icon ?? Icon; });
     }
 
+    // Kullanıcının seçtiği simge (kısayol kutusu); yüklenemezse null yapılır ve dosyanın kendi simgesine dönülür.
+    private IconRef? _custom;
+    private Color _glyphColor = Colors.White;
+
+    /// <summary>Kullanıcının seçtiği simge var mı (yüklenemeyen hariç)?</summary>
+    public bool HasCustomIcon => _custom is not null;
+
+    /// <summary>Seçilen simgeyi ekrandaki piksel boyutunda ister; Fluent simgesi vektördür (boyuttan bağımsız, vurgu renginde).</summary>
+    private void RequestCustom(IconRef custom)
+    {
+        var pixels = IconSizing.DevicePixels(IconPx, _pixelsPerDip > 0 ? _pixelsPerDip : NativeMethods.SystemPixelsPerDip, _widgetScale);
+        if (pixels == _pixels) return;
+        _pixels = pixels;
+        switch (custom.Kind)
+        {
+            case IconRefKind.Symbol:
+                if (WidgetIcons.Symbol(custom.ToString()) is { } symbol && GlyphImage.For(symbol, _glyphColor) is { } glyph) Icon = glyph;
+                else DropCustom();
+                break;
+            case IconRefKind.Resource:
+                if (ShellIcons.TryCachedResource(custom.Value, custom.Index, pixels, out var cached)) ApplyCustom(cached, pixels);
+                else ShellIcons.RequestResource(custom.Value, custom.Index, pixels, icon => ApplyCustom(icon, pixels));
+                break;
+            default:
+                if (IconFiles.PathOf(custom.Value, AppHost.IconsDirectory) is not { } file) DropCustom();
+                else if (ShellIcons.TryCachedImage(file, pixels, out var image)) ApplyCustom(image, pixels);
+                else ShellIcons.RequestImage(file, pixels, icon => ApplyCustom(icon, pixels));
+                break;
+        }
+    }
+
+    private void ApplyCustom(ImageSource? icon, int pixels)
+    {
+        if (_custom is null || _pixels != pixels) return; // arada başka boyut istendi ya da simge bırakıldı
+        if (icon is null) DropCustom();
+        else Icon = icon;
+    }
+
+    /// <summary>Seçilen simge yüklenemedi (dosya silinmiş, kaynak yok): sessizce dosyanın kendi simgesine dönülür.</summary>
+    private void DropCustom()
+    {
+        _custom = null;
+        _pixels = 0;
+        UpdateIconSize(_pixelsPerDip, _widgetScale);
+    }
+
+    /// <summary>Fluent simgesinin rengi: widget'ın vurgu rengi (başlık simgesiyle aynı).</summary>
+    public static Color GlyphColor(WidgetConfig config) =>
+        WidgetPalette.For(config.Style, config.Accent).Accent is SolidColorBrush brush ? brush.Color : Colors.White;
+
     /// <summary>Kutucuğun yerleşimi (simge boyutu, yazı, aralık, liste/ızgara); simgesi yok.</summary>
     private static TileItem Layout(WidgetConfig config, string path, string name, bool missing, double pixelsPerDip)
     {
@@ -185,6 +260,7 @@ public sealed class TileItem : INotifyPropertyChanged
             Missing = missing,
             _pixelsPerDip = pixelsPerDip,
             _widgetScale = config.Scale,
+            _glyphColor = GlyphColor(config),
             IconPx = px,
             TileWidth = list ? double.NaN : labels ? px + Math.Max(40, font * 4) : px + 4,
             Orientation = list ? Orientation.Horizontal : Orientation.Vertical,

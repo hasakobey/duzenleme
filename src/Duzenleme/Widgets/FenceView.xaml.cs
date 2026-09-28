@@ -40,6 +40,14 @@ public partial class FenceView : UserControl, IWidgetView
     private int _systemIconsVersion;
     private bool _detached;
 
+    // Yerinde yeniden adlandırma: başlık (F2 ya da yeni eklenen bölme) ve kutucuk (dosya/klasör, diskte).
+    private readonly TitleEditor _titleEditor;
+    private TileRename? _rename;
+    private bool _updateDeferred;                                  // kutucuk düzenlenirken gelen güncelleme, bitince yapılır
+    private string? _selectAfterRefresh;                          // yeniden adlandırılan öğe liste yenilenince seçili kalsın
+    private (string Path, long Until)? _renameWhenShown;          // "Yeni klasör": listede görününce adı düzenlemeye açılır
+    private WidgetPalette _palette = WidgetPalette.Glass;
+
     public FenceView(WidgetConfig config)
     {
         _config = config;
@@ -52,9 +60,27 @@ public partial class FenceView : UserControl, IWidgetView
         SearchBox.TextChanged += (_, _) => OnQueryChanged();
         SearchBox.PreviewKeyDown += OnSearchKey;
 
+        _titleEditor = new TitleEditor(this, Header, TitleText, HeaderIconButton, () => DefaultTitle, CommitTitle, PickIcon, ApplyParts);
         Header.MouseLeftButtonDown += (_, e) =>
         {
+            // Başlığa tıklamak seçimi bırakır (Gezgin gibi): F2 artık başlığı adlandırır.
+            Items.SelectedItem = null;
             if (e.ClickCount == 2) { e.Handled = true; CollapseToggleRequested?.Invoke(); }
+        };
+        // Listenin boş yerine tıklamak da seçimi bırakır (kaydırma çubuğu hariç).
+        Items.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (Menus.ItemAt(Items, e.OriginalSource) is null && !IsInScrollBar(e.OriginalSource)) Items.SelectedItem = null;
+        };
+        Items.KeyDown += OnItemsKey;
+        PreviewKeyDown += (_, e) =>
+        {
+            // Ctrl+F: bu bölmede ara (arama düğmesi gizli olsa da).
+            if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control && !_titleEditor.IsEditing && _rename is null)
+            {
+                OpenSearch();
+                e.Handled = true;
+            }
         };
         Header.SizeChanged += (_, e) => { if (e.WidthChanged) ApplyParts(); };
         // Pencereye bağlanınca (ölçeği artık kesin) simgeler o ekranın piksel boyutunda istenir.
@@ -167,16 +193,16 @@ public partial class FenceView : UserControl, IWidgetView
     {
         _updateQueued = false;
         if (_detached) return;
+        // Kutucuğun adı düzenlenirken liste yeniden kurulmaz (kutu ve yazılan kaybolurdu); düzenleme bitince yapılır.
+        if (_rename is { IsActive: true })
+        {
+            _updateDeferred = true;
+            return;
+        }
         var generation = ++_generation;
         ResolveSources();
         TitleText.Text = !string.IsNullOrWhiteSpace(_config.Title) ? _config.Title : DefaultTitle;
-        HeaderIcon.Symbol = _config.Filter switch
-        {
-            DesktopFilter.Shortcuts => SymbolRegular.Apps24,
-            DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
-            DesktopFilter.All => SymbolRegular.Desktop24,
-            _ => SymbolRegular.Folder24,
-        };
+        HeaderIcon.Symbol = WidgetIcons.For(_config);
         ApplyParts();
         ApplyPanel();
 
@@ -224,6 +250,13 @@ public partial class FenceView : UserControl, IWidgetView
             return;
         }
         if (generation != _generation || _detached) return;
+        if (_rename is { IsActive: true })
+        {
+            // Hesap sürerken düzenleme başladı: sonuç sonra yeniden hesaplanır.
+            _stamp = null;
+            _updateDeferred = true;
+            return;
+        }
         var computed = clock?.Elapsed.TotalMilliseconds ?? 0;
         Apply(result, stamp);
         if (clock is not null)
@@ -360,6 +393,11 @@ public partial class FenceView : UserControl, IWidgetView
     /// <summary>Öğeleri (arama varsa süzülmüş hâliyle) gösterir; ekrandaki listeye yalnızca farkı uygular.</summary>
     private void ShowItems()
     {
+        if (_rename is { IsActive: true })
+        {
+            _updateDeferred = true;
+            return;
+        }
         var q = Core.FolderName.Fold(_query);
         List<TileItem> shown;
         if (q.Length == 0) shown = _all;
@@ -390,6 +428,35 @@ public partial class FenceView : UserControl, IWidgetView
         if (shown.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
         else if (q.Length > 0) ShowEmpty(SymbolRegular.Search24, $"\"{_query}\" bulunamadı.", showCreate: false);
         else ShowEmpty(EmptyIconFor(), EmptyTextFor(), showCreate: false);
+        AfterShow(shown);
+    }
+
+    /// <summary>
+    /// Liste yenilendikten sonra: yeniden adlandırılan öğe seçili (ve widget etkinse odakta) kalır; "Yeni klasör" listede
+    /// görününce adı düzenlemeye açılır (Gezgin gibi).
+    /// </summary>
+    private void AfterShow(List<TileItem> shown)
+    {
+        if (_renameWhenShown is { } pending)
+        {
+            if (shown.FirstOrDefault(i => string.Equals(i.Path, pending.Path, StringComparison.OrdinalIgnoreCase)) is { } created)
+            {
+                _renameWhenShown = null;
+                BeginItemRename(created);
+                return;
+            }
+            if (Environment.TickCount64 > pending.Until) _renameWhenShown = null;
+        }
+        if (_selectAfterRefresh is not { } path) return;
+        if (shown.FirstOrDefault(i => string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase)) is not { } item) return;
+        _selectAfterRefresh = null;
+        Items.SelectedItem = item;
+        Items.ScrollIntoView(item);
+        if (Window.GetWindow(this)?.IsActive != true) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (Items.ItemContainerGenerator.ContainerFromItem(item) is ListBoxItem container) container.Focus();
+        }, DispatcherPriority.Loaded);
     }
 
     /// <summary>Tek iş dağıtıcı turunda kurulan en fazla kutucuk (yaklaşık bir karelik iş).</summary>
@@ -573,13 +640,14 @@ public partial class FenceView : UserControl, IWidgetView
     private void ApplyParts()
     {
         Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
-        HeaderIcon.Visibility = Visibility.Visible;
+        HeaderIconButton.Visibility = Visibility.Visible;
         SearchButton.Visibility = _config.Shows("search") ? Visibility.Visible : Visibility.Collapsed;
         OpenButton.Visibility = !DesktopMode && _config.Shows("open") ? Visibility.Visible : Visibility.Collapsed;
         Divider.Visibility = _config.Shows("divider") && _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
         CountBadge.Visibility = _config.Shows("count") && _stamp is not null ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
-        HeaderFitter.Fit(Header, TitleText, [CountBadge, OpenButton, SearchButton, HeaderIcon], [RemoveButton]);
+        // Başlık düzenlenirken kutuya yer açılır, simge düğmesi (seçiciyi açar) gizlenmez.
+        _titleEditor.Fit([CountBadge, OpenButton, SearchButton, HeaderIconButton], [RemoveButton]);
     }
 
     private void Items_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -622,7 +690,9 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
-        menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
+        var open = Menus.Item(L.T("Aç"), () => TileItem.Launch(item.Path));
+        open.InputGestureText = KeyNames.Enter;
+        menu.Items.Add(open);
         var remove = Menus.Item("Widget'tan kaldır", () => HideItem(item));
         remove.ToolTip = "Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler";
         menu.Items.Add(remove);
@@ -643,8 +713,12 @@ public partial class FenceView : UserControl, IWidgetView
         if (!DesktopMode && !item.IsDirectory && !item.Missing)
             menu.Items.Add(Menus.Item("Masaüstüne geri taşı", () => MoveToDesktop(item)));
         // Masaüstü simgeleri gizliyken (bölmeler yönetirken) bu işler yalnızca buradan yapılabilir.
-        menu.Items.Add(Menus.Item("Yeniden adlandır…", () => Rename(item)));
-        menu.Items.Add(Menus.Item("Geri Dönüşüm Kutusu'na taşı", () => Recycle(item)));
+        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginItemRename(item));
+        rename.InputGestureText = KeyNames.F2;
+        menu.Items.Add(rename);
+        var recycle = Menus.Item(L.T("Geri Dönüşüm Kutusu'na taşı"), () => Recycle(item));
+        recycle.InputGestureText = KeyNames.Delete;
+        menu.Items.Add(recycle);
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
     }
@@ -660,48 +734,174 @@ public partial class FenceView : UserControl, IWidgetView
         }, TaskScheduler.Default);
     }
 
-    private void Rename(TileItem item)
+    // --- Yerinde yeniden adlandırma (F2) ---
+
+    /// <summary>
+    /// F2: seçili dosya/klasör (liste odaktayken) diskte, yoksa başlık yeniden adlandırılır. Arama kutusundayken F2 aramaya
+    /// aittir; Bu Bilgisayar gibi kabuk nesneleri adlandırılmaz.
+    /// </summary>
+    public bool TryBeginRename()
     {
-        var path = item.Path;
-        var isDir = item.IsDirectory;
-        var oldName = System.IO.Path.GetFileName(path);
-        if (InputDialog.Ask("Yeniden adlandır", "Yeni ad", oldName) is not { Length: > 0 } newName || newName == oldName) return;
-        if (newName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
-        {
-            MessageBox.Show("Ad şu karakterleri içeremez: \\ / : * ? \" < > |", AppInfo.Name);
-            return;
-        }
-        var target = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, newName);
-        RunFileOperation(() =>
-        {
-            if (isDir) Directory.Move(path, target);
-            else File.Move(path, target);
-        });
+        if (_titleEditor.IsEditing || _rename is { IsActive: true }) return true;
+        if (SearchBox.IsKeyboardFocusWithin) return false;
+        if (Items.IsKeyboardFocusWithin && Items.SelectedItem is TileItem item)
+            return !TileItem.IsShellObject(item.Path) && BeginItemRename(item);
+        return BeginTitleEdit();
     }
 
+    /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>
+    private bool BeginTitleEdit()
+    {
+        if (_titleEditor.Begin()) return true;
+        var window = Window.GetWindow(this) as WidgetWindow;
+        if (InputDialog.Ask(L.T("Bölmeyi yeniden adlandır"), L.T("Ad (boş bırakırsan varsayılan ad kullanılır)"), TitleText.Text,
+                window?.CenterPoint) is { } title)
+            CommitTitle(string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
+        return true;
+    }
+
+    /// <summary>Yeni başlık (null = varsayılan): kaydedilir, başlık hemen değişir; Widget'lar listesi kayıtla güncellenir.</summary>
+    private void CommitTitle(string? title)
+    {
+        if (string.Equals(_config.Title, title, StringComparison.Ordinal)) return;
+        _config.Title = title;
+        AppHost.SaveSettings();
+        TitleText.Text = title ?? DefaultTitle;
+        ApplyParts();
+    }
+
+    /// <summary>Simge seçici: widget'ın yanında açılır, seçilen simge başlıkta hemen görünür (kaydedilince yazılır).</summary>
+    private void PickIcon()
+    {
+        if (Window.GetWindow(this) is not WidgetWindow window) return;
+        Views.IconPicker.ForWidget(window, _config, TitleText.Text,
+            preview: icon => HeaderIcon.Symbol = WidgetIcons.Symbol(icon) ?? WidgetIcons.DefaultFor(_config),
+            commit: icon =>
+            {
+                _config.Icon = icon;
+                AppHost.SaveSettings();
+                HeaderIcon.Symbol = WidgetIcons.For(_config);
+            });
+    }
+
+    /// <summary>
+    /// Kutucuğun adını diskte yeniden adlandırmak için kutuyu açar (Gezgin gibi: gizli uzantı kutuda görünmez ve korunur,
+    /// uzantısı görünen dosyada noktadan öncesi seçilir). Liste düzenleme bitene dek yenilenmez.
+    /// </summary>
+    private bool BeginItemRename(TileItem item)
+    {
+        if (TileItem.IsShellObject(item.Path) || item.Missing) return false;
+        _rename?.Cancel();
+        var split = FileNames.SplitForEditing(item.Path, item.IsDirectory);
+        var window = Window.GetWindow(this) as WidgetWindow;
+        var path = item.Path;
+        var isDirectory = item.IsDirectory;
+        TileRename? rename = null;
+        rename = TileRename.Begin(Items, item, split.Editable, 0, split.SelectLength, FileNames.MaxName, fileName: true, _palette,
+            commit: text => ItemRename.Commit(window, path, isDirectory, split, text,
+                hint: message => rename?.ShowHint(message),
+                renamed: newPath =>
+                {
+                    _selectAfterRefresh = newPath;
+                    if (_query.Length > 0) DeepSearch(); // alt klasörde bulunan öğe: arama sonucu yeni adla gelsin
+                    if (isDirectory) OfferRuleRetarget(path, newPath);
+                }),
+            ended: () =>
+            {
+                if (_rename == rename) _rename = null;
+                if (!_updateDeferred) return;
+                _updateDeferred = false;
+                ForceUpdate();
+            });
+        _rename = rename;
+        return true;
+    }
+
+    /// <summary>
+    /// Otomatik taşıma kurallarının hedeflediği masaüstü klasörü yeniden adlandırıldı: kurallar klasöre adıyla bağlıdır ve
+    /// artık oraya taşımaz. Kuralların yeni ada geçmesi önerilir (kendiliğinden yapılmaz).
+    /// </summary>
+    private static void OfferRuleRetarget(string oldPath, string newPath)
+    {
+        if (!string.Equals(System.IO.Path.GetDirectoryName(oldPath), AppHost.DesktopDirectory.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)) return;
+        var oldName = System.IO.Path.GetFileName(oldPath);
+        var newName = System.IO.Path.GetFileName(newPath);
+        if (PathRenames.RetargetRules(AppHost.Settings.Rules, oldName, newName) is null) return;
+        Views.Notice.Show(L.F("Otomatik taşıma kuralları \"{0}\" klasörüne taşıyordu. Kurallar \"{1}\" klasörüne geçsin mi?", oldName, newName),
+            Views.NoticeKind.Info, L.T("Kuralları güncelle"), () =>
+            {
+                // Yeni liste atanır (izleyici arka planda eski listeyi okuyor olabilir).
+                if (PathRenames.RetargetRules(AppHost.Settings.Rules, oldName, newName) is not { } rules) return;
+                AppHost.Settings.Rules = rules;
+                AppHost.SaveSettings();
+            }, L.T("Güncellemek için buraya tıkla."));
+    }
+
+    /// <summary>Liste odaktayken: Enter açar, Delete Geri Dönüşüm Kutusu'na gönderir (Windows'un onay ayarıyla).</summary>
+    private void OnItemsKey(object sender, KeyEventArgs e)
+    {
+        if (e.OriginalSource is not ListBoxItem || Items.SelectedItem is not TileItem item || Keyboard.Modifiers != ModifierKeys.None) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                TileItem.Launch(item.Path);
+                e.Handled = true;
+                break;
+            case Key.Delete when !TileItem.IsShellObject(item.Path) && !item.Missing:
+                Recycle(item);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private static bool IsInScrollBar(object? source)
+    {
+        for (var d = source as DependencyObject; d is not null; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+            if (d is System.Windows.Controls.Primitives.ScrollBar) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Geri Dönüşüm Kutusu'na gönderir (arka planda). Gezgin gibi Windows'un "silme onayı" ayarına uyar; Ortak Masaüstü'ndeki
+    /// öğede Windows'un yönetici onayı çıkar. Büyük klasörde Windows kendi ilerleme penceresini gösterir.
+    /// </summary>
     private void Recycle(TileItem item)
     {
         var path = item.Path;
-        // Büyük klasörde Windows kendi ilerleme penceresini gösterir; bölme o sırada donmaz.
-        RunFileOperation(() => ShellFileOperations.Recycle(path));
+        var owner = Window.GetWindow(this) is { } window ? new System.Windows.Interop.WindowInteropHelper(window).Handle : IntPtr.Zero;
+        RunFileOperation(() => ShellFileOperations.RecycleWithShell(path, owner));
     }
 
-    /// <summary>Bölmenin gösterdiği yerde (masaüstü ya da klasör) yeni klasör açar.</summary>
-    private void NewFolder()
+    /// <summary>
+    /// Bölmenin gösterdiği yerde (masaüstü ya da klasör) Gezgin gibi "Yeni klasör" açar (varsa "Yeni klasör (2)") ve listede
+    /// görününce adını düzenlemeye açar. Klasör arka planda oluşturulur.
+    /// </summary>
+    private async void NewFolder()
     {
         var parent = DesktopMode ? AppHost.DesktopDirectory : _folderPath;
         if (parent is null) return;
-        if (InputDialog.Ask("Yeni klasör", "Klasör adı", "Yeni klasör") is not { Length: > 0 } name) return;
+        var baseName = L.T("Yeni klasör");
+        string path;
         try
         {
-            var path = FileMover.UniquePath(parent, name);
-            Directory.CreateDirectory(path);
-            AppHost.NoteFolderCreated(path);
+            path = await Task.Run(() =>
+            {
+                var name = FileNames.UniqueName(baseName, isDirectory: true,
+                    n => Directory.Exists(System.IO.Path.Combine(parent, n)) || File.Exists(System.IO.Path.Combine(parent, n)));
+                var created = System.IO.Path.Combine(parent, name);
+                Directory.CreateDirectory(created);
+                return created;
+            });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            MessageBox.Show(ex.Message, AppInfo.Name);
+            Views.Notice.Show(L.F("Klasör oluşturulamadı: {0}", ex.Message), Views.NoticeKind.Warning);
+            return;
         }
+        if (_detached) return;
+        _renameWhenShown = (path, Environment.TickCount64 + 5000);
+        AppHost.NoteFolderCreated(path);
+        ForceUpdate();
     }
 
     private void MoveToDesktop(TileItem item)
@@ -784,6 +984,8 @@ public partial class FenceView : UserControl, IWidgetView
 
     public void ApplyPalette(WidgetPalette palette)
     {
+        _palette = palette;
+        _titleEditor.ApplyPalette(palette);
         Foreground = palette.Foreground;
         HeaderIcon.Foreground = palette.Accent;
         CountBadge.Background = palette.Accent;
@@ -826,7 +1028,10 @@ public partial class FenceView : UserControl, IWidgetView
         if (folder is not null)
             menu.Primary.Add(Menus.Item("Klasörü aç", () => TileItem.Launch(folder)));
         if (_config.Filter is DesktopFilter.None or DesktopFilter.Folders or DesktopFilter.All)
-            menu.Primary.Add(Menus.Item("Yeni klasör…", NewFolder));
+            menu.Primary.Add(Menus.Item(L.T("Yeni klasör"), NewFolder));
+        var search = Menus.Item(L.T("Bu bölmede ara"), OpenSearch);
+        search.InputGestureText = KeyNames.Find;
+        menu.Primary.Add(search);
 
         var pick = new MenuItem { Header = "Ne gösterilsin?" };
         pick.Items.Add(Menus.Hint("Masaüstünden"));
@@ -844,11 +1049,10 @@ public partial class FenceView : UserControl, IWidgetView
         }
         menu.Primary.Add(pick);
 
-        menu.Primary.Add(Menus.Item("Başlığı değiştir…", () =>
-        {
-            if (InputDialog.Ask("Bölme başlığı", "Başlık (boş bırakırsan varsayılan ad kullanılır)", TitleText.Text) is { } title)
-                Set(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
-        }));
+        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
+        rename.InputGestureText = KeyNames.F2;
+        menu.Primary.Add(rename);
+        menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         var sort = Menus.Choice("Sırala", _config.Sort,
             [(FenceSort.Newest, "En yeni üstte"), (FenceSort.Name, "Ada göre"), (FenceSort.Type, "Türe göre")],
             v => Set(() => _config.Sort = v));
@@ -882,6 +1086,8 @@ public partial class FenceView : UserControl, IWidgetView
     public void Detach()
     {
         _detached = true;
+        _rename?.Cancel();
+        _titleEditor.Cancel();
         _searchDelay.Stop();
         foreach (var source in _desktopSources)
         {

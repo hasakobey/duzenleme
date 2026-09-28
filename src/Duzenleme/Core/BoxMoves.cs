@@ -112,6 +112,39 @@ public sealed class BoxMoveLog
         }
     }
 
+    /// <summary>
+    /// Uygulama bir öğeyi yeniden adlandırdı (F2): kayıtlar yeni yolu izler. Masaüstündeki eski yol (Original), NestDesk
+    /// klasöründeki yol (Current) ve geri konduğu yer (ReturnedTo) güncellenir; klasörde altındaki yollar da. Yoksa kutu
+    /// öğesi "taşınmış" sayılmaz, masaüstüne geri konamaz ya da kutu geri gelince bulunamazdı. Değiştiyse true.
+    /// </summary>
+    public bool NoteRename(string oldPath, string newPath, bool isDirectory)
+    {
+        lock (_lock)
+        {
+            var changed = false;
+            foreach (var entry in _entries)
+            {
+                if (PathRenames.Map(entry.Original, oldPath, newPath, isDirectory) is { } original)
+                {
+                    entry.Original = original;
+                    changed = true;
+                }
+                if (PathRenames.Map(entry.Current, oldPath, newPath, isDirectory) is { } current)
+                {
+                    entry.Current = current;
+                    changed = true;
+                }
+                if (entry.ReturnedTo is { } returned && PathRenames.Map(returned, oldPath, newPath, isDirectory) is { } back)
+                {
+                    entry.ReturnedTo = back;
+                    changed = true;
+                }
+            }
+            if (changed) Save();
+            return changed;
+        }
+    }
+
     private void Save() => JsonFile.Save(_path, _entries);
 
     private static BoxMove Copy(BoxMove e) => new()
