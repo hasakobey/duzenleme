@@ -76,6 +76,16 @@ public static class ChecklistText
         return (done, total);
     }
 
+    /// <summary>
+    /// "Bitenler alta": açık maddeler üstte, bitenler altta; iki grup kendi içinde sırasını korur (işaret kaldırılan madde
+    /// açıkların sonuna döner).
+    /// </summary>
+    public static List<T> DoneLast<T>(IEnumerable<T> items, Func<T, bool> isDone)
+    {
+        var list = items.ToList();
+        return [.. list.Where(i => !isDone(i)), .. list.Where(isDone)];
+    }
+
     private static string Flatten(string? text) =>
         (text ?? "").Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Trim();
 }

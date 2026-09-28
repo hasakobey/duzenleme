@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using Duzenleme.Core;
+using Duzenleme.Desktop;
 using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
 using Button = Wpf.Ui.Controls.Button;
@@ -8,14 +9,17 @@ using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace Duzenleme.Views;
 
-internal enum WidgetGroup { Fence, Tool }
+/// <summary>Ekleme yüzeylerindeki bölüm (kalıcı değil): Bölmeler, Araçlar (not, liste, kutu, zamanlayıcılar), Saat ve bilgi.</summary>
+internal enum WidgetGroup { Fence, Tool, Info }
 
 /// <summary>
 /// Eklenebilecek bir widget. Key: AutomationId'nin ("Add." + Key) ve karşılamadaki seçimin anahtarı. Add: widget'ı ekler
-/// (klasör açılamazsa null). Matches: masaüstündeki bir widget bu seçimin türünden mi?
+/// (klasör açılamazsa ya da kullanıcı vazgeçerse null). Matches: masaüstündeki bir widget bu seçimin türünden mi?
+/// ShowInWelcome: karşılamanın 3. adımında da gösterilir (yalnızca ilk beş araç; yeni türler "Widget ekle"de ve Widget'lar sayfasında).
 /// </summary>
 internal sealed record WidgetChoice(string Key, string Label, SymbolRegular Icon, string Tip, WidgetGroup Group,
-    Func<WidgetConfig?> Add, bool FocusAfterAdd = false, string? Badge = null, Func<WidgetConfig, bool>? Matches = null);
+    Func<WidgetConfig?> Add, bool FocusAfterAdd = false, string? Badge = null, Func<WidgetConfig, bool>? Matches = null,
+    bool ShowInWelcome = false);
 
 /// <summary>Bütün ekleme yüzeylerinin (Widget ekle penceresi, Widget'lar sayfası, karşılama) tek kaynağı.</summary>
 internal static class WidgetCatalog
@@ -23,24 +27,59 @@ internal static class WidgetCatalog
     /// <summary>Kutucuğu gösteren yüzeyin ilk açılışta gösterdiği klasör bölmesi sayısı; kalanlar "Diğer klasörler" ile açılır.</summary>
     public const int VisibleFolderCount = 8;
 
-    public static IReadOnlyList<WidgetChoice> Tools { get; } =
+    /// <summary>
+    /// Bölme dışındaki bütün widget'lar (Araçlar ve Saat ve bilgi bölümleri). İlk beşi karşılamada da vardır (bu sırayla).
+    /// Metinler arayüz dilinde: her çağrıda kurulur.
+    /// </summary>
+    public static IReadOnlyList<WidgetChoice> Tools =>
     [
-        new("Clock", "Saat", SymbolRegular.Clock24, "Büyük dijital saat", WidgetGroup.Tool,
-            () => AppHost.Widgets.Add(WidgetKind.Clock), Matches: c => c.Kind == WidgetKind.Clock),
-        new("Date", "Tarih", SymbolRegular.CalendarLtr24, "Gün, ay ve haftalık şerit", WidgetGroup.Tool,
-            () => AppHost.Widgets.Add(WidgetKind.Date), Matches: c => c.Kind == WidgetKind.Date),
-        new("Note", "Not", SymbolRegular.Note24, "Yapışkan not; yazdıkça kaydedilir", WidgetGroup.Tool,
-            () => AppHost.Widgets.Add(WidgetKind.Note), FocusAfterAdd: true, Matches: c => c.Kind == WidgetKind.Note && !c.NoteChecklist),
-        new("Checklist", "Yapılacaklar", SymbolRegular.TaskListLtr24, "Onay kutulu liste; işaretledikçe kaydedilir", WidgetGroup.Tool,
-            () => AppHost.Widgets.AddChecklist(), FocusAfterAdd: true, Matches: c => c.Kind == WidgetKind.Note && c.NoteChecklist),
-        new("Launcher", "Kısayol kutusu", SymbolRegular.AppsAddIn24, "Sekmeli uygulama rafı; tek tıkla açar", WidgetGroup.Tool,
-            () => AppHost.Widgets.Add(WidgetKind.Launcher), Matches: c => c.Kind == WidgetKind.Launcher),
+        new("Clock", L.T("Saat"), SymbolRegular.Clock24, L.T("Büyük dijital saat"), WidgetGroup.Info,
+            () => Seed(WidgetSeeds.Clock), Matches: c => c.Kind == WidgetKind.Clock && WidgetVariants.Of(c) is null, ShowInWelcome: true),
+        new("Date", L.T("Tarih"), SymbolRegular.CalendarLtr24, L.T("Gün, ay ve haftalık şerit"), WidgetGroup.Info,
+            () => Seed(WidgetSeeds.Date), Matches: c => c.Kind == WidgetKind.Date && WidgetVariants.Of(c) is null, ShowInWelcome: true),
+        new("Note", L.T("Not"), SymbolRegular.Note24, L.T("Yapışkan not; yazdıkça kaydedilir"), WidgetGroup.Tool,
+            () => Seed(WidgetSeeds.Note), FocusAfterAdd: true, Matches: c => c.Kind == WidgetKind.Note && !c.NoteChecklist, ShowInWelcome: true),
+        new("Checklist", L.T("Yapılacaklar"), SymbolRegular.TaskListLtr24, L.T("Onay kutulu liste; işaretledikçe kaydedilir"), WidgetGroup.Tool,
+            () => Seed(WidgetSeeds.Checklist), FocusAfterAdd: true, Matches: c => c.Kind == WidgetKind.Note && c.NoteChecklist, ShowInWelcome: true),
+        new("Launcher", L.T("Kısayol kutusu"), SymbolRegular.AppsAddIn24, L.T("Sekmeli uygulama rafı; tek tıkla açar"), WidgetGroup.Tool,
+            () => Seed(WidgetSeeds.Launcher), Matches: c => c.Kind == WidgetKind.Launcher && WidgetVariants.Of(c) is null, ShowInWelcome: true),
+        new("Calendar", L.T("Takvim"), SymbolRegular.CalendarMonth24, L.T("Aylık takvim; ay ay gezinilir"), WidgetGroup.Info,
+            () => Seed(WidgetSeeds.Calendar), Matches: c => WidgetVariants.Is(c, WidgetVariants.Month)),
+        new("Countdown", L.T("Geri sayım"), SymbolRegular.CalendarStar24, L.T("Bir güne kaç gün kaldı (tatil, doğum günü…)"), WidgetGroup.Tool,
+            AddCountdown, Matches: c => WidgetVariants.Is(c, WidgetVariants.Countdown)),
+        new("Timer", L.T("Zamanlayıcı"), SymbolRegular.Timer24, L.T("Geri sayan zamanlayıcı; süre dolunca haber verir. Kronometre de olur."), WidgetGroup.Tool,
+            () => Seed(WidgetSeeds.Timer), Matches: c => WidgetVariants.Is(c, WidgetVariants.Timer) && TimerModes.Normalize(c.Timer?.Mode) != TimerModes.Pomodoro),
+        new("Pomodoro", L.T("Pomodoro"), SymbolRegular.ClockAlarm24, L.T("25 dakika odak, 5 dakika mola; dört turda bir uzun mola"), WidgetGroup.Tool,
+            () => Seed(WidgetSeeds.Pomodoro), Matches: c => WidgetVariants.Is(c, WidgetVariants.Timer) && TimerModes.Normalize(c.Timer?.Mode) == TimerModes.Pomodoro),
+        new("WorldClock", L.T("Dünya saati"), SymbolRegular.GlobeClock24, L.T("Başka şehirlerde saat kaç, kaç saat fark var"), WidgetGroup.Info,
+            () => Seed(WidgetSeeds.WorldClock), Matches: c => WidgetVariants.Is(c, WidgetVariants.World)),
+        new("SystemStatus", L.T("Sistem durumu"), SymbolRegular.Gauge24, L.T("İşlemci, bellek, disk ve pil"), WidgetGroup.Info,
+            () => Seed(WidgetSeeds.SystemStatus), Matches: c => WidgetVariants.Is(c, WidgetVariants.System)),
+        new("RecycleBin", L.T("Geri Dönüşüm Kutusu"), SymbolRegular.Delete24, L.T("Kaç öğe var, ne kadar yer tutuyor; boşaltmadan önce sorar"), WidgetGroup.Info,
+            () => Seed(WidgetSeeds.RecycleBin), Matches: c => WidgetVariants.Is(c, WidgetVariants.Recycle)),
     ];
 
+    /// <summary>Karşılamada gösterilen araçlar (Saat, Tarih, Not, Yapılacaklar, Kısayol kutusu).</summary>
+    public static IEnumerable<WidgetChoice> WelcomeTools => Tools.Where(c => c.ShowInWelcome);
+
+    private static WidgetConfig? Seed(string key) => WidgetSeeds.Create(key) is { } seed ? AppHost.Widgets.AddSeed(seed) : null;
+
+    /// <summary>Geri sayım: önce etkinliğin adı ve günü sorulur; vazgeçilirse eklenmez.</summary>
+    private static WidgetConfig? AddCountdown()
+    {
+        var seed = WidgetSeeds.Create(WidgetSeeds.Countdown)!;
+        if (CountdownDialog.Ask(null, seed.TargetDate ?? DateTime.Today, false, AppHost.Widgets.PlacementHint?.Anchor) is not { } choice)
+            return null;
+        seed.Title = choice.Title;
+        seed.TargetDate = choice.Date;
+        seed.CountdownYearly = choice.Yearly;
+        return AppHost.Widgets.AddSeed(seed);
+    }
+
     /// <summary>
-    /// Bölmeler: masaüstü türleri (Klasörler, Kısayollar, Dosyalar, Tüm masaüstü), sonra klasör bölmeleri
-    /// (<see cref="WidgetManager.FolderFenceChoices"/> sırasıyla; masaüstünde olmayan kural klasörü "yeni klasör" rozetli).
-    /// Her çağrıda yeniden kurulur: klasörler değişebilir.
+    /// Bölmeler: masaüstü türleri (Klasörler, Kısayollar, Dosyalar, Tüm masaüstü), klasör portalları (İndirilenler,
+    /// Belgeler, Resimler, başka bir klasör), sonra klasör bölmeleri (<see cref="WidgetManager.FolderFenceChoices"/>
+    /// sırasıyla; masaüstünde olmayan kural klasörü "yeni klasör" rozetli). Her çağrıda yeniden kurulur: klasörler değişebilir.
     /// </summary>
     public static List<WidgetChoice> Fences()
     {
@@ -51,6 +90,10 @@ internal static class WidgetCatalog
             Filter("Files", DesktopFilter.Files, "Dosyalar", SymbolRegular.DocumentMultiple24, "Masaüstünde duran dosyalar"),
             Filter("All", DesktopFilter.All, "Tüm masaüstü", SymbolRegular.Desktop24, "Masaüstündeki her şey tek bölmede"),
         };
+        foreach (var id in new[] { FolderPortal.Downloads, FolderPortal.Documents, FolderPortal.Pictures })
+            if (KnownFolders.PathOf(id) is { } path) list.Add(KnownPortal(id, path));
+        list.Add(new WidgetChoice("Portal:Pick", L.T("Başka klasör…"), SymbolRegular.FolderLink24,
+            L.T("Bilgisayardaki herhangi bir klasörü bölmede göster (masaüstünde olması gerekmez)"), WidgetGroup.Fence, AddPickedFolder));
         foreach (var (name, exists) in AppHost.Widgets.FolderFenceChoices())
         {
             var icon = name.Equals("PDF", StringComparison.OrdinalIgnoreCase) ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24;
@@ -67,6 +110,81 @@ internal static class WidgetCatalog
     private static WidgetChoice Filter(string key, DesktopFilter filter, string label, SymbolRegular icon, string tip) =>
         new(key, label, icon, tip, WidgetGroup.Fence, () => AppHost.Widgets.AddFence(filter),
             Matches: c => c.Kind == WidgetKind.Fence && c.Filter == filter);
+
+    /// <summary>
+    /// Bilinen klasörün (İndirilenler…) portalı. Klasör masaüstündeyse klasik klasör bölmesi olur. Rozet, aynı adlı masaüstü
+    /// klasörü kutucuğundan (ör. "Belgeler · yeni klasör") ayırt ettirir.
+    /// </summary>
+    private static WidgetChoice KnownPortal(string id, string path) =>
+        new("Portal:" + id, FolderPortal.KnownName(id), KnownIcon(id), L.F("{0} klasörünün içi, en yeni üstte", FolderPortal.KnownName(id)),
+            WidgetGroup.Fence, () => AddFolder(path, id), Badge: L.T("Windows klasörü"),
+            Matches: c => c.Kind == WidgetKind.Fence && c.Filter == DesktopFilter.None && c.FolderName is { } f && FolderPortal.SamePath(f, path));
+
+    /// <summary>"Başka klasör…": klasör seçtirir; vazgeçilirse eklenmez.</summary>
+    private static WidgetConfig? AddPickedFolder()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = L.T("Bölmede gösterilecek klasörü seç"),
+            InitialDirectory = KnownFolders.PathOf(FolderPortal.Documents) ?? AppHost.DesktopDirectory,
+        };
+        return dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FolderName) ? AddFolder(dialog.FolderName, null) : null;
+    }
+
+    /// <summary>
+    /// Klasörü gösteren bölme ekler: masaüstünün kendisi "Tüm masaüstü", masaüstündeki klasör klasik klasör bölmesi, başka her
+    /// yer portal (başlık klasörün adı; 2.0 da başlığı gösterir).
+    /// </summary>
+    private static WidgetConfig? AddFolder(string path, string? knownId)
+    {
+        var source = FolderPortal.Normalize(path, AppHost.DesktopDirectory);
+        if (source.Filter != DesktopFilter.None) return AppHost.Widgets.AddFence(source.Filter);
+        var folder = source.FolderName!;
+        if (!System.IO.Path.IsPathFullyQualified(folder)) return AppHost.Widgets.AddFolderFence(folder);
+        var title = knownId is not null ? FolderPortal.KnownName(knownId) : FolderPortal.DisplayName(folder);
+        return AppHost.Widgets.AddSeed(WidgetSeeds.Portal(folder, knownId, title));
+    }
+
+    private static SymbolRegular KnownIcon(string? id) => id switch
+    {
+        FolderPortal.Downloads => SymbolRegular.ArrowDownload24,
+        FolderPortal.Documents => SymbolRegular.Document24,
+        FolderPortal.Pictures => SymbolRegular.Image24,
+        FolderPortal.Music => SymbolRegular.MusicNote224,
+        FolderPortal.Videos => SymbolRegular.Video24,
+        FolderPortal.Screenshots => SymbolRegular.Screenshot24,
+        _ => SymbolRegular.FolderLink24,
+    };
+
+    /// <summary>
+    /// Widget'ın simgesi (Widget'lar sayfasının listesi, portal başlığı): ekleme kutucuğundakinin aynısı. Tek eşleme burada.
+    /// </summary>
+    public static SymbolRegular IconFor(WidgetConfig config) => WidgetVariants.Of(config) switch
+    {
+        WidgetVariants.Month => SymbolRegular.CalendarMonth24,
+        WidgetVariants.Countdown => SymbolRegular.CalendarStar24,
+        WidgetVariants.Timer => TimerModes.Normalize(config.Timer?.Mode) == TimerModes.Pomodoro ? SymbolRegular.ClockAlarm24 : SymbolRegular.Timer24,
+        WidgetVariants.World => SymbolRegular.GlobeClock24,
+        WidgetVariants.System => SymbolRegular.Gauge24,
+        WidgetVariants.Recycle => SymbolRegular.Delete24,
+        _ => config.Kind switch
+        {
+            WidgetKind.Clock => SymbolRegular.Clock24,
+            WidgetKind.Date => SymbolRegular.CalendarLtr24,
+            WidgetKind.Note => config.NoteChecklist ? SymbolRegular.TaskListLtr24 : SymbolRegular.Note24,
+            WidgetKind.Launcher => SymbolRegular.AppsAddIn24,
+            _ => config.Filter switch
+            {
+                DesktopFilter.Folders => SymbolRegular.Folder24,
+                DesktopFilter.Shortcuts => SymbolRegular.Apps24,
+                DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
+                DesktopFilter.All => SymbolRegular.Desktop24,
+                _ when WidgetVariants.IsPortal(config) => KnownIcon(config.FolderKnownId),
+                _ => string.Equals(config.FolderName, "PDF", StringComparison.OrdinalIgnoreCase)
+                    ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
+            },
+        },
+    };
 
     /// <summary>128×82 kutucuk: 26 px simge, etiket (CharacterEllipsis, MaxWidth 110), Badge varsa altında 11 pt, Opacity 0.7.
     /// AutomationId "Add." + Key; AutomationProperties.Name = Label; HelpText = Tip; ToolTip = Tip.</summary>
@@ -136,7 +254,7 @@ internal static class WidgetCatalog
     /// <summary>
     /// near verilirse widget o noktanın ekranına yerleşir: followSetting ise ayardaki kiple ("Widget ekle" penceresi kapanır,
     /// widget onun yerine gelir), değilse türüne göre köşeye (ana pencere ve karşılama açık kalır; imlecin yanına konan widget
-    /// onların arkasında kaybolurdu). Add() çağrılır; FocusAfterAdd ise FocusNote. Klasör açılamazsa null.
+    /// onların arkasında kaybolurdu). Add() çağrılır; FocusAfterAdd ise FocusNote. Klasör açılamazsa ya da vazgeçilirse null.
     /// </summary>
     public static WidgetConfig? Invoke(WidgetChoice choice, NativeMethods.POINT? near, bool followSetting = false)
     {

@@ -16,23 +16,8 @@ public sealed class WidgetRow(WidgetConfig config)
     public string RevealName => $"Bul: {Name}";
     public string RemoveName => $"Kaldır: {Name}";
 
-    /// <summary>Ekleme kutucuklarındaki simgenin aynısı (bkz. <see cref="WidgetCatalog"/>).</summary>
-    public SymbolRegular Icon => Config.Kind switch
-    {
-        WidgetKind.Clock => SymbolRegular.Clock24,
-        WidgetKind.Date => SymbolRegular.CalendarLtr24,
-        WidgetKind.Note => Config.NoteChecklist ? SymbolRegular.TaskListLtr24 : SymbolRegular.Note24,
-        WidgetKind.Launcher => SymbolRegular.AppsAddIn24,
-        _ => Config.Filter switch
-        {
-            DesktopFilter.Folders => SymbolRegular.Folder24,
-            DesktopFilter.Shortcuts => SymbolRegular.Apps24,
-            DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
-            DesktopFilter.All => SymbolRegular.Desktop24,
-            _ => string.Equals(Config.FolderName, "PDF", StringComparison.OrdinalIgnoreCase)
-                ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
-        },
-    };
+    /// <summary>Ekleme kutucuklarındaki simgenin aynısı (tek eşleme: <see cref="WidgetCatalog.IconFor"/>).</summary>
+    public SymbolRegular Icon => WidgetCatalog.IconFor(Config);
 }
 
 /// <summary>Kayıtlı düzen satırı.</summary>
@@ -70,7 +55,9 @@ public partial class WidgetsPage : Page
         foreach (var mode in PlaceModes.Choices)
             PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
         // Araçlar sabit; bölmeler (klasörler değişebilir) her açılışta yeniden kurulur.
-        WidgetCatalog.AddTiles(ToolTiles, WidgetCatalog.Tools, AddWidget);
+        var tools = WidgetCatalog.Tools;
+        WidgetCatalog.AddTiles(ToolTiles, tools.Where(c => c.Group == WidgetGroup.Tool), AddWidget);
+        WidgetCatalog.AddTiles(InfoTiles, tools.Where(c => c.Group == WidgetGroup.Info), AddWidget);
         Loaded += (_, _) => Reload();
         // Ana pencere gizliyken sayfa widget değişikliklerine ve kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
@@ -205,7 +192,7 @@ public partial class WidgetsPage : Page
         // Pencere açılamadıysa WidgetManager widget'ı geri çıkarıp uyardı: "eklendi" denmesin.
         if (!AppHost.Settings.Widgets.Any(w => w.Id == config.Id)) return;
 
-        var text = choice.Group == WidgetGroup.Tool ? $"{choice.Label} masaüstüne eklendi."
+        var text = choice.Group != WidgetGroup.Fence ? L.F("{0} masaüstüne eklendi.", choice.Label)
             : creates ? $"\"{folder}\" bölmesi eklendi; masaüstünde \"{folder}\" klasörü de oluşturuldu."
             : $"\"{choice.Label}\" bölmesi masaüstüne eklendi.";
         Notice.Show(text, NoticeKind.Success, "Bul", () => AppHost.Widgets.Reveal(config.Id));

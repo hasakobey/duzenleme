@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Threading;
 using Duzenleme.Core;
 
 namespace Duzenleme.Widgets;
@@ -11,10 +10,9 @@ public partial class DateView : UserControl, IWidgetView
 {
     /// <summary>Ay/gün adları arayüz dilinde (Türkçede tr-TR).</summary>
     private static CultureInfo Culture => L.Culture;
-    private static readonly string[] ShortDays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
-    private readonly DispatcherTimer _timer;
     private WidgetPalette _palette = WidgetPalette.Glass;
     private DateTime _shownDate;
+    private bool _live;
 
     private readonly WidgetConfig _config;
 
@@ -22,10 +20,26 @@ public partial class DateView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
-        _timer.Tick += (_, _) => { if (DateTime.Today != _shownDate) Render(); };
-        _timer.Start();
         Render();
+    }
+
+    /// <summary>
+    /// Gün yalnızca gece yarısı değişir: görünürken ortak zamanlayıcının gün bildirimine abone olur (eskiden 20 saniyede bir
+    /// uyanıp bakıyordu). Gizliyken hiç uyanmaz; görünür olunca gün değiştiyse hemen yeniden çizilir.
+    /// </summary>
+    public void SetLive(bool live)
+    {
+        if (_live == live) return;
+        _live = live;
+        WidgetTicker.DayChanged -= OnDayChanged;
+        if (!live) return;
+        WidgetTicker.DayChanged += OnDayChanged;
+        OnDayChanged();
+    }
+
+    private void OnDayChanged()
+    {
+        if (DateTime.Today != _shownDate) Render();
     }
 
     public bool Resizable => false;
@@ -66,7 +80,8 @@ public partial class DateView : UserControl, IWidgetView
             var isToday = day == today;
             var dayName = new TextBlock
             {
-                Text = ShortDays[i], FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
+                // Kısa gün adı arayüz dilinde ("Pzt" / "Mon").
+                Text = Culture.DateTimeFormat.AbbreviatedDayNames[(int)day.DayOfWeek], FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = isToday ? _palette.AccentForeground : _palette.Secondary,
             };
             var dayNumber = new TextBlock
@@ -98,9 +113,9 @@ public partial class DateView : UserControl, IWidgetView
     }
 
     public void AddMenuItems(WidgetMenu menu) =>
-        menu.Appearance.Add(Menus.Parts(_config, [("sub", "Yıl ve gün adı"), ("week", "Haftalık şerit"), Menus.ClosePart], Render));
+        menu.Appearance.Add(Menus.Parts(_config, [("sub", L.T("Yıl ve gün adı")), ("week", L.T("Haftalık şerit")), Menus.ClosePart], Render));
 
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
-    public void Detach() => _timer.Stop();
+    public void Detach() => WidgetTicker.DayChanged -= OnDayChanged;
 }

@@ -231,7 +231,9 @@ public static class FolderIconService
     /// simgeleri kaldırır. desktop.ini simgesi bizimse klasör varsayılan simgeye döner; başka programın simgesi olan klasörde
     /// yalnızca bizim artık dosyalarımız silinir. Bağlantı (junction) klasörlere girilmez. Arka planda çağır.
     /// </summary>
-    public static (List<string> Removed, int Failed) RemoveAllOwnIcons(IEnumerable<string> roots, int depth = 2, int maxFolders = 20000)
+    /// <param name="includeRoots">Köklerin kendisine de bakılır (klasör portalının gösterdiği klasör; 2.1 P6).</param>
+    public static (List<string> Removed, int Failed) RemoveAllOwnIcons(IEnumerable<string> roots, int depth = 2, int maxFolders = 20000,
+        bool includeRoots = false)
     {
         List<string> removed = [];
         int failed = 0, visited = 0;
@@ -240,7 +242,7 @@ public static class FolderIconService
         while (queue.Count > 0 && visited < maxFolders)
         {
             var (folder, level) = queue.Dequeue();
-            if (level > 0)
+            if (level > 0 || includeRoots)
             {
                 visited++;
                 try

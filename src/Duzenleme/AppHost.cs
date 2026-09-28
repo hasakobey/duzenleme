@@ -162,6 +162,8 @@ public static class AppHost
         DesktopSnapshot = Snapshots.Acquire(DesktopDirectory);
         foreach (var dir in DesktopDirectories.Skip(1)) Snapshots.Acquire(dir);
 
+        // Tanınmayan enum değeri (daha yeni sürümden) ayarları silmez, yedek değere döner: günlüğe yazılır.
+        JsonFile.Log = DebugLog.Write;
         Settings = JsonFile.Load(SettingsPath, () => new AppSettings());
         _store = new SettingsStore(new DurableFile(SettingsPath), () => JsonFile.Serialize(Settings),
             tick => new DispatcherOwnerTimer(dispatcher, tick));
@@ -533,24 +535,30 @@ public static class AppHost
         if (Settings.NewWidgetHintsShown >= 3) return;
         Settings.NewWidgetHintsShown++;
         SaveSettings();
-        var name = config.Kind switch
+        // Yeni türlerde (takvim, zamanlayıcı…) widget'ın adı; klasik türlerde kısa ad.
+        var name = WidgetVariants.Of(config) is not null ? WidgetText.DisplayName(config) : config.Kind switch
         {
-            WidgetKind.Note => config.NoteChecklist ? "Yapılacaklar listesi" : "Yeni not",
-            WidgetKind.Clock => "Saat",
-            WidgetKind.Date => "Tarih",
-            WidgetKind.Launcher => "Kısayol kutusu",
-            _ => "Bölme",
+            WidgetKind.Note => config.NoteChecklist ? L.T("Yapılacaklar listesi") : L.T("Yeni not"),
+            WidgetKind.Clock => L.T("Saat"),
+            WidgetKind.Date => L.T("Tarih"),
+            WidgetKind.Launcher => L.T("Kısayol kutusu"),
+            _ => L.T("Bölme"),
         };
         var where = PlaceModes.Parse(Settings.NewWidgetPlacement) switch
         {
-            PlaceMode.Center => "ekranın ortasına",
-            PlaceMode.Corner => config.Kind is WidgetKind.Clock or WidgetKind.Date or WidgetKind.Note ? "ekranın sağ üstüne" : "ekranın üst ortasına",
-            _ => "imlecin yanına",
+            PlaceMode.Center => L.T("ekranın ortasına"),
+            PlaceMode.Corner => WidgetVariants.Corner(config) switch
+            {
+                WidgetCorner.TopRight => L.T("ekranın sağ üstüne"),
+                WidgetCorner.BottomRight => L.T("ekranın sağ altına"),
+                _ => L.T("ekranın üst ortasına"),
+            },
+            _ => L.T("imlecin yanına"),
         };
         var reveal = Settings.Hotkeys.PeekWidgets;
-        Tray?.Notify($"{name} {where} eklendi",
-            "Yerini Widget'lar sayfasındaki \"Yeni widget'ların yeri\"nden değiştirebilirsin." +
-            (string.IsNullOrWhiteSpace(reveal) ? "" : $" Widget'ları pencerelerin önüne getirmek için {reveal}."),
+        Tray?.Notify(L.F("{0} {1} eklendi", name, where),
+            L.T("Yeni widget'ların yerini Widget'lar sayfasından değiştirebilirsin.") +
+            (string.IsNullOrWhiteSpace(reveal) ? "" : L.F(" Widget'ları pencerelerin önüne getirmek için {0}.", reveal)),
             () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
     }
 

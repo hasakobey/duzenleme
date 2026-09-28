@@ -155,6 +155,53 @@
     </Style>
 
     <!--
+        2.1 P6: widget içindeki küçük düğmeler (takvimde ‹ › ve "Bugün", zamanlayıcıda ▶ ⏸ ⟲, Geri Dönüşüm Kutusu'nda
+        "Boşalt…"). Hep yerinde ve görünür (fareyle belirmez); üstüne gelince yalnızca zemin hafifçe koyulaşır (yerleşim ve
+        yazı saydamlığı değişmez: opak kartta yazı ClearType kalır). Açık ve koyu zeminde okunsun diye zemin gri tonludur.
+        Yazı rengi görünümden (Foreground); devre dışıyken görünüm soluk renk verir.
+    -->
+    <Style x:Key="WidgetGlyphButton" TargetType="Button">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="14" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#26808080" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#40808080" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter TargetName="Bg" Property="Background" Value="Transparent" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Yazılı küçük düğme ("Bugün", "+1 dk", "Boşalt…"): WidgetGlyphButton gibi, ama genişliği yazıya göre ve hafif zeminli. -->
+    <Style x:Key="WidgetTextButton" TargetType="Button" BasedOn="{StaticResource WidgetGlyphButton}">
+        <Setter Property="Width" Value="NaN" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="10,0,10,1" />
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Background" Value="#1A808080" />
+    </Style>
+
+    <!--
         Simge ekrandaki gerçek piksel boyutunda gelir (TileItem.UpdateIconSize) ve 1:1 çizilir; HighQuality yalnızca simge
         tam boyutta alınamadığında (widget ölçeği, yedek yol) devreye girer. Ad, kart opaksa ClearType ile çizilir: kaydırılan
         listenin kırpması ClearType'ı kapattığı için ipucu yazının kendisine görünümden (WidgetWindow.ApplyStyle) verilir;

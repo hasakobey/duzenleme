@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Threading;
 using Duzenleme.Core;
 
 namespace Duzenleme.Widgets;
@@ -12,35 +11,36 @@ public partial class ClockView : UserControl, IWidgetView
     /// <summary>Ay/gün adları arayüz dilinde (Türkçede tr-TR).</summary>
     private static CultureInfo Culture => L.Culture;
     private readonly WidgetConfig _config;
-    private readonly DispatcherTimer _timer;
+    private bool _live;
 
     public ClockView(WidgetConfig config)
     {
         _config = config;
         InitializeComponent();
-        _timer = new DispatcherTimer(DispatcherPriority.Render);
-        _timer.Tick += (_, _) => { Update(); Schedule(); };
         Update();
-        Schedule();
-        _timer.Start();
-        // Uyku/uyanma ya da saat ayarı değişince beklemeden güncelle.
-        Microsoft.Win32.SystemEvents.TimeChanged += OnSystemTime;
-        Microsoft.Win32.SystemEvents.PowerModeChanged += OnSystemTime;
     }
 
     /// <summary>
-    /// Bir sonraki saniye (saniye gösteriliyorsa) ya da dakika başına kurulur: saat boşta gereksiz yere
-    /// uyanıp yeniden çizilmez (katmanlı pencerede her çizim tüm widget'ı yeniden oluşturur).
+    /// Görünürken ortak zamanlayıcıya (<see cref="WidgetTicker"/>) abone olur: saniye gösteriliyorsa saniyede, değilse
+    /// dakikada bir güncellenir. Gizliyken hiç uyanmaz; görünür olunca hemen güncellenir. Saat ayarı değişince ya da uykudan
+    /// uyanınca da ortak zamanlayıcı haber verir.
     /// </summary>
-    private void Schedule()
+    public void SetLive(bool live)
     {
-        var now = DateTime.Now;
-        var unit = _config.ShowSeconds ? TimeSpan.TicksPerSecond : TimeSpan.TicksPerMinute;
-        _timer.Interval = TimeSpan.FromTicks(unit - now.Ticks % unit) + TimeSpan.FromMilliseconds(15);
+        if (_live == live) return;
+        _live = live;
+        Subscribe(live);
+        if (live) Update();
     }
 
-    private void OnSystemTime(object? sender, EventArgs e) =>
-        Dispatcher.BeginInvoke(() => { Update(); Schedule(); });
+    private void Subscribe(bool on)
+    {
+        WidgetTicker.MinuteTick -= Update;
+        WidgetTicker.SecondTick -= Update;
+        if (!on) return;
+        if (_config.ShowSeconds) WidgetTicker.SecondTick += Update;
+        else WidgetTicker.MinuteTick += Update;
+    }
 
     public bool Resizable => false;
 
@@ -53,9 +53,12 @@ public partial class ClockView : UserControl, IWidgetView
     private void Update()
     {
         var now = DateTime.Now;
-        TimeText.Text = now.ToString("HH:mm", Culture);
+        var h24 = WorldClock.Uses24Hour(_config.Clock12Hour);
+        TimeText.Text = WorldClock.Time(now, h24, Culture);
         SecondsText.Text = now.ToString("ss", Culture);
         SecondsBox.Visibility = _config.ShowSeconds ? Visibility.Visible : Visibility.Collapsed;
+        DesignatorText.Text = h24 ? "" : WorldClock.Designator(now, Culture);
+        DesignatorBox.Visibility = h24 ? Visibility.Collapsed : Visibility.Visible;
         GreetingText.Text = Greeting(now.Hour) + " · " + Culture.TextInfo.ToTitleCase(now.ToString("dddd", Culture));
         GreetingRow.Visibility = _config.Shows("greeting") ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -71,10 +74,10 @@ public partial class ClockView : UserControl, IWidgetView
 
     public static string Greeting(int hour) => hour switch
     {
-        >= 5 and < 12 => "Günaydın",
-        >= 12 and < 18 => "İyi günler",
-        >= 18 and < 23 => "İyi akşamlar",
-        _ => "İyi geceler",
+        >= 5 and < 12 => L.T("Günaydın"),
+        >= 12 and < 18 => L.T("İyi günler"),
+        >= 18 and < 23 => L.T("İyi akşamlar"),
+        _ => L.T("İyi geceler"),
     };
 
     public void ApplyPalette(WidgetPalette palette)
@@ -82,30 +85,38 @@ public partial class ClockView : UserControl, IWidgetView
         SecondsText.Foreground = palette.Accent;
         Dot.Fill = palette.Accent;
         GreetingText.Foreground = palette.Secondary;
+        DesignatorText.Foreground = palette.Secondary;
         // Opak kartta selam satırı ClearType ile (ipucunu WidgetWindow görünüme verir); büyük rakamlar gri tonlamalı kalır.
-        RenderOptions.SetClearTypeHint(GreetingText, RenderOptions.GetClearTypeHint(this));
+        ClearTypeText.Follow(this, GreetingText, DesignatorText);
         // Cam: yazıların altında efektsiz gölge kopyası (bkz. ShadowText).
-        foreach (var shadow in new[] { TimeShadow, SecondsShadow, GreetingShadow }) shadow.Show(palette.TextShadow);
+        foreach (var shadow in new[] { TimeShadow, SecondsShadow, GreetingShadow, DesignatorShadow }) shadow.Show(palette.TextShadow);
         RemoveButton.Foreground = palette.Foreground;
         ApplyParts();
     }
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        menu.Primary.Add(Menus.Toggle("Saniyeyi göster", _config.ShowSeconds, () =>
+        menu.Primary.Add(Menus.Toggle(L.T("Saniyeyi göster"), _config.ShowSeconds, () =>
         {
             _config.ShowSeconds = !_config.ShowSeconds;
             AppHost.SaveSettings();
+            if (_live) Subscribe(true);
             Update();
-            Schedule();
         }));
-        menu.Appearance.Add(Menus.Parts(_config, [("greeting", "Selam ve gün"), Menus.ClosePart], ApplyParts));
+        menu.Primary.Add(HourFormatChoice(_config, Update));
+        menu.Appearance.Add(Menus.Parts(_config, [("greeting", L.T("Selam ve gün")), Menus.ClosePart], ApplyParts));
     }
 
-    public void Detach()
-    {
-        _timer.Stop();
-        Microsoft.Win32.SystemEvents.TimeChanged -= OnSystemTime;
-        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnSystemTime;
-    }
+    /// <summary>"Saat biçimi ▸ Windows'taki gibi / 24 saat / 12 saat" (saat ve dünya saati).</summary>
+    internal static MenuItem HourFormatChoice(WidgetConfig config, Action changed) =>
+        Menus.Choice(L.T("Saat biçimi"), config.Clock12Hour,
+            [(null, L.T("Windows'taki gibi")), (false, L.T("24 saat (15:30)")), (true, L.T("12 saat (3:30 ÖS)"))],
+            value =>
+            {
+                config.Clock12Hour = value;
+                AppHost.SaveSettings();
+                changed();
+            });
+
+    public void Detach() => Subscribe(false);
 }

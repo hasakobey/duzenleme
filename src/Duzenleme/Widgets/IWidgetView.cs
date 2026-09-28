@@ -44,4 +44,15 @@ public interface IWidgetView
 
     /// <summary>Widget kapanırken zamanlayıcı/izleyici gibi kaynakları bırakır.</summary>
     void Detach();
+
+    // 2.1 P6
+    /// <summary>
+    /// Widget görünür mü ve kullanıcı onu görebilir mi (pencere gösteriliyor, oturum kilitli değil, bilgisayar uykuda değil)?
+    /// Görünmezken işleyen widget'lar (saat, zamanlayıcı, sistem durumu) uyanmaz; görünür olunca hemen güncellenir.
+    /// İlk çağrı pencere gösterilince gelir; o zamana dek görünüm "görünmez" sayılır. WidgetWindow değişince çağırır.
+    /// </summary>
+    void SetLive(bool live) { }
+
+    /// <summary>Görünüm ▸ altındaki ipucunda Ctrl + tekerleğin ne yaptığı (null: widget'ın ölçeği / simge boyutu).</summary>
+    string? CtrlWheelHint => null;
 }

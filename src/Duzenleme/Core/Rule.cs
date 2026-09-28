@@ -61,4 +61,9 @@ public sealed class Rule
             p.First.Enabled
             && (FolderName.Equal(p.First.TargetFolder, p.Second.Tr) || FolderName.Equal(p.First.TargetFolder, p.Second.En))
             && p.First.Extensions.SequenceEqual(p.Second.Extensions));
+
+    // 2.1 P6
+    /// <summary>Daha yeni sürümün yazdığı bilinmeyen alanlar (aynen geri yazılır).</summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? Extra { get; set; }
 }

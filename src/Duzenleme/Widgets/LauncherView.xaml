@@ -39,7 +39,7 @@
 
             <Grid>
                 <ListBox x:Name="Items" Background="Transparent" BorderThickness="0" Padding="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionMode="Single"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionMode="Single" VirtualizingPanel.ScrollUnit="Pixel"
                          ItemContainerStyle="{StaticResource TileContainer}" ItemTemplate="{StaticResource TileTemplate}" />
 
                 <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">

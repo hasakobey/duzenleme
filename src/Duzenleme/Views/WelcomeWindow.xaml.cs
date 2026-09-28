@@ -437,7 +437,8 @@ public partial class WelcomeWindow : FluentWindow
     private void SetupTools()
     {
         var style = (Style)FindResource("ToolTile");
-        foreach (var choice in WidgetCatalog.Tools)
+        // Karşılamada yalnızca temel araçlar (adım sabit boyutlu); 2.1'in yeni widget'ları "Widget ekle"de ve Widget'lar sayfasında.
+        foreach (var choice in WidgetCatalog.WelcomeTools)
         {
             // Karşılama widget kaldırmaz ve aynı türden ikincisini eklemez.
             var onDesktop = choice.Matches is { } matches && AppHost.Settings.Widgets.Any(matches);

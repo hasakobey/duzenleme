@@ -69,10 +69,16 @@ internal sealed class QuickAddWindow : FluentWindow
         WidgetCatalog.AddTiles(fences, WidgetCatalog.Fences(), Run);
         body.Children.Add(fences);
 
+        var choices = WidgetCatalog.Tools;
         body.Children.Add(Section("Araçlar"));
         var tools = new WrapPanel();
-        WidgetCatalog.AddTiles(tools, WidgetCatalog.Tools, Run);
+        WidgetCatalog.AddTiles(tools, choices.Where(c => c.Group == WidgetGroup.Tool), Run);
         body.Children.Add(tools);
+
+        body.Children.Add(Section(L.T("Saat ve bilgi")));
+        var info = new WrapPanel();
+        WidgetCatalog.AddTiles(info, choices.Where(c => c.Group == WidgetGroup.Info), Run);
+        body.Children.Add(info);
 
         var scroller = new ScrollViewer
         {

@@ -117,7 +117,9 @@ public partial class NoteView : UserControl, IWidgetView
             // Önce yeni içerik hazırlanır, sonra görünürlük değişir: gizlenen alanın odak kaybı (kayıt) eksik içerik görmesin.
             if (_config.NoteChecklist)
             {
-                RebuildRows(ChecklistText.Parse(_config.NoteText));
+                // "Bitenler alta" açıksa liste açılırken de öyle dizilir (metin başka yerde, ör. 2.0'da değişmiş olabilir).
+                var items = ChecklistText.Parse(_config.NoteText);
+                RebuildRows(_config.ChecklistDoneLast ? ChecklistText.DoneLast(items, i => i.Done) : items);
                 Editor.Text = "";
                 Editor.Visibility = Visibility.Collapsed;
                 ChecklistScroll.Visibility = Visibility.Visible;
@@ -148,6 +150,59 @@ public partial class NoteView : UserControl, IWidgetView
 
     public WidgetPalette AdjustPalette(WidgetPalette palette) => WidgetPalette.ForNote(_config.NoteColor);
 
+    // --- 2.1 P6: yazı boyutu (LabelSize; 2.0 da bu alanı tanır ve korur) ve Ctrl + tekerlek ---
+
+    /// <summary>Notun ve maddelerin yazı boyutu: Küçük 13, Normal 15, Büyük 18.</summary>
+    private double NoteFontSize => _config.LabelSize switch { LabelSize.Small => 13, LabelSize.Large => 18, _ => 15 };
+
+    public string? CtrlWheelHint => L.T("Yazı boyutu: Ctrl + tekerlek");
+
+    /// <summary>Ctrl + tekerlek notta yazıyı büyütür/küçültür (bölmedeki simgeler gibi); widget ölçeklenmez.</summary>
+    public bool OnCtrlWheel(int delta)
+    {
+        var next = (LabelSize)Math.Clamp((int)_config.LabelSize + (delta > 0 ? 1 : -1), (int)LabelSize.Small, (int)LabelSize.Large);
+        if (next != _config.LabelSize) SetFontSize(next);
+        return true;
+    }
+
+    private void SetFontSize(LabelSize size)
+    {
+        _config.LabelSize = size;
+        AppHost.SaveSettings();
+        ApplyFont();
+    }
+
+    private void ApplyFont()
+    {
+        var size = NoteFontSize;
+        Editor.FontSize = size;
+        AddBox.FontSize = size;
+        foreach (var row in _rows)
+        {
+            row.Label.FontSize = size;
+            if (row.Editor is { } editor) editor.FontSize = size;
+        }
+    }
+
+    /// <summary>
+    /// Kart opakken (not renkleri) yazı ClearType ile çizilir: yazı alanı ve liste kaydırılan (kırpılan) alandadır, ipucu
+    /// yazılara ayrıca verilir. Biten madde soluktur (yarı saydam): onda gri tonlama kalır.
+    /// </summary>
+    private void ApplyClearType()
+    {
+        var hint = ClearTypeText.Of(this);
+        ClearTypeText.Apply(Editor, hint);
+        ClearTypeText.Apply(AddBox, hint);
+        foreach (var row in _rows) ApplyRowClearType(row, hint);
+    }
+
+    private static void ApplyRowClearType(Row row, System.Windows.Media.ClearTypeHint hint)
+    {
+        var rowHint = row.Done ? System.Windows.Media.ClearTypeHint.Auto : hint;
+        System.Windows.Media.RenderOptions.SetClearTypeHint(row.Label, rowHint);
+        if (row.Editor is { } editor) ClearTypeText.Apply(editor, rowHint);
+    }
+
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
@@ -160,6 +215,8 @@ public partial class NoteView : UserControl, IWidgetView
         AddGlyph.Foreground = palette.Foreground;
         PaintText(AddBox);
         foreach (var row in _rows) PaintRow(row);
+        ApplyFont();
+        ApplyClearType();
         UpdateTitle();
 
         // Başlıktaki renk seçici noktalar.
@@ -193,6 +250,13 @@ public partial class NoteView : UserControl, IWidgetView
             var done = CurrentItems().Count(i => i.Done && i.Text.Trim().Length > 0);
             if (done > 0) menu.Primary.Add(Menus.Item($"Bitenleri temizle ({done})", ClearDone));
             if (_cleared is not null) menu.Primary.Add(Menus.Item("Geri al: temizlenen maddeler geri gelsin", UndoClear));
+            menu.Primary.Add(Menus.Toggle(L.T("Bitenler alta insin"), _config.ChecklistDoneLast, () =>
+            {
+                _config.ChecklistDoneLast = !_config.ChecklistDoneLast;
+                if (_config.ChecklistDoneLast) MoveDoneLast();
+                AppHost.SaveSettings();
+                Save();
+            }));
             menu.Primary.Add(Menus.Item("Düz nota çevir", ToPlainNote));
         }
         else menu.Primary.Add(Menus.Item("Onay kutulu listeye çevir", ToChecklist));
@@ -200,6 +264,8 @@ public partial class NoteView : UserControl, IWidgetView
         if (!_config.NoteChecklist) menu.Primary.Add(Menus.Item("Notu temizle", () => Editor.Clear()));
 
         menu.Appearance.Add(Menus.Parts(_config, [("header", "Başlık ve renkler"), Menus.ClosePart], UpdateTitle));
+        menu.Appearance.Add(Menus.Choice(L.T("Yazı boyutu"), _config.LabelSize,
+            [(LabelSize.Small, L.T("Küçük")), (LabelSize.Normal, L.T("Normal")), (LabelSize.Large, L.T("Büyük"))], SetFontSize));
         // Üst düzey not menüsü kısa kalsın (en çok 8 öğe): kopyalama seyrek kullanılır.
         menu.More.Add(Menus.Item("Panoya kopyala", CopyToClipboard));
     }
@@ -347,7 +413,7 @@ public partial class NoteView : UserControl, IWidgetView
         // Kenar payı TextBox'ın metin payıyla aynı: düzenlemeye geçerken yazı yerinden oynamaz.
         var label = new TextBlock
         {
-            Text = item.Text, TextWrapping = TextWrapping.Wrap, FontSize = 15, FontFamily = RowFont,
+            Text = item.Text, TextWrapping = TextWrapping.Wrap, FontSize = NoteFontSize, FontFamily = RowFont,
             Margin = new Thickness(2, 0, 2, 0), Cursor = Cursors.IBeam,
         };
         Grid.SetColumn(label, 1);
@@ -390,8 +456,11 @@ public partial class NoteView : UserControl, IWidgetView
         box.SelectionBrush = _palette.Accent;
     }
 
-    /// <summary>Biten madde üstü çizili ve soluk görünür; yerinde kalır (sıralama değişmez).</summary>
-    private static void ApplyDoneLook(Row row)
+    /// <summary>
+    /// Biten madde üstü çizili ve soluk görünür; "Bitenler alta insin" kapalıysa yerinde kalır. Soluk (yarı saydam) satırda
+    /// ClearType kapanır (saydam katmanda renkli saçak bırakırdı).
+    /// </summary>
+    private void ApplyDoneLook(Row row)
     {
         var decorations = row.Done ? TextDecorations.Strikethrough : null;
         var opacity = row.Done ? 0.55 : 1;
@@ -402,13 +471,33 @@ public partial class NoteView : UserControl, IWidgetView
             editor.TextDecorations = decorations;
             editor.Opacity = opacity;
         }
+        ApplyRowClearType(row, ClearTypeText.Of(this));
     }
 
     private void DoneChanged(Row row)
     {
         ApplyDoneLook(row);
+        if (_config.ChecklistDoneLast && !_applying) MoveDoneLast();
         UpdateProgress();
         QueueSave();
+    }
+
+    /// <summary>
+    /// "Bitenler alta": açık maddeler üstte, bitenler altta (iki grup kendi sırasını korur). Satırlar yeniden kurulmaz,
+    /// yalnızca yerleri değişir; düzenlenen madde odağını korur.
+    /// </summary>
+    private void MoveDoneLast()
+    {
+        AttachAll();
+        var ordered = ChecklistText.DoneLast(_rows, r => r.Done);
+        if (ordered.SequenceEqual(_rows)) return;
+        var focused = _rows.FirstOrDefault(r => r.Editor?.IsKeyboardFocusWithin == true);
+        var caret = focused?.Editor?.CaretIndex;
+        _rows.Clear();
+        _rows.AddRange(ordered);
+        ChecklistRows.Children.Clear();
+        foreach (var row in _rows) ChecklistRows.Children.Add(row.Root);
+        if (focused?.Editor is { } editor) FocusText(editor, caret ?? int.MaxValue);
     }
 
     /// <summary>Satırın metnini ve işaretini değiştirir (taşıma, yapıştırma).</summary>
@@ -448,7 +537,7 @@ public partial class NoteView : UserControl, IWidgetView
             editor = new TextBox
             {
                 Style = _rowTextStyle, Text = row.Text, TextWrapping = TextWrapping.Wrap, AcceptsReturn = false,
-                ContextMenu = _rowMenu,
+                ContextMenu = _rowMenu, FontSize = NoteFontSize,
             };
             AutomationProperties.SetName(editor, "Madde");
             Grid.SetColumn(editor, 1);

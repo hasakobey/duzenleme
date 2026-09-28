@@ -130,17 +130,24 @@ public sealed class WidgetManager
 
     public WidgetConfig Add(WidgetKind kind, string? folderName = null)
     {
-        var config = new WidgetConfig { Kind = kind, FolderName = folderName, Z = DateTime.UtcNow.Ticks };
-        if (kind == WidgetKind.Launcher)
-            config.Tabs = [new LauncherTab { Name = "Uygulamalar" }, new LauncherTab { Name = "Dosyalar" }];
-        if (kind == WidgetKind.Note)
-            config.NoteColor = NextNoteColor();
-        return AddConfig(config);
+        var config = WidgetSeeds.Create(kind.ToString()) ?? new WidgetConfig { Kind = kind };
+        config.FolderName = folderName;
+        return AddSeed(config);
     }
 
     /// <summary>Onay kutulu liste (Yapılacaklar): Kind yine Note'tur, yeni enum üyesi yoktur (eski sürümler düz not görür).</summary>
-    public WidgetConfig AddChecklist() =>
-        AddConfig(new WidgetConfig { Kind = WidgetKind.Note, NoteChecklist = true, NoteColor = NextNoteColor(), Z = DateTime.UtcNow.Ticks });
+    public WidgetConfig AddChecklist() => AddSeed(WidgetSeeds.Create(WidgetSeeds.Checklist)!);
+
+    /// <summary>
+    /// Hazır ayarla (<see cref="WidgetSeeds"/>) widget ekler: sırası en öne, notun rengi sıradaki renk olur; yeri
+    /// <see cref="PlacementHint"/> ya da ayardaki kip. Açılamazsa kullanıcı uyarılır ve widget listeden çıkar.
+    /// </summary>
+    public WidgetConfig AddSeed(WidgetConfig seed)
+    {
+        seed.Z = DateTime.UtcNow.Ticks;
+        if (seed.Kind == WidgetKind.Note) seed.NoteColor = NextNoteColor();
+        return AddConfig(seed);
+    }
 
     /// <summary>Yeni notun kağıt rengi: notlar sırayla sarı, pembe, yeşil, mavi, mor olur.</summary>
     private static NoteColor NextNoteColor() => (NoteColor)(AppHost.Settings.Widgets.Count(w => w.Kind == WidgetKind.Note) % 5);
@@ -216,6 +223,7 @@ public sealed class WidgetManager
         copy.Left = copy.Top = double.NaN;
         copy.PixelLeft = copy.PixelTop = null;
         copy.Z = DateTime.UtcNow.Ticks;
+        WidgetSeeds.PrepareDuplicate(copy);
         AddConfig(copy);
     }
 
@@ -506,7 +514,7 @@ public sealed class WidgetManager
     /// </summary>
     /// <param name="dipSize">Pencerenin DIP boyutu (gölge payı dahil).</param>
     /// <param name="marginDip">Kartın çevresindeki gölge payı (DIP).</param>
-    internal NativeMethods.POINT FreeSpot(WidgetKind kind, Size dipSize, double marginDip, WidgetWindow? self, WidgetPlacement place)
+    internal NativeMethods.POINT FreeSpot(WidgetConfig config, Size dipSize, double marginDip, WidgetWindow? self, WidgetPlacement place)
     {
         var work = place.WorkArea(out var scale);
         var area = new Box(work.Left, work.Top, work.Right, work.Bottom);
@@ -514,10 +522,12 @@ public sealed class WidgetManager
         var w = Math.Max(1, (int)Math.Ceiling(Math.Max(dipSize.Width, 120) * scale) - 2 * m);
         var h = Math.Max(1, (int)Math.Ceiling(Math.Max(dipSize.Height, 80) * scale) - 2 * m);
         var gap = (int)Math.Round(18 * scale);
-        // Saat/tarih/not köşe kipinde sağ üstten, bölme ve kutu üst ortadan başlar (2.0'daki gibi).
-        var cornerRight = kind is WidgetKind.Clock or WidgetKind.Date or WidgetKind.Note;
-        var (dx, dy) = WidgetLayout.DesiredSpot(place.Mode, area, w, h, place.Anchor.X, place.Anchor.Y, cornerRight,
-            offset: (int)Math.Round(16 * scale), gap);
+        // Köşe kipinde saat/tarih/not (ve alt türleri) sağ üstten, bölme ve kutu üst ortadan (2.0'daki gibi), Geri Dönüşüm
+        // Kutusu sağ alttan başlar.
+        var corner = WidgetVariants.Corner(config);
+        var (dx, dy) = WidgetLayout.DesiredSpot(place.Mode, area, w, h, place.Anchor.X, place.Anchor.Y,
+            cornerRight: corner != WidgetCorner.TopCenter, offset: (int)Math.Round(16 * scale), gap,
+            cornerBottom: corner == WidgetCorner.BottomRight);
         var (x, y) = WidgetLayout.FindSpot(area, w, h, dx, dy, OtherCards(self), gap,
             step: Math.Max(8, (int)Math.Round(16 * scale)), horizontalWeight: place.Mode == PlaceMode.Corner ? 4 : 1);
         return new NativeMethods.POINT { X = x - m, Y = y - m };
@@ -541,14 +551,7 @@ public sealed class WidgetManager
 
     private WidgetWindow Open(WidgetConfig config, WidgetPlacement? place = null)
     {
-        IWidgetView view = config.Kind switch
-        {
-            WidgetKind.Clock => new ClockView(config),
-            WidgetKind.Date => new DateView(config),
-            WidgetKind.Note => new NoteView(config),
-            WidgetKind.Launcher => new LauncherView(config),
-            _ => new FenceView(config),
-        };
+        var view = WidgetViews.Create(config);
         var window = new WidgetWindow(config, view) { PendingPlacement = place };
         window.Closed += (_, _) => OnWindowClosed(config);
         _open[config.Id] = window;

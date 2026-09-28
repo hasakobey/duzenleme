@@ -104,6 +104,8 @@ public sealed class TileItem : INotifyPropertyChanged
     /// </summary>
     public static TileItem CreateUnchecked(string path, WidgetConfig config, string? name = null, double pixelsPerDip = 0)
     {
+        // Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesneleri diskte yoktur: "bulunamadı" sayılmaz, kabuk simgesiyle gelir.
+        if (IsShellObject(path)) return CreateShell(path, name ?? ShellName(path), config, pixelsPerDip);
         var item = Layout(config, path, name ?? DisplayName(path), missing: false, pixelsPerDip);
         var native = NativePath(path);
         if (PathProbe.Shared.TryGetCached(native, out var known))
@@ -204,11 +206,14 @@ public sealed class TileItem : INotifyPropertyChanged
         };
     }
 
-    /// <summary>Simge paneli: ızgara ya da liste; ızgarada satırlar sola, ortaya ya da sağa yaslanır.</summary>
+    /// <summary>
+    /// Simge paneli: ızgara ya da liste; ızgarada satırlar sola, ortaya ya da sağa yaslanır. Liste sanallaştırılır (yalnızca
+    /// görünen satırların kutusu kurulur; çok öğeli klasör bölmesi hızlı açılır ve kayar).
+    /// </summary>
     public static ItemsPanelTemplate Panel(WidgetConfig config)
     {
         var list = config.View == ItemView.List;
-        var panel = new FrameworkElementFactory(list ? typeof(StackPanel) : typeof(WrapPanel));
+        var panel = new FrameworkElementFactory(list ? typeof(VirtualizingStackPanel) : typeof(WrapPanel));
         if (!list && config.Align == TileAlign.Right)
             panel.SetValue(FrameworkElement.FlowDirectionProperty, FlowDirection.RightToLeft);
         else if (!list && config.Align == TileAlign.Center)
@@ -223,15 +228,34 @@ public sealed class TileItem : INotifyPropertyChanged
     /// Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesnesi ("::{CLSID}") kutucuğu. Simgesi de dosyalarınki gibi arka
     /// planda ve gerçek piksel boyutunda yüklenir (kabuk çağrısı arayüzü bekletmez).
     /// </summary>
-    public static TileItem CreateShell(Desktop.SystemIcon icon, WidgetConfig config, double pixelsPerDip = 0)
+    public static TileItem CreateShell(Desktop.SystemIcon icon, WidgetConfig config, double pixelsPerDip = 0) =>
+        CreateShell("::" + icon.Clsid, icon.Name, config, pixelsPerDip);
+
+    /// <summary>Kabuk nesnesi kutucuğu, ayrıştırma adıyla ("::{CLSID}"; kısayol kutusundaki Geri Dönüşüm Kutusu gibi).</summary>
+    public static TileItem CreateShell(string parsingName, string name, WidgetConfig config, double pixelsPerDip = 0)
     {
-        var item = Layout(config, "::" + icon.Clsid, icon.Name, missing: false, pixelsPerDip);
+        var item = Layout(config, parsingName, name, missing: false, pixelsPerDip);
         item._iconPath = item.Path;
         item.UpdateIconSize(pixelsPerDip, config.Scale);
         return item;
     }
 
+    /// <summary>Kabuk nesnesinin görünen adı (bilinen masaüstü simgelerinden); bilinmiyorsa ayrıştırma adı.</summary>
+    public static string ShellName(string parsingName) =>
+        Desktop.DesktopSystemIcons.All.FirstOrDefault(i => string.Equals("::" + i.Clsid, parsingName, StringComparison.OrdinalIgnoreCase))?.Name
+        ?? parsingName;
+
+    /// <summary>Simgeyi yeniden ister (önbellekten düşürüldükten sonra; ör. Geri Dönüşüm Kutusu doldu/boşaldı).</summary>
+    public void ReloadIcon()
+    {
+        _pixels = 0;
+        UpdateIconSize(_pixelsPerDip, _widgetScale);
+    }
+
     public static bool IsShellObject(string path) => path.StartsWith("::", StringComparison.Ordinal);
+
+    /// <summary>Geri Dönüşüm Kutusu öğesi mi?</summary>
+    public static bool IsRecycleBin(string path) => string.Equals(path, Core.WidgetSeeds.RecycleBinItem, StringComparison.OrdinalIgnoreCase);
 
     public static string DisplayName(string path)
     {

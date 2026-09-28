@@ -94,18 +94,31 @@ public partial class FenceView : UserControl, IWidgetView
 
     private bool DesktopMode => _config.Filter != DesktopFilter.None;
 
+    /// <summary>Klasör portalı: masaüstü dışındaki bir klasör (FolderName tam yol; bkz. <see cref="WidgetVariants.IsPortal"/>).</summary>
+    private bool IsPortal => WidgetVariants.IsPortal(_config);
+
     /// <summary>Kullanıcının masaüstünün anlık görüntüsü (DesktopDirectories'in ilki).</summary>
     private DirectorySnapshot UserDesktop => _desktopSources[0];
 
     /// <summary>
     /// Kullanıcının masaüstündeki klasör; adı büyük/küçük harf ve Türkçe karakterden bağımsız eşleşir. Diske dokunmaz
-    /// (masaüstü anlık görüntüsünden).
+    /// (masaüstü anlık görüntüsünden). Portalda klasörün kendisi: var mı, okunabilir mi anlık görüntü arka planda öğrenir.
     /// </summary>
-    private string? ResolveFolder() =>
-        UserDesktop.Entries.Where(e => e.IsDirectory && Core.FolderName.Equal(e.Name, FolderName)).Select(e => e.Path).FirstOrDefault();
+    private string? ResolveFolder() => IsPortal
+        ? FolderName
+        : UserDesktop.Entries.Where(e => e.IsDirectory && Core.FolderName.Equal(e.Name, FolderName)).Select(e => e.Path).FirstOrDefault();
 
     private string DefaultTitle => DesktopMode ? DesktopItems.Label(_config.Filter)
+        : IsPortal ? FolderPortal.DisplayName(FolderName)
         : _folderPath is { } folder ? System.IO.Path.GetFileName(folder) : FolderName;
+
+    /// <summary>Klasör bölmesinde gösterilen en fazla öğe (İndirilenler binlerce dosya taşıyabilir); kalanı "… ve N öğe daha".</summary>
+    internal const int MaxFolderItems = 300;
+
+    private int _more;             // gösterilmeyen öğe sayısı (sınırı aşan klasör)
+    private int _orderVersion;     // elle sıra değişti (hesap yeniden yapılsın)
+    private bool _watchingBin;     // Geri Dönüşüm Kutusu kutucuğu var: dolup boşalınca simgesi yenilenir
+    private bool _relocating;      // portal klasörü bulunamadı, bilinen klasörün yeni yeri soruluyor
 
     private void ScheduleUpdate()
     {
@@ -153,7 +166,11 @@ public partial class FenceView : UserControl, IWidgetView
     /// <summary>Hesabı etkileyen her şeyin özeti: değişmediyse liste yeniden hesaplanmaz.</summary>
     private string Stamp()
     {
-        var parts = new List<string> { _config.Filter.ToString(), _config.Sort.ToString(), _config.HiddenItems.Count.ToString(), _systemIconsVersion.ToString() };
+        var parts = new List<string>
+        {
+            _config.Filter.ToString(), _config.Sort.ToString(), _config.HiddenItems.Count.ToString(), _systemIconsVersion.ToString(),
+            _config.SortBy ?? "", _orderVersion.ToString(),
+        };
         if (DesktopMode) parts.AddRange(_desktopSources.Select(s => $"{s.State}{s.Version}"));
         else parts.Add($"{_folderPath}|{_folderSource?.State}{_folderSource?.Version}");
         return string.Join("|", parts);
@@ -170,7 +187,7 @@ public partial class FenceView : UserControl, IWidgetView
         var generation = ++_generation;
         ResolveSources();
         TitleText.Text = !string.IsNullOrWhiteSpace(_config.Title) ? _config.Title : DefaultTitle;
-        HeaderIcon.Symbol = _config.Filter switch
+        HeaderIcon.Symbol = IsPortal ? Views.WidgetCatalog.IconFor(_config) : _config.Filter switch
         {
             DesktopFilter.Shortcuts => SymbolRegular.Apps24,
             DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
@@ -198,6 +215,13 @@ public partial class FenceView : UserControl, IWidgetView
                 return;
             }
             if (_folderSource.State == SnapshotState.Pending) return;
+            if (IsPortal && _folderSource.State == SnapshotState.Missing)
+            {
+                // Portalın klasörü yok (silindi, taşındı, sürücü takılı değil). Bilinen klasörse (İndirilenler…) yeni yeri sorulur.
+                ShowUnavailable(SymbolRegular.FolderProhibited24, L.F("Klasör bulunamadı: {0}", FolderPortal.ShortPath(FolderName)), showCreate: false, showPick: true);
+                TryRelocateKnownFolder();
+                return;
+            }
             if (_folderSource.State != SnapshotState.Ready)
             {
                 // Klasör tam o anda silindi/taşındı ya da erişilemiyor: hata kutusu yerine sakin bir durum göster.
@@ -209,7 +233,8 @@ public partial class FenceView : UserControl, IWidgetView
         var stamp = Stamp();
         if (stamp == _stamp && !_rebuildTiles) return;
 
-        var input = new FenceInput(DesktopMode, _config.Filter, _config.Sort,
+        var input = new FenceInput(DesktopMode, _config.Filter, _config.Sort, FenceOrder.Normalize(_config.SortBy),
+            _config.ItemOrder is { } order ? [.. order] : null, DesktopMode ? null : MaxFolderItems,
             DesktopMode ? _desktopSources.Select(s => s.Entries).ToArray() : [_folderSource!.Entries],
             new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase),
             // Gizleme kayıtları yalnızca okunan kendi klasöründe temizlenir (Genel Masaüstü ve alt klasörler hariç).
@@ -233,10 +258,12 @@ public partial class FenceView : UserControl, IWidgetView
         }
     }
 
-    private sealed record FenceInput(bool DesktopMode, DesktopFilter Filter, FenceSort Sort, IReadOnlyList<DirEntry>[] Sources,
-        HashSet<string> Hidden, string PruneDirectory, IReadOnlyList<DirEntry> PruneEntries, bool SystemIcons);
+    private sealed record FenceInput(bool DesktopMode, DesktopFilter Filter, FenceSort Sort, string? SortBy, List<string>? Order, int? Cap,
+        IReadOnlyList<DirEntry>[] Sources, HashSet<string> Hidden, string PruneDirectory, IReadOnlyList<DirEntry> PruneEntries, bool SystemIcons);
 
-    private sealed record FenceResult(List<DirEntry> Entries, List<SystemIcon> SystemIcons, List<string> Pruned);
+    /// <param name="Total">Sınırdan önceki öğe sayısı (Entries sınırı aşan klasörde bundan azdır).</param>
+    /// <param name="OrderPruned">Elle sıradaki, artık hiçbir kaynakta olmayan yollar.</param>
+    private sealed record FenceResult(List<DirEntry> Entries, int Total, List<SystemIcon> SystemIcons, List<string> Pruned, List<string> OrderPruned);
 
     /// <summary>Süzme, sıralama ve gizleme temizliği (arka planda; diske yalnızca sistem simgeleri için kayıt defterine bakar).</summary>
     private static FenceResult Compute(FenceInput input)
@@ -244,7 +271,13 @@ public partial class FenceView : UserControl, IWidgetView
         var entries = input.DesktopMode
             ? input.Sources.SelectMany(s => s.Where(e => DesktopItems.Matches(input.Filter, e)))
             : input.Sources[0].Where(e => !e.IsHiddenOrSystem);
-        var sorted = Sort(entries.Where(e => !input.Hidden.Contains(e.Path)), input.Sort).ToList();
+        var all = FenceOrder.Sort(entries.Where(e => !input.Hidden.Contains(e.Path)), input.Sort, input.SortBy, input.Order,
+            e => TileItem.DisplayName(e.Path), L.Sorter).ToList();
+        // Çok büyük klasörün (İndirilenler) yalnızca ilk öğeleri kutucuk olur; kalanı "… ve N öğe daha" (arama hepsini bulur).
+        var sorted = input.Cap is { } cap && all.Count > cap ? all.Take(cap).ToList() : all;
+        var orderPruned = input.Order is { Count: > 0 } order
+            ? order.Except(input.Sources.SelectMany(s => s.Select(e => e.Path)), StringComparer.OrdinalIgnoreCase).ToList()
+            : [];
 
         // Masaüstünde gösterilen sistem simgeleri (Bu Bilgisayar, Geri Dönüşüm Kutusu…) de bölmede yer alsın:
         // Windows simgeleri gizliyken başka yerde görünmezler.
@@ -258,18 +291,7 @@ public partial class FenceView : UserControl, IWidgetView
         var dir = input.PruneDirectory.TrimEnd('\\', '/');
         var pruned = input.Hidden.Where(p => !TileItem.IsShellObject(p) && !present.Contains(p) &&
             string.Equals(System.IO.Path.GetDirectoryName(p), dir, StringComparison.OrdinalIgnoreCase)).ToList();
-        return new FenceResult(sorted, icons, pruned);
-    }
-
-    private static IEnumerable<DirEntry> Sort(IEnumerable<DirEntry> entries, FenceSort sort)
-    {
-        var byName = L.Sorter;
-        return sort switch
-        {
-            FenceSort.Name => entries.OrderBy(e => e.IsDirectory ? 0 : 1).ThenBy(e => TileItem.DisplayName(e.Path), byName),
-            FenceSort.Type => entries.OrderBy(e => e.IsDirectory ? "" : System.IO.Path.GetExtension(e.Name).ToLowerInvariant()).ThenBy(e => e.Name, byName),
-            _ => entries.OrderByDescending(e => e.LastWriteUtc),
-        };
+        return new FenceResult(sorted, all.Count, icons, pruned, orderPruned.Where(p => !TileItem.IsShellObject(p)).ToList());
     }
 
     /// <summary>Kutucuk anahtarı: yol ve öznitelikler (klasörleşen ya da bulutta kalan öğe yeni simge alsın).</summary>
@@ -300,6 +322,7 @@ public partial class FenceView : UserControl, IWidgetView
         _all = all;
         _stamp = stamp;
         _rebuildTiles = false;
+        _more = result.Total - result.Entries.Count;
 
         if (result.Pruned.Count > 0)
         {
@@ -310,22 +333,31 @@ public partial class FenceView : UserControl, IWidgetView
                 _stamp = Stamp();
             }
         }
+        // Elle sıradan silinen/taşınan öğeler düşer (liste sınırsız büyümesin); sıra hesabı değişmez, damga yenilenmez.
+        if (result.OrderPruned.Count > 0 && _config.ItemOrder is { } order)
+        {
+            var gone = new HashSet<string>(result.OrderPruned, StringComparer.OrdinalIgnoreCase);
+            if (order.RemoveAll(gone.Contains) > 0) AppHost.SaveSettingsLater();
+        }
+        WatchRecycleBin(all.Any(i => TileItem.IsRecycleBin(i.Path)));
         ShowItems();
         if (_query.Length > 0) DeepSearch();
     }
 
     /// <summary>Bölme gösterilecek bir şey bulamadı (klasör yok, okunamıyor): liste boşaltılır, durum yazılır.</summary>
-    private void ShowUnavailable(SymbolRegular icon, string text, bool showCreate)
+    private void ShowUnavailable(SymbolRegular icon, string text, bool showCreate, bool showPick = false)
     {
         _all = [];
         _byKey.Clear();
         _deep = [];
         _stamp = null;
+        _more = 0;
+        MoreButton.Visibility = Visibility.Collapsed;
         _fillToken++;
         _view = [];
         Items.ItemsSource = _view;
         ApplyParts(); // sayı rozeti gizlenir (_stamp yok): başlık yeniden sığdırılır
-        ShowEmpty(icon, text, showCreate);
+        ShowEmpty(icon, text, showCreate, showPick);
     }
 
     private void ApplyPanel()
@@ -383,7 +415,10 @@ public partial class FenceView : UserControl, IWidgetView
         }
         else if (steps.Count > 0) ListDiff.Apply(_view, steps, _view.Move);
 
-        CountText.Text = q.Length == 0 ? _all.Count.ToString() : $"{shown.Count}";
+        CountText.Text = q.Length == 0 ? (_all.Count + _more).ToString(L.Culture) : $"{shown.Count}";
+        // Sınırı aşan klasör: kalanlar klasörde açılır (aramada gizli: arama bütün klasörde arar).
+        MoreButton.Visibility = _more > 0 && q.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (_more > 0) MoreButton.Content = L.P(_more, "… ve {0} öğe daha · Klasörde aç");
         ApplyParts(); // sayı rozeti (genişliği de) değişti: başlık yeniden sığdırılır
         if (q.Length > 0 && shown.Count > 0) Items.SelectedIndex = 0;
 
@@ -413,6 +448,138 @@ public partial class FenceView : UserControl, IWidgetView
     {
         _systemIconsVersion++;
         if (_config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All) ScheduleUpdate();
+    }
+
+    // --- Geri Dönüşüm Kutusu kutucuğu: dolup boşalınca simgesi değişir (önbellekte eskisi kalmasın) ---
+
+    private void WatchRecycleBin(bool watch)
+    {
+        if (watch == _watchingBin) return;
+        _watchingBin = watch;
+        if (watch) RecycleBin.Changed += OnRecycleBinChanged;
+        else RecycleBin.Changed -= OnRecycleBinChanged;
+    }
+
+    private void OnRecycleBinChanged()
+    {
+        ShellIcons.ForgetShell(RecycleBin.ShellName);
+        foreach (var item in _all.Where(i => TileItem.IsRecycleBin(i.Path))) item.ReloadIcon();
+    }
+
+    // --- Klasör portalı ---
+
+    /// <summary>
+    /// Bilinen klasör (İndirilenler…) bulunamadı: kullanıcı onu taşımış ya da OneDrive'a yönlendirmiş olabilir. Yeni yeri
+    /// Windows'tan (kayıt defteri; arka planda) sorulur; farklıysa bölme oraya geçer. Bir kez denenir.
+    /// </summary>
+    private async void TryRelocateKnownFolder()
+    {
+        if (_relocating || _config.FolderKnownId is not { } id) return;
+        _relocating = true;
+        var path = await Task.Run(() => KnownFolders.PathOf(id));
+        if (_detached || path is null || FolderPortal.SamePath(path, FolderName)) return;
+        DebugLog.Write($"portal: bilinen klasör {id} taşınmış: {FolderName} → {path}");
+        Set(() => _config.FolderName = path);
+        _relocating = false;
+    }
+
+    private void PickFolder_Click(object sender, RoutedEventArgs e) => PickOtherFolder();
+
+    /// <summary>"Başka bir klasör…": seçilen klasörü gösterir (masaüstünün kendisi "Tümü", masaüstündeki klasör adıyla, gerisi portal).</summary>
+    private void PickOtherFolder()
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = L.T("Bölmede gösterilecek klasörü seç"),
+            InitialDirectory = _folderPath ?? KnownFolders.PathOf(FolderPortal.Downloads) ?? AppHost.DesktopDirectory,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true || string.IsNullOrWhiteSpace(dialog.FolderName)) return;
+        ShowSource(FolderPortal.Normalize(dialog.FolderName, AppHost.DesktopDirectory), knownId: null);
+    }
+
+    /// <summary>Bölmenin kaynağını değiştirir; başlık yeni kaynağın adına döner.</summary>
+    private void ShowSource(FenceSource source, string? knownId) => Set(() =>
+    {
+        _config.Filter = source.Filter;
+        if (source.FolderName is not null) _config.FolderName = source.FolderName;
+        _config.FolderKnownId = knownId;
+        _config.Title = null;
+        _config.ItemOrder = null;
+        _relocating = false;
+    });
+
+    /// <summary>Bilinen klasörü gösterir; masaüstündeyse (bazı kurulumlarda Belgeler) klasik klasör bölmesi olur.</summary>
+    private void ShowKnownFolder(string id, string path)
+    {
+        var source = FolderPortal.Normalize(path, AppHost.DesktopDirectory);
+        var portal = source.Filter == DesktopFilter.None && source.FolderName is { } folder && System.IO.Path.IsPathFullyQualified(folder);
+        ShowSource(source, portal ? id : null);
+    }
+
+    // --- Elle sıralama: bölmedeki öğeyi sürükleyip başka bir öğenin önüne bırakmak ---
+
+    private bool ManualOrder => FenceOrder.Normalize(_config.SortBy) == FenceOrder.Manual;
+
+    /// <summary>Sürüklenenler bu bölmenin öğeleri mi (elle sıralamada yer değiştirme)?</summary>
+    private bool IsReorder(DragEventArgs e) =>
+        ManualOrder && _query.Length == 0 && _dragPaths is { Length: > 0 } paths &&
+        paths.All(p => _all.Any(i => string.Equals(i.Path, p, StringComparison.OrdinalIgnoreCase)));
+
+    private void Reorder(DragEventArgs e)
+    {
+        var moving = _dragPaths ?? [];
+        var target = Menus.ItemAt(Items, e.OriginalSource);
+        // Hedef öğenin sağ/alt yarısına bırakılınca ondan sonraya.
+        string? before = target?.Path;
+        if (target is not null && Items.ItemContainerGenerator.ContainerFromItem(target) is FrameworkElement box)
+        {
+            var at = e.GetPosition(box);
+            var after = _config.View == ItemView.List ? at.Y > box.ActualHeight / 2 : at.X > box.ActualWidth / 2;
+            if (after)
+            {
+                var index = _all.IndexOf(target);
+                before = index + 1 < _all.Count ? _all[index + 1].Path : null;
+            }
+        }
+        if (before is not null && moving.Contains(before, StringComparer.OrdinalIgnoreCase)) return;
+        var order = FenceOrder.Move(_all.Select(i => i.Path).ToList(), moving, before);
+        _config.ItemOrder = order;
+        _orderVersion++;
+        AppHost.SaveSettings();
+        ForceUpdate();
+    }
+
+    /// <summary>"Sırala ▸": 2.0'ın üç sırası ve 2.1'in SortBy seçenekleri tek listede.</summary>
+    private MenuItem SortChoice()
+    {
+        var current = FenceOrder.Normalize(_config.SortBy) ?? _config.Sort switch
+        {
+            FenceSort.Name => "name",
+            FenceSort.Type => "type",
+            _ => "newest",
+        };
+        return Menus.Choice(L.T("Sırala"), current,
+            [
+                ("newest", L.T("En yeni üstte")), (FenceOrder.Oldest, L.T("En eski üstte")), ("name", L.T("Ada göre")),
+                ("type", L.T("Türe göre")), (FenceOrder.Size, L.T("Boyuta göre (büyük üstte)")), (FenceOrder.Manual, L.T("Elle (sürükleyerek)")),
+            ],
+            value => Set(() =>
+            {
+                switch (value)
+                {
+                    case "newest": _config.SortBy = null; _config.Sort = FenceSort.Newest; break;
+                    case "name": _config.SortBy = null; _config.Sort = FenceSort.Name; break;
+                    case "type": _config.SortBy = null; _config.Sort = FenceSort.Type; break;
+                    default:
+                        // Elle sıraya geçerken şu anki sıra başlangıç olur: öğeler yerinden oynamaz.
+                        if (value == FenceOrder.Manual && FenceOrder.Normalize(_config.SortBy) != FenceOrder.Manual)
+                            _config.ItemOrder = _all.Select(i => i.Path).Where(p => !TileItem.IsShellObject(p)).ToList();
+                        _config.SortBy = value;
+                        _config.Sort = FenceOrder.Legacy(value);
+                        break;
+                }
+                _orderVersion++;
+            }));
     }
 
     // --- Arama ---
@@ -531,11 +698,12 @@ public partial class FenceView : UserControl, IWidgetView
         _ => "Klasör boş.\nDosyaları buraya sürükleyin.",
     };
 
-    private void ShowEmpty(SymbolRegular icon, string text, bool showCreate)
+    private void ShowEmpty(SymbolRegular icon, string text, bool showCreate, bool showPick = false)
     {
         EmptyIcon.Symbol = icon;
         EmptyText.Text = text;
         CreateFolderButton.Visibility = showCreate ? Visibility.Visible : Visibility.Collapsed;
+        PickFolderButton.Visibility = showPick ? Visibility.Visible : Visibility.Collapsed;
         EmptyState.Visibility = Visibility.Visible;
     }
 
@@ -628,6 +796,8 @@ public partial class FenceView : UserControl, IWidgetView
         menu.Items.Add(remove);
         if (TileItem.IsShellObject(item.Path))
         {
+            if (TileItem.IsRecycleBin(item.Path))
+                menu.Items.Add(Menus.Item(L.T("Geri Dönüşüm Kutusu'nu boşalt…"), RecycleBinActions.EmptyWithConfirm));
             menu.Items.Add(new Separator());
             menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
             return;
@@ -636,9 +806,8 @@ public partial class FenceView : UserControl, IWidgetView
         if (item.IsDirectory)
         {
             menu.Items.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(item.Path)));
-            // Masaüstündeki bir klasör kendi bölmesine alınabilir ("klasörleri ayrı ayrı").
-            if (string.Equals(System.IO.Path.GetDirectoryName(item.Path), AppHost.DesktopDirectory.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
-                menu.Items.Add(Menus.Item("Bu klasörü ayrı bölme yap", () => AppHost.Widgets.Add(WidgetKind.Fence, System.IO.Path.GetFileName(item.Path))));
+            // Bir klasör kendi bölmesine alınabilir ("klasörleri ayrı ayrı"): masaüstündeyse adıyla, başka yerdeyse portal olarak.
+            menu.Items.Add(Menus.Item("Bu klasörü ayrı bölme yap", () => SeparateFence(item.Path)));
         }
         if (!DesktopMode && !item.IsDirectory && !item.Missing)
             menu.Items.Add(Menus.Item("Masaüstüne geri taşı", () => MoveToDesktop(item)));
@@ -647,6 +816,15 @@ public partial class FenceView : UserControl, IWidgetView
         menu.Items.Add(Menus.Item("Geri Dönüşüm Kutusu'na taşı", () => Recycle(item)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
+    }
+
+    /// <summary>Klasörü kendi bölmesine alır: masaüstündeki klasör adıyla (klasik bölme), başka yerdeki klasör portal olarak.</summary>
+    private static void SeparateFence(string folder)
+    {
+        var source = FolderPortal.Normalize(folder, AppHost.DesktopDirectory);
+        if (source.Filter != DesktopFilter.None || source.FolderName is not { } name) return;
+        if (System.IO.Path.IsPathFullyQualified(name)) AppHost.Widgets.AddSeed(WidgetSeeds.Portal(name, null, FolderPortal.DisplayName(name)));
+        else AppHost.Widgets.Add(WidgetKind.Fence, name);
     }
 
     /// <summary>Dosya işlemini arka planda yapar; hata olursa (vazgeçme dışında) kullanıcıya gösterir.</summary>
@@ -742,6 +920,14 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
+        // Elle sıralı bölmede kendi öğesini sürüklemek yerini değiştirir (dosyaya dokunulmaz, kaplama gösterilmez).
+        if (IsReorder(e))
+        {
+            e.Effects = DragDropEffects.Move;
+            DropOverlay.Visibility = Visibility.Collapsed;
+            e.Handled = true;
+            return;
+        }
         // Masaüstü türü bölmesi bir klasör değildir; üstüne bırakılan dosyanın gideceği yer yok.
         // Kısayol kutusundan gelen öğeler yalnızca bağlantıdır (taşımaya izin vermez): asıl dosyalar yerinden oynamasın.
         var folder = DesktopMode ? null : _folderPath;
@@ -755,8 +941,15 @@ public partial class FenceView : UserControl, IWidgetView
     private void OnDrop(object sender, DragEventArgs e)
     {
         DropOverlay.Visibility = Visibility.Collapsed;
-        if (DesktopMode || !e.AllowedEffects.HasFlag(DragDropEffects.Move) || _folderPath is not { } folder) return;
         _dragPaths ??= e.Data.GetData(DataFormats.FileDrop) as string[];
+        if (IsReorder(e))
+        {
+            e.Handled = true;
+            Reorder(e);
+            _dragPaths = null;
+            return;
+        }
+        if (DesktopMode || !e.AllowedEffects.HasFlag(DragDropEffects.Move) || _folderPath is not { } folder) return;
         var paths = DropCandidates(folder);
         _dragPaths = null;
         if (paths.Count == 0) return;
@@ -839,9 +1032,19 @@ public partial class FenceView : UserControl, IWidgetView
             pick.Items.Add(new Separator());
             pick.Items.Add(Menus.Hint("Bir klasörün içi"));
             foreach (var name in folders)
-                pick.Items.Add(Menus.Toggle(name, !DesktopMode && Core.FolderName.Equal(name, FolderName),
-                    () => Set(() => { _config.Filter = DesktopFilter.None; _config.FolderName = name; _config.Title = null; })));
+                pick.Items.Add(Menus.Toggle(name, !DesktopMode && !IsPortal && Core.FolderName.Equal(name, FolderName),
+                    () => ShowSource(new FenceSource(DesktopFilter.None, name), knownId: null)));
         }
+        // Masaüstü dışındaki klasörler (klasör portalı): Windows'un bilinen klasörleri ve herhangi bir klasör.
+        pick.Items.Add(new Separator());
+        pick.Items.Add(Menus.Hint(L.T("Bilinen klasörler")));
+        foreach (var id in FolderPortal.KnownIds)
+        {
+            if (KnownFolders.PathOf(id) is not { } path) continue;
+            var shown = !DesktopMode && _folderPath is { } current && FolderPortal.SamePath(current, path);
+            pick.Items.Add(Menus.Toggle(FolderPortal.KnownName(id), shown, () => ShowKnownFolder(id, path)));
+        }
+        pick.Items.Add(Menus.Item(L.T("Başka bir klasör…"), PickOtherFolder));
         menu.Primary.Add(pick);
 
         menu.Primary.Add(Menus.Item("Başlığı değiştir…", () =>
@@ -849,10 +1052,7 @@ public partial class FenceView : UserControl, IWidgetView
             if (InputDialog.Ask("Bölme başlığı", "Başlık (boş bırakırsan varsayılan ad kullanılır)", TitleText.Text) is { } title)
                 Set(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
         }));
-        var sort = Menus.Choice("Sırala", _config.Sort,
-            [(FenceSort.Newest, "En yeni üstte"), (FenceSort.Name, "Ada göre"), (FenceSort.Type, "Türe göre")],
-            v => Set(() => _config.Sort = v));
-        menu.Primary.Add(Menus.TileOptions(_config, Set, singleClickOption: true, first: sort));
+        menu.Primary.Add(Menus.TileOptions(_config, Set, singleClickOption: true, first: SortChoice()));
         if (_config.HiddenItems.Count > 0)
         {
             var hidden = new MenuItem { Header = $"Gizlenen öğeler ({_config.HiddenItems.Count})" };
@@ -883,6 +1083,7 @@ public partial class FenceView : UserControl, IWidgetView
     {
         _detached = true;
         _searchDelay.Stop();
+        WatchRecycleBin(false);
         foreach (var source in _desktopSources)
         {
             source.Changed -= ScheduleUpdate;
