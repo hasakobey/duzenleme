@@ -79,8 +79,8 @@ public static class L
         };
     }
 
-    private static string? EnvironmentLanguage() =>
-        Environment.GetEnvironmentVariable("NESTDESK_LANG") ?? Environment.GetEnvironmentVariable("DUZENLEME_LANG");
+    /// <summary>NESTDESK_LANG, yoksa DUZENLEME_LANG (boş değer yok sayılır; bkz. <see cref="Duzenleme.Core.AppEnvironment"/>).</summary>
+    private static string? EnvironmentLanguage() => Duzenleme.Core.AppEnvironment.Get("LANG");
 
     /// <summary>Yalnızca testler: bu akışta (AsyncLocal) dili geçici olarak değiştirir. <c>using var _ = L.Use(Lang.En);</c></summary>
     public static IDisposable Use(Lang lang, bool pseudo = false)
