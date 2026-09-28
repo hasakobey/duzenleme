@@ -804,6 +804,18 @@ public partial class FenceView : UserControl, IWidgetView
         ShowItems();
     }
 
+    /// <summary>Menüden yeniden gizleme ("Gizlenen öğeler" seçeneğinin işareti kaldırılınca): <see cref="HideItem"/> gibi, yolla.</summary>
+    private void HidePath(string path)
+    {
+        if (_all.FirstOrDefault(i => string.Equals(i.Path, path, StringComparison.OrdinalIgnoreCase)) is { } item) HideItem(item);
+        else
+        {
+            if (!IsHidden(path)) _config.HiddenItems.Add(path);
+            AppHost.SaveSettings();
+            ForceUpdate();
+        }
+    }
+
     private void UnhideItems(IEnumerable<string> paths)
     {
         foreach (var path in paths.ToList())
@@ -1275,15 +1287,21 @@ public partial class FenceView : UserControl, IWidgetView
         menu.Primary.Add(Menus.TileOptions(_config, Set, singleClickOption: true, first: SortChoice()));
         if (_config.HiddenItems.Count > 0)
         {
-            var hidden = new MenuItem { Header = L.F("Gizlenen öğeler ({0})", _config.HiddenItems.Count) };
-            hidden.Items.Add(Menus.Item(L.T("Hepsini yeniden göster"), () => UnhideItems(_config.HiddenItems)));
+            // Menü açıldığında gizli olanlar listelenir. Her biri açık kalan seçenektir: işaretlenince öğe bölmede yeniden görünür,
+            // yeniden tıklanınca yine gizlenir (menü açık kalır, sayı yerinde güncellenir).
+            var listed = _config.HiddenItems.ToList();
+            var hidden = Menus.Live(new MenuItem(),
+                header: () => L.F("Gizlenen öğeler ({0})", listed.Count(IsHidden)));
+            hidden.Items.Add(Menus.Live(Menus.Item(L.T("Hepsini yeniden göster"), () => UnhideItems(_config.HiddenItems)),
+                enabled: () => listed.Any(IsHidden)));
             hidden.Items.Add(new Separator());
-            foreach (var path in _config.HiddenItems.ToList())
+            foreach (var path in listed)
             {
                 var label = TileItem.IsShellObject(path)
                     ? Desktop.DesktopSystemIcons.All.FirstOrDefault(i => "::" + i.Clsid == path)?.Name ?? path
                     : TileItem.DisplayName(path);
-                hidden.Items.Add(Menus.Item(L.F("{0} — göster", Menus.Literal(label)), () => UnhideItems([path])));
+                hidden.Items.Add(Menus.Toggle(L.F("{0} — göster", Menus.Literal(label)), () => !IsHidden(path),
+                    () => { if (IsHidden(path)) UnhideItems([path]); else HidePath(path); }));
             }
             menu.Primary.Add(hidden);
         }

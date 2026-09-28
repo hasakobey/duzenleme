@@ -213,4 +213,49 @@ internal static class NativeMethods
         int.TryParse(x.Trim(), out var px) && int.TryParse(y.Trim(), out var py)
             ? new POINT { X = px, Y = py }
             : null;
+
+    // 2.1 P7
+    /// <summary>Noktayı içeren (yoksa en yakın) monitörün tamamı, fiziksel piksel.</summary>
+    public static RECT MonitorAreaAt(POINT pt)
+    {
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), ref info);
+        return info.rcMonitor;
+    }
+
+    /// <summary>
+    /// Etkin pencerenin monitörünün çalışma alanının ortası (fiziksel piksel): kullanıcının o an çalıştığı ekran. Etkin pencere
+    /// yoksa ya da masaüstünün kendisiyse (bütün ekranları kaplar) null; çağıran imlecin ekranına düşer. Pencereye ileti
+    /// göndermez (Explorer meşgulken de beklemez).
+    /// </summary>
+    public static POINT? ActiveMonitorCenter()
+    {
+        var foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero || Desktop.DesktopIcons.IsDesktopSurface(foreground)) return null;
+        var monitor = MonitorFromWindow(foreground, MONITOR_DEFAULTTONULL);
+        if (monitor == IntPtr.Zero) return null;
+        var area = WorkAreaOfMonitor(monitor);
+        return new POINT { X = (area.Left + area.Right) / 2, Y = (area.Top + area.Bottom) / 2 };
+    }
+
+    public delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetricsForDpi(int index, uint dpi);
 }

@@ -49,6 +49,7 @@ internal static class InputDialog
             MinWidth = 0,
             MinHeight = 0,
         };
+        Views.WindowFit.FitChromeToContent(window);
         if (near is { } point) Views.WindowFit.CenterOn(window, point);
         string? result = null;
         ok.Click += (_, _) => { result = box.Text.Trim(); window.DialogResult = true; };

@@ -68,8 +68,9 @@ internal static class DesktopModes
     /// Seçimi uygular. Kutulara taşınmış öğeler varken bu kipten çıkılırsa masaüstüne geri konmaları önerilir; kipe
     /// girilirken kutularda duran masaüstü öğelerinin de taşınması önerilir (ikisi de sorulur, dosyaya sorulmadan dokunulmaz).
     /// near: bölmeler eklenecekse hangi ekrana. owner: soru penceresinin sahibi (yoksa ekranın ortasında, en üstte).
+    /// announce: sonucu bildirimle söyle ("Geri al"lı); karşılama kendi özetini verir, false geçer (sorular yine sorulur).
     /// </summary>
-    public static void Set(IconMode mode, NativeMethods.POINT? near, Window? owner)
+    public static void Set(IconMode mode, NativeMethods.POINT? near, Window? owner, bool announce = true)
     {
         var current = Current;
         if (mode == current) return;
@@ -86,7 +87,8 @@ internal static class DesktopModes
             case IconMode.FencesOnly:
                 // Kutu kipi bilerek kapanır: bölmeler sonradan kapanınca dosya taşıma sessizce geri gelmesin.
                 AppHost.Settings.BoxItemsLeaveDesktop = false;
-                DesktopFences.TurnOnWithNotice(allStarters: false, near);
+                if (announce) DesktopFences.TurnOnWithNotice(allStarters: false, near);
+                else DesktopFences.TurnOn(allStarters: false, near);
                 break;
 
             case IconMode.BoxItemsLeave:
@@ -100,7 +102,7 @@ internal static class DesktopModes
                         "durur ve kutularda görünmeye devam eder.",
                         "Taşı", danger: false, cancelText: "Şimdi değil"))
                     BoxMover.ClaimMany(existing);
-                else
+                else if (announce)
                     Notice.Show("Bundan sonra kısayol kutusuna eklediğin masaüstü öğeleri masaüstünden kalkar ve kutuda durur.", NoticeKind.Info);
                 break;
 
@@ -109,7 +111,7 @@ internal static class DesktopModes
                 if (AppHost.Settings.FencesReplaceIcons)
                 {
                     DesktopFences.TurnOff();
-                    Notice.Show("Masaüstü simgeleri yeniden gösteriliyor. Bölmelerin yerinde duruyor.", NoticeKind.Info);
+                    if (announce) Notice.Show("Masaüstü simgeleri yeniden gösteriliyor. Bölmelerin yerinde duruyor.", NoticeKind.Info);
                 }
                 else AppHost.SaveSettings();
                 break;

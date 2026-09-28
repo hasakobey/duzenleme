@@ -68,6 +68,7 @@ internal static class CityPickerDialog
             MinWidth = 0,
             MinHeight = 0,
         };
+        WindowFit.FitChromeToContent(window);
         DialogPlacement.CenterOn(window, near);
 
         // Windows'un saat dilimleri bir kez okunur (bellekten; birkaç yüz öğe).

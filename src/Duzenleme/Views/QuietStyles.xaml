@@ -2,8 +2,9 @@
     WPF-UI 4.3'ün örtük ContextMenu, MenuItem, ScrollBar ve DynamicScrollBar stillerinin animasyonsuz sürümleri.
     WPF-UI bunlarda şablon içi animasyon kullanır: sağ tık menüsü ve fareyle açılan alt menüler 167 ms'de yukarıdan kayar; kaydırma
     çubukları fare üstüne gelince genişleyip ok düğmeleriyle belirir; ana penceredeki sayfaların çubuğu (DynamicScrollBar)
-    fare yokken hiç görünmez, kullanıcı sayfanın devam ettiğini anlamaz. Burada menüler anında açılır, kaydırma çubuğu içerik
-    taşınca hep görünür ve fareyle değişmez. App.xaml'da ControlsDictionary'den SONRA birleştirilir (örtük stiller bunları ezer).
+    fare yokken hiç görünmez, kullanıcı sayfanın devam ettiğini anlamaz. Burada hiçbir şey kaymaz: sağ tık menüsü yalnızca
+    Views.Motion izin verirse kısa solar (alt menüler ve ipuçları fareyle açıldığı için hiç), kaydırma çubuğu içerik taşınca hep
+    görünür ve fareyle değişmez. App.xaml'da ControlsDictionary'den SONRA birleştirilir (örtük stiller bunları ezer).
     Şablonlar WPF-UI 4.3.0'dan (MIT, bkz. THIRD-PARTY-NOTICES.txt) alındı; yalnızca animasyonlar ve fareyle beliren parçalar
     çıkarıldı. WPF-UI sürümü yükseltilince şablonlar yeniden karşılaştırılmalı.
 -->
@@ -13,9 +14,12 @@
 
     <!-- ================================================================ Sağ tık menüsü -->
 
-    <!-- ContextMenu'nün açılır penceresi geçişini stilden değil bu anahtardan alır (Windows'un "menüleri soldur" ayarı, ~150 ms
-         solma). Alt menülerin penceresinde şablon zaten PopupAnimation="None" der. -->
+    <!-- ContextMenu'nün açılır penceresi geçişini stilden değil bu anahtardan alır. Varsayılan hiçbiri; Views.Motion geçişler
+         açıkken (ve Windows'un menü animasyonu açıkken) uygulamanın kendi sözlüğüne Fade yazar (~150 ms solma, kayma asla).
+         Alt menülerin penceresinde şablon PopupAnimation="None" der: fareyle açılırlar, fareyle hiçbir şey oynamaz. -->
     <PopupAnimation x:Key="{x:Static SystemParameters.MenuPopupAnimationKey}">None</PopupAnimation>
+    <!-- İpuçları fare üstüne gelince açılır: hiç solmaz (Windows'un ipucu solması da). -->
+    <PopupAnimation x:Key="{x:Static SystemParameters.ToolTipPopupAnimationKey}">None</PopupAnimation>
 
     <Style TargetType="{x:Type ContextMenu}">
         <Setter Property="TextElement.Foreground" Value="{DynamicResource ContextMenuForeground}" />

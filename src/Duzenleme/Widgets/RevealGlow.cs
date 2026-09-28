@@ -6,7 +6,8 @@ namespace Duzenleme.Widgets;
 
 /// <summary>
 /// Yeni eklenen widget'ın kartının çevresinde durağan vurgu ışıması: kartın dışında, gölge payının içinde, saydamlığı dışa
-/// doğru azalan birkaç yuvarlak çerçeve. Efekt (DropShadowEffect) ve animasyon kullanılmaz; birkaç saniye sonra kaldırılır.
+/// doğru azalan birkaç yuvarlak çerçeve. Efekt (DropShadowEffect) kullanılmaz ve durağandır; birkaç saniye sonra kısa bir
+/// solmayla (Views.Motion, geçişler açıksa) kaldırılır.
 /// </summary>
 internal sealed class RevealGlow : Adorner
 {

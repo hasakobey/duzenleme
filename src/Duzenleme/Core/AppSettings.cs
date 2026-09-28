@@ -433,4 +433,12 @@ public sealed class AppSettings
     /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
+
+    // 2.1 P7 — hareket
+    /// <summary>
+    /// Ayarlar'daki "Animasyonlar" kapatıldı: kısa solma geçişleri hiç oynamaz. false (varsayılan) = Windows'un "Animasyon
+    /// efektleri" ayarına uyulur (bkz. <see cref="MotionPolicy"/>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AnimationsOff { get; set; }
 }

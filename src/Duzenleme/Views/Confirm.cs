@@ -60,6 +60,7 @@ internal static class Confirm
             MinWidth = 0,
             MinHeight = 0,
         };
+        WindowFit.FitChromeToContent(window);
         if (usableOwner is null && near is { } point) WindowFit.CenterOn(window, point);
         ok.Click += (_, _) => window.DialogResult = true;
         // Odak "Vazgeç"te başlar: Enter yanlışlıkla onaylamasın.

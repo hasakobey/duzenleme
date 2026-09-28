@@ -69,6 +69,7 @@ internal static class CountdownDialog
             MinWidth = 0,
             MinHeight = 0,
         };
+        WindowFit.FitChromeToContent(window);
         DialogPlacement.CenterOn(window, near);
         CountdownChoice? result = null;
         ok.Click += (_, _) =>

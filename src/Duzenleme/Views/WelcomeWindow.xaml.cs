@@ -171,7 +171,8 @@ public partial class WelcomeWindow : FluentWindow
         var choices = new WelcomeChoices
         {
             Fences = Picked(FencesYes, FencesNo),
-            IconsOnlyInFences = IconsOnly.IsChecked == true,
+            IconsOnlyInFences = SelectedIconMode == IconMode.FencesOnly,
+            BoxItemsLeaveDesktop = SelectedIconMode == IconMode.BoxItemsLeave,
             AutoMove = Picked(MoveYes, MoveNo),
             MoveFolders = SelectedFolders(),
         };
@@ -257,13 +258,24 @@ public partial class WelcomeWindow : FluentWindow
             ? "Var olan bölmelerin, widget'ların ve dosyaların silinmez; yalnızca eksikler eklenir."
             : $"{AppInfo.Name} masaüstünü derli toplu tutar: simgeleri bölmelerde toplar, gelen dosyaları klasörlerine taşır, saat ve not gibi küçük araçlar ekler.";
         FencePlan.Text = Onboarding.FencePlanText(StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, _existingFolders));
-        IconsOnly.IsChecked = !_rerun || AppHost.Settings.FencesReplaceIcons;
-        IconsOnlyText.Text = "Windows'un kendi masaüstü simgeleri gizlenir, hiçbir şey iki kez görünmez. " +
-                             $"Dosyaların yerinden oynamaz; {AppInfo.Name}'ten çıkınca simgeler geri gelir.";
+        // Windows simgeleri: Ayarlar'daki üç seçenek. Varsayılan ilk açılışta "Yalnızca bölmelerde", yeniden kurulumda şu anki seçim.
+        foreach (var mode in DesktopModes.Choices)
+            IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
+        IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, _rerun ? DesktopModes.Current : IconMode.FencesOnly);
+        IconModeBox.SelectionChanged += (_, _) => OnIconModeChanged();
+        OnIconModeChanged();
         FencesYes.Checked += (_, _) => UpdateStartupTip();
         FencesNo.Checked += (_, _) => UpdateStartupTip();
-        IconsOnly.Checked += (_, _) => UpdateStartupTip();
-        IconsOnly.Unchecked += (_, _) => UpdateStartupTip();
+    }
+
+    private IconMode SelectedIconMode => IconModeBox.SelectedItem is ComboBoxItem { Tag: IconMode mode } ? mode : IconMode.FencesOnly;
+
+    private void OnIconModeChanged()
+    {
+        var mode = SelectedIconMode;
+        IconModeText.Text = DesktopModes.Description(mode);
+        FencesOnlyTip.Visibility = mode == IconMode.FencesOnly ? Visibility.Visible : Visibility.Collapsed;
+        UpdateStartupTip();
     }
 
     // ---------------------------------------------------------------- 2. adım: dosya taşıma
@@ -563,7 +575,7 @@ public partial class WelcomeWindow : FluentWindow
     /// </summary>
     private void UpdateStartupTip()
     {
-        var iconsOnly = FencesYes.IsChecked == true && IconsOnly.IsChecked == true;
+        var iconsOnly = FencesYes.IsChecked == true && SelectedIconMode == IconMode.FencesOnly;
         StartupTip.Visibility = !iconsOnly ? Visibility.Collapsed
             : StartupToggle.IsChecked == true ? Visibility.Hidden : Visibility.Visible;
     }

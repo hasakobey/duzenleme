@@ -16,7 +16,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Sayfa geçişi animasyonsuz (Transition="None"): kayma ve solma yok. -->
+        <!-- Sayfa geçişi: kayma yok; geçişler açıksa kısa solma (Views.Motion.ApplyTo koddan ayarlar), değilse hiçbiri. -->
         <ui:NavigationView x:Name="RootNavigation" Grid.Row="1"
                            PaneDisplayMode="Left"
                            IsBackButtonVisible="Collapsed"
@@ -41,7 +41,8 @@
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>
 
-        <!-- Bildirim şeridi: kapatılana, yenisi gelene, sayfa değişene ya da pencere gizlenene dek durur. Zamanlayıcı ve animasyon yok. -->
+        <!-- Bildirim şeridi: kapatılana, yenisi gelene, sayfa değişene ya da pencere gizlenene dek durur. Zamanlayıcı yok; belirirken
+             kısa solma (Views.Motion). -->
         <Border x:Name="NoticeBar" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Bottom" HorizontalAlignment="Center"
                 Margin="24" Padding="16,10" CornerRadius="10" MaxWidth="640"
                 Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"

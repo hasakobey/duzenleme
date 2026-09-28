@@ -184,6 +184,8 @@ public partial class App : Application
         // Hazır kurallar masaüstünde zaten olan klasörlere uyar (ör. İngilizce Windows'ta "Resimler" klasörü varsa o).
         if (!AppHost.Settings.FirstRunDone && Onboarding.PrepareNewUser(AppHost.Settings, DesktopFoldersOrNone())) AppHost.SaveSettings();
         ApplyTheme(AppHost.Settings.Theme);
+        // Kısa solma geçişleri: Windows'un "Animasyon efektleri" ve Ayarlar'daki "Animasyonlar" (ilk pencereden önce).
+        Views.Motion.Initialize();
         // Windows teması, yüksek karşıtlık ya da vurgu rengi değişince uygulama da uyum sağlasın.
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;

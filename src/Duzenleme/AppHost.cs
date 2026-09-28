@@ -493,6 +493,8 @@ public static class AppHost
     public static void StartPeek(PeekOrigin origin)
     {
         if (Peeking) return;
+        // Çubuk kullanıcının çalıştığı ekranda açılır; pencereler küçültülmeden önce bakılır (sonra etkin pencere değişir).
+        var barAnchor = Views.PeekBar.Anchor();
         Peeking = true;
         DesktopHidden = false;
         // "Açık pencereleri küçült": masaüstü zaten öndeyse (çift tıklama) yapılmaz. Test örneği gerçek pencereleri küçültmez.
@@ -500,7 +502,7 @@ public static class AppHost
                          !DesktopIcons.IsDesktopSurface(NativeMethods.GetForegroundWindow());
         if (_peekMinimized) ShellDesktop.ToggleInBackground();
         ApplyDesktopState();
-        Views.PeekBar.Open(DesktopState.NormalizePeekMinutes(Settings.PeekMinutes));
+        Views.PeekBar.Open(DesktopState.NormalizePeekMinutes(Settings.PeekMinutes), barAnchor);
         DebugLog.Write($"göz atma başladı ({origin})");
     }
 

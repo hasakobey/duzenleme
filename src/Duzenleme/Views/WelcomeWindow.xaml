@@ -301,12 +301,20 @@
                             </DockPanel>
                             <TextBlock x:Name="FencePlan" Style="{StaticResource Muted}" Margin="0,2,0,0"
                                        AutomationProperties.AutomationId="Welcome.FencePlan" />
-                            <CheckBox x:Name="IconsOnly" Margin="0,8,0,0" Content="Simgeler yalnızca bölmelerde görünsün"
-                                      IsEnabled="{Binding IsChecked, ElementName=FencesYes}"
-                                      AutomationProperties.AutomationId="Welcome.IconsOnly" />
-                            <TextBlock x:Name="IconsOnlyText" Style="{StaticResource Muted}" Margin="28,2,0,0" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="28,2,0,0"
-                                       Text="Bu açıkken yeni klasör açmak ya da ad değiştirmek için bölmeye sağ tıkla." />
+                            <!-- Windows masaüstü simgeleri: Ayarlar ve Widget'lar sayfasıyla aynı üç seçenek (DesktopModes). -->
+                            <StackPanel Margin="0,10,0,0" IsEnabled="{Binding IsChecked, ElementName=FencesYes}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{l:T 'Windows masaüstü simgeleri'}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <ComboBox x:Name="IconModeBox" MinWidth="320"
+                                              AutomationProperties.AutomationId="Welcome.IconMode"
+                                              AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
+                                </StackPanel>
+                                <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                           AutomationProperties.AutomationId="Welcome.IconModeText" />
+                                <TextBlock x:Name="FencesOnlyTip" Style="{StaticResource Muted}" Margin="0,2,0,0"
+                                           Text="Bu açıkken yeni klasör açmak ya da ad değiştirmek için bölmeye sağ tıkla." />
+                            </StackPanel>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton x:Name="FencesNo" GroupName="Fences" Style="{StaticResource ChoiceCard}"

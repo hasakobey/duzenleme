@@ -30,12 +30,10 @@ internal static class WelcomeSetup
         if (c.Fences == true)
         {
             AppHost.Widgets.AddStarterFences(near);
-            if (c.IconsOnlyInFences != settings.FencesReplaceIcons)
-            {
-                // Eksik tür bölmesi kaldıysa (ör. yalnızca "Tüm masaüstü" silinmişse) o da bu ekrana eklenir.
-                if (c.IconsOnlyInFences) AppHost.Widgets.EnsureDesktopCoverage(near);
-                AppHost.SetFencesManageDesktop(c.IconsOnlyInFences);
-            }
+            // Windows simgeleri: Ayarlar'daki üç seçenekle aynı yol (DesktopModes). "Yalnızca bölmelerde"de eksik tür bölmesi
+            // (ör. yalnızca "Tüm masaüstü" silinmişse) bu ekrana eklenir; dosya taşıyan/geri koyan adım yine sorulur.
+            var wanted = c.IconsOnlyInFences ? IconMode.FencesOnly : c.BoxItemsLeaveDesktop ? IconMode.BoxItemsLeave : IconMode.ShowAll;
+            if (wanted != DesktopModes.Current) DesktopModes.Set(wanted, near, owner: null, announce: false);
         }
         var fencesAdded = settings.Widgets.Count - widgetsBefore;
 

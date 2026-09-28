@@ -153,6 +153,7 @@ public partial class SettingsPage : Page
                 AppHost.SettingsChanged += OnSettingsChanged;
                 BoxMover.Changed += UpdateBoxPanel;
                 FolderIconWindow.IconChanged += OnFolderIconChanged;
+                Motion.Changed += UpdateAnimationsNote;
             },
             detach: () =>
             {
@@ -160,6 +161,7 @@ public partial class SettingsPage : Page
                 AppHost.SettingsChanged -= OnSettingsChanged;
                 BoxMover.Changed -= UpdateBoxPanel;
                 FolderIconWindow.IconChanged -= OnFolderIconChanged;
+                Motion.Changed -= UpdateAnimationsNote;
             },
             refresh: Load);
     }
@@ -188,6 +190,8 @@ public partial class SettingsPage : Page
         var s = AppHost.Settings;
         LoadLanguage();
         ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
+        AnimationsToggle.IsChecked = !s.AnimationsOff;
+        UpdateAnimationsNote();
         NotifyToggle.IsChecked = s.ShowNotifications;
         HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
         SuggestToggle.IsChecked = s.SuggestFolderIcons;
@@ -338,6 +342,25 @@ public partial class SettingsPage : Page
         AppHost.Settings.Theme = ThemeBox.SelectedIndex switch { 1 => AppTheme.Dark, 2 => AppTheme.Light, _ => AppTheme.System };
         AppHost.SaveSettings();
         App.ApplyTheme(AppHost.Settings.Theme);
+    }
+
+    /// <summary>"Animasyonlar" açık olarak kalır (Windows'a uyar); açıkken Windows'un ayarı kapalıysa neden oynamadığı söylenir.</summary>
+    private void AnimationsToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        var off = AnimationsToggle.IsChecked != true;
+        if (off == AppHost.Settings.AnimationsOff) return;
+        AppHost.Settings.AnimationsOff = off;
+        AppHost.SaveSettings();
+        Motion.Refresh();
+        UpdateAnimationsNote();
+    }
+
+    private void UpdateAnimationsNote()
+    {
+        var blocked = !AppHost.Settings.AnimationsOff && !Motion.WindowsAllows;
+        AnimationsNote.Text = blocked ? L.T("Windows'ta animasyon efektleri kapalı olduğu için şu an hiçbir şey solmuyor.") : "";
+        AnimationsNote.Visibility = blocked ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---- Masaüstü ----

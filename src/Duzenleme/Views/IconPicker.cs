@@ -80,6 +80,7 @@ internal sealed class IconPicker : FluentWindow
         AutomationProperties.SetAutomationId(this, "IconPicker");
         // En baştan widget'ın monitöründe oluşur (ölçeği farklı monitöre sonradan geçip büyümesin); yeri yüklenince kartın yanı.
         var anchorPoint = anchor?.CenterPoint ?? CursorPoint();
+        WindowFit.FitChromeToContent(this);
         WindowFit.StartOn(this, anchorPoint);
         MaxHeight = Math.Max(300, NativeMethods.WorkAreaAt(anchorPoint).Height / NativeMethods.ScaleAt(anchorPoint) - 16);
 

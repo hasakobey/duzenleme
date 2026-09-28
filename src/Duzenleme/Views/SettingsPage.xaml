@@ -117,6 +117,28 @@
                 </ComboBox>
             </Grid>
         </Border>
+        <!-- Animasyonlar (Views.Motion): yalnızca kısa solmalar; Windows'un "Animasyon efektleri" kapalıysa anahtar açık da olsa oynamaz. -->
+        <Border Style="{StaticResource Row}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="SlideTransition24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Animasyonlar'}" />
+                    <TextBlock Style="{StaticResource Muted}"
+                               Text="{l:T 'Menüler, sayfalar ve widget\'lar kısa bir solmayla açılıp kapanır; hiçbir şey kaymaz ya da büyümez. Windows\'un animasyon ayarına uyar.'}" />
+                    <TextBlock x:Name="AnimationsNote" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="Collapsed"
+                               AutomationProperties.AutomationId="Settings.AnimationsNote" />
+                </StackPanel>
+                <ui:ToggleSwitch x:Name="AnimationsToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
+                                 Checked="AnimationsToggle_Changed" Unchecked="AnimationsToggle_Changed"
+                                 AutomationProperties.AutomationId="Settings.Animations" AutomationProperties.Name="{l:T 'Animasyonlar'}" />
+            </Grid>
+        </Border>
 
         <!-- ================= Masaüstü ================= -->
         <TextBlock Style="{StaticResource SectionHeader}" Text="Masaüstü" />

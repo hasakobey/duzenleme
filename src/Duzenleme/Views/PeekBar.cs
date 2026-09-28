@@ -16,7 +16,7 @@ namespace Duzenleme.Views;
 
 /// <summary>
 /// Windows masaüstüne göz atarken ekranın üst ortasındaki küçük çubuk: "Windows masaüstü · 1:42 · [+5 dk] [NestDesk'e dön]".
-/// Animasyonsuz, katmanlı değil (ucuz), hiç etkinleşmez (odağı çalmaz; tıklamalar yine çalışır) ve widget'lar gibi masaüstüne
+/// Katmanlı değil (ucuz; belirirken yalnızca içeriği kısa solar), hiç etkinleşmez (odağı çalmaz; tıklamalar yine çalışır) ve widget'lar gibi masaüstüne
 /// sahiplidir: Win+D'de kaybolmaz, masaüstünden açılan uygulamanın üstünde kalmaz. Süre dolunca, kullanıcı masaüstünde
 /// çalışmıyorsa (sürükleme, yazma) NestDesk'e dönülür.
 /// </summary>
@@ -31,18 +31,25 @@ internal sealed class PeekBar : Window
     private readonly Button _more;
     private readonly Button _return;
 
-    /// <summary>Çubuğu imlecin (testte DUZENLEME_PEEK_AT="x,y" noktasının) ekranında açar; açık olanı kapatır.</summary>
-    public static void Open(int minutes)
+    /// <summary>
+    /// Çubuğun açılacağı ekran: kullanıcının çalıştığı yer, yani etkin pencerenin ekranı (kısayol yazılan uygulamanın, widget
+    /// menüsünün, Ayarlar'ın ekranı); etkin pencere yoksa ya da masaüstünün kendisiyse (çift tıklama) imlecin ekranı. Testte
+    /// NESTDESK_PEEK_AT="x,y". Göz atma pencereleri küçültmeden önce okunur.
+    /// </summary>
+    public static NativeMethods.POINT Anchor() =>
+        NativeMethods.PointFromEnvironment("PEEK_AT") ?? NativeMethods.ActiveMonitorCenter() ?? CursorPoint();
+
+    /// <summary>Çubuğu <paramref name="anchor"/> noktasının (verilmezse <see cref="Anchor"/>) ekranında açar; açık olanı kapatır.</summary>
+    public static void Open(int minutes, NativeMethods.POINT? anchor = null)
     {
         CloseBar();
-        var anchor = NativeMethods.PointFromEnvironment("PEEK_AT") ?? CursorPoint();
-        Show(anchor, new PeekClock(DateTime.UtcNow, minutes));
+        Show(anchor ?? Anchor(), new PeekClock(DateTime.UtcNow, minutes));
     }
 
     private static void Show(NativeMethods.POINT anchor, PeekClock clock)
     {
         _current = new PeekBar(anchor, clock);
-        _current.Show();
+        Widgets.QuietShow.Show(_current);
     }
 
     public static void CloseBar()
@@ -132,6 +139,8 @@ internal sealed class PeekBar : Window
         Loaded += (_, _) =>
         {
             Place();
+            // İçerik kısa bir solmayla belirir (geçişler açıksa; pencere katmanlı değil, zemini hemen görünür).
+            Motion.FadeIn(border);
             if (_clock.AutoReturn) _tick.Start();
         };
         // Ölçeği farklı bir ekrana geçerse boyut değişir: ortalama yeniden yapılır.

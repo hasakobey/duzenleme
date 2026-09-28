@@ -147,16 +147,11 @@ public sealed class WidgetWindow : Window
         // boyutlar: %100'de seçilmiş yükseklik %125'te çalışma alanından taşabilir. Sürüklerken yalnızca yükseklik uyar.
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => FitToWorkArea(allowMove: !_dragging && !_resizing), DispatcherPriority.Loaded);
 
-        // Pencereyi en baştan kayıtlı monitörde oluştur: sonradan ölçeği (DPI) farklı bir monitöre taşınırsa WPF onu
-        // etkinleştirerek yeniden boyutlar (odak çalınır, açılış yavaşlar). Konum henüz pencere yokken sistem
-        // ölçeğiyle çevrilir; OnSourceInitialized kesin fiziksel konuma oturtur.
+        // Pencereyi en baştan kayıtlı monitörde oluştur: sonradan ölçeği (DPI) farklı bir monitöre taşınırsa WPF onu yeniden
+        // boyutlar (açılış yavaşlar). Konum o monitörün ölçeğiyle çevrilir (WPF de öyle çevirir); OnSourceInitialized kesin
+        // fiziksel konuma oturtur. Oluşurken etkinleşmemesi (odak çalmaması) QuietShow'un işidir.
         if (Config.PixelLeft is int px && Config.PixelTop is int py && IsOnSomeMonitor(px, py))
-        {
-            var systemScale = GetDpiForSystem() / 96.0;
-            WindowStartupLocation = WindowStartupLocation.Manual;
-            Left = px / systemScale;
-            Top = py / systemScale;
-        }
+            Views.WindowFit.StartAt(this, px, py);
 
         if (DebugLog.Enabled)
         {
@@ -447,6 +442,9 @@ public sealed class WidgetWindow : Window
             : View.Resizable
                 ? L.T("Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift")
                 : L.T("Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift")));
+        // Yeniden adlandırılabilen widget'ta (menüsünde F2'li "Yeniden adlandır" olan) kısayolu da söylenir.
+        if (own.Primary.OfType<MenuItem>().Any(i => i.InputGestureText == KeyNames.F2))
+            look.Items.Add(Menus.Hint(L.T("Yeniden adlandır: widget'a tıkla, F2'ye bas")));
         menu.Items.Add(look);
 
         var more = new MenuItem { Header = L.T("Diğer") };
@@ -518,8 +516,20 @@ public sealed class WidgetWindow : Window
 
     private bool _placedByPixels;
 
+    // OnSourceInitialized bitti mi (pencere kayıtlı fiziksel konumuna oturtuldu mu)?
+    private bool _sourceReady;
+
     private void PlaceOnScreen()
     {
+        // İçeriğe göre boyutlanan widget'ta (saat, tarih…) WPF Loaded'ı pencere oluşurken, OnSourceInitialized'dan ÖNCE
+        // tetikleyebiliyor. O an pencere henüz kayıtlı yerinde değil (ölçeği farklı monitörde DIP konumu kayar): konum
+        // okunup kaydedilirse her açılışta widget biraz kayardı. Pencere yerine oturunca yapılır.
+        if (!_sourceReady)
+        {
+            DebugLog.Write($"[{Config.Kind}] yerleşim pencere oluşunca");
+            Dispatcher.BeginInvoke(PlaceOnScreen, DispatcherPriority.Loaded);
+            return;
+        }
         if (View.Resizable)
         {
             Width = double.IsNaN(Config.Width) ? DefaultWidth : Math.Max(Config.Width, MinResizableWidth);
@@ -815,6 +825,7 @@ public sealed class WidgetWindow : Window
                 NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
             _placedByPixels = true;
         }
+        _sourceReady = true;
     }
 
     /// <summary>
@@ -1120,9 +1131,6 @@ public sealed class WidgetWindow : Window
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int key);
 
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForSystem();
-
     /// <summary>Ctrl + tekerlek: bölme/kutuda simge boyutu, diğerlerinde widget ölçeği.</summary>
     private void OnWheel(object sender, MouseWheelEventArgs e)
     {
@@ -1179,7 +1187,9 @@ public sealed class WidgetWindow : Window
             return;
         }
         _revealing = false;
-        _glow?.Remove();
+        // Vurgu ışıması kısa bir solmayla söner (geçişler kapalıysa hemen kalkar).
+        if (_glow is { } glow)
+            Views.Motion.Disappear(glow, glow.Remove, milliseconds: MotionPolicy.GlowFadeMs, frameRate: MotionPolicy.WidgetFrameRate);
         _glow = null;
         _card.BorderThickness = new Thickness(1);
         ApplyStyle();
@@ -1194,6 +1204,12 @@ public sealed class WidgetWindow : Window
         Deactivated -= DemoteWhenDeactivated;
         // Etkinleştirme işlenirken sahiplik/z-sırası değiştirilmez; hemen ardından yapılır.
         Dispatcher.BeginInvoke(EndReveal, DispatcherPriority.Background);
+    }
+
+    /// <summary>Gizler (solarak kaybolma bittiğinde pencere bu arada kapanmış olabilir: kapalı pencere gizlenemez).</summary>
+    internal void HideIfOpen()
+    {
+        if (!_closed) Hide();
     }
 
     /// <summary>Klavye girişi için widget'ı bilerek etkinleştirir (yeni not, arama kutusu).</summary>

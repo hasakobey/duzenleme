@@ -20,13 +20,13 @@ public sealed class TrayIcon : IDisposable
 
     public TrayIcon(Action openMainWindow, Action quickAdd, Action exit)
     {
-        var iconStream = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico"))!.Stream;
-        _icon = new Forms.NotifyIcon
-        {
-            Icon = new System.Drawing.Icon(iconStream, Forms.SystemInformation.SmallIconSize),
-            Text = AppInfo.Name,
-            Visible = true,
-        };
+        _icon = new Forms.NotifyIcon { Text = AppInfo.Name };
+        RefreshIcon();
+        _icon.Visible = true;
+        // Görev çubuğunun ekranının ölçeği değişince (ya da görev çubuğu başka ekrana geçince) simge o boyutta yeniden
+        // seçilir: Windows yanlış boyuttaki simgeyi ölçekleyip bulanıklaştırır.
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnPreferenceChanged;
 
         // İşaretli = otomatik taşıma açık (Paused'ın tersi).
         _autoMoveItem = new Forms.ToolStripMenuItem("Otomatik taşıma", null, (_, _) => AppHost.SetPaused(!AppHost.Settings.Paused));
@@ -56,6 +56,7 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add("Çıkış", null, (_, _) => exit());
         menu.Opening += (_, _) =>
         {
+            RefreshIcon();
             _autoMoveItem.Checked = !AppHost.Settings.Paused;
             var current = Views.DesktopModes.Current;
             foreach (Forms.ToolStripMenuItem item in _iconModeItem.DropDownItems)
@@ -80,6 +81,52 @@ public sealed class TrayIcon : IDisposable
         AppHost.SettingsChanged += UpdateTooltip;
         AppHost.DesktopVisibilityChanged += UpdateTooltip;
         UpdateTooltip();
+    }
+
+    private int _iconPixels;
+
+    /// <summary>
+    /// Tepsi simgesini görev çubuğunun ekranındaki küçük simge boyutunda (%100'de 16, %125'te 20, %150'de 24 piksel) app.ico'nun
+    /// o boyuttaki karesinden kurar; boyut değişmediyse bir şey yapmaz. Görev çubuğuna ileti gönderilmez (yalnızca pencere
+    /// sınıfıyla bulunur ve ölçeği sorulur).
+    /// </summary>
+    public void RefreshIcon()
+    {
+        var pixels = TrayIconPixels();
+        if (pixels == _iconPixels) return;
+        _iconPixels = pixels;
+        using var stream = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico"))!.Stream;
+        var old = _icon.Icon;
+        _icon.Icon = new System.Drawing.Icon(stream, new System.Drawing.Size(pixels, pixels));
+        old?.Dispose();
+        DebugLog.Write($"tepsi simgesi {pixels} px");
+    }
+
+    private static int TrayIconPixels()
+    {
+        const int SM_CXSMICON = 49;
+        try
+        {
+            var taskbar = Widgets.NativeMethods.FindWindow("Shell_TrayWnd", null);
+            var dpi = taskbar != IntPtr.Zero ? Widgets.NativeMethods.GetDpiForWindow(taskbar) : 0;
+            if (dpi == 0) dpi = (uint)Math.Round(96 * Widgets.NativeMethods.SystemPixelsPerDip);
+            var pixels = Widgets.NativeMethods.GetSystemMetricsForDpi(SM_CXSMICON, dpi);
+            return pixels > 0 ? pixels : Forms.SystemInformation.SmallIconSize.Width;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return Forms.SystemInformation.SmallIconSize.Width;
+        }
+    }
+
+    private void OnDisplayChanged(object? sender, EventArgs e) =>
+        Application.Current?.Dispatcher.BeginInvoke(RefreshIcon, DispatcherPriority.Background);
+
+    private void OnPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is Microsoft.Win32.UserPreferenceCategory.Desktop or Microsoft.Win32.UserPreferenceCategory.Icon
+            or Microsoft.Win32.UserPreferenceCategory.General or Microsoft.Win32.UserPreferenceCategory.Window)
+            Application.Current?.Dispatcher.BeginInvoke(RefreshIcon, DispatcherPriority.Background);
     }
 
     private void OnFileMoved(MoveEntry entry)
@@ -157,6 +204,8 @@ public sealed class TrayIcon : IDisposable
 
     public void Dispose()
     {
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
         AppHost.Organizer.FileMoved -= OnFileMoved;
         AppHost.SettingsChanged -= UpdateTooltip;
         AppHost.DesktopVisibilityChanged -= UpdateTooltip;

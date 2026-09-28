@@ -9,6 +9,12 @@ public sealed class WelcomeChoices
     /// <summary>Masaüstü simgeleri yalnızca bölmelerde görünsün (FencesReplaceIcons). Yalnızca Fences true iken anlamlı.</summary>
     public bool IconsOnlyInFences { get; set; } = true;
 
+    /// <summary>
+    /// "Kutulara eklediklerim masaüstünden kalksın" (BoxItemsLeaveDesktop). Yalnızca Fences true iken ve IconsOnlyInFences
+    /// false iken anlamlı; ikisi de false ise "Hepsi masaüstünde görünsün".
+    /// </summary>
+    public bool BoxItemsLeaveDesktop { get; set; }
+
     /// <summary>Otomatik taşıma: true açılır, false kapatılır, null dokunulmaz.</summary>
     public bool? AutoMove { get; set; }
 

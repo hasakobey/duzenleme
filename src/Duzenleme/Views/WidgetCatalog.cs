@@ -139,9 +139,9 @@ internal static class WidgetCatalog
 
     /// <summary>
     /// Klasörü gösteren bölme ekler: masaüstünün kendisi "Tüm masaüstü", masaüstündeki klasör klasik klasör bölmesi, başka her
-    /// yer portal (başlık klasörün adı; 2.0 da başlığı gösterir).
+    /// yer portal (başlık klasörün adı; 2.0 da başlığı gösterir). Portal kutucukları ve "Yeni bölme…" aynı yoldan ekler.
     /// </summary>
-    private static WidgetConfig? AddFolder(string path, string? knownId)
+    internal static WidgetConfig? AddFolder(string path, string? knownId)
     {
         var source = FolderPortal.Normalize(path, AppHost.DesktopDirectory);
         if (source.Filter != DesktopFilter.None) return AppHost.Widgets.AddFence(source.Filter);

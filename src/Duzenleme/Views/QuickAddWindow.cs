@@ -51,6 +51,7 @@ internal sealed class QuickAddWindow : FluentWindow
         MinHeight = 0;
         // Pencere en baştan imlecin monitöründe oluşur (ölçeği farklıysa sonradan büyüyüp ekrandan taşmasın) ve o ekranın
         // çalışma alanından uzun olamaz: kutucuklar kayar, başlık ve alttaki düğmeler hep görünür.
+        WindowFit.FitChromeToContent(this);
         WindowFit.StartOn(this, anchor);
         MaxHeight = Math.Max(240, NativeMethods.WorkAreaAt(anchor).Height / NativeMethods.ScaleAt(anchor) - 16);
 

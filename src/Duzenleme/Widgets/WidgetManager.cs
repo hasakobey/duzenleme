@@ -241,7 +241,7 @@ public sealed class WidgetManager
         AppHost.SaveSettings();
         // Masaüstü gizliyse ya da göz atılıyorsa widget'lar geri gelir (durumu AppHost değiştirir; tepsi ve Ayarlar da güncellenir).
         AppHost.EnsureWidgetsShown();
-        if (TryOpen(config, place) is { } window)
+        if (TryOpen(config, place, fadeIn: true) is { } window)
         {
             // Yeni widget pencerelerin arkasında kalıp "eklenmedi" sanılmasın: birkaç saniye vurgulu olarak öne gelsin.
             // (Loaded, Show() sırasında tetiklenebildiği için ona bağlanılmaz; yerleşim bitince çalıştırılır.)
@@ -320,7 +320,7 @@ public sealed class WidgetManager
         AppHost.Settings.Widgets.Insert(Math.Min(last.Index, AppHost.Settings.Widgets.Count), last.Copy);
         AppHost.SaveSettings();
         AppHost.EnsureWidgetsShown();
-        if (TryOpen(last.Copy) is not null) ApplyZOrder();
+        if (TryOpen(last.Copy, fadeIn: true) is not null) ApplyZOrder();
         if (last.ModeTurnedOff && !AppHost.Settings.FencesReplaceIcons) AppHost.SetFencesManageDesktop(true);
         Changed?.Invoke();
     }
@@ -501,10 +501,13 @@ public sealed class WidgetManager
     {
         if (Hidden == hidden) return;
         Hidden = hidden;
-        foreach (var window in _open.Values)
+        // Kısa solma (Views.Motion): widget'lar yazılımla çizilen katmanlı pencerelerdir; çoksa solmadan gizlenip gösterilir.
+        var windows = _open.Values.ToList();
+        var fade = Core.MotionPolicy.FadeWindows(Views.Motion.Enabled, windows.Count(w => hidden ? w.IsVisible : !w.IsVisible));
+        foreach (var window in windows)
         {
-            if (hidden) window.Hide();
-            else window.Show();
+            if (hidden) Views.Motion.Disappear(window, window.HideIfOpen, fade, frameRate: Core.MotionPolicy.WidgetFrameRate);
+            else Views.Motion.Appear(window, () => QuietShow.Show(window), fade, frameRate: Core.MotionPolicy.WidgetFrameRate);
         }
     }
 
@@ -560,10 +563,10 @@ public sealed class WidgetManager
         return new NativeMethods.POINT { X = x - m, Y = y - m };
     }
 
-    private WidgetWindow? TryOpen(WidgetConfig config, WidgetPlacement? place = null)
+    private WidgetWindow? TryOpen(WidgetConfig config, WidgetPlacement? place = null, bool fadeIn = false)
     {
         // Bir widget'ın açılamaması başlangıcı (izleyici, tepsi, ana pencere) durdurmasın.
-        try { return Open(config, place); }
+        try { return Open(config, place, fadeIn); }
         catch (Exception ex)
         {
             DebugLog.Write($"widget açılamadı {config.Kind}: {ex}");
@@ -576,13 +579,15 @@ public sealed class WidgetManager
         }
     }
 
-    private WidgetWindow Open(WidgetConfig config, WidgetPlacement? place = null)
+    /// <param name="fadeIn">Tek tek eklenen/geri gelen widget solarak belirir (açılıştaki toplu açılış solmaz).</param>
+    private WidgetWindow Open(WidgetConfig config, WidgetPlacement? place = null, bool fadeIn = false)
     {
         var view = WidgetViews.Create(config);
         var window = new WidgetWindow(config, view) { PendingPlacement = place };
         window.Closed += (_, _) => OnWindowClosed(config);
         _open[config.Id] = window;
-        if (!Hidden) window.Show();
+        // Oluşurken etkinleşip kullanıcının yazdığı pencereden odağı almasın (bkz. QuietShow).
+        if (!Hidden) Views.Motion.Appear(window, () => QuietShow.Show(window), fadeIn, frameRate: Core.MotionPolicy.WidgetFrameRate);
         return window;
     }
 

@@ -18,6 +18,10 @@ public partial class MainWindow : FluentWindow
         Title = AppInfo.Name;
         TitleBar.Title = AppInfo.Name;
         Views.WindowFit.Attach(this);
+        // Sayfa geçişi: kısa solma ya da hiçbiri (Ayarlar > Animasyonlar ve Windows'un ayarı değişince hemen).
+        Motion.ApplyTo(RootNavigation);
+        Motion.Changed += OnMotionChanged;
+        Closed += (_, _) => Motion.Changed -= OnMotionChanged;
         Loaded += (_, _) =>
         {
             RootNavigation.Navigate(_pendingPage ?? typeof(HomePage));
@@ -27,6 +31,8 @@ public partial class MainWindow : FluentWindow
         RootNavigation.Navigated += (_, _) => HideNotice();
         IsVisibleChanged += (_, e) => { if (e.NewValue is false) HideNotice(); };
     }
+
+    private void OnMotionChanged() => Motion.ApplyTo(RootNavigation);
 
     /// <summary>Sayfaya geçer; pencere henüz yüklenmediyse yüklenince geçer.</summary>
     public void NavigateTo(Type page)
@@ -54,12 +60,18 @@ public partial class MainWindow : FluentWindow
         _noticeAction = actionText is null ? null : action;
         NoticeAction.Content = actionText;
         NoticeAction.Visibility = _noticeAction is null ? Visibility.Collapsed : Visibility.Visible;
-        NoticeBar.Visibility = Visibility.Visible;
+        // Belirirken kısa solma; açık şeritteki bildirim yerinde değişir (oynamaz).
+        if (NoticeBar.Visibility != Visibility.Visible)
+        {
+            NoticeBar.Visibility = Visibility.Visible;
+            Motion.FadeIn(NoticeBar);
+        }
     }
 
     internal void HideNotice()
     {
         _noticeAction = null;
+        Motion.Stop(NoticeBar);
         NoticeBar.Visibility = Visibility.Collapsed;
     }
 
