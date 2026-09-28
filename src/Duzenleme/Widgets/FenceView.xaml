@@ -4,7 +4,9 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              AllowDrop="True">
     <DockPanel>
-        <!-- Başlığa çift tıklamak katlar/açar (menüde "Diğer ▸ Başlığa katla"). Tooltip yok: üstünde beklemek bir şey açmaz. -->
+        <!-- Başlığa çift tıklamak katlar/açar (menüde "Diğer ▸ Başlığa katla"). Tooltip yok: üstünde beklemek bir şey açmaz.
+             Dar bölmede başlık okunsun diye sayı, "Klasörü aç", arama ve simge sırayla geçici gizlenir (FitHeader).
+             Başlık 16 px'te "Variable Text" (küçük boyut için çizilmiş; "Display" 20 pt üstü içindir). -->
         <Grid x:Name="Header" DockPanel.Dock="Top" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -16,7 +18,7 @@
             </Grid.ColumnDefinitions>
             <ui:SymbolIcon x:Name="HeaderIcon" Symbol="Folder24" Filled="True" FontSize="20" Margin="0,0,10,0" VerticalAlignment="Center" />
             <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Display, Segoe UI" />
+                       TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Text, Segoe UI" />
             <Border x:Name="CountBadge" Grid.Column="2" CornerRadius="9" Padding="8,1,8,2" Margin="8,0,4,0" VerticalAlignment="Center">
                 <TextBlock x:Name="CountText" FontSize="12" FontWeight="SemiBold" />
             </Border>

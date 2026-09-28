@@ -1,19 +1,46 @@
 <UserControl x:Class="Duzenleme.Widgets.ClockView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Duzenleme.Widgets">
+    <UserControl.Resources>
+        <!-- Büyük rakamlar hep "Ideal" kipte (Display kipi büyük yazıda kaba durur). Rakamlar eşit genişlikte: saniye
+             değiştikçe yazı yana kaymaz, pencere de her saniye yeniden boyutlanmaz. -->
+        <Style x:Key="TimeStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="72" />
+            <Setter Property="FontWeight" Value="Light" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        </Style>
+        <Style x:Key="SecondsStyle" TargetType="TextBlock" BasedOn="{StaticResource TimeStyle}">
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+        <Style x:Key="GreetingStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <StackPanel MinWidth="230">
+            <!-- Her yazının arkasında Cam görünümü için gölge kopyası durur (ShadowText; ApplyPalette açar). -->
             <StackPanel Orientation="Horizontal">
-                <TextBlock x:Name="TimeText" Text="00:00" FontSize="72" FontWeight="Light"
-                           FontFamily="Segoe UI Variable Display, Segoe UI" />
-                <TextBlock x:Name="SecondsText" Text="00" FontSize="26" FontWeight="Normal"
-                           FontFamily="Segoe UI Variable Display, Segoe UI"
-                           VerticalAlignment="Bottom" Margin="6,0,0,15" />
+                <Grid>
+                    <local:ShadowText x:Name="TimeShadow" Style="{StaticResource TimeStyle}" Text="{Binding Text, ElementName=TimeText}" />
+                    <TextBlock x:Name="TimeText" Style="{StaticResource TimeStyle}" Text="00:00" />
+                </Grid>
+                <Grid x:Name="SecondsBox" VerticalAlignment="Bottom" Margin="6,0,0,15">
+                    <local:ShadowText x:Name="SecondsShadow" Style="{StaticResource SecondsStyle}" Text="{Binding Text, ElementName=SecondsText}" />
+                    <TextBlock x:Name="SecondsText" Style="{StaticResource SecondsStyle}" Text="00" />
+                </Grid>
             </StackPanel>
             <StackPanel x:Name="GreetingRow" Orientation="Horizontal" Margin="3,-4,0,0">
                 <Ellipse x:Name="Dot" Width="7" Height="7" VerticalAlignment="Center" Margin="0,1,8,0" />
-                <TextBlock x:Name="GreetingText" FontSize="15" FontWeight="SemiBold"
-                           FontFamily="Segoe UI Variable Text, Segoe UI" />
+                <Grid>
+                    <local:ShadowText x:Name="GreetingShadow" Style="{StaticResource GreetingStyle}" Text="{Binding Text, ElementName=GreetingText}" />
+                    <TextBlock x:Name="GreetingText" Style="{StaticResource GreetingStyle}" />
+                </Grid>
             </StackPanel>
         </StackPanel>
         <!-- Sağ üst köşede hep yerinde, sönük: rakamların üstündeki boşlukta durur, fareyle belirip kaybolmaz. -->

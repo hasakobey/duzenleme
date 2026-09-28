@@ -79,10 +79,16 @@ public static class FolderIconRenderer
     public static ImageSource Preview(IconGlyph glyph, IconColor color, int size = 96) =>
         Render(FolderDrawing(color, glyph.Glyph), size);
 
+    /// <summary>
+    /// Gezgin'in ve masaüstünün ölçeklere göre istediği boyutlar (%125'te 20/40, %150'de 24/36/48/96…): karesi olmayan
+    /// boyutu Windows en yakın kareden ölçekler ve simge bulanıklaşır.
+    /// </summary>
+    internal static readonly int[] IcoSizes = [256, 128, 96, 64, 48, 40, 32, 24, 20, 16];
+
     /// <summary>Çok boyutlu .ico (her boyut PNG olarak; Windows Vista'dan beri desteklenir).</summary>
     public static byte[] ToIco(Drawing drawing)
     {
-        int[] sizes = [256, 64, 48, 32, 24, 16];
+        var sizes = IcoSizes;
         var frames = sizes.Select(s =>
         {
             var encoder = new PngBitmapEncoder();

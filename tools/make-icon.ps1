@@ -11,14 +11,32 @@ function New-RoundRect([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) {
     $p.CloseFigure(); return $p
 }
 
+# Kutucuk kenarı (t) ve aralık (gap) tam piksel: tasarım oranlarına (kenar 0,245·s, aralık 0,07·s) en yakın, iki yandaki
+# boşluk eşit olacak biçimde seçilir. Kesirli kenarlar 16–32 piksellik karelerde yarı saydam, bulanık pikseller bırakıyordu.
+function Get-Cells([int]$s) {
+    $td = $s * 0.245; $gd = $s * 0.07
+    $best = $null; $bestCost = [double]::MaxValue
+    for ($t = [math]::Floor($td) - 1; $t -le [math]::Ceiling($td) + 1; $t++) {
+        for ($gap = [math]::Max(1, [math]::Floor($gd) - 1); $gap -le [math]::Ceiling($gd) + 1; $gap++) {
+            $rest = $s - 2 * $t - $gap
+            if ($t -lt 2 -or $rest -lt 2 -or $rest % 2 -ne 0) { continue }
+            $cost = [math]::Abs($t - $td) + [math]::Abs($gap - $gd)
+            if ($cost -lt $bestCost) { $bestCost = $cost; $best = @($t, $gap, ($rest / 2)) }
+        }
+    }
+    return $best
+}
+
 function Render([int]$s) {
     $bmp = New-Object System.Drawing.Bitmap $s, $s, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode = 'AntiAlias'; $g.Clear([System.Drawing.Color]::Transparent)
-    $bg = New-RoundRect 0 0 ($s - 1) ($s - 1) ($s * 0.23)
+    # Tam sayı koordinatlar piksel kenarı sayılsın (varsayılan kipte piksel merkezidir; kenarlar yarı pikselde bulanıklaşır).
+    $g.PixelOffsetMode = 'Half'
+    $bg = New-RoundRect 0 0 $s $s ($s * 0.23)
     $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush (New-Object System.Drawing.PointF 0, 0), (New-Object System.Drawing.PointF $s, $s), ([System.Drawing.Color]::FromArgb(255, 99, 102, 241)), ([System.Drawing.Color]::FromArgb(255, 168, 85, 247))
     $g.FillPath($brush, $bg)
-    $pad = $s * 0.22; $gap = $s * 0.07; $t = ($s - 2 * $pad - $gap) / 2
+    $t, $gap, $pad = Get-Cells $s
     $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(245, 255, 255, 255))
     $soft = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(120, 255, 255, 255))
     $amber = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 251, 191, 36))
@@ -47,7 +65,9 @@ function Render([int]$s) {
     return , $ms.ToArray()
 }
 
-$sizes = 256, 64, 48, 32, 24, 16
+# Windows'un ölçeklere göre istediği boyutların hepsi: tepsi/küçük simge 16·20·24·28·32 (%100–%200), başlık çubuğu ve
+# görev çubuğu 24·32·36·40·48, büyük simgeler 64·96·128·256. Karesi olmayan boyut en yakın kareden ölçeklenir ve bulanıklaşır.
+$sizes = 256, 128, 96, 64, 48, 40, 36, 32, 28, 24, 20, 16
 $pngs = $sizes | ForEach-Object { , (Render $_) }
 $fs = [System.IO.File]::Create($out); $bw = New-Object System.IO.BinaryWriter $fs
 $bw.Write([uint16]0); $bw.Write([uint16]1); $bw.Write([uint16]$sizes.Count)

@@ -1,8 +1,6 @@
 using System.Globalization;
 using System.IO;
-using System.Windows.Media;
 using Duzenleme.Core;
-using Duzenleme.Widgets;
 
 namespace Duzenleme.Views;
 
@@ -39,7 +37,9 @@ public sealed class MoveRow(MoveEntry entry)
         }
     }
     public string When => UiText.When(Entry.Time);
-    public ImageSource? Icon => ShellIcons.For(Entry.Undone ? Entry.Source : Entry.Destination);
+
+    /// <summary>Simgesi gösterilen dosya (ShellIconImage.Path): arka planda, ekranın piksel boyutunda yüklenir.</summary>
+    public string IconPath => Entry.Undone ? Entry.Source : Entry.Destination;
     public bool CanUndo => !Entry.Undone;
     public string Status => Entry.Undone ? "Geri alındı" : "";
 

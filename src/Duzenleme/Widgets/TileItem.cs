@@ -64,19 +64,65 @@ public sealed class TileItem : INotifyPropertyChanged
         IconSize.Small => 24, IconSize.Large => 48, IconSize.ExtraLarge => 64, _ => 36,
     };
 
-    public static TileItem Create(string path, WidgetConfig config, string? name = null)
+    /// <summary>
+    /// Dosya/klasör kutucuğu. <paramref name="pixelsPerDip"/> kutucuğu gösterecek görünümün ekran ölçeğidir
+    /// (VisualTreeHelper.GetDpi(görünüm).PixelsPerDip); verilmezse sistemin ölçeği sayılır. Görünüm, ekran ya da widget
+    /// ölçeği değişince <see cref="UpdateIconSize"/> çağırmalıdır.
+    /// </summary>
+    public static TileItem Create(string path, WidgetConfig config, string? name = null, double pixelsPerDip = 0)
     {
         var native = NativePath(path);
         var exists = File.Exists(native) || Directory.Exists(native);
+        var item = Layout(config, path, name ?? DisplayName(path), missing: !exists);
+        if (exists)
+        {
+            item._iconPath = native;
+            item._preview = config.ShowPreviews && File.Exists(native) && ShellIcons.CanPreview(native);
+            item.UpdateIconSize(pixelsPerDip, config.Scale);
+        }
+        return item;
+    }
+
+    // Simgesi istenen yol (32-bit'te Sysnative'e çevrilmiş ya da "::{CLSID}"), önizleme mi, en son istenen piksel boyutu.
+    private string? _iconPath;
+    private bool _preview;
+    private int _pixels;
+
+    /// <summary>
+    /// Simgeyi ekranda çizileceği gerçek piksel boyutunda (simge boyutu × ekran ölçeği × widget ölçeği) ister ve 1:1
+    /// çizdirir; iki kat büyük istenip küçültülen ya da küçük istenip büyütülen simge %125/%150'de bulanık görünürdü.
+    /// Boyut değişmediyse bir şey yapmaz. Yeni boyut gelene dek eski simge görünür.
+    /// </summary>
+    public void UpdateIconSize(double pixelsPerDip, double widgetScale)
+    {
+        if (_iconPath is not { } path) return;
+        var pixels = IconSizing.DevicePixels(IconPx, pixelsPerDip > 0 ? pixelsPerDip : NativeMethods.SystemPixelsPerDip, widgetScale);
+        if (pixels == _pixels) return;
+        _pixels = pixels;
+        var preview = _preview;
+        if (ShellIcons.TryCached(path, pixels, preview, out var cached))
+        {
+            Icon = cached;
+            return;
+        }
+        // Önizleme gelene kadar (varsa) türün simgesi görünsün.
+        if (preview && Icon is null && ShellIcons.TryCached(path, pixels, false, out var typeIcon)) Icon = typeIcon;
+        // Arada başka bir boyut istendiyse (ekran değişti) geç gelen eski boyut yenisinin üstüne yazılmaz.
+        ShellIcons.Request(path, pixels, preview, icon => { if (_pixels == pixels) Icon = icon ?? Icon; });
+    }
+
+    /// <summary>Kutucuğun yerleşimi (simge boyutu, yazı, aralık, liste/ızgara); simgesi yok.</summary>
+    private static TileItem Layout(WidgetConfig config, string path, string name, bool missing)
+    {
         var list = config.View == ItemView.List;
         var px = list ? Math.Min(IconPixels(config.IconSize), 32) : IconPixels(config.IconSize);
         var font = config.LabelSize switch { LabelSize.Small => 10.5, LabelSize.Large => 13, _ => 11.5 };
         var labels = !config.HideLabels;
-        var item = new TileItem
+        return new TileItem
         {
-            Name = name ?? DisplayName(path),
+            Name = name,
             Path = path,
-            Missing = !exists,
+            Missing = missing,
             IconPx = px,
             TileWidth = list ? double.NaN : labels ? px + Math.Max(40, font * 4) : px + 4,
             Orientation = list ? Orientation.Horizontal : Orientation.Vertical,
@@ -94,20 +140,6 @@ public sealed class TileItem : INotifyPropertyChanged
                 _ => list ? new Thickness(6, 4, 6, 4) : new Thickness(6, 7, 6, 6),
             },
         };
-        // Yüksek DPI'da da keskin kalsın diye simge iki katı çözünürlükte istenir.
-        if (exists)
-        {
-            var pixels = (int)px * 2;
-            var preview = config.ShowPreviews && File.Exists(native) && ShellIcons.CanPreview(native);
-            if (ShellIcons.TryCached(native, pixels, preview, out var cached)) item.Icon = cached;
-            else
-            {
-                // Önizleme gelene kadar (varsa) türün simgesi görünsün.
-                if (preview && ShellIcons.TryCached(native, pixels, false, out var typeIcon)) item.Icon = typeIcon;
-                ShellIcons.Request(native, pixels, preview, icon => item.Icon = icon ?? item.Icon);
-            }
-        }
-        return item;
     }
 
     /// <summary>Simge paneli: ızgara ya da liste; ızgarada satırlar sola, ortaya ya da sağa yaslanır.</summary>
@@ -122,21 +154,15 @@ public sealed class TileItem : INotifyPropertyChanged
         return new ItemsPanelTemplate(panel);
     }
 
-    /// <summary>Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesnesi ("::{CLSID}") kutucuğu.</summary>
-    public static TileItem CreateShell(Desktop.SystemIcon icon, WidgetConfig config)
+    /// <summary>
+    /// Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesnesi ("::{CLSID}") kutucuğu. Simgesi de dosyalarınki gibi arka
+    /// planda ve gerçek piksel boyutunda yüklenir (kabuk çağrısı arayüzü bekletmez).
+    /// </summary>
+    public static TileItem CreateShell(Desktop.SystemIcon icon, WidgetConfig config, double pixelsPerDip = 0)
     {
-        var template = Create("::" + icon.Clsid, config, icon.Name);
-        var item = new TileItem
-        {
-            Name = icon.Name,
-            Path = "::" + icon.Clsid,
-            Missing = false,
-            IconPx = template.IconPx, TileWidth = template.TileWidth, Orientation = template.Orientation,
-            IconAlign = template.IconAlign, TextAlign = template.TextAlign, Wrap = template.Wrap,
-            TextMargin = template.TextMargin, TextMaxHeight = template.TextMaxHeight, LabelFont = template.LabelFont,
-            LabelVisibility = template.LabelVisibility, Pad = template.Pad,
-        };
-        item.Icon = ShellIcons.ForShellObject("::" + icon.Clsid);
+        var item = Layout(config, "::" + icon.Clsid, icon.Name, missing: false);
+        item._iconPath = item.Path;
+        item.UpdateIconSize(pixelsPerDip, config.Scale);
         return item;
     }
 

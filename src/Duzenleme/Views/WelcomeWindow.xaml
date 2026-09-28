@@ -202,7 +202,7 @@
         <!-- Sabit boyutlu pencere: başlığa çift tıklamak da büyütmez. ✕ "Şimdilik atla" ile aynı işi görür. -->
         <ui:TitleBar x:Name="TitleBar" Grid.Row="0" ShowMaximize="False" CanMaximize="False" CloseWindowByDoubleClickOnIcon="False">
             <ui:TitleBar.Icon>
-                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" RenderOptions.BitmapScalingMode="HighQuality" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 

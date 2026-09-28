@@ -4,7 +4,8 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              AllowDrop="True">
     <DockPanel>
-        <!-- Başlığa çift tıklamak katlar/açar (menüde "Diğer ▸ Başlığa katla"). Tooltip yok: üstünde beklemek bir şey açmaz. -->
+        <!-- Başlığa çift tıklamak katlar/açar (menüde "Diğer ▸ Başlığa katla"). Tooltip yok: üstünde beklemek bir şey açmaz.
+             Dar kutuda başlık okunsun diye sayı ve simge sırayla geçici gizlenir (FitHeader). -->
         <Grid x:Name="Header" DockPanel.Dock="Top" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -14,7 +15,7 @@
             </Grid.ColumnDefinitions>
             <ui:SymbolIcon x:Name="HeaderIcon" Symbol="Apps24" Filled="True" FontSize="20" Margin="0,0,10,0" VerticalAlignment="Center" />
             <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Display, Segoe UI" />
+                       TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Text, Segoe UI" />
             <TextBlock x:Name="CountText" Grid.Column="2" FontSize="12" VerticalAlignment="Center" />
             <Button x:Name="RemoveButton" Grid.Column="3" Style="{StaticResource WidgetCloseButton}" Margin="6,0,-4,0" Click="RemoveWidget_Click" />
         </Grid>

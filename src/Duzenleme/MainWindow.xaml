@@ -61,7 +61,7 @@
 
         <ui:TitleBar x:Name="TitleBar" Grid.Row="0" CloseWindowByDoubleClickOnIcon="False">
             <ui:TitleBar.Icon>
-                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" />
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app.ico" RenderOptions.BitmapScalingMode="HighQuality" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
     </Grid>
