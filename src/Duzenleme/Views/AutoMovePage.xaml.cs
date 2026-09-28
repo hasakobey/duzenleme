@@ -82,12 +82,12 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
     public Brush StatusBrush => (Brush)Application.Current.FindResource(_exists ? "SystemFillColorSuccessBrush" : "TextFillColorTertiaryBrush");
 
     public string StatusText =>
-        !Rule.Enabled ? "Kapalı"
-        : !HasFolderName ? "Klasör adı yok; hiçbir dosya taşınmaz"
-        : Rule.Extensions.Count == 0 ? "Uzantı yok; hiçbir dosya taşınmaz"
-        : _exists ? "Masaüstünde var"
-        : _showPending && _pending > 0 ? $"Masaüstünde yok · {_pending} dosya bekliyor"
-        : "Masaüstünde yok";
+        !Rule.Enabled ? L.T("Kapalı")
+        : !HasFolderName ? L.T("Klasör adı yok; hiçbir dosya taşınmaz")
+        : Rule.Extensions.Count == 0 ? L.T("Uzantı yok; hiçbir dosya taşınmaz")
+        : _exists ? L.T("Masaüstünde var")
+        : _showPending && _pending > 0 ? L.P(_pending, "Masaüstünde yok · {0} dosya bekliyor")
+        : L.T("Masaüstünde yok");
 
     public Visibility CreateVisibility => _exists || !HasFolderName ? Visibility.Collapsed : Visibility.Visible;
     public double RowOpacity => Rule.Enabled ? 1 : 0.6;
@@ -99,9 +99,12 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
     public string DeleteId => $"Rule.{index}.Delete";
     public string CreateId => $"Rule.{index}.CreateFolder";
     public string StatusId => $"Rule.{index}.Status";
-    public string EnabledName => $"\"{Rule.TargetFolder}\" kuralı";
-    public string DeleteName => $"Kuralı sil: {Rule.TargetFolder}";
-    public string CreateName => $"Klasörü oluştur: {Rule.TargetFolder}";
+    public string EnabledName => L.F("\"{0}\" kuralı", Rule.TargetFolder);
+    public string DeleteName => L.F("Kuralı sil: {0}", Rule.TargetFolder);
+    public string CreateName => L.F("Klasörü oluştur: {0}", Rule.TargetFolder);
+
+    /// <summary>Uzantı kutusunun örnek metni: uzantılar her dilde aynıdır, çevrilmez.</summary>
+    public const string ExtensionsExample = "pdf, docx, png";
 
     /// <summary>Klasörün masaüstündeki durumu ve bekleyen dosya sayısı (showPending: "Klasör yoksa oluştur" kapalıyken).</summary>
     internal void SetStatus(bool exists, int pending, bool showPending)
@@ -369,7 +372,8 @@ public partial class AutoMovePage : Page
     private void AddRule_Click(object sender, RoutedEventArgs e)
     {
         // Liste yerine yenisi atanır: izleyici iş parçacığı eski listeyi güvenle okumaya devam eder.
-        AppHost.Settings.Rules = [.. AppHost.Settings.Rules, new Rule { TargetFolder = "Yeni klasör", Extensions = [] }];
+        // Klasör adı kural oluşturulurken bir kez arayüz dilinde yazılır (sonra kullanıcı verisidir).
+        AppHost.Settings.Rules = [.. AppHost.Settings.Rules, new Rule { TargetFolder = L.T("Yeni klasör"), Extensions = [] }];
         BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
         var row = _rows[^1];
@@ -406,7 +410,8 @@ public partial class AutoMovePage : Page
         AppHost.SaveSettings();
         ScheduleRecount();
         var name = rule.TargetFolder.Trim();
-        Notice.Show(name.Length > 0 ? $"\"{name}\" kuralı silindi." : "Kural silindi.", NoticeKind.Info, "Geri al", () => RestoreRule(rule, index));
+        Notice.Show(name.Length > 0 ? L.F("\"{0}\" kuralı silindi.", name) : L.T("Kural silindi."), NoticeKind.Info, L.T("Geri al"),
+            () => RestoreRule(rule, index));
     }
 
     /// <summary>Silinen kuralı eski sırasına geri koyar (yeni liste atanır).</summary>
@@ -440,7 +445,7 @@ public partial class AutoMovePage : Page
         {
             try { AppHost.ConsumeQuietFolder(path); }
             catch (ArgumentException) { }
-            Notice.Show($"\"{name}\" klasörü oluşturulamadı: {ex.Message}", NoticeKind.Error);
+            Notice.Show(L.F("\"{0}\" klasörü oluşturulamadı: {1}", name, ex.Message), NoticeKind.Error);
             return;
         }
         RefreshCard();
@@ -453,8 +458,8 @@ public partial class AutoMovePage : Page
         }
         // Otomatik taşıma kapalı: klasör açıldı ama dosyalar yerinde; nedenini söyle, istenirse şimdi taşınsın.
         if (waiting > 0)
-            Notice.Show($"\"{name}\" klasörü oluşturuldu. Otomatik taşıma kapalı olduğu için {waiting} dosya masaüstünde bekliyor.",
-                NoticeKind.Info, "Şimdi düzenle", () => _ = MoveActions.OrganizeNowAsync());
+            Notice.Show(L.P(waiting, "\"{1}\" klasörü oluşturuldu. Otomatik taşıma kapalı olduğu için {0} dosya masaüstünde bekliyor.", name),
+                NoticeKind.Info, L.T("Şimdi düzenle"), () => _ = MoveActions.OrganizeNowAsync());
     }
 
     // ---- Son taşınanlar ----
@@ -464,7 +469,7 @@ public partial class AutoMovePage : Page
         var entries = AppHost.Journal.Snapshot();
         var shown = _showAll ? entries : entries.Take(HistoryLimit);
         HistoryList.ItemsSource = shown.Select(e => new MoveRow(e)).ToList();
-        ShowAllButton.Content = $"Tümünü göster ({entries.Count})";
+        ShowAllButton.Content = L.F("Tümünü göster ({0})", entries.Count);
         ShowAllButton.Visibility = !_showAll && entries.Count > HistoryLimit ? Visibility.Visible : Visibility.Collapsed;
         HistoryEmpty.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         UndoLastButton.IsEnabled = AppHost.Journal.LastActive() is not null;
@@ -496,24 +501,28 @@ public partial class AutoMovePage : Page
 
     private void ResetRules_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm.Ask(Window.GetWindow(this), "Kurallar varsayılana dönsün mü?",
-                "Eklediğin ya da değiştirdiğin kurallar silinir; PDF, Resimler, Belgeler, Arşivler, Videolar ve Müzik kuralları geri gelir. Dosyalarına dokunulmaz.",
-                "Varsayılana döndür"))
+        // Soruda yazılacak kuralların kendi adları geçer: arayüz dilindeki adlar ya da masaüstünde zaten olan öteki dildeki
+        // klasör (ör. İngilizce arayüzde "Resimler").
+        var defaults = Rule.Defaults(L.Current, DesktopFolders());
+        if (!Confirm.Ask(Window.GetWindow(this), L.T("Kurallar varsayılana dönsün mü?"),
+                L.F("Eklediğin ya da değiştirdiğin kurallar silinir; {0} kuralları geri gelir. Dosyalarına dokunulmaz.",
+                    L.Join(defaults.Select(r => r.TargetFolder).ToList())),
+                L.T("Varsayılana döndür")))
             return;
-        AppHost.Settings.Rules = Rule.Defaults(L.Current, DesktopFolders());
+        AppHost.Settings.Rules = defaults;
         BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
         Recount();
-        Notice.Show("Kurallar varsayılana döndü.", NoticeKind.Success);
+        Notice.Show(L.T("Kurallar varsayılana döndü."), NoticeKind.Success);
     }
 
     private void ClearHistory_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm.Ask(Window.GetWindow(this), "Geçmiş temizlensin mi?",
-                "Listedeki taşımalar silinir ve artık buradan geri alınamaz. Dosyaların bulundukları klasörde kalır. Geri aldığın dosyaların kaydı korunur; onlar yine taşınmaz.",
-                "Temizle"))
+        if (!Confirm.Ask(Window.GetWindow(this), L.T("Geçmiş temizlensin mi?"),
+                L.T("Listedeki taşımalar silinir ve artık buradan geri alınamaz. Dosyaların bulundukları klasörde kalır. Geri aldığın dosyaların kaydı korunur; onlar yine taşınmaz."),
+                L.T("Temizle")))
             return;
         AppHost.Journal.Clear();
-        Notice.Show("Geçmiş temizlendi.", NoticeKind.Success);
+        Notice.Show(L.T("Geçmiş temizlendi."), NoticeKind.Success);
     }
 }

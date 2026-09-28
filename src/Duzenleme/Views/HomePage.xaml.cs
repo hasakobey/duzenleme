@@ -139,7 +139,7 @@ public partial class HomePage : Page
     {
         var last = AppHost.Journal.LastActive();
         UndoTile.IsEnabled = last is not null;
-        UndoDetail.Text = last is null ? "Geri alınacak taşıma yok" : $"{last.FileName} → {last.FolderName}";
+        UndoDetail.Text = last is null ? L.T("Geri alınacak taşıma yok") : $"{last.FileName} → {last.FolderName}";
     }
 
     private void Go(Type page) => (Window.GetWindow(this) as MainWindow)?.NavigateTo(page);

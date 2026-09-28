@@ -4,7 +4,7 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:l="clr-namespace:Duzenleme.Localization"
       xmlns:views="clr-namespace:Duzenleme.Views"
-      Title="Ana sayfa">
+      Title="{l:T 'Ana sayfa'}">
     <Page.Resources>
         <!-- Eylem kutucuğunun iki satırı; renk düğmeden gelir (Primary kutucukta da okunur kalsın). -->
         <Style x:Key="TileTitle" TargetType="TextBlock">
@@ -30,7 +30,7 @@
         <!-- Üç ana eylem -->
         <UniformGrid Columns="3" Margin="-5,0">
             <ui:Button x:Name="AddWidgetTile" Style="{StaticResource ActionTile}" Margin="5,0" Appearance="Primary"
-                       AutomationProperties.AutomationId="Home.AddWidget" AutomationProperties.Name="Widget ekle"
+                       AutomationProperties.AutomationId="Home.AddWidget" AutomationProperties.Name="{l:T 'Widget ekle'}"
                        Click="AddWidget_Click">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -39,13 +39,13 @@
                     </Grid.ColumnDefinitions>
                     <ui:SymbolIcon Symbol="Add24" FontSize="24" Margin="0,0,14,0" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource TileTitle}" Text="Widget ekle" />
-                        <TextBlock Style="{StaticResource TileText}" Text="Saat, not, bölme…" />
+                        <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Widget ekle'}" />
+                        <TextBlock Style="{StaticResource TileText}" Text="{l:T 'Saat, not, bölme…'}" />
                     </StackPanel>
                 </Grid>
             </ui:Button>
             <ui:Button x:Name="OrganizeTile" Style="{StaticResource ActionTile}" Margin="5,0"
-                       AutomationProperties.AutomationId="Home.OrganizeNow" AutomationProperties.Name="Şimdi düzenle"
+                       AutomationProperties.AutomationId="Home.OrganizeNow" AutomationProperties.Name="{l:T 'Şimdi düzenle'}"
                        Click="OrganizeNow_Click">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -54,13 +54,13 @@
                     </Grid.ColumnDefinitions>
                     <ui:SymbolIcon Symbol="Sparkle24" FontSize="24" Margin="0,0,14,0" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource TileTitle}" Text="Şimdi düzenle" />
-                        <TextBlock Style="{StaticResource TileText}" Text="Masaüstündeki dosyaları taşı" />
+                        <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Şimdi düzenle'}" />
+                        <TextBlock Style="{StaticResource TileText}" Text="{l:T 'Masaüstündeki dosyaları taşı'}" />
                     </StackPanel>
                 </Grid>
             </ui:Button>
             <ui:Button x:Name="UndoTile" Style="{StaticResource ActionTile}" Margin="5,0"
-                       AutomationProperties.AutomationId="Home.UndoLast" AutomationProperties.Name="Son taşımayı geri al"
+                       AutomationProperties.AutomationId="Home.UndoLast" AutomationProperties.Name="{l:T 'Son taşımayı geri al'}"
                        Click="UndoLast_Click">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -69,7 +69,7 @@
                     </Grid.ColumnDefinitions>
                     <ui:SymbolIcon Symbol="ArrowUndo24" FontSize="24" Margin="0,0,14,0" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource TileTitle}" Text="Son taşımayı geri al" />
+                        <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Son taşımayı geri al'}" />
                         <TextBlock x:Name="UndoDetail" Style="{StaticResource TileText}" />
                     </StackPanel>
                 </Grid>
@@ -95,18 +95,18 @@
                                AutomationProperties.AutomationId="Home.StatusText" />
                 </StackPanel>
                 <ui:Button x:Name="SetUpFolders" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
-                           Content="Klasörleri ayarla" AutomationProperties.AutomationId="Home.SetUpFolders"
+                           Content="{l:T 'Klasörleri ayarla'}" AutomationProperties.AutomationId="Home.SetUpFolders"
                            Click="SetUpFolders_Click" />
                 <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"
-                                 AutomationProperties.AutomationId="Home.AutoMoveToggle" AutomationProperties.Name="Otomatik taşıma"
+                                 AutomationProperties.AutomationId="Home.AutoMoveToggle" AutomationProperties.Name="{l:T 'Otomatik taşıma'}"
                                  Checked="AutoMoveToggle_Changed" Unchecked="AutoMoveToggle_Changed" />
             </Grid>
         </Border>
 
         <!-- Son taşınanlar -->
         <Grid Margin="0,24,0,8">
-            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="Son taşınanlar" />
-            <ui:Button x:Name="SeeAllButton" HorizontalAlignment="Right" Appearance="Transparent" Content="Tümünü gör"
+            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="{l:T 'Son taşınanlar'}" />
+            <ui:Button x:Name="SeeAllButton" HorizontalAlignment="Right" Appearance="Transparent" Content="{l:T 'Tümünü gör'}"
                        AutomationProperties.AutomationId="Home.SeeAllHistory" Click="SeeAll_Click" />
         </Grid>
         <ItemsControl x:Name="Recent" AutomationProperties.AutomationId="Home.Recent">
@@ -132,6 +132,6 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock x:Name="RecentEmpty" Style="{StaticResource Muted}"
-                   Text="Henüz taşınan dosya yok. Masaüstüne düşen bir dosya klasörüne gidince burada görünür." />
+                   Text="{l:T 'Henüz taşınan dosya yok. Masaüstüne düşen bir dosya klasörüne gidince burada görünür.'}" />
     </StackPanel>
 </Page>
