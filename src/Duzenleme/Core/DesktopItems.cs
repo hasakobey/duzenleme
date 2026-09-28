@@ -34,21 +34,23 @@ public static class DesktopItems
     public static bool IsPartialDownload(string? name) =>
         name is not null && Path.GetExtension(name).ToLowerInvariant() is ".crdownload" or ".part" or ".partial" or ".download" or ".opdownload";
 
+    /// <summary>Türün bölme başlığı (kaydedilmez: başlık boşsa her gösterişte arayüz dilinde).</summary>
     public static string Label(DesktopFilter filter) => filter switch
     {
-        DesktopFilter.All => "Masaüstü",
-        DesktopFilter.Folders => "Klasörler",
-        DesktopFilter.Shortcuts => "Kısayollar",
-        DesktopFilter.Files => "Dosyalar",
+        DesktopFilter.All => L.T("Masaüstü"),
+        DesktopFilter.Folders => L.T("Klasörler"),
+        DesktopFilter.Shortcuts => L.T("Kısayollar"),
+        DesktopFilter.Files => L.T("Dosyalar"),
         _ => "",
     };
 
+    /// <summary>"Ne gösterilsin?" ve "Yeni bölme…"deki açıklama.</summary>
     public static string Description(DesktopFilter filter) => filter switch
     {
-        DesktopFilter.All => "Masaüstündeki her şey",
-        DesktopFilter.Folders => "Masaüstündeki klasörler",
-        DesktopFilter.Shortcuts => "Uygulama ve web kısayolları",
-        DesktopFilter.Files => "Masaüstünde kalan dosyalar",
+        DesktopFilter.All => L.T("Masaüstündeki her şey"),
+        DesktopFilter.Folders => L.T("Masaüstündeki klasörler"),
+        DesktopFilter.Shortcuts => L.T("Uygulama ve web kısayolları"),
+        DesktopFilter.Files => L.T("Masaüstünde kalan dosyalar"),
         _ => "",
     };
 

@@ -245,7 +245,7 @@ public partial class SettingsPage : Page
     {
         if (!PackageInfo.IsPackaged)
         {
-            StartupToggle.IsChecked = StartupRegistration.IsEnabled;
+            ShowRunValueState();
             StartupToggle.IsEnabled = !AppHost.IsTestDesktop;
             ShowStartupNote(null);
             return;
@@ -281,6 +281,15 @@ public partial class SettingsPage : Page
         }
     }
 
+    /// <summary>Paketsiz sürüm: Run kaydının (ve Görev Yöneticisi seçiminin) durumu; koddan gösterilen durum kaydı değiştirmez.</summary>
+    private void ShowRunValueState()
+    {
+        var loading = _loading;
+        _loading = true;
+        try { StartupToggle.IsChecked = StartupRegistration.IsEnabled; }
+        finally { _loading = loading; }
+    }
+
     private void ShowStartupTask(StartupTaskState? state)
     {
         var view = PackagedApp.DescribeStartupTask(state);
@@ -311,7 +320,9 @@ public partial class SettingsPage : Page
 
     private void Host_Activated(object? sender, EventArgs e)
     {
+        // "Windows ile başlat": Görev Yöneticisi'nden, Windows ayarından ya da karşılamadan değişmiş olabilir.
         if (PackageInfo.IsPackaged) UpdateStartupTask(enable: null);
+        else ShowRunValueState();
         _systemIcons.ForEach(row => row.Reload());
         // Kullanıcı Windows'un "Masaüstü simgesi ayarları"ndan dönmüş olabilir.
         if (_systemIcons.Count > 0) AppHost.Widgets.RefreshSystemIcons();

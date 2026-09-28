@@ -44,6 +44,13 @@ public static class RunValueMigration
     /// <summary>Uygulamanın yazdığı komut (Ayarlar'daki anahtar ve kurulumdaki görevle aynı biçim).</summary>
     public static string Command(string exePath) => $"\"{exePath}\" --minimized";
 
+    // 2.1 P7
+    /// <summary>
+    /// Görev Yöneticisi'nin Başlangıç sekmesinde (ya da Ayarlar > Uygulamalar > Başlangıç'ta) kapatılmış mı? StartupApproved\Run
+    /// altındaki ikili değerin ilk baytı çiftse (02, 06) açık, tekse (03, 07) kapalı; kayıt yoksa açık sayılır.
+    /// </summary>
+    public static bool ApprovalDisabled(byte[]? approval) => approval is { Length: > 0 } && (approval[0] & 1) != 0;
+
     /// <summary>
     /// Yapılacaklar. <paramref name="current"/>/<paramref name="legacy"/>: NestDesk / Duzenleme değerlerinin içeriği (yoksa
     /// null); *Approval: StartupApproved\Run altında aynı adlı kayıt var mı.

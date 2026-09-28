@@ -63,6 +63,13 @@ public partial class FolderIconWindow : FluentWindow
         Prompt.IsEnabled = hasKey;
         Prompt.Text = name;
         UpdatePreview();
+        // Esc kapatır (öteki araç pencereleri gibi); üretim sürerken kapanmaz (sonuç yarıda kalmasın).
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape || Busy.Visibility == Visibility.Visible) return;
+            e.Handled = true;
+            Close();
+        };
     }
 
     private Drawing CurrentDrawing => _custom ?? FolderIconRenderer.FolderDrawing(_color, _glyph.Glyph);

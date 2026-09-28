@@ -66,12 +66,14 @@ public partial class WidgetsPage : Page
                 AppHost.Widgets.Changed += OnWidgetsChanged;
                 AppHost.SettingsChanged += OnSettingsChanged;
                 AppHost.DesktopVisibilityChanged += OnSettingsChanged;
+                AppHost.DesktopSnapshot.Changed += RefreshFenceTilesIfChanged;
             },
             detach: () =>
             {
                 AppHost.Widgets.Changed -= OnWidgetsChanged;
                 AppHost.SettingsChanged -= OnSettingsChanged;
                 AppHost.DesktopVisibilityChanged -= OnSettingsChanged;
+                AppHost.DesktopSnapshot.Changed -= RefreshFenceTilesIfChanged;
             },
             refresh: Reload);
     }
@@ -79,10 +81,38 @@ public partial class WidgetsPage : Page
     /// <summary>Bölme kutucukları (masaüstündeki klasörler değişebilir), liste ve ayarlar baştan.</summary>
     private void Reload()
     {
-        FenceTiles.Children.Clear();
-        WidgetCatalog.AddTiles(FenceTiles, WidgetCatalog.Fences(), AddWidget);
+        BuildFenceTiles();
         OnWidgetsChanged();
         OnSettingsChanged();
+    }
+
+    // Klasör bölmesi kutucuklarının hangi klasörlerle (ve "yeni klasör" rozetleriyle) kurulduğu.
+    private string _fenceSignature = "";
+
+    private static string FenceSignature() =>
+        string.Join("|", AppHost.Widgets.FolderFenceChoices().Select(c => (c.Exists ? "+" : "-") + c.Name));
+
+    private void BuildFenceTiles()
+    {
+        // "Diğer klasörler" açılmışsa yeniden kurulunca da açık kalsın.
+        var expanded = FenceTiles.Children.OfType<FrameworkElement>()
+            .Any(t => System.Windows.Automation.AutomationProperties.GetAutomationId(t) == "Add.MoreFolders" && t.Visibility != Visibility.Visible);
+        _fenceSignature = FenceSignature();
+        FenceTiles.Children.Clear();
+        WidgetCatalog.AddTiles(FenceTiles, WidgetCatalog.Fences(), AddWidget);
+        if (!expanded) return;
+        foreach (UIElement tile in FenceTiles.Children)
+            tile.Visibility = System.Windows.Automation.AutomationProperties.GetAutomationId(tile) == "Add.MoreFolders"
+                ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Sayfa açıkken masaüstünde klasör açıldı/silindi ya da kurallar değişti: klasör kutucukları ve "yeni klasör" rozetleri
+    /// güncellensin (yalnızca klasör listesi değiştiyse; bellekten, diske dokunmadan).
+    /// </summary>
+    private void RefreshFenceTilesIfChanged()
+    {
+        if (FenceSignature() != _fenceSignature) BuildFenceTiles();
     }
 
     /// <summary>Widget eklendi, kaldırıldı, düzen uygulandı ya da yerleştirildi: liste, sayılar ve görünüm kutuları.</summary>
@@ -105,6 +135,7 @@ public partial class WidgetsPage : Page
             return;
         }
         RefreshSettings();
+        RefreshFenceTilesIfChanged();
         if (ActiveList.ItemsSource is IEnumerable<WidgetRow> rows &&
             !rows.Select(r => (r.Name, r.Icon)).SequenceEqual(AppHost.Settings.Widgets.Select(w => (WidgetText.DisplayName(w), WidgetIcons.For(w)))))
             RefreshWidgets();

@@ -81,7 +81,7 @@ internal sealed class NewFenceDialog : FluentWindow
         AutomationProperties.SetAutomationId(_folders, "NewFence.Folder");
         AutomationProperties.SetName(_folders, L.T("Klasör"));
         if (_desktopFolders.Count > 0) _folders.SelectedIndex = 0;
-        else _existing.IsEnabled = false;
+        else _existing.IsEnabled = _folders.IsEnabled = false;
         _folders.SelectionChanged += (_, _) => { _existing.IsChecked = true; Validate(showErrors: false); };
         body.Children.Add(_existing);
         body.Children.Add(_folders);
@@ -102,6 +102,7 @@ internal sealed class NewFenceDialog : FluentWindow
         foreach (var id in new[] { FolderPortal.Downloads, FolderPortal.Documents, FolderPortal.Pictures })
             if (KnownFolders.PathOf(id) is { } path) _places.Items.Add(new ComboBoxItem { Content = FolderPortal.KnownName(id), Tag = new Place(path, id) });
         if (_places.Items.Count > 0) _places.SelectedIndex = 0;
+        else _places.IsEnabled = false; // bilinen klasör yoksa yalnızca "Gözat…" (seçilen klasör listeye girince açılır)
         AutomationProperties.SetAutomationId(_places, "NewFence.Place");
         AutomationProperties.SetName(_places, L.T("Masaüstü dışındaki bir klasör"));
         _places.SelectionChanged += (_, _) => { _other.IsChecked = true; Validate(showErrors: false); };
@@ -192,6 +193,7 @@ internal sealed class NewFenceDialog : FluentWindow
         {
             existing = new ComboBoxItem { Content = FolderPortal.DisplayName(path), Tag = new Place(path, null) };
             _places.Items.Add(existing);
+            _places.IsEnabled = true;
         }
         _places.SelectedItem = existing;
         _other.IsChecked = true;

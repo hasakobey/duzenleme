@@ -69,7 +69,6 @@ internal static partial class En
         new("Uygula", "Apply"),
         new("Kapat", "Close"),
         new("Yeniden adlandır…", "Rename…"),
-        new("Başlığı değiştir…", "Change title…"),
         new("Başlık", "Title"),
         new("Şimdi düzenle", "Tidy up now"),
         new("Varsayılana döndür", "Restore defaults"),

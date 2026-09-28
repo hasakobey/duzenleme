@@ -32,8 +32,8 @@ public static class StartupRegistration
     private static string ExeDirectory => Path.GetDirectoryName(ExePath) ?? "";
 
     /// <summary>
-    /// Paketsiz sürümde Run kaydı bu programın klasörünü mü gösteriyor? Yeni ya da (geçiş henüz yapılmadıysa) eski adlı değer
-    /// sayılır. (Store sürümünde <see cref="GetTaskStateAsync"/>.)
+    /// Paketsiz sürümde Run kaydı bu programın klasörünü gösteriyor ve Görev Yöneticisi'nde kapatılmamış mı? Yeni ya da
+    /// (geçiş henüz yapılmadıysa) eski adlı değer sayılır. (Store sürümünde <see cref="GetTaskStateAsync"/>.)
     /// </summary>
     public static bool IsEnabled
     {
@@ -41,8 +41,11 @@ public static class StartupRegistration
         {
             if (PackageInfo.IsPackaged) return false;
             using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-            return RunValueMigration.PointsInto(key?.GetValue(ValueName) as string, ExeDirectory)
-                || RunValueMigration.PointsInto(key?.GetValue(LegacyValueName) as string, ExeDirectory);
+            using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey);
+            bool Active(string name) =>
+                RunValueMigration.PointsInto(key?.GetValue(name) as string, ExeDirectory) &&
+                !RunValueMigration.ApprovalDisabled(approved?.GetValue(name) as byte[]);
+            return Active(ValueName) || Active(LegacyValueName);
         }
     }
 
@@ -53,7 +56,14 @@ public static class StartupRegistration
         // Paketliyken yazılan Run değeri yalnızca pakete özel kopyada kalır ve oturum açılışında okunmaz.
         if (PackageInfo.IsPackaged) return;
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-        if (enabled) key.SetValue(ValueName, RunValueMigration.Command(ExePath));
+        if (enabled)
+        {
+            key.SetValue(ValueName, RunValueMigration.Command(ExePath));
+            // Görev Yöneticisi'nde kapatılmışsa o seçim de kalkar: anahtar açık görünüp Windows başlatmıyor olmasın.
+            using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
+            if (RunValueMigration.ApprovalDisabled(approved?.GetValue(ValueName) as byte[]))
+                approved?.DeleteValue(ValueName, throwOnMissingValue: false);
+        }
         else DeleteIfOurs(key, ValueName);
         // Bu kopyanın eski adlı değeri artık gereksiz: açıkken ikinci kez başlatmasın, kapalıyken hiç başlatmasın.
         DeleteIfOurs(key, LegacyValueName);

@@ -47,11 +47,14 @@ public partial class HomePage : Page
             {
                 AppHost.SettingsChanged += RefreshCard;
                 AppHost.Journal.Changed += OnJournalChanged;
+                // Masaüstünde kural klasörü açılınca/silinince "hazır klasör" sayısı hemen değişsin (anlık görüntüden, ucuz).
+                AppHost.DesktopSnapshot.Changed += RefreshCard;
             },
             detach: () =>
             {
                 AppHost.SettingsChanged -= RefreshCard;
                 AppHost.Journal.Changed -= OnJournalChanged;
+                AppHost.DesktopSnapshot.Changed -= RefreshCard;
             },
             refresh: () =>
             {
@@ -97,6 +100,8 @@ public partial class HomePage : Page
 
     private void RefreshCard(IReadOnlyList<MoveEntry> entries)
     {
+        // Pencere saatlerce açık kalabilir: selam günün saatine göre güncel kalsın ("Günaydın" gece de görünmesin).
+        Hello.Text = Widgets.ClockView.Greeting(DateTime.Now.Hour);
         var on = !AppHost.Settings.Paused;
         var ready = AutoMoveStatus.ReadyRules();
         var moved = entries.Where(e => !e.Undone).ToList();

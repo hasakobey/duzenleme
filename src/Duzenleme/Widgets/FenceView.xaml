@@ -27,11 +27,12 @@
                 <TextBlock x:Name="CountText" FontSize="12" FontWeight="SemiBold" />
             </Border>
             <Button x:Name="SearchButton" Grid.Column="3" Padding="6" Background="Transparent" BorderThickness="0"
-                    ToolTip="Bu bölmede ve alt klasörlerinde ara" Click="Search_Click" Cursor="Hand">
+                    ToolTip="{l:T 'Bu bölmede ve alt klasörlerinde ara (Ctrl+F)'}" AutomationProperties.Name="{l:T 'Bu bölmede ara'}"
+                    Click="Search_Click" Cursor="Hand">
                 <ui:SymbolIcon x:Name="SearchIcon" FontSize="16" />
             </Button>
             <Button x:Name="OpenButton" Grid.Column="4" Padding="6" Background="Transparent" BorderThickness="0"
-                    ToolTip="Klasörü aç" Click="OpenFolder_Click" Cursor="Hand">
+                    ToolTip="{l:T 'Klasörü aç'}" AutomationProperties.Name="{l:T 'Klasörü aç'}" Click="OpenFolder_Click" Cursor="Hand">
                 <ui:SymbolIcon x:Name="OpenIcon" Symbol="Open24" FontSize="16" />
             </Button>
             <Button x:Name="RemoveButton" Grid.Column="5" Style="{StaticResource WidgetCloseButton}" Click="RemoveWidget_Click" />
@@ -46,7 +47,7 @@
                 <DockPanel>
                     <ui:SymbolIcon x:Name="SearchBarIcon" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center" />
                     <TextBox x:Name="SearchBox" Background="Transparent" BorderThickness="0" Padding="0" FontSize="13" FocusVisualStyle="{x:Null}"
-                             VerticalContentAlignment="Center">
+                             VerticalContentAlignment="Center" AutomationProperties.Name="{l:T 'Bu bölmede ara'}">
                         <TextBox.Template>
                             <ControlTemplate TargetType="TextBox">
                                 <Grid>

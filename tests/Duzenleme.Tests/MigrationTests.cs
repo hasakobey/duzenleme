@@ -218,6 +218,16 @@ public class MigrationTests
     [Fact]
     public void Command_matches_installer_format() => Assert.Equal(NewCommand, RunValueMigration.Command(Exe));
 
+    [Theory]
+    [InlineData(null, false)]                       // kayıt yok: açık
+    [InlineData(new byte[0], false)]
+    [InlineData(new byte[] { 0x02, 0, 0, 0 }, false)]  // Görev Yöneticisi: etkin
+    [InlineData(new byte[] { 0x06, 0, 0, 0 }, false)]
+    [InlineData(new byte[] { 0x03, 0, 0, 0 }, true)]   // devre dışı
+    [InlineData(new byte[] { 0x07, 0, 0, 0 }, true)]
+    public void Startup_approval_disabled_state(byte[]? approval, bool disabled) =>
+        Assert.Equal(disabled, RunValueMigration.ApprovalDisabled(approval));
+
     [Fact]
     public void Nothing_to_do_without_our_values()
     {

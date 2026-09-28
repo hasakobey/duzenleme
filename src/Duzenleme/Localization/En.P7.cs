@@ -25,5 +25,16 @@ internal static partial class En
 
         // Widget menüsü
         new("Yeniden adlandır: widget'a tıkla, F2'ye bas", "Rename: click the widget, then press F2"),
+
+        // Denetim gözden geçirmesi: yalnızca simgeli düğmelerin ve yazı kutularının adları, ipuçları
+        new("Bu bölmede ve alt klasörlerinde ara (Ctrl+F)", "Search this panel and its subfolders (Ctrl+F)"),
+        new("Sekme ekle", "Add tab"),
+        new("Simge açıklaması", "Icon description"),
+
+        // Masaüstü türleri (bölme başlığı ve "Ne gösterilsin?" / "Yeni bölme…" açıklaması); Masaüstü, Klasörler, Kısayollar,
+        // Dosyalar ve "Masaüstündeki klasörler" ortak tabloda
+        new("Masaüstündeki her şey", "Everything on the desktop"),
+        new("Uygulama ve web kısayolları", "App and web shortcuts"),
+        new("Masaüstünde kalan dosyalar", "Files left on the desktop"),
     ]);
 }

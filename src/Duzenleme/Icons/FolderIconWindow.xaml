@@ -77,7 +77,8 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <ui:TextBox x:Name="Prompt" PlaceholderText="Simge açıklaması" Icon="{ui:SymbolIcon Sparkle24}" KeyDown="Prompt_KeyDown" />
+                                <ui:TextBox x:Name="Prompt" PlaceholderText="Simge açıklaması" Icon="{ui:SymbolIcon Sparkle24}" KeyDown="Prompt_KeyDown"
+                                            AutomationProperties.Name="{l:T 'Simge açıklaması'}" />
                                 <ui:Button x:Name="GenerateButton" Grid.Column="1" Margin="10,0,0,0" Appearance="Primary"
                                            Icon="{ui:SymbolIcon Sparkle24}" Content="Üret" Click="Generate_Click" />
                             </Grid>

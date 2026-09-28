@@ -158,19 +158,21 @@ public partial class AutoMovePage : Page
         {
             if (_current == this) _current = null;
         };
-        // Ana pencere gizliyken sayfa kayıtlara, taşımalara ve pencere etkinleşmesine tepki vermez (masaüstünü de saymaz);
+        // Ana pencere gizliyken sayfa kayıtlara, taşımalara, masaüstüne ve pencere etkinleşmesine tepki vermez;
         // yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
             attach: () =>
             {
                 AppHost.SettingsChanged += OnSettingsChanged;
                 AppHost.Journal.Changed += OnJournalChanged;
+                AppHost.DesktopSnapshot.Changed += OnDesktopChanged;
                 WatchHostActivation(true);
             },
             detach: () =>
             {
                 AppHost.SettingsChanged -= OnSettingsChanged;
                 AppHost.Journal.Changed -= OnJournalChanged;
+                AppHost.DesktopSnapshot.Changed -= OnDesktopChanged;
                 WatchHostActivation(false);
                 _recountDelay.Stop();
             },
@@ -201,7 +203,7 @@ public partial class AutoMovePage : Page
         HistorySection.BringIntoView(new Rect(0, 0, HistorySection.ActualWidth, 320));
     }
 
-    // Kullanıcı Gezgin'de klasör açıp geri dönünce durumlar güncellensin (masaüstü burada izlenmiyor).
+    // Kullanıcı Gezgin'den geri dönünce bekleyen dosya sayıları da yeniden sayılsın (klasör var/yok durumu zaten canlı).
     private void WatchHostActivation(bool watch)
     {
         if (_host is not null) _host.Activated -= Host_Activated;
@@ -231,6 +233,17 @@ public partial class AutoMovePage : Page
             RefreshStatuses();
             ScheduleRecount();
         }, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Masaüstünde klasör açıldı/silindi: kart ve kuralların "klasör var/yok" durumu hemen güncellensin (anlık görüntüden,
+    /// diske dokunmadan). Bekleyen dosya sayıları pencere etkinleşince ya da taşımada yeniden sayılır.
+    /// </summary>
+    private void OnDesktopChanged()
+    {
+        if (!IsLoaded) return;
+        RefreshCard();
+        RefreshStatuses();
     }
 
     // ---- Durum kartı ----

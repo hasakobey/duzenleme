@@ -34,7 +34,8 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
-                <Button x:Name="AddTab" Style="{StaticResource PillButton}" Padding="8,3" Margin="2,0,0,4" ToolTip="Sekme ekle"
+                <Button x:Name="AddTab" Style="{StaticResource PillButton}" Padding="8,3" Margin="2,0,0,4" ToolTip="{l:T 'Sekme ekle'}"
+                        AutomationProperties.Name="{l:T 'Sekme ekle'}"
                         Background="Transparent" VerticalAlignment="Top" Click="AddTab_Click">
                     <ui:SymbolIcon x:Name="AddTabIcon" Symbol="Add24" FontSize="14" />
                 </Button>

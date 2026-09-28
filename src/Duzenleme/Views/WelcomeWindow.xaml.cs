@@ -512,6 +512,7 @@ public partial class WelcomeWindow : FluentWindow
     private void SetupStartup()
     {
         StartupTitle.Text = $"Windows açılınca {AppInfo.Name} de başlasın";
+        AutomationProperties.SetName(StartupToggle, StartupTitle.Text);
         PortableNote.Visibility = AppHost.IsPortable ? Visibility.Visible : Visibility.Collapsed;
         StartupToggle.Checked += (_, _) => UpdateStartupTip();
         StartupToggle.Unchecked += (_, _) => UpdateStartupTip();
