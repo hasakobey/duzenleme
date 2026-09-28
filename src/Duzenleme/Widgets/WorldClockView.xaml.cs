@@ -161,7 +161,8 @@ public partial class WorldClockView : UserControl, IWidgetView
         if (index < 0) return;
         menu.Items.Add(Menus.Item(L.T("Adını değiştir…"), () =>
         {
-            if (InputDialog.Ask(L.T("Şehrin adı"), L.T("Ad (boş bırakırsan şehrin kendi adı)"), row.Name.Text) is not { } text) return;
+            if (InputDialog.Ask(L.T("Şehrin adı"), L.T("Ad (boş bırakırsan şehrin kendi adı)"), row.Name.Text,
+                    (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is not { } text) return;
             row.Zone.Label = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
             Changed();
         }));
@@ -193,7 +194,7 @@ public partial class WorldClockView : UserControl, IWidgetView
     {
         menu.Primary.Add(Menus.Item(L.T("Şehir ekle…"), AddCity));
         menu.Primary.Add(ClockView.HourFormatChoice(_config, Update));
-        menu.Appearance.Add(Menus.Parts(_config, [("day", L.T("Dün / yarın")), ("offset", L.T("Saat farkı")), Menus.ClosePart], Update));
+        menu.Appearance.Add(Menus.Parts(_config, [("day", L.N("Dün / yarın")), ("offset", L.N("Saat farkı")), Menus.ClosePart], Update));
         menu.More.Add(Menus.Hint(L.T("Satıra sağ tık: adını değiştir, taşı, kaldır")));
     }
 

@@ -23,6 +23,7 @@ public partial class RecycleBinView : UserControl, IWidgetView
 
     private readonly WidgetConfig _config;
     private readonly DispatcherTimer _poll;
+    private readonly TitleEditor _titleEditor;
     private WidgetPalette _palette = WidgetPalette.Glass;
     private RecycleBinInfo? _info;
     private bool _live, _querying, _again;
@@ -32,6 +33,15 @@ public partial class RecycleBinView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
+        // Başlık hep yazılı kalır (boş bırakılırsa varsayılan ad): alt türü tanımayan sürüm (2.0) de kutuyu bu adla gösterir.
+        _titleEditor = new TitleEditor(this, TitleRow, TitleText, iconButton: null, () => DefaultTitle,
+            title =>
+            {
+                _config.Title = title ?? DefaultTitle;
+                AppHost.SaveSettings();
+                Render();
+            },
+            pickIcon: null, refit: () => { });
         _poll = new DispatcherTimer(DispatcherPriority.Background) { Interval = Fallback };
         _poll.Tick += (_, _) => Refresh();
         AutomationProperties.SetName(EmptyButton, L.T("Geri Dönüşüm Kutusu'nu boşalt"));
@@ -130,6 +140,8 @@ public partial class RecycleBinView : UserControl, IWidgetView
 
     private string Title => WidgetText.DisplayName(_config);
 
+    private static string DefaultTitle => L.T("Geri Dönüşüm Kutusu");
+
     private void Render()
     {
         TitleText.Text = Title;
@@ -150,6 +162,7 @@ public partial class RecycleBinView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _titleEditor.ApplyPalette(palette);
         TitleText.Foreground = palette.Foreground;
         SizeText.Foreground = palette.Secondary;
         RemoveButton.Foreground = palette.Foreground;
@@ -198,28 +211,19 @@ public partial class RecycleBinView : UserControl, IWidgetView
         var empty = Menus.Item(L.T("Geri Dönüşüm Kutusu'nu boşalt…"), RecycleBinActions.EmptyWithConfirm);
         empty.IsEnabled = _info is not { IsEmpty: true };
         menu.Primary.Add(empty);
-        menu.Primary.Add(Menus.Item(L.T("Başlığı değiştir…"), () => TryBeginRename()));
-        menu.Appearance.Add(Menus.Parts(_config, [("size", L.T("Öğe sayısı ve boyut")), ("empty", L.T("Boşalt düğmesi")), Menus.ClosePart], Render));
+        menu.Primary.Add(Menus.Item(L.T("Yeniden adlandır"), () => TryBeginRename(), KeyNames.F2));
+        menu.Appearance.Add(Menus.Parts(_config, [("size", L.N("Öğe sayısı ve boyut")), ("empty", L.N("Boşalt düğmesi")), Menus.ClosePart], Render));
         menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
     }
 
-    /// <summary>
-    /// F2 (P5'in IWidgetView.TryBeginRename sözleşmesi) ve "Başlığı değiştir…": boş bırakılırsa varsayılan ada döner. Başlık
-    /// hep yazılı kalır: alt türü tanımayan sürüm (2.0) de kutuyu bu adla gösterir.
-    /// </summary>
-    public bool TryBeginRename()
-    {
-        if (InputDialog.Ask(L.T("Başlık"), L.T("Başlık"), Title) is not { } title) return true;
-        _config.Title = string.IsNullOrWhiteSpace(title) ? L.T("Geri Dönüşüm Kutusu") : title.Trim();
-        AppHost.SaveSettings();
-        Render();
-        return true;
-    }
+    /// <summary>F2 ve "Yeniden adlandır": başlık yerinde düzenlenir (boş bırakılırsa varsayılan ada döner).</summary>
+    public bool TryBeginRename() => _titleEditor.Begin();
 
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach()
     {
+        _titleEditor.Cancel();
         _poll.Stop();
         if (_live) RecycleBin.Changed -= OnBinChanged;
         _live = false;

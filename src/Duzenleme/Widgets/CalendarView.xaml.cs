@@ -183,9 +183,8 @@ public partial class CalendarView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        var back = Menus.Item(L.T("Bugüne dön"), () => Show(DateTime.Today));
+        var back = Menus.Item(L.T("Bugüne dön"), () => Show(DateTime.Today), "Home");
         back.IsEnabled = _month != FirstOfMonth(DateTime.Today);
-        back.InputGestureText = "Home";
         menu.Primary.Add(back);
         menu.Primary.Add(Menus.Choice<int?>(L.T("Haftanın ilk günü"), () => _config.FirstDayOfWeek,
             [(null, L.T("Dile göre")), (1, Culture.DateTimeFormat.GetDayName(DayOfWeek.Monday)), (0, Culture.DateTimeFormat.GetDayName(DayOfWeek.Sunday))],
@@ -196,7 +195,7 @@ public partial class CalendarView : UserControl, IWidgetView
                 Render();
             }));
         menu.Appearance.Add(Menus.Parts(_config,
-            [("header", L.T("Ay ve düğmeler")), ("weekdays", L.T("Gün adları")), ("weeknum", L.T("Hafta numaraları")), Menus.ClosePart],
+            [("header", L.N("Ay ve düğmeler")), ("weekdays", L.N("Gün adları")), ("weeknum", L.N("Hafta numaraları")), Menus.ClosePart],
             Render));
     }
 

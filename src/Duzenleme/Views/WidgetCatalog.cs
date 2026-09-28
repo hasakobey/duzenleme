@@ -19,7 +19,7 @@ internal enum WidgetGroup { Fence, Tool, Info }
 /// </summary>
 internal sealed record WidgetChoice(string Key, string Label, SymbolRegular Icon, string Tip, WidgetGroup Group,
     Func<WidgetConfig?> Add, bool FocusAfterAdd = false, string? Badge = null, Func<WidgetConfig, bool>? Matches = null,
-    bool ShowInWelcome = false);
+    bool ShowInWelcome = false, bool AsksName = false);
 
 /// <summary>Bütün ekleme yüzeylerinin (Widget ekle penceresi, Widget'lar sayfası, karşılama) tek kaynağı.</summary>
 internal static class WidgetCatalog
@@ -46,7 +46,7 @@ internal static class WidgetCatalog
         new("Calendar", L.T("Takvim"), SymbolRegular.CalendarMonth24, L.T("Aylık takvim; ay ay gezinilir"), WidgetGroup.Info,
             () => Seed(WidgetSeeds.Calendar), Matches: c => WidgetVariants.Is(c, WidgetVariants.Month)),
         new("Countdown", L.T("Geri sayım"), SymbolRegular.CalendarStar24, L.T("Bir güne kaç gün kaldı (tatil, doğum günü…)"), WidgetGroup.Tool,
-            AddCountdown, Matches: c => WidgetVariants.Is(c, WidgetVariants.Countdown)),
+            AddCountdown, Matches: c => WidgetVariants.Is(c, WidgetVariants.Countdown), AsksName: true),
         new("Timer", L.T("Zamanlayıcı"), SymbolRegular.Timer24, L.T("Geri sayan zamanlayıcı; süre dolunca haber verir. Kronometre de olur."), WidgetGroup.Tool,
             () => Seed(WidgetSeeds.Timer), Matches: c => WidgetVariants.Is(c, WidgetVariants.Timer) && TimerModes.Normalize(c.Timer?.Mode) != TimerModes.Pomodoro),
         new("Pomodoro", L.T("Pomodoro"), SymbolRegular.ClockAlarm24, L.T("25 dakika odak, 5 dakika mola; dört turda bir uzun mola"), WidgetGroup.Tool,
@@ -90,7 +90,7 @@ internal static class WidgetCatalog
         var list = new List<WidgetChoice>
         {
             new(NewFenceKey, L.T("Yeni bölme…"), SymbolRegular.AddSquare24, L.T("Adını, ne göstereceğini ve simgesini seçerek bölme ekle"),
-                WidgetGroup.Fence, () => NewFenceDialog.Ask(null)),
+                WidgetGroup.Fence, () => NewFenceDialog.Ask(null), AsksName: true),
             Filter("Folders", DesktopFilter.Folders, "Klasörler", SymbolRegular.Folder24, "Masaüstündeki klasörler"),
             Filter("Shortcuts", DesktopFilter.Shortcuts, "Kısayollar", SymbolRegular.Apps24, "Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu"),
             Filter("Files", DesktopFilter.Files, "Dosyalar", SymbolRegular.DocumentMultiple24, "Masaüstünde duran dosyalar"),
@@ -224,7 +224,8 @@ internal static class WidgetCatalog
     /// onların arkasında kaybolurdu). Add() çağrılır; FocusAfterAdd ise FocusNote. Klasör açılamazsa ya da vazgeçilirse null.
     /// renameAfterAdd: yeni bölme/kutu/not başlığı düzenlenir hâlde gelir (Gezgin'deki "Yeni klasör" gibi; bölme ve kutuda
     /// simgesi tıklanınca seçici açılır, notta Enter ile yazı alanına geçilir). "Widget ekle" penceresi ve Widget'lar sayfası
-    /// ister; karşılama ve toplu eklemeler istemez.
+    /// ister; karşılama ve toplu eklemeler istemez. Adını kendi penceresinde soran seçim ("Yeni bölme…", geri sayım;
+    /// <see cref="WidgetChoice.AsksName"/>) ve alt türlü araçlar yeniden adlandırmaya açılmaz.
     /// "Yeni bölme…" adı ve simgeyi kendi penceresinde sorar (near'ın monitöründe).
     /// </summary>
     public static WidgetConfig? Invoke(WidgetChoice choice, NativeMethods.POINT? near, bool followSetting = false, bool renameAfterAdd = false)
@@ -240,7 +241,8 @@ internal static class WidgetCatalog
             return null;
         }
         // Adlandırarak eklemede not da önce başlığını alır (sonra yazı alanına geçilir); diğer yüzeylerde not yazı alanıyla açılır.
-        if (renameAfterAdd && !named) AppHost.Widgets.BeginRename(config.Id);
+        // Yalnızca klasik bölme/kutu/not (ve klasör portalı); alt türlü küçük araçlar (zamanlayıcı, Geri Dönüşüm Kutusu…) F2 ile.
+        if (renameAfterAdd && !choice.AsksName && WidgetVariants.Of(config) is null) AppHost.Widgets.BeginRename(config.Id);
         else if (choice.FocusAfterAdd) AppHost.Widgets.FocusNote(config.Id);
         return config;
     }

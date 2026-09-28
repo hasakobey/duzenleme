@@ -17,6 +17,7 @@ public partial class CountdownView : UserControl, IWidgetView
     private static CultureInfo Culture => L.Culture;
 
     private readonly WidgetConfig _config;
+    private readonly TitleEditor _titleEditor;
     private WidgetPalette _palette = WidgetPalette.Glass;
     private DateTime _shownDate;
     private bool _live;
@@ -25,6 +26,16 @@ public partial class CountdownView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
+        // Etkinliğin adı yerinde düzenlenir (F2, "Yeniden adlandır"); düzenlerken yazının gölge kopyası gizlenir.
+        _titleEditor = new TitleEditor(this, TitleBox, TitleText, iconButton: null, () => DefaultTitle,
+            title =>
+            {
+                _config.Title = title;
+                AppHost.SaveSettings();
+                Render();
+            },
+            pickIcon: null,
+            refit: () => TitleShadow.Show(_palette.TextShadow && !_titleEditor!.IsEditing));
         Render();
     }
 
@@ -49,7 +60,9 @@ public partial class CountdownView : UserControl, IWidgetView
 
     private DateTime Target => _config.TargetDate?.Date ?? DateTime.Today;
 
-    private string Title => string.IsNullOrWhiteSpace(_config.Title) ? L.T("Geri sayım") : _config.Title.Trim();
+    private static string DefaultTitle => L.T("Geri sayım");
+
+    private string Title => string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title.Trim();
 
     private void Render()
     {
@@ -87,13 +100,16 @@ public partial class CountdownView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _titleEditor.ApplyPalette(palette);
         foreach (var shadow in new[] { NumberShadow, UnitShadow, TitleShadow, DateShadow }) shadow.Show(palette.TextShadow);
+        if (_titleEditor.IsEditing) TitleShadow.Show(false);
         ClearTypeText.Follow(this, TitleText, DateText, UnitText);
         Render();
     }
 
     public void AddMenuItems(WidgetMenu menu)
     {
+        menu.Primary.Add(Menus.Item(L.T("Yeniden adlandır"), () => TryBeginRename(), KeyNames.F2));
         menu.Primary.Add(Menus.Item(L.T("Tarihi ve adı değiştir…"), Edit));
         menu.Primary.Add(Menus.Toggle(L.T("Her yıl yinele"), () => _config.CountdownYearly, () =>
         {
@@ -101,12 +117,15 @@ public partial class CountdownView : UserControl, IWidgetView
             AppHost.SaveSettings();
             Render();
         }));
-        menu.Appearance.Add(Menus.Parts(_config, [("title", L.T("Etkinliğin adı")), ("date", L.T("Tarih satırı")), Menus.ClosePart], Render));
+        menu.Appearance.Add(Menus.Parts(_config, [("title", L.N("Etkinliğin adı")), ("date", L.N("Tarih satırı")), Menus.ClosePart], Render));
     }
 
-    /// <summary>F2 (P5'in IWidgetView.TryBeginRename sözleşmesi): etkinliğin adı ve günü aynı pencerede değişir.</summary>
+    /// <summary>
+    /// F2 ve "Yeniden adlandır": etkinliğin adı yerinde düzenlenir; ad satırı gizliyse adı ve günü soran pencere açılır.
+    /// </summary>
     public bool TryBeginRename()
     {
+        if (_titleEditor.Begin()) return true;
         Edit();
         return true;
     }
@@ -130,5 +149,9 @@ public partial class CountdownView : UserControl, IWidgetView
 
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
-    public void Detach() => WidgetTicker.DayChanged -= OnDayChanged;
+    public void Detach()
+    {
+        _titleEditor.Cancel();
+        WidgetTicker.DayChanged -= OnDayChanged;
+    }
 }

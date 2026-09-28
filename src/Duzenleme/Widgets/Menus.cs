@@ -35,15 +35,16 @@ public static class Menus
     /// Tek seçimli alt menü (Arka plan, Boyut, Renk…): her seçenek <paramref name="current"/> ona eşitken işaretlidir; seçili
     /// olana yeniden tıklamak onu boşa düşürmez. <paramref name="preview"/> verilirse fare (ya da klavye) bir seçeneğin
     /// üstüne gelince o seçenek geçici olarak gösterilir; üstünden çıkınca, alt menü kapanınca <paramref name="endPreview"/>
-    /// geri alır (yalnızca ucuz, görünüşe ait seçimler için: arka plan, renk, köşe, saydamlık).
+    /// geri alır (yalnızca ucuz, görünüşe ait seçimler için: arka plan, renk, köşe, saydamlık). Menünün yapısını değiştiren
+    /// seçim (ör. zamanlayıcının türü) <paramref name="staysOpen"/> = false ile menüyü kapatır.
     /// </summary>
     public static MenuItem Choice<T>(string header, Func<T> current, IEnumerable<(T Value, string Label)> options, Action<T> select,
-        Action<T>? preview = null, Action? endPreview = null)
+        Action<T>? preview = null, Action? endPreview = null, bool staysOpen = true)
     {
         var parent = new MenuItem { Header = header };
         foreach (var (value, label) in options)
         {
-            var item = new OptionMenuItem(label, () => EqualityComparer<T>.Default.Equals(current(), value), () => select(value));
+            var item = new OptionMenuItem(label, () => EqualityComparer<T>.Default.Equals(current(), value), () => select(value), staysOpen);
             if (preview is not null)
             {
                 item.MouseEnter += (_, _) => preview(value);

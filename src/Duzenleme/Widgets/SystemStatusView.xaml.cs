@@ -235,8 +235,8 @@ public partial class SystemStatusView : UserControl, IWidgetView
                 RefreshDisk();
             }));
         menu.Appearance.Add(Menus.Parts(_config,
-            [("cpu", L.T("İşlemci")), ("memory", L.T("Bellek")), ("disk", L.T("Disk")), ("battery", L.T("Pil")),
-             ("uptime", L.T("Açık kalma süresi")), Menus.ClosePart],
+            [("cpu", L.N("İşlemci")), ("memory", L.N("Bellek")), ("disk", L.N("Disk")), ("battery", L.N("Pil")),
+             ("uptime", L.N("Açık kalma süresi")), Menus.ClosePart],
             () =>
             {
                 ApplyParts();

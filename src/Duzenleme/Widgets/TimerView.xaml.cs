@@ -252,12 +252,9 @@ public partial class TimerView : UserControl, IWidgetView
     public void AddMenuItems(WidgetMenu menu)
     {
         var running = TimerLogic.IsRunning(State);
-        var start = Menus.Item(running ? L.T("Duraklat") : L.T("Başlat"), StartPause);
-        start.InputGestureText = L.T("Boşluk");
-        menu.Primary.Add(start);
-        var reset = Menus.Item(L.T("Sıfırla"), Reset);
-        reset.InputGestureText = "R";
-        menu.Primary.Add(reset);
+        menu.Primary.Add(Menus.Item(running ? L.T("Duraklat") : L.T("Başlat"), StartPause, L.T("Boşluk")));
+        menu.Primary.Add(Menus.Item(L.T("Sıfırla"), Reset, "R"));
+        // Tür değişince menünün kendisi (süre seçenekleri) değişir: seçim menüyü kapatır.
         menu.Primary.Add(Menus.Choice(L.T("Tür"), () => Mode,
             [(TimerModes.Countdown, L.T("Zamanlayıcı")), (TimerModes.Pomodoro, L.T("Pomodoro")), (TimerModes.Stopwatch, L.T("Kronometre"))],
             mode =>
@@ -265,7 +262,7 @@ public partial class TimerView : UserControl, IWidgetView
                 if (mode == Mode) return;
                 TimerLogic.SetMode(State, mode);
                 Changed();
-            }));
+            }, staysOpen: false));
         switch (Mode)
         {
             case TimerModes.Countdown:
@@ -292,7 +289,7 @@ public partial class TimerView : UserControl, IWidgetView
                 AppHost.SaveSettings();
             }));
         menu.Appearance.Add(Menus.Parts(_config,
-            [("phase", L.T("Durum satırı")), ("progress", L.T("İlerleme çubuğu")), ("buttons", L.T("Düğmeler")), Menus.ClosePart],
+            [("phase", L.N("Durum satırı")), ("progress", L.N("İlerleme çubuğu")), ("buttons", L.N("Düğmeler")), Menus.ClosePart],
             Render));
     }
 
@@ -307,7 +304,8 @@ public partial class TimerView : UserControl, IWidgetView
 
     private void AskMinutes()
     {
-        if (InputDialog.Ask(L.T("Zamanlayıcı"), L.T("Süre (dakika)"), State.Minutes.ToString(Culture)) is not { } text) return;
+        if (InputDialog.Ask(L.T("Zamanlayıcı"), L.T("Süre (dakika)"), State.Minutes.ToString(Culture),
+                (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is not { } text) return;
         if (!int.TryParse(text.Trim(), NumberStyles.Integer, Culture, out var minutes) || minutes < TimerLogic.MinMinutes) return;
         TimerLogic.SetMinutes(State, minutes);
         Changed();

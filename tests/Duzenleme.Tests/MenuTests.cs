@@ -163,6 +163,13 @@ public class MenuTests
 
             var parts = Menus.Parts(c, [("header", "Başlık satırı"), Menus.ClosePart], () => { });
             Assert.All(parts.Items.OfType<OptionMenuItem>(), o => Assert.True(o.StaysOpenOnClick));
+
+            // Menünün yapısını değiştiren seçim (zamanlayıcının türü) menüyü kapatır; seçili olan yine işaretli kalır.
+            var mode = "countdown";
+            var kind = Menus.Choice("Tür", () => mode, [("countdown", "Zamanlayıcı"), ("pomodoro", "Pomodoro")], v => mode = v, staysOpen: false);
+            var kinds = kind.Items.OfType<OptionMenuItem>().ToList();
+            Assert.All(kinds, o => Assert.False(o.StaysOpenOnClick));
+            Assert.True(kinds[0].IsChecked);
         });
     }
 

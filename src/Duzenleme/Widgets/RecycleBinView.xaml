@@ -15,8 +15,11 @@
                    RenderOptions.BitmapScalingMode="HighQuality" Cursor="Hand"
                    AutomationProperties.AutomationId="RecycleBin.Icon" />
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock x:Name="TitleText" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                           FontFamily="Segoe UI Variable Text, Segoe UI" />
+                <!-- Başlık satırı: F2 / "Yeniden adlandır" yazının yerinde düzenler (TitleEditor). -->
+                <Grid x:Name="TitleRow">
+                    <TextBlock x:Name="TitleText" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               FontFamily="Segoe UI Variable Text, Segoe UI" />
+                </Grid>
                 <TextBlock x:Name="SizeText" FontSize="13" Margin="0,2,0,0" FontFamily="Segoe UI Variable Text, Segoe UI"
                            AutomationProperties.AutomationId="RecycleBin.Size" />
                 <Button x:Name="EmptyButton" Style="{StaticResource WidgetTextButton}" HorizontalAlignment="Left" Margin="0,8,0,0"
