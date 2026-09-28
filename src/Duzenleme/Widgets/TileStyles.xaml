@@ -15,8 +15,8 @@
         <Setter Property="Height" Value="26" />
         <Setter Property="Margin" Value="2,0,-4,0" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="ToolTip" Value="Widget'ı kaldır (geri getirilebilir)" />
-        <Setter Property="AutomationProperties.Name" Value="Widget'ı kaldır" />
+        <Setter Property="ToolTip" Value="{l:T 'Widget\'ı kaldır (geri getirilebilir)'}" />
+        <Setter Property="AutomationProperties.Name" Value="{l:T 'Widget\'ı kaldır'}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">

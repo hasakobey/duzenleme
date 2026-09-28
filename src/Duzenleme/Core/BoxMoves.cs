@@ -184,8 +184,8 @@ public static class BoxPlan
     /// <summary>Kutu klasörlerinin kök klasörünün adı (görünür bir klasör, uygulamanın görünen adı).</summary>
     public const string RootFolderName = AppInfo.Name;
 
-    /// <summary>Kutu klasörü adı verilemezse.</summary>
-    public const string DefaultBoxFolder = "Kısayol kutusu";
+    /// <summary>Kutu klasörü adı verilemezse. Klasör ilk taşımada bir kez o anki dilde adlandırılır (BoxFolder'a yazılır).</summary>
+    public static string DefaultBoxFolder => L.T("Kısayol kutusu");
 
     /// <summary>
     /// Taşınan öğelerin kökü: masaüstü klasörünün üstündeki "NestDesk" klasörü (ör. C:\Users\ad\NestDesk). OneDrive'a
@@ -217,7 +217,7 @@ public static class BoxPlan
         name = name.TrimEnd('.', ' ').Trim();
         if (name.Length == 0) return DefaultBoxFolder;
         var stem = name.Split('.')[0].Trim();
-        return ReservedNames.Contains(stem) ? name + " kutusu" : name;
+        return ReservedNames.Contains(stem) ? L.F("{0} kutusu", name) : name;
     }
 
     /// <summary>Yolun bulunduğu klasör (sondaki ayraç yok sayılır).</summary>

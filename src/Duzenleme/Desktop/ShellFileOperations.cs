@@ -73,7 +73,8 @@ public static class ShellFileOperations
         if (aborted) throw new OperationCanceledException();
         // 0x4C7 (ERROR_CANCELLED) ve 0x75 (DE_OPCANCELLED): kullanıcı vazgeçti.
         if (result is 0x4C7 or 0x75) throw new OperationCanceledException();
-        if (result != 0) throw new IOException($"\"{Path.GetFileName(path)}\" için dosya işlemi başarısız oldu (kod 0x{result:X}).");
+        // İleti kullanıcıya gösterilir (bölmenin dosya işi hata verince).
+        if (result != 0) throw new IOException(L.F("\"{0}\" için dosya işlemi başarısız oldu (kod 0x{1:X}).", Path.GetFileName(path), result));
     }
 
     // --- IFileOperation: Gezgin'in kendi kullandığı dosya işlemi (yönetici izni isteyebilir, Windows'un onay ayarına uyar) ---
@@ -193,7 +194,7 @@ public static class ShellFileOperations
             }
             catch (Exception ex) { done.TrySetException(ex); }
         })
-        { IsBackground = true, Name = $"{Core.AppInfo.Name} dosya işlemi" };
+        { IsBackground = true, Name = $"{Core.AppInfo.Name} dosya işlemi" }; // l10n: çevrilmez (iş parçacığı adı)
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         return done.Task;

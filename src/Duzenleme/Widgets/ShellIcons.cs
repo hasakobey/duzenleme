@@ -52,7 +52,7 @@ public static class ShellIcons
     {
         if (TileItem.IsShellObject(path)) return "kabuk|" + path + "|" + pixels;
         var ext = Path.GetExtension(path);
-        if (preview) return "önizleme|" + path + "|" + pixels;
+        if (preview) return "önizleme|" + path + "|" + pixels; // l10n: çevrilmez (önbellek anahtarı)
         return (isDir || PerFile.Contains(ext) ? path : ext) + "|" + pixels;
     }
 
@@ -203,7 +203,7 @@ public static class ShellIcons
                     if (Queue.Count == 0 || Environment.TickCount64 - batchStarted >= BatchMilliseconds) Deliver(batch);
                 }
             })
-            { IsBackground = true, Name = "Duzenleme simge yükleyici", Priority = ThreadPriority.BelowNormal };
+            { IsBackground = true, Name = "Duzenleme simge yükleyici", Priority = ThreadPriority.BelowNormal }; // l10n: çevrilmez (iş parçacığı adı)
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
             _worker = thread;

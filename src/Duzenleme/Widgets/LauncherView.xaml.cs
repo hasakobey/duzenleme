@@ -117,7 +117,7 @@ public partial class LauncherView : UserControl, IWidgetView
         }
         TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title;
         HeaderIcon.Symbol = WidgetIcons.For(_config);
-        CountText.Text = $"{_config.Tabs.Sum(t => t.Items.Count)} öğe";
+        CountText.Text = L.P(_config.Tabs.Sum(t => t.Items.Count), "{0} öğe");
         RenderTabs();
         ApplyParts();
 
@@ -198,7 +198,7 @@ public partial class LauncherView : UserControl, IWidgetView
             var pill = new Button
             {
                 Style = (Style)FindResource("PillButton"),
-                ToolTip = "Sağ tık: yeniden adlandır, taşı, sil",
+                ToolTip = L.T("Sağ tık: yeniden adlandır, taşı, sil"),
                 Background = active ? _palette.Accent : new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)),
                 Content = new TextBlock
                 {
@@ -232,13 +232,13 @@ public partial class LauncherView : UserControl, IWidgetView
                 Change(() => tab.Name = name);
         }));
         if (index > 0)
-            menu.Items.Add(Menus.Item("Sola taşı", () => Change(() => Swap(index, index - 1))));
+            menu.Items.Add(Menus.Item(L.T("Sola taşı"), () => Change(() => Swap(index, index - 1))));
         if (index < _config.Tabs.Count - 1)
-            menu.Items.Add(Menus.Item("Sağa taşı", () => Change(() => Swap(index, index + 1))));
+            menu.Items.Add(Menus.Item(L.T("Sağa taşı"), () => Change(() => Swap(index, index + 1))));
         if (_config.Tabs.Count > 1)
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item("Sekmeyi sil", () =>
+            menu.Items.Add(Menus.Item(L.T("Sekmeyi sil"), () =>
             {
                 Change(() =>
                 {
@@ -309,8 +309,8 @@ public partial class LauncherView : UserControl, IWidgetView
         if (!moved) return;
         BoxMover.Reconcile();
         if (!BoxPlan.Referenced(AppHost.Settings.Widgets).Contains(item.Path))
-            Views.Notice.Show($"\"{item.Name}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", Views.NoticeKind.Info, "Geri al", UndoRemove,
-                "Geri almak için buraya tıkla.");
+            Views.Notice.Show(L.F("\"{0}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", item.Name), Views.NoticeKind.Info, L.T("Geri al"),
+                UndoRemove, L.T("Geri almak için buraya tıkla."));
     }
 
     private void UndoRemove()
@@ -376,24 +376,24 @@ public partial class LauncherView : UserControl, IWidgetView
         if (moved)
         {
             // Masaüstünden kutuya taşınmış öğe (NestDesk klasöründe).
-            var back = Menus.Item("Masaüstüne geri koy", () => BoxMover.Return([item.Path]));
-            back.ToolTip = "Öğe masaüstüne döner ve kutuda kalır.";
+            var back = Menus.Item(L.T("Masaüstüne geri koy"), () => BoxMover.Return([item.Path]));
+            back.ToolTip = L.T("Öğe masaüstüne döner ve kutuda kalır.");
             menu.Items.Add(back);
-            var takeOut = Menus.Item("Kutudan çıkar (masaüstüne döner)", () => RemoveItem(item));
-            takeOut.ToolTip = "Öğe masaüstüne geri konur ve kutudan çıkar.\nGeri almak için: kutuya sağ tık → Geri al";
+            var takeOut = Menus.Item(L.T("Kutudan çıkar (masaüstüne döner)"), () => RemoveItem(item));
+            takeOut.ToolTip = L.T("Öğe masaüstüne geri konur ve kutudan çıkar.\nGeri almak için: kutuya sağ tık → Geri al");
             menu.Items.Add(takeOut);
         }
         else
         {
             var remove = Menus.Item(L.T("Widget'tan kaldır"), () => RemoveItem(item));
             remove.InputGestureText = KeyNames.Delete;
-            remove.ToolTip = "Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al";
+            remove.ToolTip = L.T("Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al");
             menu.Items.Add(remove);
             // Kip sonradan açıldıysa önceden eklenen masaüstü öğesi de tek tek kutuya alınabilir.
             if (BoxMover.Active && !item.Missing && BoxPlan.PinnedDesktopPaths([_config], AppHost.DesktopDirectories).Contains(item.Path))
             {
-                var claim = Menus.Item("Masaüstünden kaldır (kutuya taşı)", () => BoxMover.Claim(_config, [item.Path], justAdded: false));
-                claim.ToolTip = $"Öğe {BoxMover.Root} klasörüne taşınır ve kutuda durur.";
+                var claim = Menus.Item(L.T("Masaüstünden kaldır (kutuya taşı)"), () => BoxMover.Claim(_config, [item.Path], justAdded: false));
+                claim.ToolTip = L.F("Öğe {0} klasörüne taşınır ve kutuda durur.", BoxMover.Root);
                 menu.Items.Add(claim);
             }
         }
@@ -407,13 +407,13 @@ public partial class LauncherView : UserControl, IWidgetView
         {
             var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
             if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
-                menu.Items.Add(Menus.Item("Yönetici olarak çalıştır", () => TileItem.Launch(item.Path, asAdmin: true)));
-            menu.Items.Add(Menus.Item("Dosya konumunu aç", () => TileItem.Reveal(item.Path)));
+                menu.Items.Add(Menus.Item(L.T("Yönetici olarak çalıştır"), () => TileItem.Launch(item.Path, asAdmin: true)));
+            menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(item.Path)));
         }
 
         if (_config.Tabs.Count > 1)
         {
-            var move = new MenuItem { Header = "Sekmeye taşı" };
+            var move = new MenuItem { Header = L.T("Sekmeye taşı") };
             foreach (var tab in _config.Tabs.Where(t => t != Current))
                 move.Items.Add(Menus.Item(Menus.Literal(tab.Name), () => Change(() =>
                 {
@@ -423,7 +423,7 @@ public partial class LauncherView : UserControl, IWidgetView
             menu.Items.Add(move);
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Kutu ayarları…", () => MenuRequested?.Invoke()));
+        menu.Items.Add(Menus.Item(L.T("Kutu ayarları…"), () => MenuRequested?.Invoke()));
     }
 
     private void OnDragOver(object sender, DragEventArgs e)
@@ -465,14 +465,14 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         if (_lastRemoved is { } last)
         {
-            menu.Primary.Add(Menus.Item($"Geri al: \"{TileItem.DisplayName(last.Path)}\" listeye dönsün", UndoRemove));
+            menu.Primary.Add(Menus.Item(L.F("Geri al: \"{0}\" listeye dönsün", Menus.Literal(TileItem.DisplayName(last.Path))), UndoRemove));
             menu.Primary.Add(new Separator());
         }
         var add = new MenuItem { Header = L.T("Öğe ekle") };
         add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), AddFiles));
         add.Items.Add(Menus.Item(L.T("Klasör…"), AddFolders));
         menu.Primary.Add(add);
-        menu.Primary.Add(Menus.Item("Sekme ekle…", NewTab));
+        menu.Primary.Add(Menus.Item(L.T("Sekme ekle…"), NewTab));
         var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
         rename.InputGestureText = KeyNames.F2;
         menu.Primary.Add(rename);
@@ -499,10 +499,10 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Kısayol kutusuna ekle",
+            Title = L.T("Kısayol kutusuna ekle"),
             Multiselect = true,
             DereferenceLinks = false,
-            Filter = "Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*",
+            Filter = L.T("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*"),
             InitialDirectory = AppHost.DesktopDirectory,
         };
         if (dialog.ShowDialog() != true) return;

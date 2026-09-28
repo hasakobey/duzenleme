@@ -28,7 +28,7 @@
                     <ControlTemplate TargetType="TextBox">
                         <Grid>
                             <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
-                            <TextBlock x:Name="Placeholder" Text="Bir şeyler yaz…" IsHitTestVisible="False"
+                            <TextBlock x:Name="Placeholder" Text="{l:T 'Bir şeyler yaz…'}" IsHitTestVisible="False"
                                        Opacity="0.45" Visibility="Collapsed" Margin="2,0,0,0" />
                         </Grid>
                         <ControlTemplate.Triggers>
@@ -48,8 +48,8 @@
                     <DockPanel x:Name="AddRow" Margin="0,2,0,2">
                         <TextBlock x:Name="AddGlyph" Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12"
                                    Width="16" Margin="0,0,8,0" TextAlignment="Center" VerticalAlignment="Center" Opacity="0.55" />
-                        <TextBox x:Name="AddBox" Style="{StaticResource InlineTextBox}" Tag="Yeni madde ekle…" TextWrapping="Wrap"
-                                 AcceptsReturn="False" AutomationProperties.Name="Yeni madde ekle"
+                        <TextBox x:Name="AddBox" Style="{StaticResource InlineTextBox}" Tag="{l:T 'Yeni madde ekle…'}" TextWrapping="Wrap"
+                                 AcceptsReturn="False" AutomationProperties.Name="{l:T 'Yeni madde ekle'}"
                                  AutomationProperties.AutomationId="Checklist.Add" />
                     </DockPanel>
                 </StackPanel>

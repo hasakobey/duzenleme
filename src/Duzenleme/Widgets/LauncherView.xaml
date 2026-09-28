@@ -20,7 +20,8 @@
             </Button>
             <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Text, Segoe UI" />
-            <TextBlock x:Name="CountText" Grid.Column="2" FontSize="12" VerticalAlignment="Center" />
+            <!-- Sol pay: başlık kırpılacak kadar uzunken ("Shortcut box" + "12 items") sayı başlığa yapışmasın. -->
+            <TextBlock x:Name="CountText" Grid.Column="2" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
             <Button x:Name="RemoveButton" Grid.Column="3" Style="{StaticResource WidgetCloseButton}" Margin="6,0,-4,0" Click="RemoveWidget_Click" />
         </Grid>
 
@@ -49,12 +50,12 @@
                 <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                     <ui:SymbolIcon x:Name="EmptyIcon" Symbol="AppsAddIn24" FontSize="30" HorizontalAlignment="Center" Opacity="0.7" />
                     <TextBlock x:Name="EmptyText" FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="260"
-                               Text="Uygulama, kısayol, dosya ya da klasörü buraya sürükle. Tek tıkla açılır." />
+                               Text="{l:T 'Uygulama, kısayol, dosya ya da klasörü buraya sürükle. Tek tıkla açılır.'}" />
                 </StackPanel>
 
                 <Border x:Name="DropOverlay" CornerRadius="12" BorderThickness="2" Visibility="Collapsed" IsHitTestVisible="False">
-                    <TextBlock Text="Bırakın, kısayol olarak eklensin" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{l:T 'Bırakın, kısayol olarak eklensin'}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Margin="8,0" />
                 </Border>
             </Grid>
         </DockPanel>
