@@ -81,7 +81,7 @@ internal sealed class TolerantEnumConverter<T> : JsonConverter<T> where T : stru
 
     private static T Unknown(string text)
     {
-        JsonFile.Log?.Invoke($"ayarlar: {typeof(T).Name} için tanınmayan değer \"{text}\" → {Fallback}");
+        JsonFile.Log?.Invoke($"ayarlar: {typeof(T).Name} için tanınmayan değer \"{text}\" → {Fallback}"); // l10n: çevrilmez (günlük)
         return Fallback;
     }
 

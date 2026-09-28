@@ -167,7 +167,7 @@ public partial class App : Application
         {
             // Yarım başlamış, görünmez bir örnek tek-örnek kilidini tutup sonraki açılışları engellemesin.
             DebugLog.Write("STARTUP " + ex);
-            System.Windows.MessageBox.Show(StartupErrorMessage(ex), $"{AppInfo.Name} başlatılamadı",
+            System.Windows.MessageBox.Show(StartupErrorMessage(ex), L.F("{0} başlatılamadı", AppInfo.Name),
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             _exiting = true;
             try { AppHost.DoubleClick?.Dispose(); AppHost.Hotkeys?.Dispose(); AppHost.Tray?.Dispose(); } catch { }
@@ -216,7 +216,7 @@ public partial class App : Application
         AppHost.StartDeferredWork(autostart: args.Minimized);
         MigrateFromLegacyNameInBackground();
         if (PerfLog.Enabled)
-            PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms");
+            PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms"); // l10n: çevrilmez
 
         _started = true;
         if (args.Peek) Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command), DispatcherPriority.ApplicationIdle);
@@ -226,7 +226,8 @@ public partial class App : Application
         {
             // Windows ile sessizce başladıysa karşılama kendiliğinden açılmaz; balondan açılır.
             if (args.Minimized)
-                AppHost.Tray?.Notify($"{AppInfo.Name} kuruluma hazır", "Masaüstünü birkaç adımda düzenlemek için buraya tıkla.", () => ShowWelcome());
+                AppHost.Tray?.Notify(L.F("{0} kuruluma hazır", AppInfo.Name), L.T("Masaüstünü birkaç adımda düzenlemek için buraya tıkla."),
+                    () => ShowWelcome());
             else ShowWelcome();
         }
         else if (args.Restart) ShowPage(typeof(Views.SettingsPage));   // dilin değiştirildiği yere dönülür
@@ -237,8 +238,8 @@ public partial class App : Application
             AppHost.Settings.RenameNoticeShown = true;
             AppHost.Settings.CloseToTrayHintShown = true;   // mevcut kullanıcı tepsiyi zaten biliyor; ilk gün iki balon görmesin
             AppHost.SaveSettings();
-            Dispatcher.BeginInvoke(() => AppHost.Tray?.Notify($"{AppInfo.FormerName} artık {AppInfo.Name}",
-                "Adı ve ana penceresi yenilendi; ayarların, widget'ların ve kuralların olduğu gibi duruyor. Açmak için tıkla.",
+            Dispatcher.BeginInvoke(() => AppHost.Tray?.Notify(L.F("{0} artık {1}", AppInfo.FormerName, AppInfo.Name),
+                L.T("Adı ve ana penceresi yenilendi; ayarların, widget'ların ve kuralların olduğu gibi duruyor. Açmak için tıkla."),
                 ShowMainWindow), DispatcherPriority.ApplicationIdle);
         }
         else if (AppHost.Settings.FirstRunDone && AppHost.DataFolderSource == DataFolderSource.Moved)
@@ -247,8 +248,8 @@ public partial class App : Application
             // çubuğu sabitlemesini exe yoluna göre tutar: program dosyasının adı değiştiği için ikisi de sıfırlanmış olabilir.
             // Ana pencere açıksa şeritte, değilse balonda.
             Dispatcher.BeginInvoke(() => Views.Notice.Show(
-                $"{AppInfo.Name} güncellendi. Program dosyasının adı değiştiği için tepsi simgesi saatin yanındaki ^ okunun altına " +
-                "geçmiş olabilir; oradan görev çubuğuna sürükleyebilirsin. Görev çubuğuna sabitlediysen yeniden sabitle.",
+                L.F("{0} güncellendi. Program dosyasının adı değiştiği için tepsi simgesi saatin yanındaki ^ okunun altına geçmiş olabilir; oradan görev çubuğuna sürükleyebilirsin. Görev çubuğuna sabitlediysen yeniden sabitle.",
+                    AppInfo.Name),
                 Views.NoticeKind.Info), DispatcherPriority.ApplicationIdle);
         }
     }
@@ -291,9 +292,9 @@ public partial class App : Application
     private static string StartupErrorMessage(Exception ex) => ex switch
     {
         UnauthorizedAccessException or IOException when AppHost.DataDirectory.Length > 0 =>
-            $"Ayar klasörüne erişilemiyor:\n{AppHost.DataDirectory}\n\n{ex.Message}\n\n" +
-            "Taşınabilir sürümü kullanıyorsan programı yazılabilir bir klasöre (ör. Belgeler) çıkar.",
-        _ => $"Beklenmeyen bir hata oluştu:\n{ex.Message}",
+            L.F("Ayar klasörüne erişilemiyor:\n{0}\n\n{1}\n\nTaşınabilir sürümü kullanıyorsan programı yazılabilir bir klasöre (ör. Belgeler) çıkar.",
+                AppHost.DataDirectory, ex.Message),
+        _ => L.F("Beklenmeyen bir hata oluştu:\n{0}", ex.Message),
     };
 
     /// <summary>Masaüstündeki klasörler (anlık görüntüden; ilk okuma bitmediyse bir kez diskten, hata olursa boş).</summary>
@@ -538,7 +539,7 @@ public partial class App : Application
         DebugLog.Write("UNHANDLED " + e.Exception);
         // Kullanıcı kutuyu kapatmadan süreci sonlandırabilir: o ana dek yapılanlar diske insin.
         AppHost.SaveSettingsNow();
-        System.Windows.MessageBox.Show(e.Exception.Message, $"{AppInfo.Name} — beklenmeyen hata", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        System.Windows.MessageBox.Show(e.Exception.Message, L.F("{0} — beklenmeyen hata", AppInfo.Name), System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         e.Handled = true;
     }
 

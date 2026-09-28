@@ -12,12 +12,16 @@ internal static class Confirm
 {
     /// <summary>Başlık, ileti ve iki düğme: [confirmText] (Appearance=Danger; danger=false ise Primary) ve [cancelText]
     /// (IsDefault + IsCancel). Owner verilir, ortalanır. Enter ve Esc ikinci düğmedir. Onaylanırsa true.
-    /// Sahip yoksa (ör. widget'tan sorulan) near verilirse o noktanın monitörünün ortasında açılır, yoksa birincil monitörde.</summary>
-    public static bool Ask(Window? owner, string title, string message, string confirmText, bool danger = true, string cancelText = "Vazgeç",
+    /// Sahip yoksa (ör. widget'tan sorulan) near verilirse o noktanın monitörünün ortasında açılır, yoksa birincil monitörde.
+    /// cancelText verilmezse "Vazgeç" (arayüz dilinde).</summary>
+    public static bool Ask(Window? owner, string title, string message, string confirmText, bool danger = true, string? cancelText = null,
         Widgets.NativeMethods.POINT? near = null)
     {
         var ok = new Button { Content = confirmText, Appearance = danger ? ControlAppearance.Danger : ControlAppearance.Primary, MinWidth = 100 };
-        var cancel = new Button { Content = cancelText, IsDefault = true, IsCancel = true, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0) };
+        var cancel = new Button
+        {
+            Content = cancelText ?? L.T("Vazgeç"), IsDefault = true, IsCancel = true, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0),
+        };
         System.Windows.Automation.AutomationProperties.SetAutomationId(ok, "Confirm.Ok");
         System.Windows.Automation.AutomationProperties.SetAutomationId(cancel, "Confirm.Cancel");
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };

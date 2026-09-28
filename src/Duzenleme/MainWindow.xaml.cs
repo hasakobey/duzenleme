@@ -95,8 +95,8 @@ public partial class MainWindow : FluentWindow
             if (!AppHost.Settings.CloseToTrayHintShown)
             {
                 // Kapatınca uygulamanın gittiği sanılmasın (bir kez söylenir).
-                AppHost.Tray?.Notify($"{AppInfo.Name} arka planda çalışıyor",
-                    $"Widget'lar ve otomatik taşıma çalışmaya devam ediyor. Açmak için saatin yanındaki {AppInfo.Name} simgesine tıkla.");
+                AppHost.Tray?.Notify(L.F("{0} arka planda çalışıyor", AppInfo.Name),
+                    L.F("Widget'lar ve otomatik taşıma çalışmaya devam ediyor. Açmak için saatin yanındaki {0} simgesine tıkla.", AppInfo.Name));
                 AppHost.Settings.CloseToTrayHintShown = true;
                 AppHost.SaveSettings();
             }

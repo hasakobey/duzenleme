@@ -86,10 +86,10 @@ public static partial class AiIconGenerator
             await client.Models.Retrieve(Model, cancellationToken: ct);
             return null;
         }
-        catch (AnthropicUnauthorizedException) { return "Anahtar geçersiz."; }
-        catch (AnthropicForbiddenException) { return "Bu anahtarın modele erişim izni yok."; }
-        catch (AnthropicApiException ex) { return $"API hatası: {ex.Message}"; }
-        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { return "Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."; }
+        catch (AnthropicUnauthorizedException) { return L.T("Anahtar geçersiz."); }
+        catch (AnthropicForbiddenException) { return L.T("Bu anahtarın modele erişim izni yok."); }
+        catch (AnthropicApiException ex) { return L.F("API hatası: {0}", ex.Message); }
+        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { return L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."); }
     }
 
     /// <summary>Açıklamaya göre SVG üretir ve güvenli hale getirilmiş SVG metnini döner.</summary>
@@ -117,17 +117,17 @@ public static partial class AiIconGenerator
                 Messages = [new() { Role = Role.User, Content = prompt }],
             }, ct);
         }
-        catch (AnthropicUnauthorizedException) { throw new AiIconException("API anahtarı geçersiz. Ayarlar'dan kontrol et."); }
-        catch (AnthropicRateLimitException) { throw new AiIconException("Çok fazla istek gönderildi; biraz bekleyip tekrar dene."); }
-        catch (AnthropicApiException ex) { throw new AiIconException($"API hatası: {ex.Message}"); }
-        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { throw new AiIconException("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."); }
+        catch (AnthropicUnauthorizedException) { throw new AiIconException(L.T("API anahtarı geçersiz. Ayarlar'dan kontrol et.")); }
+        catch (AnthropicRateLimitException) { throw new AiIconException(L.T("Çok fazla istek gönderildi; biraz bekleyip tekrar dene.")); }
+        catch (AnthropicApiException ex) { throw new AiIconException(L.F("API hatası: {0}", ex.Message)); }
+        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { throw new AiIconException(L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.")); }
 
         if (response.StopReason == "refusal")
-            throw new AiIconException("Bu açıklama için simge üretilemedi. Farklı bir açıklama dene.");
+            throw new AiIconException(L.T("Bu açıklama için simge üretilemedi. Farklı bir açıklama dene."));
 
         var text = string.Concat(response.Content.Select(b => b.TryPickText(out var t) ? t.Text : ""));
         var match = SvgBlock().Match(text);
-        if (!match.Success) throw new AiIconException("Yanıtta SVG bulunamadı. Tekrar dene.");
+        if (!match.Success) throw new AiIconException(L.T("Yanıtta SVG bulunamadı. Tekrar dene."));
         return Sanitize(match.Value);
     }
 
@@ -150,7 +150,7 @@ public static partial class AiIconGenerator
         var settings = new WpfDrawingSettings { IncludeRuntime = false, TextAsGeometry = true };
         using var reader = new FileSvgReader(settings);
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(Sanitize(svg)));
-        var drawing = reader.Read(stream) ?? throw new AiIconException("Üretilen SVG çizilemedi.");
+        var drawing = reader.Read(stream) ?? throw new AiIconException(L.T("Üretilen SVG çizilemedi."));
         drawing.Freeze();
         return drawing;
     }

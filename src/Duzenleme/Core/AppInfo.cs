@@ -10,7 +10,8 @@ public static class AppInfo
 {
     public const string Name = "NestDesk";
     public const string FormerName = "Düzenleme";
-    public const string Tagline = "Masaüstün için derli toplu bir yuva.";
+    /// <summary>Kısa tanıtım cümlesi (Ana sayfa, Ayarlar → Hakkında), arayüz dilinde.</summary>
+    public static string Tagline => L.T("Masaüstün için derli toplu bir yuva.");
 
     /// <summary>Depo adresi (uygulamanın eski adını taşır). Depo yeniden adlandırılırsa yalnızca burası değişir:
     /// GitHub eski adresleri yeni depoya yönlendirir, eski sürümlerdeki bağlantılar da çalışmaya devam eder.</summary>

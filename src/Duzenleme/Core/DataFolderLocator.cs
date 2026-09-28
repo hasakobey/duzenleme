@@ -72,12 +72,12 @@ public static class DataFolderLocator
         {
             if (Directory.Exists(plan.Directory)) Directory.Delete(plan.Directory);   // yalnızca boşsa (Plan denetledi)
             (move ?? Directory.Move)(from, plan.Directory);
-            log?.Invoke($"veri klasörü taşındı: {from} → {plan.Directory}");
+            log?.Invoke($"veri klasörü taşındı: {from} → {plan.Directory}"); // l10n: çevrilmez (günlük)
             return plan with { MoveFrom = null };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            log?.Invoke($"veri klasörü taşınamadı, bu oturum eski klasörü kullanıyor: {ex.GetType().Name} {ex.Message}");
+            log?.Invoke($"veri klasörü taşınamadı, bu oturum eski klasörü kullanıyor: {ex.GetType().Name} {ex.Message}"); // l10n: çevrilmez (günlük)
             return new(from, DataFolderSource.MoveFailed);
         }
     }

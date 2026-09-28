@@ -14,7 +14,7 @@ internal static class Fold
     public static void Attach(ButtonBase toggle, UIElement content, Action? firstOpen = null)
     {
         content.Visibility = Visibility.Collapsed;
-        toggle.Content = "Göster";
+        toggle.Content = L.T("Göster");
         var opened = false;
         toggle.Click += (_, _) =>
         {
@@ -25,7 +25,7 @@ internal static class Fold
                 firstOpen?.Invoke();
             }
             content.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-            toggle.Content = open ? "Gizle" : "Göster";
+            toggle.Content = open ? L.T("Gizle") : L.T("Göster");
         };
     }
 }

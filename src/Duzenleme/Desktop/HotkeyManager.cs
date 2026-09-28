@@ -91,17 +91,17 @@ public sealed class HotkeyManager : IDisposable
             if (string.IsNullOrWhiteSpace(text)) continue;
             if (!Hotkey.TryParse(text, out var hk) || !TryGetVirtualKey(hk.Key, out var vk))
             {
-                Failures[action] = "Geçersiz kısayol";
+                Failures[action] = L.T("Geçersiz kısayol");
                 continue;
             }
             if (AltGrConflict(hk.Modifiers, vk) is { } character)
             {
-                Failures[action] = $"Klavyende AltGr ile \"{character}\" yazılıyor; başka bir kısayol seç (ör. Win+Shift+…)";
+                Failures[action] = L.F("Klavyende AltGr ile \"{0}\" yazılıyor; başka bir kısayol seç (ör. Win+Shift+…)", character);
                 continue;
             }
             var id = (int)action + 1;
             if (RegisterHotKey(_window.Handle, id, (uint)hk.Modifiers | MOD_NOREPEAT, vk)) _registered.Add(id);
-            else Failures[action] = "Başka bir uygulama kullanıyor";
+            else Failures[action] = L.T("Başka bir uygulama kullanıyor");
         }
     }
 
