@@ -44,7 +44,7 @@ internal static class DesktopFences
         var ids = TurnOn(allStarters, near);
         var text = Describe(ids.Count, wasOn);
         if (ids.Count > 0 || !wasOn)
-            Notice.Show(text, NoticeKind.Success, "Geri al", () => Undo(ids, turnModeOff: !wasOn), trayHint);
+            Notice.Show(text, NoticeKind.Success, L.T("Geri al"), () => Undo(ids, turnModeOff: !wasOn), trayHint);
         else
             Notice.Show(text, NoticeKind.Info);
     }
@@ -57,9 +57,9 @@ internal static class DesktopFences
     /// </summary>
     public static string Describe(int added, bool modeWasOn = false) => (added, modeWasOn) switch
     {
-        (> 0, false) => $"{added} bölme eklendi. Masaüstü simgeleri artık yalnızca bölmelerde.",
-        (_, false) => "Masaüstü simgeleri artık yalnızca bölmelerde.",
-        (> 0, true) => $"{added} bölme eklendi.",
-        _ => "Bölmelerin zaten hazır; masaüstü simgeleri yalnızca bölmelerde.",
+        (> 0, false) => L.P(added, "{0} bölme eklendi. Masaüstü simgeleri artık yalnızca bölmelerde."),
+        (_, false) => L.T("Masaüstü simgeleri artık yalnızca bölmelerde."),
+        (> 0, true) => L.P(added, "{0} bölme eklendi."),
+        _ => L.T("Bölmelerin zaten hazır; masaüstü simgeleri yalnızca bölmelerde."),
     };
 }

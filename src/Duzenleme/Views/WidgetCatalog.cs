@@ -91,10 +91,11 @@ internal static class WidgetCatalog
         {
             new(NewFenceKey, L.T("Yeni bölme…"), SymbolRegular.AddSquare24, L.T("Adını, ne göstereceğini ve simgesini seçerek bölme ekle"),
                 WidgetGroup.Fence, () => NewFenceDialog.Ask(null), AsksName: true),
-            Filter("Folders", DesktopFilter.Folders, "Klasörler", SymbolRegular.Folder24, "Masaüstündeki klasörler"),
-            Filter("Shortcuts", DesktopFilter.Shortcuts, "Kısayollar", SymbolRegular.Apps24, "Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu"),
-            Filter("Files", DesktopFilter.Files, "Dosyalar", SymbolRegular.DocumentMultiple24, "Masaüstünde duran dosyalar"),
-            Filter("All", DesktopFilter.All, "Tüm masaüstü", SymbolRegular.Desktop24, "Masaüstündeki her şey tek bölmede"),
+            Filter("Folders", DesktopFilter.Folders, L.T("Klasörler"), SymbolRegular.Folder24, L.T("Masaüstündeki klasörler")),
+            Filter("Shortcuts", DesktopFilter.Shortcuts, L.T("Kısayollar"), SymbolRegular.Apps24,
+                L.T("Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu")),
+            Filter("Files", DesktopFilter.Files, L.T("Dosyalar"), SymbolRegular.DocumentMultiple24, L.T("Masaüstünde duran dosyalar")),
+            Filter("All", DesktopFilter.All, L.T("Tüm masaüstü"), SymbolRegular.Desktop24, L.T("Masaüstündeki her şey tek bölmede")),
         };
         foreach (var id in new[] { FolderPortal.Downloads, FolderPortal.Documents, FolderPortal.Pictures })
             if (KnownFolders.PathOf(id) is { } path) list.Add(KnownPortal(id, path));
@@ -104,10 +105,10 @@ internal static class WidgetCatalog
         {
             var icon = name.Equals("PDF", StringComparison.OrdinalIgnoreCase) ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24;
             var tip = exists
-                ? $"\"{name}\" klasörünün içi"
-                : $"Masaüstünde \"{name}\" klasörü açılır; otomatik taşıma açıksa uygun dosyalar oraya taşınır";
+                ? L.F("\"{0}\" klasörünün içi", name)
+                : L.F("Masaüstünde \"{0}\" klasörü açılır; otomatik taşıma açıksa uygun dosyalar oraya taşınır", name);
             list.Add(new WidgetChoice("Folder:" + name, name, icon, tip, WidgetGroup.Fence, () => AppHost.Widgets.AddFolderFence(name),
-                Badge: exists ? null : "yeni klasör",
+                Badge: exists ? null : L.T("yeni klasör"),
                 Matches: c => c.Kind == WidgetKind.Fence && c.Filter == DesktopFilter.None && FolderName.Equal(c.FolderName ?? "", name)));
         }
         return list;
@@ -205,7 +206,7 @@ internal static class WidgetCatalog
 
         var more = new Button
         {
-            Content = $"Diğer klasörler ({hidden.Count})", Height = 82, Margin = new Thickness(0, 0, 8, 8),
+            Content = L.F("Diğer klasörler ({0})", hidden.Count), Height = 82, Margin = new Thickness(0, 0, 8, 8),
             Icon = new SymbolIcon { Symbol = SymbolRegular.ChevronDown24 },
         };
         System.Windows.Automation.AutomationProperties.SetAutomationId(more, "Add.MoreFolders");
