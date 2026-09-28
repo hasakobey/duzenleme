@@ -48,7 +48,7 @@ public partial class NoteView : UserControl, IWidgetView
         {
             AddEditCommands(menu, Editor);
             menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item("Not ayarları…", () => MenuRequested?.Invoke()));
+            menu.Items.Add(Menus.Item(L.T("Not ayarları…"), () => MenuRequested?.Invoke()));
         });
 
         _rowTextStyle = (Style)FindResource("InlineTextBox");
@@ -103,7 +103,7 @@ public partial class NoteView : UserControl, IWidgetView
     public bool UsesThemeColors => false;
     public event Action? MenuRequested;
 
-    private string DefaultTitle => _config.NoteChecklist ? "Yapılacaklar" : "Not";
+    private string DefaultTitle => _config.NoteChecklist ? L.T("Yapılacaklar") : L.T("Not");
 
     private void QueueSave()
     {
@@ -266,8 +266,8 @@ public partial class NoteView : UserControl, IWidgetView
         if (_config.NoteChecklist)
         {
             var done = CurrentItems().Count(i => i.Done && i.Text.Trim().Length > 0);
-            if (done > 0) menu.Primary.Add(Menus.Item($"Bitenleri temizle ({done})", ClearDone));
-            if (_cleared is not null) menu.Primary.Add(Menus.Item("Geri al: temizlenen maddeler geri gelsin", UndoClear));
+            if (done > 0) menu.Primary.Add(Menus.Item(L.F("Bitenleri temizle ({0})", done), ClearDone));
+            if (_cleared is not null) menu.Primary.Add(Menus.Item(L.T("Geri al: temizlenen maddeler geri gelsin"), UndoClear));
             menu.Primary.Add(Menus.Toggle(L.T("Bitenler alta insin"), () => _config.ChecklistDoneLast, () =>
             {
                 _config.ChecklistDoneLast = !_config.ChecklistDoneLast;
@@ -275,19 +275,19 @@ public partial class NoteView : UserControl, IWidgetView
                 AppHost.SaveSettings();
                 Save();
             }));
-            menu.Primary.Add(Menus.Item("Düz nota çevir", ToPlainNote));
+            menu.Primary.Add(Menus.Item(L.T("Düz nota çevir"), ToPlainNote));
         }
-        else menu.Primary.Add(Menus.Item("Onay kutulu listeye çevir", ToChecklist));
+        else menu.Primary.Add(Menus.Item(L.T("Onay kutulu listeye çevir"), ToChecklist));
         var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
         rename.InputGestureText = KeyNames.F2;
         menu.Primary.Add(rename);
-        if (!_config.NoteChecklist) menu.Primary.Add(Menus.Item("Notu temizle", () => Editor.Clear()));
+        if (!_config.NoteChecklist) menu.Primary.Add(Menus.Item(L.T("Notu temizle"), () => Editor.Clear()));
 
         menu.Appearance.Add(Menus.Parts(_config, [("header", L.N("Başlık ve renkler")), Menus.ClosePart], UpdateTitle));
         menu.Appearance.Add(Menus.Choice(L.T("Yazı boyutu"), () => _config.LabelSize,
             [(LabelSize.Small, L.T("Küçük")), (LabelSize.Normal, L.T("Normal")), (LabelSize.Large, L.T("Büyük"))], SetFontSize));
         // Üst düzey not menüsü kısa kalsın (en çok 8 öğe): kopyalama seyrek kullanılır.
-        menu.More.Add(Menus.Item("Panoya kopyala", CopyToClipboard));
+        menu.More.Add(Menus.Item(L.T("Panoya kopyala"), CopyToClipboard));
     }
 
     /// <summary>F2 (yazarken de: F2'nin metinde bir anlamı yok): başlık yerinde düzenlenir; önce yazılanlar kaydedilir.</summary>
@@ -596,7 +596,7 @@ public partial class NoteView : UserControl, IWidgetView
                 Style = _rowTextStyle, Text = row.Text, TextWrapping = TextWrapping.Wrap, AcceptsReturn = false,
                 ContextMenu = _rowMenu, FontSize = NoteFontSize,
             };
-            AutomationProperties.SetName(editor, "Madde");
+            AutomationProperties.SetName(editor, L.T("Madde"));
             Grid.SetColumn(editor, 1);
             PaintText(editor);
             var current = editor;
@@ -867,25 +867,25 @@ public partial class NoteView : UserControl, IWidgetView
         {
             var index = _rows.IndexOf(row);
             menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item("Maddeyi sil", () => DeleteRow(row)));
-            var up = Menus.Item("Yukarı taşı", () => MoveRow(row, -1));
+            menu.Items.Add(Menus.Item(L.T("Maddeyi sil"), () => DeleteRow(row)));
+            var up = Menus.Item(L.T("Yukarı taşı"), () => MoveRow(row, -1));
             up.IsEnabled = index > 0;
             up.InputGestureText = "Alt+↑";
             menu.Items.Add(up);
-            var down = Menus.Item("Aşağı taşı", () => MoveRow(row, 1));
+            var down = Menus.Item(L.T("Aşağı taşı"), () => MoveRow(row, 1));
             down.IsEnabled = index < _rows.Count - 1;
             down.InputGestureText = "Alt+↓";
             menu.Items.Add(down);
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Liste ayarları…", () => MenuRequested?.Invoke()));
+        menu.Items.Add(Menus.Item(L.T("Liste ayarları…"), () => MenuRequested?.Invoke()));
     }
 
     private static void AddEditCommands(ContextMenu menu, TextBox target)
     {
-        menu.Items.Add(new MenuItem { Header = "Kes", Command = ApplicationCommands.Cut, CommandTarget = target });
-        menu.Items.Add(new MenuItem { Header = "Kopyala", Command = ApplicationCommands.Copy, CommandTarget = target });
-        menu.Items.Add(new MenuItem { Header = "Yapıştır", Command = ApplicationCommands.Paste, CommandTarget = target });
-        menu.Items.Add(new MenuItem { Header = "Tümünü seç", Command = ApplicationCommands.SelectAll, CommandTarget = target });
+        menu.Items.Add(new MenuItem { Header = L.T("Kes"), Command = ApplicationCommands.Cut, CommandTarget = target });
+        menu.Items.Add(new MenuItem { Header = L.T("Kopyala"), Command = ApplicationCommands.Copy, CommandTarget = target });
+        menu.Items.Add(new MenuItem { Header = L.T("Yapıştır"), Command = ApplicationCommands.Paste, CommandTarget = target });
+        menu.Items.Add(new MenuItem { Header = L.T("Tümünü seç"), Command = ApplicationCommands.SelectAll, CommandTarget = target });
     }
 }

@@ -3,7 +3,16 @@ using Microsoft.Win32;
 
 namespace Duzenleme.Desktop;
 
-public sealed record SystemIcon(string Clsid, string Name, string Description, bool ShownByDefault);
+/// <summary>
+/// Bir Windows masaüstü simgesi. Ad ve açıklama tabloda Türkçe (L.N ile işaretli) saklanır, okunurken arayüz diline
+/// çevrilir: bölme kutucuğu, "Gizlenen öğeler" ve Ayarlar'daki liste aynı adı gösterir.
+/// </summary>
+public sealed record SystemIcon(string Clsid, string NameKey, string DescriptionKey, bool ShownByDefault)
+{
+    public string Name => L.Dyn(NameKey);
+
+    public string Description => L.Dyn(DescriptionKey);
+}
 
 /// <summary>
 /// Windows'un varsayılan masaüstü simgeleri (Bu Bilgisayar, Geri Dönüşüm Kutusu…).
@@ -24,11 +33,11 @@ public static class DesktopSystemIcons
 
     public static readonly SystemIcon[] All =
     [
-        new("{20D04FE0-3AEA-1069-A2D8-08002B30309D}", "Bu Bilgisayar", "Sürücüler ve cihazlar", false),
-        new("{645FF040-5081-101B-9F08-00AA002F954E}", "Geri Dönüşüm Kutusu", "Silinen dosyalar", true),
-        new("{59031a47-3f72-44a7-89c5-5595fe6b30ee}", "Kullanıcı dosyaları", "Belgeler, Resimler, İndirilenler…", false),
-        new("{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}", "Ağ", "Ağdaki bilgisayarlar ve cihazlar", false),
-        new("{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}", "Denetim Masası", "Klasik Windows ayarları", false),
+        new("{20D04FE0-3AEA-1069-A2D8-08002B30309D}", L.N("Bu Bilgisayar"), L.N("Sürücüler ve cihazlar"), false),
+        new("{645FF040-5081-101B-9F08-00AA002F954E}", L.N("Geri Dönüşüm Kutusu"), L.N("Silinen dosyalar"), true),
+        new("{59031a47-3f72-44a7-89c5-5595fe6b30ee}", L.N("Kullanıcı dosyaları"), L.N("Belgeler, Resimler, İndirilenler…"), false),
+        new("{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}", L.N("Ağ"), L.N("Ağdaki bilgisayarlar ve cihazlar"), false),
+        new("{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}", L.N("Denetim Masası"), L.N("Klasik Windows ayarları"), false),
     ];
 
     /// <summary>

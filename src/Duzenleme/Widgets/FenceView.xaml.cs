@@ -230,14 +230,14 @@ public partial class FenceView : UserControl, IWidgetView
         if (DesktopMode && UserDesktop.State != SnapshotState.Ready)
         {
             ShowUnavailable(SymbolRegular.Desktop24, UserDesktop.State == SnapshotState.Missing
-                ? "Masaüstü klasörü bulunamadı." : "Masaüstü şu an okunamıyor.", showCreate: false);
+                ? L.T("Masaüstü klasörü bulunamadı.") : L.T("Masaüstü şu an okunamıyor."), showCreate: false);
             return;
         }
         if (!DesktopMode)
         {
             if (_folderSource is null)
             {
-                ShowUnavailable(SymbolRegular.FolderProhibited24, $"Masaüstünde \"{FolderName}\" klasörü yok.", showCreate: UserDesktop.State == SnapshotState.Ready);
+                ShowUnavailable(SymbolRegular.FolderProhibited24, L.F("Masaüstünde \"{0}\" klasörü yok.", FolderName), showCreate: UserDesktop.State == SnapshotState.Ready);
                 return;
             }
             if (_folderSource.State == SnapshotState.Pending) return;
@@ -251,7 +251,7 @@ public partial class FenceView : UserControl, IWidgetView
             if (_folderSource.State != SnapshotState.Ready)
             {
                 // Klasör tam o anda silindi/taşındı ya da erişilemiyor: hata kutusu yerine sakin bir durum göster.
-                ShowUnavailable(SymbolRegular.FolderProhibited24, $"\"{TitleText.Text}\" şu an okunamıyor.", showCreate: false);
+                ShowUnavailable(SymbolRegular.FolderProhibited24, L.F("\"{0}\" şu an okunamıyor.", TitleText.Text), showCreate: false);
                 return;
             }
         }
@@ -287,7 +287,7 @@ public partial class FenceView : UserControl, IWidgetView
         if (clock is not null)
         {
             PerfLog.Count("FenceUpdate");
-            PerfLog.Write($"bölme güncellendi [{_config.Id[..6]}] {_all.Count} öğe, hesap {computed:0.0} ms, toplam {clock.Elapsed.TotalMilliseconds:0.0} ms");
+            PerfLog.Write($"bölme güncellendi [{_config.Id[..6]}] {_all.Count} öğe, hesap {computed:0.0} ms, toplam {clock.Elapsed.TotalMilliseconds:0.0} ms"); // l10n: çevrilmez
         }
     }
 
@@ -453,7 +453,7 @@ public partial class FenceView : UserControl, IWidgetView
         }
         else if (steps.Count > 0) ListDiff.Apply(_view, steps, _view.Move);
 
-        CountText.Text = q.Length == 0 ? (_all.Count + _more).ToString(L.Culture) : $"{shown.Count}";
+        CountText.Text = (q.Length == 0 ? _all.Count + _more : shown.Count).ToString(L.Culture);
         // Sınırı aşan klasör: kalanlar klasörde açılır (aramada gizli: arama bütün klasörde arar).
         MoreButton.Visibility = _more > 0 && q.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (_more > 0) MoreButton.Content = L.P(_more, "… ve {0} öğe daha · Klasörde aç");
@@ -461,7 +461,7 @@ public partial class FenceView : UserControl, IWidgetView
         if (q.Length > 0 && shown.Count > 0) Items.SelectedIndex = 0;
 
         if (shown.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
-        else if (q.Length > 0) ShowEmpty(SymbolRegular.Search24, $"\"{_query}\" bulunamadı.", showCreate: false);
+        else if (q.Length > 0) ShowEmpty(SymbolRegular.Search24, L.F("\"{0}\" bulunamadı.", _query), showCreate: false);
         else ShowEmpty(EmptyIconFor(), EmptyTextFor(), showCreate: false);
         AfterShow(shown);
     }
@@ -775,11 +775,11 @@ public partial class FenceView : UserControl, IWidgetView
 
     private string EmptyTextFor() => _config.Filter switch
     {
-        DesktopFilter.Folders => "Masaüstünde klasör yok.",
-        DesktopFilter.Shortcuts => "Masaüstünde kısayol yok.",
-        DesktopFilter.Files => "Masaüstünde dosya kalmadı.\nHepsi yerli yerinde!",
-        DesktopFilter.All => "Masaüstü boş.",
-        _ => "Klasör boş.\nDosyaları buraya sürükleyin.",
+        DesktopFilter.Folders => L.T("Masaüstünde klasör yok."),
+        DesktopFilter.Shortcuts => L.T("Masaüstünde kısayol yok."),
+        DesktopFilter.Files => L.T("Masaüstünde dosya kalmadı.\nHepsi yerli yerinde!"),
+        DesktopFilter.All => L.T("Masaüstü boş."),
+        _ => L.T("Klasör boş.\nDosyaları buraya sürükleyin."),
     };
 
     private void ShowEmpty(SymbolRegular icon, string text, bool showCreate, bool showPick = false)
@@ -891,26 +891,26 @@ public partial class FenceView : UserControl, IWidgetView
         var open = Menus.Item(L.T("Aç"), () => TileItem.Launch(item.Path));
         open.InputGestureText = KeyNames.Enter;
         menu.Items.Add(open);
-        var remove = Menus.Item("Widget'tan kaldır", () => HideItem(item));
-        remove.ToolTip = "Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler";
+        var remove = Menus.Item(L.T("Widget'tan kaldır"), () => HideItem(item));
+        remove.ToolTip = L.T("Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler");
         menu.Items.Add(remove);
         if (TileItem.IsShellObject(item.Path))
         {
             if (TileItem.IsRecycleBin(item.Path))
                 menu.Items.Add(Menus.Item(L.T("Geri Dönüşüm Kutusu'nu boşalt…"), RecycleBinActions.EmptyWithConfirm));
             menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
+            menu.Items.Add(Menus.Item(L.T("Bölme ayarları…"), () => MenuRequested?.Invoke()));
             return;
         }
-        menu.Items.Add(Menus.Item("Klasörde göster", () => TileItem.Reveal(item.Path)));
+        menu.Items.Add(Menus.Item(L.T("Klasörde göster"), () => TileItem.Reveal(item.Path)));
         if (item.IsDirectory)
         {
-            menu.Items.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(item.Path)));
+            menu.Items.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(item.Path)));
             // Bir klasör kendi bölmesine alınabilir ("klasörleri ayrı ayrı"): masaüstündeyse adıyla, başka yerdeyse portal olarak.
-            menu.Items.Add(Menus.Item("Bu klasörü ayrı bölme yap", () => SeparateFence(item.Path)));
+            menu.Items.Add(Menus.Item(L.T("Bu klasörü ayrı bölme yap"), () => SeparateFence(item.Path)));
         }
         if (!DesktopMode && !item.IsDirectory && !item.Missing)
-            menu.Items.Add(Menus.Item("Masaüstüne geri taşı", () => MoveToDesktop(item)));
+            menu.Items.Add(Menus.Item(L.T("Masaüstüne geri taşı"), () => MoveToDesktop(item)));
         // Masaüstü simgeleri gizliyken (bölmeler yönetirken) bu işler yalnızca buradan yapılabilir.
         var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginItemRename(item));
         rename.InputGestureText = KeyNames.F2;
@@ -919,7 +919,7 @@ public partial class FenceView : UserControl, IWidgetView
         recycle.InputGestureText = KeyNames.Delete;
         menu.Items.Add(recycle);
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
+        menu.Items.Add(Menus.Item(L.T("Bölme ayarları…"), () => MenuRequested?.Invoke()));
     }
 
     /// <summary>Klasörü kendi bölmesine alır: masaüstündeki klasör adıyla (klasik bölme), başka yerdeki klasör portal olarak.</summary>

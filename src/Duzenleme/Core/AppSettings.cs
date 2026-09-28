@@ -36,7 +36,8 @@ public enum AppTheme { System, Dark, Light }
 
 public sealed class LauncherTab
 {
-    public string Name { get; set; } = "Uygulamalar";
+    // Kalıcı varsayılan: sekme oluşturulurken bir kez o anki dilde yazılır.
+    public string Name { get; set; } = L.T("Uygulamalar");
     public List<string> Items { get; set; } = [];
 
     // 2.1 P6

@@ -139,7 +139,7 @@ internal static class BoxMover
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
                 {
                     DebugLog.Write($"kutuya taşınamadı {path}: {ex.Message}");
-                    return new ClaimResult(path, null, BoxLinkReason.None, ex is UnauthorizedAccessException ? "izin yok" : ex.Message);
+                    return new ClaimResult(path, null, BoxLinkReason.None, ex is UnauthorizedAccessException ? L.T("izin yok") : ex.Message);
                 }
             }
 
@@ -169,23 +169,23 @@ internal static class BoxMover
         if (moved.Count > 0)
         {
             var folders = moved.Select(x => $"{BoxPlan.RootFolderName}\\{Path.GetFileName(x.Request.Folder)}").Distinct().ToList();
-            var where = folders.Count == 1 ? $"{folders[0]} klasörüne" : "NestDesk klasörüne";
+            // Birden çok kutunun klasörüne gittiyse ortak kök (NestDesk) söylenir.
+            var where = folders.Count == 1 ? folders[0] : BoxPlan.RootFolderName;
             parts.Add(moved.Count == 1
-                ? $"\"{TileItem.DisplayName(moved[0].Result.Original)}\" masaüstünden kalktı; {where} taşındı, kutuda duruyor."
-                : $"{moved.Count} öğe masaüstünden kalktı; {where} taşındı, kutuda duruyor.");
+                ? L.F("\"{0}\" masaüstünden kalktı; {1} klasörüne taşındı, kutuda duruyor.", TileItem.DisplayName(moved[0].Result.Original), where)
+                : L.P(moved.Count, "{0} öğe masaüstünden kalktı; {1} klasörüne taşındı, kutuda duruyor.", where));
         }
         if (failed.Count > 0)
             parts.Add(failed.Count == 1
-                ? $"\"{TileItem.DisplayName(failed[0].Result.Original)}\" taşınamadı ({failed[0].Result.Error}); kutuya bağlantı olarak eklendi."
-                : $"{failed.Count} öğe taşınamadı (kullanımda ya da izin yok); kutuya bağlantı olarak eklendi.");
+                ? L.F("\"{0}\" taşınamadı ({1}); kutuya bağlantı olarak eklendi.", TileItem.DisplayName(failed[0].Result.Original), failed[0].Result.Error)
+                : L.P(failed.Count, "{0} öğe taşınamadı (kullanımda ya da izin yok); kutuya bağlantı olarak eklendi."));
         foreach (var x in used)
-            parts.Add($"\"{TileItem.DisplayName(x.Result.Original)}\" klasörünü bir kural ya da bölme kullandığı için masaüstünde kaldı.");
+            parts.Add(L.F("\"{0}\" klasörünü bir kural ya da bölme kullandığı için masaüstünde kaldı.", TileItem.DisplayName(x.Result.Original)));
         if (publicSkipped && !AppHost.Settings.PublicBoxNoticeShown)
         {
             AppHost.Settings.PublicBoxNoticeShown = true;
             AppHost.SaveSettings();
-            parts.Add("Ortak masaüstündeki öğeler bu bilgisayardaki tüm hesaplarda görünür; kutuya yalnızca bağlantı olarak eklendi " +
-                      "(Ayarlar > Masaüstü'nden değiştirilebilir).");
+            parts.Add(L.T("Ortak masaüstündeki öğeler bu bilgisayardaki tüm hesaplarda görünür; kutuya yalnızca bağlantı olarak eklendi (Ayarlar > Masaüstü'nden değiştirilebilir)."));
         }
         if (parts.Count == 0) return;
 
@@ -195,8 +195,8 @@ internal static class BoxMover
             var undo = moved.Select(x => (x.Request.Box, x.Result.Current!)).ToList();
             // Az önce eklenenler kutudan da çıkar; zaten kutuda olanlar (kip açılırken taşınanlar) yalnızca masaüstüne döner.
             Action action = justAdded ? () => UndoAdd(undo) : () => Return(undo.Select(u => u.Item2).ToList());
-            Notice.Show(text, failed.Count > 0 ? NoticeKind.Warning : NoticeKind.Success, "Geri al", action,
-                "Geri almak için buraya tıkla.");
+            Notice.Show(text, failed.Count > 0 ? NoticeKind.Warning : NoticeKind.Success, L.T("Geri al"), action,
+                L.T("Geri almak için buraya tıkla."));
         }
         else Notice.Show(text, failed.Count > 0 ? NoticeKind.Warning : NoticeKind.Info);
     }
@@ -290,7 +290,7 @@ internal static class BoxMover
                 {
                     // Kullanıcı NestDesk klasöründen silmiş ya da taşımış: kayıt kapanır, dosyaya dokunulmaz.
                     log.MarkReturned(record.Id, record.Original, reclaim: false);
-                    return new ReturnResult(record, null, "bulunamadı");
+                    return new ReturnResult(record, null, NotFound);
                 }
                 // Kutuda kalan öğe masaüstünde de kurallarla taşınmaz (DesktopOrganizer.Pinned, izleyici 2 sn bekler);
                 // hiçbir kutuda kalmayan öğe sıradan bir masaüstü dosyasıdır.
@@ -301,10 +301,13 @@ internal static class BoxMover
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 DebugLog.Write($"masaüstüne geri konamadı {record.Current}: {ex.Message}");
-                return new ReturnResult(record, null, ex is UnauthorizedAccessException ? "izin yok" : ex.Message);
+                return new ReturnResult(record, null, ex is UnauthorizedAccessException ? L.T("izin yok") : ex.Message);
             }
         }
     }
+
+    /// <summary>İç işaret: öğe NestDesk klasöründe artık yok (kullanıcı silmiş/taşımış); bildirimde hata sayılmaz, gösterilmez.</summary>
+    private const string NotFound = "\u0000not-found";
 
     private static void ApplyReturns(List<ReturnResult> results)
     {
@@ -322,14 +325,14 @@ internal static class BoxMover
     private static void NotifyReturned(List<ReturnResult> results)
     {
         var done = results.Count(r => r.Restored is not null);
-        var failed = results.Where(r => r.Restored is null && r.Error != "bulunamadı").ToList();
+        var failed = results.Where(r => r.Restored is null && r.Error != NotFound).ToList();
         var parts = new List<string>();
         if (done > 0)
             parts.Add(done == 1
-                ? $"\"{TileItem.DisplayName(results.First(r => r.Restored is not null).Restored!)}\" masaüstüne geri kondu."
-                : $"{done} öğe masaüstüne geri kondu.");
+                ? L.F("\"{0}\" masaüstüne geri kondu.", TileItem.DisplayName(results.First(r => r.Restored is not null).Restored!))
+                : L.P(done, "{0} öğe masaüstüne geri kondu."));
         if (failed.Count > 0)
-            parts.Add($"{failed.Count} öğe geri konamadı ({failed[0].Error}); {BoxPlan.RootFolderName} klasöründe duruyor.");
+            parts.Add(L.P(failed.Count, "{0} öğe geri konamadı ({1}); {2} klasöründe duruyor.", failed[0].Error, BoxPlan.RootFolderName));
         if (parts.Count > 0) Notice.Show(string.Join(" ", parts), failed.Count > 0 ? NoticeKind.Warning : NoticeKind.Success);
     }
 

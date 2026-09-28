@@ -52,8 +52,9 @@
                             <ControlTemplate TargetType="TextBox">
                                 <Grid>
                                     <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="Placeholder" Text="Ara…  (Enter: aç)" IsHitTestVisible="False"
-                                               Opacity="0.5" Visibility="Collapsed" Margin="2,0,0,0" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="Placeholder" Text="{l:T 'Ara…  (Enter: aç)'}" IsHitTestVisible="False"
+                                               Opacity="0.5" Visibility="Collapsed" Margin="2,0,0,0" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
                                 </Grid>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="Text" Value="">
@@ -79,7 +80,7 @@
                 <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed">
                     <ui:SymbolIcon x:Name="EmptyIcon" Symbol="ArrowDownload24" FontSize="30" HorizontalAlignment="Center" Opacity="0.7" />
                     <TextBlock x:Name="EmptyText" FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="240" />
-                    <Button x:Name="CreateFolderButton" Content="Klasörü oluştur" HorizontalAlignment="Center" Margin="0,12,0,0"
+                    <Button x:Name="CreateFolderButton" Content="{l:T 'Klasörü oluştur'}" HorizontalAlignment="Center" Margin="0,12,0,0"
                             Click="CreateFolder_Click" Visibility="Collapsed" />
                     <!-- Klasör portalının klasörü bulunamadı (silindi, sürücü takılı değil): başka klasör seçilir. -->
                     <Button x:Name="PickFolderButton" Content="{l:T 'Başka klasör seç…'}" HorizontalAlignment="Center" Margin="0,12,0,0"
@@ -87,8 +88,8 @@
                 </StackPanel>
 
                 <Border x:Name="DropOverlay" CornerRadius="12" BorderThickness="2" Visibility="Collapsed" IsHitTestVisible="False">
-                    <TextBlock Text="Bırakın, klasöre taşınsın" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{l:T 'Bırakın, klasöre taşınsın'}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" Margin="8,0" />
                 </Border>
             </Grid>
         </DockPanel>
