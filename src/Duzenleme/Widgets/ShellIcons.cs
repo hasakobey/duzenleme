@@ -6,37 +6,60 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Duzenleme.Core;
 
 namespace Duzenleme.Widgets;
 
-/// <summary>Dosyaların Windows gezginindeki simgelerini döner (uzantı bazında önbellekli).</summary>
+/// <summary>
+/// Dosyaların, klasörlerin ve kabuk nesnelerinin ("::{CLSID}": Bu Bilgisayar, Geri Dönüşüm Kutusu…) Windows gezginindeki
+/// simgeleri. Simgeler ekranda çizilecekleri piksel boyutunda istenir (1:1 çizilsin, bulanıklaşmasın; bkz.
+/// <see cref="IconSizing"/>). Önbellek sınırlıdır: en son kullanılan simgeler tutulur (tür bazında; program, kısayol,
+/// klasör ve önizlemeler dosya bazında), uzun süre açık kalan uygulamada bellek sınırsız büyümez.
+/// </summary>
 public static class ShellIcons
 {
-    private static readonly ConcurrentDictionary<string, ImageSource?> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private const int CacheEntries = 1000;
+    private const long CacheBytes = 48L << 20;
+
+    private static readonly LruCache<string, ImageSource?> Cache = new(CacheEntries, CacheBytes, CostOf, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> PerFile = new(StringComparer.OrdinalIgnoreCase) { ".exe", ".lnk", ".ico", ".url", ".appref-ms" };
 
+    private static long CostOf(ImageSource? icon) => icon is BitmapSource b ? (long)b.PixelWidth * b.PixelHeight * 4 : 64;
+
     /// <summary>
-    /// Dosyanın/klasörün simgesi. <paramref name="pixels"/> verilirse o boyutta keskin simge istenir
-    /// (bölmede büyük simgeler bulanık görünmesin); alınamazsa sistemin 32 piksellik simgesine düşer.
+    /// Dosyanın/klasörün ya da kabuk nesnesinin simgesi. <paramref name="pixels"/> verilirse o boyutta keskin simge istenir;
+    /// alınamazsa sistemin simge listesinden en yakın boyuta düşer. Kabuk çağrısı yapar: arayüz iş parçacığında değil,
+    /// <see cref="Request"/> ile arka planda kullanılmalı.
     /// </summary>
     public static ImageSource? For(string path, int pixels = 0, bool preview = false)
     {
         // Arka plandaki yükleyiciden çağrılır (klasör mü diye diske burada bakılır, arayüzde değil).
-        var isDir = Directory.Exists(path);
-        return Cache.GetOrAdd(Key(path, pixels, preview, isDir), _ =>
-            (pixels > 0 ? LoadSized(path, pixels, preview) : null) ?? Load(path, isDir, usePathOnly: !isDir && !PerFile.Contains(Path.GetExtension(path))));
+        var isDir = !TileItem.IsShellObject(path) && Directory.Exists(path);
+        return Cache.GetOrAdd(Key(path, pixels, preview, isDir), _ => Load(path, pixels, preview, isDir));
+    }
+
+    private static ImageSource? Load(string path, int pixels, bool preview, bool isDir)
+    {
+        if (TileItem.IsShellObject(path))
+            return (pixels > 0 ? LoadSized(path, pixels, preview: false) : null) ?? LoadFromPidl(path, pixels);
+        return (pixels > 0 ? LoadSized(path, pixels, preview) : null)
+            ?? LoadFromInfo(path, isDir, usePathOnly: !isDir && !PerFile.Contains(Path.GetExtension(path)), pixels);
     }
 
     // Klasörler kendi (özel olabilecek) simgeleriyle, program/kısayollar ve önizlemeler dosya bazında,
     // diğerleri uzantı bazında önbelleğe alınır.
     private static string Key(string path, int pixels, bool preview, bool isDir)
     {
+        if (TileItem.IsShellObject(path)) return "kabuk|" + path + "|" + pixels;
         var ext = Path.GetExtension(path);
         if (preview) return "önizleme|" + path + "|" + pixels;
         return (isDir || PerFile.Contains(ext) ? path : ext) + "|" + pixels;
     }
 
-    /// <summary>Önbellekte varsa simgeyi verir. Diske dokunmaz: klasör mü olduğunu çağıran bilir (anlık görüntüden).</summary>
+    /// <summary>
+    /// Önbellekte varsa simgeyi verir. Diske dokunmaz: klasör mü olduğunu çağıran bilir (anlık görüntüden; kabuk nesnesi
+    /// için false).
+    /// </summary>
     public static bool TryCached(string path, int pixels, bool preview, bool isDirectory, out ImageSource? icon) =>
         Cache.TryGetValue(Key(path, pixels, preview, isDirectory), out icon);
 
@@ -70,12 +93,16 @@ public static class ShellIcons
     /// <summary>
     /// Simgeyi arka plandaki STA iş parçacığında yükler, sonucu çağıranın iş parçacığında bildirir.
     /// Kabuk simgesi çıkarmak (özellikle ağ/OneDrive yollarında) yavaş olabilir; arayüz beklememeli.
+    /// Art arda biten simgeler tek seferde bildirilir: 300 öğelik bölme 300 ayrı çizim yerine birkaç çizimle dolar.
     /// </summary>
     public static void Request(string path, int pixels, bool preview, Action<ImageSource?> done)
     {
         EnsureWorker();
         Queue.Add((path, pixels, preview, done, Dispatcher.CurrentDispatcher));
     }
+
+    /// <summary>Bir toplu bildirim en çok bu kadar bekletilir (sıra boşalınca hemen gider).</summary>
+    private const int BatchMilliseconds = 80;
 
     private static void EnsureWorker()
     {
@@ -85,13 +112,18 @@ public static class ShellIcons
             if (_worker is not null) return;
             var thread = new Thread(() =>
             {
+                var batch = new List<(Action<ImageSource?> Done, ImageSource? Icon, Dispatcher Dispatcher)>();
+                var batchStarted = 0L;
                 foreach (var (path, pixels, preview, done, dispatcher) in Queue.GetConsumingEnumerable())
                 {
                     ImageSource? icon = null;
-                    // "::{CLSID}" kabuk nesneleri (Geri Dönüşüm Kutusu…) de burada yüklenir: arayüzde yavaş sürücüyü beklemesin.
-                    try { icon = path.StartsWith("::", StringComparison.Ordinal) ? ForShellObject(path) : For(path, pixels, preview); }
+                    // "::{CLSID}" kabuk nesneleri (Geri Dönüşüm Kutusu…) de burada, istenen boyutta yüklenir: arayüzde yavaş
+                    // sürücüyü beklemesin.
+                    try { icon = For(path, pixels, preview); }
                     catch (Exception ex) { DebugLog.Write($"simge yüklenemedi {path}: {ex.Message}"); }
-                    dispatcher.BeginInvoke(done, DispatcherPriority.Background, icon);
+                    if (batch.Count == 0) batchStarted = Environment.TickCount64;
+                    batch.Add((done, icon, dispatcher));
+                    if (Queue.Count == 0 || Environment.TickCount64 - batchStarted >= BatchMilliseconds) Deliver(batch);
                 }
             })
             { IsBackground = true, Name = "Duzenleme simge yükleyici", Priority = ThreadPriority.BelowNormal };
@@ -99,6 +131,24 @@ public static class ShellIcons
             thread.Start();
             _worker = thread;
         }
+    }
+
+    /// <summary>Biten simgeleri, isteyen her arayüz iş parçacığına tek bir işlemle bildirir (tek yerleşim, tek çizim).</summary>
+    private static void Deliver(List<(Action<ImageSource?> Done, ImageSource? Icon, Dispatcher Dispatcher)> batch)
+    {
+        foreach (var group in batch.GroupBy(b => b.Dispatcher))
+        {
+            var items = group.ToArray();
+            group.Key.BeginInvoke(() =>
+            {
+                foreach (var (done, icon, _) in items)
+                {
+                    try { done(icon); }
+                    catch (Exception ex) { DebugLog.Write($"simge bildirimi: {ex}"); }
+                }
+            }, DispatcherPriority.Background);
+        }
+        batch.Clear();
     }
 
     [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -149,6 +199,10 @@ public static class ShellIcons
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr handle);
 
+    /// <summary>
+    /// İstenen boyutta simge ya da önizleme (IShellItemImageFactory). Kabuk en yakın simge karesini tam bu boyuta kendisi
+    /// getirir. "::{CLSID}" ayrıştırma adları (Bu Bilgisayar…) da çalışır.
+    /// </summary>
     private static ImageSource? LoadSized(string path, int pixels, bool preview)
     {
         const int SIIGBF_RESIZETOFIT = 0x0, SIIGBF_ICONONLY = 0x4;
@@ -207,13 +261,8 @@ public static class ShellIcons
         return source;
     }
 
-    /// <summary>"::{CLSID}" gibi kabuk nesnelerinin (Bu Bilgisayar, Geri Dönüşüm Kutusu…) simgesi.</summary>
-    public static ImageSource? ForShellObject(string parsingName) =>
-        Cache.GetOrAdd("shell|" + parsingName, _ => LoadFromPidl(parsingName));
-
-    /// <summary>Kabuk nesnesinin simgesi önbellekte varsa verir (yoksa <see cref="Request"/> ile arka planda yüklenir).</summary>
-    public static bool TryCachedShellObject(string parsingName, out ImageSource? icon) =>
-        Cache.TryGetValue("shell|" + parsingName, out icon);
+    /// <summary>"::{CLSID}" gibi kabuk nesnelerinin (Bu Bilgisayar, Geri Dönüşüm Kutusu…) simgesi. Kabuk çağrısı yapar.</summary>
+    public static ImageSource? ForShellObject(string parsingName, int pixels = 0) => For(parsingName, pixels);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHParseDisplayName(string name, IntPtr bindingContext, out IntPtr pidl, uint sfgaoIn, out uint sfgaoOut);
@@ -221,51 +270,90 @@ public static class ShellIcons
     [DllImport("shell32.dll", EntryPoint = "SHGetFileInfoW")]
     private static extern IntPtr SHGetFileInfoPidl(IntPtr pidl, uint attrs, ref NativeMethods.SHFILEINFO info, uint size, uint flags);
 
-    private static ImageSource? LoadFromPidl(string parsingName)
+    private const uint SHGFI_PIDL = 0x000000008, SHGFI_SYSICONINDEX = 0x000004000;
+
+    /// <summary>Yedek yol: kabuk nesnesinin simgesi SHGetFileInfo ile (büyük boyutta sistemin 48 piksellik listesinden).</summary>
+    private static ImageSource? LoadFromPidl(string parsingName, int pixels)
     {
-        const uint SHGFI_PIDL = 0x000000008;
         if (SHParseDisplayName(parsingName, IntPtr.Zero, out var pidl, 0, out _) != 0 || pidl == IntPtr.Zero) return null;
         try
         {
             var info = new NativeMethods.SHFILEINFO();
+            if (pixels > 32 && SHGetFileInfoPidl(pidl, 0, ref info, (uint)Marshal.SizeOf(info), SHGFI_SYSICONINDEX | SHGFI_PIDL) != IntPtr.Zero &&
+                FromSystemImageList(info.iIcon) is { } large)
+                return large;
             SHGetFileInfoPidl(pidl, 0, ref info, (uint)Marshal.SizeOf(info), NativeMethods.SHGFI_ICON | NativeMethods.SHGFI_LARGEICON | SHGFI_PIDL);
-            if (info.hIcon == IntPtr.Zero) return null;
-            try
-            {
-                var source = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                source.Freeze();
-                return source;
-            }
-            finally { NativeMethods.DestroyIcon(info.hIcon); }
+            return FromIcon(info.hIcon);
         }
         finally { Marshal.FreeCoTaskMem(pidl); }
     }
 
     /// <summary>Klasör simgesi değişince önbellekteki eski görüntüyü bırak.</summary>
-    public static void Forget(string path)
-    {
-        foreach (var key in Cache.Keys.Where(k => k.StartsWith(path + "|", StringComparison.OrdinalIgnoreCase)).ToList())
-            Cache.TryRemove(key, out _);
-    }
+    public static void Forget(string path) =>
+        Cache.RemoveWhere(k => k.StartsWith(path + "|", StringComparison.OrdinalIgnoreCase));
 
-    private static ImageSource? Load(string path, bool isDir, bool usePathOnly)
+    /// <summary>
+    /// Yedek yol (boyutlu simge alınamadıysa): SHGetFileInfo. 32 pikselden büyük istenince sistemin 48 piksellik simge
+    /// listesinden alınır; sistemin 32 piksellik simgesini büyütmek bulanık görünür.
+    /// </summary>
+    private static ImageSource? LoadFromInfo(string path, bool isDir, bool usePathOnly, int pixels)
     {
         var info = new NativeMethods.SHFILEINFO();
-        var flags = NativeMethods.SHGFI_ICON | NativeMethods.SHGFI_LARGEICON;
-        if (usePathOnly) flags |= NativeMethods.SHGFI_USEFILEATTRIBUTES;
+        var pathFlags = usePathOnly ? NativeMethods.SHGFI_USEFILEATTRIBUTES : 0;
         var attrs = isDir ? 0x10u : NativeMethods.FILE_ATTRIBUTE_NORMAL;
 
-        NativeMethods.SHGetFileInfo(path, attrs, ref info, (uint)Marshal.SizeOf(info), flags);
-        if (info.hIcon == IntPtr.Zero) return null;
+        if (pixels > 32 && NativeMethods.SHGetFileInfo(path, attrs, ref info, (uint)Marshal.SizeOf(info), SHGFI_SYSICONINDEX | pathFlags) != IntPtr.Zero &&
+            FromSystemImageList(info.iIcon) is { } large)
+            return large;
+        NativeMethods.SHGetFileInfo(path, attrs, ref info, (uint)Marshal.SizeOf(info), NativeMethods.SHGFI_ICON | NativeMethods.SHGFI_LARGEICON | pathFlags);
+        return FromIcon(info.hIcon);
+    }
+
+    /// <summary>HICON'u saydamlığıyla kopyalar ve bırakır.</summary>
+    private static ImageSource? FromIcon(IntPtr icon)
+    {
+        if (icon == IntPtr.Zero) return null;
         try
         {
-            var source = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            var source = Imaging.CreateBitmapSourceFromHIcon(icon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
             source.Freeze();
             return source;
         }
-        finally
+        finally { NativeMethods.DestroyIcon(icon); }
+    }
+
+    // Sistem simge listesi (IImageList). Yalnızca GetIcon kullanılır; öncekiler sanal tablo sırası için bildirilir.
+    [ComImport, Guid("46EB5926-582E-4017-9FDF-E8998DAA0950"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IImageList
+    {
+        [PreserveSig] int Add(IntPtr image, IntPtr mask, out int index);
+        [PreserveSig] int ReplaceIcon(int i, IntPtr icon, out int index);
+        [PreserveSig] int SetOverlayImage(int image, int overlay);
+        [PreserveSig] int Replace(int i, IntPtr image, IntPtr mask);
+        [PreserveSig] int AddMasked(IntPtr image, int maskColor, out int index);
+        [PreserveSig] int Draw(IntPtr drawParams);
+        [PreserveSig] int Remove(int i);
+        [PreserveSig] int GetIcon(int i, int flags, out IntPtr icon);
+    }
+
+    [DllImport("shell32.dll")]
+    private static extern int SHGetImageList(int list, [MarshalAs(UnmanagedType.LPStruct)] Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out IImageList? imageList);
+
+    /// <summary>Sistemin 48 piksellik (SHIL_EXTRALARGE) simge listesinden bir simge; alınamazsa null.</summary>
+    private static ImageSource? FromSystemImageList(int index)
+    {
+        const int SHIL_EXTRALARGE = 2, ILD_TRANSPARENT = 1;
+        if (index < 0) return null;
+        try
         {
-            NativeMethods.DestroyIcon(info.hIcon);
+            if (SHGetImageList(SHIL_EXTRALARGE, typeof(IImageList).GUID, out var list) != 0 || list is null) return null;
+            try { return list.GetIcon(index, ILD_TRANSPARENT, out var icon) == 0 ? FromIcon(icon) : null; }
+            finally { Marshal.ReleaseComObject(list); }
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or EntryPointNotFoundException)
+        {
+            return null;
         }
     }
 }

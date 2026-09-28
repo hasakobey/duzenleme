@@ -5,7 +5,6 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Duzenleme.Core;
 
@@ -14,6 +13,8 @@ namespace Duzenleme.Widgets;
 /// <summary>
 /// Masaüstüne yapışık, çerçevesiz ve yarı saydam widget penceresi.
 /// Pencereler hep en altta durur, görev çubuğunda/Alt+Tab'da görünmez ve "Masaüstünü göster" ile kaybolmaz.
+/// Pencerede hiçbir Effect yoktur: yazılımla çizilen katmanlı pencerede efekt, içerideki her küçük değişiklikte bütün
+/// kartı yeniden işler (gölge <see cref="CardShadow"/> ile efektsiz çizilir).
 /// </summary>
 public sealed class WidgetWindow : Window
 {
@@ -23,9 +24,15 @@ public sealed class WidgetWindow : Window
     private const double DefaultWidth = 360, DefaultHeight = 270;
 
     private readonly Border _card;
-    private readonly DropShadowEffect _shadow = new() { BlurRadius = 26, ShadowDepth = 4, Direction = 270, Opacity = 0.32, Color = Colors.Black };
+    private readonly CardShadow _shadow = new();
     private readonly DispatcherTimer _saveTimer;
     private bool _positionReady;
+
+    // Görünen yükseklik monitörün çalışma alanına sığsın diye kısıldı (kayıtlı Config.Height korunur).
+    private bool _heightFitted;
+
+    // Alttan taşan kart ekrana sığsın diye kaç piksel yukarı kaydırıldı; kaydedilmez, kayıtlı konum bunun kadar aşağıdadır.
+    private int _nudge;
 
     public WidgetConfig Config { get; }
     public IWidgetView View { get; }
@@ -42,6 +49,9 @@ public sealed class WidgetWindow : Window
         ShowActivated = false;
         Topmost = false;
         Title = $"{AppInfo.Name} widget";
+        // %125/%175 gibi ölçeklerde 14 DIP'lik gölge payı yarım piksele düşer; yuvarlanmazsa bütün kart (yazı, kenar,
+        // simgeler) yarım piksel kaymış çizilir ve bulanık görünür. Kalıtılır: kart, görünümler ve kutucuklar da yuvarlanır.
+        UseLayoutRounding = true;
 
         // Kaldırma düğmesi (×) her widget'ın kendi görünümünde, sağ üstte hep yerinde durur (WidgetCloseButton):
         // fare widget'a gelince hiçbir şey belirip kaybolmaz.
@@ -52,7 +62,22 @@ public sealed class WidgetWindow : Window
             Margin = new Thickness(ShadowMargin),
             Child = (UIElement)view,
         };
-        Content = _card;
+        _shadow.Margin = CardShadow.MarginFor(ShadowMargin);
+        Content = new Grid { Children = { _shadow, _card } };
+
+        // Pencere en baştan son boyutuyla oluşturulur: WPF'in varsayılan boyutunda (1440×753) bir kez yerleşip çizildikten
+        // sonra yeniden boyutlanmasın (katmanlı pencerede her boyut değişikliği bütün pencereyi yeniden çizer). Saat ve
+        // tarih içeriğe göre boyutlanır; onlar için küçük bir başlangıç yeter.
+        if (view.Resizable)
+        {
+            Width = double.IsNaN(config.Width) ? DefaultWidth : Math.Max(config.Width, MinResizableWidth);
+            Height = view.Collapsible && config.Collapsed ? 80 : Math.Min(WantedHeight(config), ExpectedHeightLimit(config));
+        }
+        else
+        {
+            Width = 120;
+            Height = 80;
+        }
         // WPF ilk açılan pencereyi Application.MainWindow yapar; widget ana pencere sayılırsa tema değişikliği
         // (WPF-UI) onun saydam zeminini opak bir dikdörtgene çevirebilir.
         if (Application.Current?.MainWindow == this) Application.Current.MainWindow = null;
@@ -60,7 +85,7 @@ public sealed class WidgetWindow : Window
         _card.MouseLeftButtonDown += (_, e) => { if (!BeginResize(e)) BeginDrag(e); };
         _card.MouseMove += (_, e) =>
         {
-            if (_resizing) ContinueResize();
+            if (_resizing) QueueResizeStep();
             else if (_dragging) ContinueDrag();
             else _card.Cursor = CursorFor(GripAt(e.GetPosition(_card)));
         };
@@ -92,6 +117,9 @@ public sealed class WidgetWindow : Window
         ApplyLayoutMode();
         _card.ContextMenu = Menus.Dynamic(FillMenu);
         Loaded += (_, _) => PlaceOnScreen();
+        // Ölçeği farklı bir monitöre geçince (ya da monitörün ölçeği değişince) WPF pencereyi DIP boyutunu koruyarak yeniden
+        // boyutlar: %100'de seçilmiş yükseklik %125'te çalışma alanından taşabilir. Sürüklerken yalnızca yükseklik uyar.
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => FitToWorkArea(allowMove: !_dragging && !_resizing), DispatcherPriority.Loaded);
 
         // Pencereyi en baştan kayıtlı monitörde oluştur: sonradan ölçeği (DPI) farklı bir monitöre taşınırsa WPF onu
         // etkinleştirerek yeniden boyutlar (odak çalınır, açılış yavaşlar). Konum henüz pencere yokken sistem
@@ -125,13 +153,31 @@ public sealed class WidgetWindow : Window
     public void ApplyStyle()
     {
         var palette = View.AdjustPalette(WidgetPalette.For(Config.Style, Config.Accent));
+        var radius = Config.Corners switch { CornerStyle.Soft => 10, CornerStyle.Square => 3, _ => 20 };
         _card.Background = palette.Background;
         _card.BorderBrush = palette.BorderBrush;
-        _card.CornerRadius = new CornerRadius(Config.Corners switch { CornerStyle.Soft => 10, CornerStyle.Square => 3, _ => 20 });
-        _card.Effect = Config.Shadow ? _shadow : null;
+        _card.CornerRadius = new CornerRadius(radius);
         TextElement.SetForeground(_card, palette.Foreground);
         var scale = Math.Clamp(Config.Scale, MinScale, MaxScale);
-        _card.LayoutTransform = Math.Abs(scale - 1) < 0.01 ? Transform.Identity : new ScaleTransform(scale, scale);
+        var unscaled = Math.Abs(scale - 1) < 0.01;
+        _card.LayoutTransform = unscaled ? Transform.Identity : new ScaleTransform(scale, scale);
+
+        _shadow.Visibility = Config.Shadow ? Visibility.Visible : Visibility.Collapsed;
+        if (Config.Shadow) _shadow.Update(radius * scale, CardShadow.BaseOpacity * CardShadow.MeanAlpha(palette.Background));
+
+        // Küçük yazılar (başlık, dosya adları, not) ölçeksiz widget'ta piksel ızgarasına oturan "Display" kipinde keskin
+        // çizilir; ölçeklenmiş kartta (LayoutTransform) Display kipi bozulduğu için "Ideal" kalır. Saat/tarihin büyük
+        // rakamları kendi görünümlerinde hep Ideal'dir.
+        TextOptions.SetTextFormattingMode(_card, unscaled ? TextFormattingMode.Display : TextFormattingMode.Ideal);
+        // Katmanlı pencerede yazı gri tonlamalı çizilir; zemin tam opaksa (Koyu, Açık, notlar) ve pencere saydamlaşmıyorsa
+        // ClearType açılabilir. Cam yarı saydamdır: orada gri tonlama kalır. Kırpılan bir alanın (kaydırılan liste) içindeki
+        // yazıda WPF ClearType'ı yeniden kapatır; görünümler oradaki yazılara aynı değeri görünümden alarak verir
+        // (TileTemplate, tarih) — yalnızca yazının arkası opakken: yarı saydam katmanda ClearType renkli saçak bırakır.
+        var clearType = palette.IsOpaqueBackground && Config.Opacity >= 0.999 && !Config.FadeUntilHover;
+        var hint = clearType ? ClearTypeHint.Enabled : ClearTypeHint.Auto;
+        RenderOptions.SetClearTypeHint(_card, hint);
+        RenderOptions.SetClearTypeHint((UIElement)View, hint);
+
         ApplyOpacity();
         View.ApplyPalette(palette);
     }
@@ -150,7 +196,7 @@ public sealed class WidgetWindow : Window
             SizeToContent = SizeToContent.Manual;
             MinWidth = MinResizableWidth;
             MinHeight = MinResizableHeight;
-            if (_positionReady) Height = double.IsNaN(Config.Height) ? DefaultHeight : Config.Height;
+            if (_positionReady) ApplyExpandedHeight();
         }
         else if (View.Resizable)
         {
@@ -348,7 +394,7 @@ public sealed class WidgetWindow : Window
         {
             Width = double.IsNaN(Config.Width) ? DefaultWidth : Math.Max(Config.Width, MinResizableWidth);
             if (View.Collapsible && Config.Collapsed) FitCollapsedHeight();
-            else Height = double.IsNaN(Config.Height) ? DefaultHeight : Math.Max(Config.Height, MinResizableHeight);
+            else ApplyExpandedHeight();
         }
         // Otomatik katlanan bölme, açılışta fare üstünde değilse katlı başlar.
         if (Config.AutoRollup && View.Collapsible) _rollupTimer.Start();
@@ -366,8 +412,97 @@ public sealed class WidgetWindow : Window
             if (!placed) MoveToFreeSpot();
         }
         _positionReady = true;
+        FitToWorkArea(allowMove: true);
         SaveBounds();
     }
+
+    /// <summary>Kayıtlı (ya da varsayılan) yükseklik, DIP; en az boyutlandırma sınırı kadar.</summary>
+    private static double WantedHeight(WidgetConfig config) =>
+        double.IsNaN(config.Height) ? DefaultHeight : Math.Max(config.Height, MinResizableHeight);
+
+    /// <summary>
+    /// Açık (katlı olmayan) bölme/kutu/notun yüksekliği: kayıtlı yükseklik, ama bulunduğu monitörün çalışma alanından
+    /// uzun değil. Kısıldıysa kayıtlı yükseklik korunur (<see cref="SaveBounds"/>); daha büyük bir ekranda yine tam boyda açılır.
+    /// </summary>
+    private void ApplyExpandedHeight()
+    {
+        var wanted = WantedHeight(Config);
+        var limit = HeightLimit();
+        _heightFitted = wanted > limit + 0.01;
+        var height = _heightFitted ? Math.Max(limit, MinResizableHeight) : wanted;
+        if (double.IsNaN(Height) || Math.Abs(Height - height) > 0.01) Height = height;
+    }
+
+    /// <summary>
+    /// Görünen yüksekliği bulunduğu monitörün çalışma alanına sığdırır ve <paramref name="allowMove"/> ise alttan taşan
+    /// kartı yukarı kaydırır. İkisi de kaydedilmez: ekran eski haline dönünce (<see cref="RestoreSavedPosition"/>) widget
+    /// kayıtlı yerinde ve boyunda durur.
+    /// </summary>
+    private void FitToWorkArea(bool allowMove)
+    {
+        if (!_positionReady || Handle == IntPtr.Zero) return;
+        if (View.Resizable && !IsCollapsedNow) ApplyExpandedHeight();
+        if (allowMove) KeepBottomInside(remember: true);
+    }
+
+    /// <summary>Kart çalışma alanının altından taşıyorsa pencereyi yukarı kaydırır (remember: kayma kaydedilmez).</summary>
+    private void KeepBottomInside(bool remember)
+    {
+        if (!NativeMethods.GetWindowRect(Handle, out var r)) return;
+        var top = WorkAreaFit.KeepBottomInside(r.Top, r.Height, ToBox(WorkAreaOf(r)), MarginPixels);
+        if (top == r.Top) return;
+        NativeMethods.SetWindowPos(Handle, IntPtr.Zero, r.Left, top, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        if (remember) _nudge += r.Top - top;
+    }
+
+    /// <summary>ArrangeAll: sütuna sığsın diye görünen yüksekliği kısar (kayıtlı yükseklik değişmez).</summary>
+    internal void LimitDisplayHeight(int maxWindowPixels)
+    {
+        if (!View.Resizable || IsCollapsedNow || Handle == IntPtr.Zero || maxWindowPixels <= 0) return;
+        if (!NativeMethods.GetWindowRect(Handle, out var r) || r.Height <= maxWindowPixels) return;
+        Height = Math.Max(maxWindowPixels / VisualTreeHelper.GetDpi(this).DpiScaleY, MinResizableHeight);
+        _heightFitted = true;
+    }
+
+    /// <summary>Pencerenin boyu en çok bu kadar (DIP): kart bulunduğu monitörün çalışma alanını geçmesin.</summary>
+    private double HeightLimit()
+    {
+        if (Handle == IntPtr.Zero || !NativeMethods.GetWindowRect(Handle, out var r)) return ExpectedHeightLimit(Config);
+        var scale = VisualTreeHelper.GetDpi(this).DpiScaleY;
+        return WorkAreaFit.MaxWindowHeight(ToBox(WorkAreaOf(r)), MarginPixels) / scale;
+    }
+
+    /// <summary>Pencere henüz yokken: kayıtlı konumdaki monitöre göre sınır (bilinmiyorsa sınırsız).</summary>
+    private static double ExpectedHeightLimit(WidgetConfig config)
+    {
+        if (config.PixelLeft is not int x || config.PixelTop is not int y || !IsOnSomeMonitor(x, y)) return double.PositiveInfinity;
+        var probe = new NativeMethods.POINT { X = x + 40, Y = y + 40 };
+        var scale = NativeMethods.ScaleAt(probe);
+        var margin = (int)Math.Round(ShadowMargin * scale);
+        return WorkAreaFit.MaxWindowHeight(ToBox(NativeMethods.WorkAreaAt(probe)), margin) / scale;
+    }
+
+    /// <summary>
+    /// Widget'ın açılacağı ekranın ölçeği (1,25 = %125), pencere henüz yokken simgeleri doğru boyutta istemek için:
+    /// kayıtlı konumun monitörü, yoksa imlecin monitörü (yeni widget oraya yerleşir). Yanılırsa görünüm DPI değişince düzeltir.
+    /// </summary>
+    internal static double ExpectedPixelsPerDip(WidgetConfig config)
+    {
+        if (config.PixelLeft is int x && config.PixelTop is int y && IsOnSomeMonitor(x, y))
+            return NativeMethods.ScaleAt(new NativeMethods.POINT { X = x + 40, Y = y + 40 });
+        NativeMethods.GetCursorPos(out var cursor);
+        return NativeMethods.ScaleAt(cursor);
+    }
+
+    /// <summary>Kartın başlığının bulunduğu monitörün çalışma alanı (widget aşağı doğru uzar; başlığın ekranı esastır).</summary>
+    private NativeMethods.RECT WorkAreaOf(NativeMethods.RECT window)
+    {
+        var m = MarginPixels;
+        return NativeMethods.WorkAreaAt(new NativeMethods.POINT { X = (window.Left + window.Right) / 2, Y = window.Top + m + 20 });
+    }
+
+    private static Box ToBox(NativeMethods.RECT r) => new(r.Left, r.Top, r.Right, r.Bottom);
 
     /// <summary>Pencere bağlı bir monitörde görünüyor mu? (Fiziksel piksel; ölçeği farklı monitörlerde de doğru.)</summary>
     public bool IsOnScreen() =>
@@ -384,20 +519,25 @@ public sealed class WidgetWindow : Window
         var p = AppHost.Widgets.FreeSpot(Config.Kind, new Size(ActualWidth, ActualHeight), this);
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, p.X, p.Y, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        _nudge = 0;
         QueueSave();
     }
 
     /// <summary>
     /// Monitör düzeni değişip (monitör takıldı, uykudan uyandı, çözünürlük değişti) kayıtlı konum yeniden
-    /// görünür hale geldiyse widget'ı oraya geri koyar.
+    /// görünür hale geldiyse widget'ı oraya geri koyar; ardından görünen boyunu ve yerini yeni çalışma alanına sığdırır.
     /// </summary>
     public void RestoreSavedPosition()
     {
         if (Handle == IntPtr.Zero || _dragging || _resizing || _revealing) return;
-        if (Config.PixelLeft is not int px || Config.PixelTop is not int py || !IsOnSomeMonitor(px, py)) return;
-        if (!NativeMethods.GetWindowRect(Handle, out var r) || (r.Left == px && r.Top == py)) return;
-        NativeMethods.SetWindowPos(Handle, IntPtr.Zero, px, py, 0, 0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        if (Config.PixelLeft is int px && Config.PixelTop is int py && IsOnSomeMonitor(px, py) &&
+            NativeMethods.GetWindowRect(Handle, out var r) && (r.Left != px || r.Top != py))
+        {
+            NativeMethods.SetWindowPos(Handle, IntPtr.Zero, px, py, 0, 0,
+                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            _nudge = 0;
+        }
+        FitToWorkArea(allowMove: true);
     }
 
     /// <summary>Gölge payı (kartın çevresindeki saydam kenar), fiziksel piksel.</summary>
@@ -443,6 +583,7 @@ public sealed class WidgetWindow : Window
         var m = MarginPixels;
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, target.Left - m, target.Top - m, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        _nudge = 0;
         QueueSave();
     }
 
@@ -476,22 +617,26 @@ public sealed class WidgetWindow : Window
     {
         if (!_positionReady) return;
         var changed = false;
+        // Ekrana sığdırmak için yapılan kayma ve kısaltma kaydedilmez: kayıtlı konum kaymanın kadar aşağıda, kayıtlı
+        // yükseklik kısılmamış olandır.
+        var top = Top + _nudge / VisualTreeHelper.GetDpi(this).DpiScaleY;
         if (Handle != IntPtr.Zero && NativeMethods.GetWindowRect(Handle, out var r))
         {
-            changed |= Config.PixelLeft != r.Left || Config.PixelTop != r.Top;
+            var pixelTop = r.Top + _nudge;
+            changed |= Config.PixelLeft != r.Left || Config.PixelTop != pixelTop;
             Config.PixelLeft = r.Left;
-            Config.PixelTop = r.Top;
+            Config.PixelTop = pixelTop;
         }
-        else changed |= Differs(Config.Left, Left) || Differs(Config.Top, Top);
+        else changed |= Differs(Config.Left, Left) || Differs(Config.Top, top);
         Config.Left = Left;
-        Config.Top = Top;
+        Config.Top = top;
         if (View.Resizable)
         {
             // Width/Height ayarlandıktan hemen sonra ActualWidth henüz güncellenmemiş olabilir.
             var width = double.IsNaN(Width) ? ActualWidth : Width;
             changed |= Differs(Config.Width, width);
             Config.Width = width;
-            if (!IsCollapsedNow)
+            if (!IsCollapsedNow && !_heightFitted)
             {
                 var height = double.IsNaN(Height) ? ActualHeight : Height;
                 changed |= Differs(Config.Height, height);
@@ -572,6 +717,7 @@ public sealed class WidgetWindow : Window
         if (Handle == IntPtr.Zero) return;
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, x, y, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        _nudge = 0;
         QueueSave();
     }
 
@@ -651,7 +797,16 @@ public sealed class WidgetWindow : Window
         _dragging = false;
         _card.ReleaseMouseCapture();
         // Yalnızca gerçekten taşındıysa: düz tıklama (ör. başlığa çift tıklama) widget'ı yerinden oynatmasın.
-        if (_moved) ResolveOverlap();
+        if (_moved)
+        {
+            // Bırakılan yer kullanıcının seçimidir (kaydedilir). Görünen yükseklik bırakıldığı monitöre uyar; alttan
+            // taşan kart yukarı itilir (Alt basılıyken olduğu yerde kalır).
+            _nudge = 0;
+            if (View.Resizable && !IsCollapsedNow) ApplyExpandedHeight();
+            const int VK_MENU = 0x12;
+            if (GetAsyncKeyState(VK_MENU) >= 0) KeepBottomInside(remember: false);
+            ResolveOverlap();
+        }
         _moved = false;
         QueueSave();
     }
@@ -713,6 +868,32 @@ public sealed class WidgetWindow : Window
         return _resizing;
     }
 
+    // Boyutlandırma karede en çok bir kez uygulanır: katmanlı pencerenin her boyut değişikliği bütün pencereyi yeniden
+    // çizer ve WPF arayüz iş parçacığında bunu bekler; fare olayı başına boyutlamak (125 Hz ve üstü fareler) arayüzü tıkar.
+    private bool _resizeStepPending, _resizeFrameHooked;
+
+    private void QueueResizeStep()
+    {
+        _resizeStepPending = true;
+        if (_resizeFrameHooked) return;
+        _resizeFrameHooked = true;
+        CompositionTarget.Rendering += OnResizeFrame;
+    }
+
+    private void OnResizeFrame(object? sender, EventArgs e)
+    {
+        if (!_resizeStepPending) return;
+        _resizeStepPending = false;
+        if (_resizing) ContinueResize();
+    }
+
+    private void UnhookResizeFrame()
+    {
+        if (!_resizeFrameHooked) return;
+        _resizeFrameHooked = false;
+        CompositionTarget.Rendering -= OnResizeFrame;
+    }
+
     private void ContinueResize()
     {
         NativeMethods.GetCursorPos(out var p);
@@ -740,10 +921,17 @@ public sealed class WidgetWindow : Window
         if (_grip.HasFlag(Grip.Right)) right = Math.Max(s.Right + dx, left + minW);
         if (_grip.HasFlag(Grip.Top)) top = Math.Min(s.Top + dy, bottom - minH);
         if (_grip.HasFlag(Grip.Bottom)) bottom = Math.Max(s.Bottom + dy, top + minH);
+        var m = MarginPixels;
+        if (_grip.HasFlag(Grip.Top) || _grip.HasFlag(Grip.Bottom))
+        {
+            // Kart ekranın (çalışma alanının) altından/üstünden dışarı büyütülemez.
+            var fitted = WorkAreaFit.ClampResize(new Box(s.Left + m, s.Top + m, s.Right - m, s.Bottom - m),
+                new Box(left + m, top + m, right - m, bottom - m), _grip.HasFlag(Grip.Top), _grip.HasFlag(Grip.Bottom), ToBox(WorkAreaOf(s)));
+            (top, bottom) = (fitted.Top - m, fitted.Bottom + m);
+        }
         if (AppHost.Settings.PreventOverlap)
         {
             // Çekilen kenar komşu widget'ın kenarında durur (içine girmez).
-            var m = MarginPixels;
             var gap = GapPixels(dpi.DpiScaleX);
             var card = WidgetLayout.ClampResize(
                 new Box(s.Left + m, s.Top + m, s.Right - m, s.Bottom - m),
@@ -760,16 +948,30 @@ public sealed class WidgetWindow : Window
     private void EndResize()
     {
         if (!_resizing) return;
+        // Bekleyen son adım da uygulansın: bırakılan boyut, imlecin son konumudur.
+        UnhookResizeFrame();
+        if (_resizeStepPending)
+        {
+            _resizeStepPending = false;
+            ContinueResize();
+        }
         _resizing = false;
         _card.ReleaseMouseCapture();
         _card.Cursor = null;
+        _nudge = 0;
         if (View.Resizable && NativeMethods.GetWindowRect(Handle, out var r))
         {
-            // WPF'in Width/Height değerleri yeni boyutla eşitlensin (kaydedilen de bu).
+            // WPF'in Width/Height değerleri yeni boyutla eşitlensin (kaydedilen de bu). Yalnızca yandan boyutlandırıldıysa
+            // ekrana sığsın diye kısılmış yükseklik kayıtlı yüksekliğin yerine geçmez.
             var dpi = VisualTreeHelper.GetDpi(this);
+            var vertical = _grip.HasFlag(Grip.Top) || _grip.HasFlag(Grip.Bottom);
             Width = r.Width / dpi.DpiScaleX;
             if (IsCollapsedNow) FitCollapsedHeight();
-            else Height = r.Height / dpi.DpiScaleY;
+            else if (vertical || !_heightFitted)
+            {
+                Height = r.Height / dpi.DpiScaleY;
+                _heightFitted = false;
+            }
         }
         else
         {
@@ -887,6 +1089,7 @@ public sealed class WidgetWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        UnhookResizeFrame();
         _saveTimer.Stop();
         _revealTimer?.Stop();
         _rollupTimer.Stop();

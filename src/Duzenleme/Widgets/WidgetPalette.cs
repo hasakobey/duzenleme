@@ -27,12 +27,14 @@ public sealed record WidgetPalette(Brush Background, Brush BorderBrush, Brush Fo
         Gradient(0x70141420, 0x4A0C0C14), Solid(0x38FFFFFF), Solid(0xFFFFFFFF), Solid(0xC8FFFFFF),
         Solid(0xFFC4B5FD), Solid(0xFF1E1B2E), TextShadow: true, IsLight: false);
 
+    // Koyu, Açık ve Grafit tam opaktır: katmanlı pencerede yazı ancak opak zemin üstünde ClearType ile (renkli alt
+    // piksellerle) çizilebilir; %95 opak zemin gözle fark edilmiyordu ama yazıyı gri tonlamalı (daha bulanık) bırakıyordu.
     public static readonly WidgetPalette Dark = new(
-        Gradient(0xF2202029, 0xF218181F), Solid(0x1FFFFFFF), Solid(0xFFF4F4F6), Solid(0xFF9D9DA8),
+        Gradient(0xFF202029, 0xFF18181F), Solid(0x1FFFFFFF), Solid(0xFFF4F4F6), Solid(0xFF9D9DA8),
         Solid(0xFFA78BFA), Solid(0xFF16131F), TextShadow: false, IsLight: false);
 
     public static readonly WidgetPalette Light = new(
-        Gradient(0xF7FFFFFF, 0xF2F5F3FF), Solid(0x18000000), Solid(0xFF1C1C21), Solid(0xFF6B6B76),
+        Gradient(0xFFFFFFFF, 0xFFF5F3FF), Solid(0x18000000), Solid(0xFF1C1C21), Solid(0xFF6B6B76),
         Solid(0xFF7C3AED), Solid(0xFFFFFFFF), TextShadow: false, IsLight: true);
 
     /// <summary>Vurgu renkleri: koyu zeminde açık ton, açık zeminde koyu ton.</summary>
@@ -66,7 +68,7 @@ public sealed record WidgetPalette(Brush Background, Brush BorderBrush, Brush Fo
         NoteColor.Green => NotePalette(0xFFD9F7D2, 0xFFC4EFBA, 0xFF15803D),
         NoteColor.Blue => NotePalette(0xFFD6E8FF, 0xFFC0DBFF, 0xFF1D4ED8),
         NoteColor.Purple => NotePalette(0xFFE9DEFF, 0xFFDACBFF, 0xFF6D28D9),
-        NoteColor.Graphite => new(Gradient(0xF72A2A33, 0xF720202A), Solid(0x24FFFFFF), Solid(0xFFF4F4F6), Solid(0xFFA1A1AA),
+        NoteColor.Graphite => new(Gradient(0xFF2A2A33, 0xFF20202A), Solid(0x24FFFFFF), Solid(0xFFF4F4F6), Solid(0xFFA1A1AA),
             Solid(0xFFFDE68A), Solid(0xFF1C1917), TextShadow: false, IsLight: false),
         _ => NotePalette(0xFFFFF4B8, 0xFFFFEC99, 0xFFA16207),
     };
@@ -74,4 +76,12 @@ public sealed record WidgetPalette(Brush Background, Brush BorderBrush, Brush Fo
     private static WidgetPalette NotePalette(uint top, uint bottom, uint accent) =>
         new(Gradient(top, bottom), Solid(0x14000000), Solid(0xFF26221C), Solid(0x99302A20),
             Solid(accent), Solid(0xFFFFFFFF), TextShadow: false, IsLight: true);
+
+    /// <summary>Zemin tamamen opak mı (ClearType yalnızca opak zeminde çalışır)? Cam yarı saydamdır.</summary>
+    public bool IsOpaqueBackground => Background switch
+    {
+        SolidColorBrush s => s.Color.A == 255 && s.Opacity >= 1,
+        GradientBrush g => g.Opacity >= 1 && g.GradientStops.Count > 0 && g.GradientStops.All(x => x.Color.A == 255),
+        _ => false,
+    };
 }

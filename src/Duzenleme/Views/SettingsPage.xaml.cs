@@ -30,7 +30,9 @@ public sealed class SystemIconRow(SystemIcon icon) : INotifyPropertyChanged
     public SystemIcon Item { get; } = icon;
     public string Name => Item.Name;
     public string Description => Item.Description;
-    public ImageSource? Icon => ShellIcons.ForShellObject("::" + Item.Clsid);
+
+    /// <summary>Simgesi arka planda, ekranın piksel boyutunda yüklenir (ShellIconImage).</summary>
+    public string IconPath => "::" + Item.Clsid;
     public string OpenName => $"Aç: {Item.Name}";
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -69,20 +71,20 @@ public sealed class FolderIconRow : INotifyPropertyChanged
     public string Path { get; }
     public string Name { get; }
     public string ChooseName => $"Simge seç: {Name}";
-    public ImageSource? Icon { get; private set; }
+
+    /// <summary>Simgesi arka planda, ekranın piksel boyutunda yüklenir (ShellIconImage); simge değişince sürüm artar.</summary>
+    public string IconPath => Path;
+    public int IconVersion { get; private set; }
     public Visibility CustomVisibility { get; private set; } = Visibility.Collapsed;
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>"Özel simge" durumunu yeniden okur; simge arka planda yüklenir (ağ/OneDrive yolunda yavaş olabilir).</summary>
+    /// <summary>"Özel simge" durumunu yeniden okur ve simgeyi yeniden istetir (ağ/OneDrive yolunda yavaş olabilir: arka planda).</summary>
     public void Reload()
     {
         CustomVisibility = FolderIconService.HasCustomIcon(Path) ? Visibility.Visible : Visibility.Collapsed;
         Raise(nameof(CustomVisibility));
-        ShellIcons.Request(Path, 0, false, icon =>
-        {
-            Icon = icon;
-            Raise(nameof(Icon));
-        });
+        IconVersion++;
+        Raise(nameof(IconVersion));
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

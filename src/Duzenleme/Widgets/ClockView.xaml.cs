@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Duzenleme.Core;
 
@@ -50,7 +49,7 @@ public partial class ClockView : UserControl, IWidgetView
         var now = DateTime.Now;
         TimeText.Text = now.ToString("HH:mm", Culture);
         SecondsText.Text = now.ToString("ss", Culture);
-        SecondsText.Visibility = _config.ShowSeconds ? Visibility.Visible : Visibility.Collapsed;
+        SecondsBox.Visibility = _config.ShowSeconds ? Visibility.Visible : Visibility.Collapsed;
         GreetingText.Text = Greeting(now.Hour) + " · " + Culture.TextInfo.ToTitleCase(now.ToString("dddd", Culture));
         GreetingRow.Visibility = _config.Shows("greeting") ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -77,7 +76,10 @@ public partial class ClockView : UserControl, IWidgetView
         SecondsText.Foreground = palette.Accent;
         Dot.Fill = palette.Accent;
         GreetingText.Foreground = palette.Secondary;
-        Effect = palette.TextShadow ? new DropShadowEffect { BlurRadius = 10, ShadowDepth = 1, Opacity = 0.45, Color = Colors.Black } : null;
+        // Opak kartta selam satırı ClearType ile (ipucunu WidgetWindow görünüme verir); büyük rakamlar gri tonlamalı kalır.
+        RenderOptions.SetClearTypeHint(GreetingText, RenderOptions.GetClearTypeHint(this));
+        // Cam: yazıların altında efektsiz gölge kopyası (bkz. ShadowText).
+        foreach (var shadow in new[] { TimeShadow, SecondsShadow, GreetingShadow }) shadow.Show(palette.TextShadow);
         RemoveButton.Foreground = palette.Foreground;
         ApplyParts();
     }

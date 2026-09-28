@@ -189,7 +189,7 @@ function New-Assets([string]$dir) {
     $frames = Read-IcoFrames (Join-Path $root 'src\Duzenleme\Assets\app.ico')
     $largest = $frames[($frames.Keys | Sort-Object -Descending | Select-Object -First 1)]
     if (-not $largest -or $largest.Width -lt 256) { throw 'app.ico içinde 256x256 kare bulunamadı.' }
-    # Kendi karesi olan boyutlar (16/24/32/48/256) doğrudan o kareden: küçültülmüş büyük kareden keskindir.
+    # Kendi karesi olan boyutlar (16/20/24/28/32/36/40/48/64/96/128/256) doğrudan o kareden: küçültülmüş büyük kareden keskindir.
     $pick = { param([int]$size) if ($frames.ContainsKey($size)) { $frames[$size] } else { $largest } }
     $draw = { param([string]$name, [int]$width, [int]$height, [int]$iconSize) Save-Png (& $pick $iconSize) $width $height $iconSize (Join-Path $dir $name) }
 
@@ -198,8 +198,9 @@ function New-Assets([string]$dir) {
         $s = [int](44 * $scale / 100)
         & $draw "Square44x44Logo.scale-$scale.png" $s $s $s
     }
-    # BackgroundColor saydam olduğundan "plated" ve "unplated" biçimler aynı görünür; ikisi de bulunsun.
-    foreach ($size in 16, 24, 32, 48, 256) {
+    # BackgroundColor saydam olduğundan "plated" ve "unplated" biçimler aynı görünür; ikisi de bulunsun. Görev çubuğu,
+    # Başlat ve Gezgin ölçeğe göre bu boyutları ister (ör. %125'te 20/30/40/60); eksik boyutu Windows büyüterek bulanıklaştırır.
+    foreach ($size in 16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256) {
         & $draw "Square44x44Logo.targetsize-$size.png" $size $size $size
         & $draw "Square44x44Logo.targetsize-${size}_altform-unplated.png" $size $size $size
     }

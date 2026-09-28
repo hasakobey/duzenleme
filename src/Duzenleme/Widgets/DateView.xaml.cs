@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Duzenleme.Core;
 
@@ -42,12 +41,16 @@ public partial class DateView : UserControl, IWidgetView
         DayText.Text = today.Day.ToString(Culture);
         MonthText.Text = today.ToString("MMMM", Culture);
         SubText.Text = $"{today.Year} · {today.ToString("dddd", Culture)}";
-        SubText.Visibility = _config.Shows("sub") ? Visibility.Visible : Visibility.Collapsed;
+        SubBox.Visibility = _config.Shows("sub") ? Visibility.Visible : Visibility.Collapsed;
         Week.Visibility = _config.Shows("week") ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Foreground = _palette.Foreground;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
         DayText.Foreground = _palette.Accent;
         SubText.Foreground = _palette.Secondary;
+        // Küçük yazılar opak kartta ClearType ile çizilsin (ipucunu WidgetWindow görünüme verir; kırpılan alanda yazının
+        // kendisinde de bulunmalı). Büyük rakamlar zaten gri tonlamalı çizilir.
+        var clearType = RenderOptions.GetClearTypeHint(this);
+        RenderOptions.SetClearTypeHint(SubText, clearType);
 
         Week.Children.Clear();
         var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
@@ -55,29 +58,26 @@ public partial class DateView : UserControl, IWidgetView
         {
             var day = monday.AddDays(i);
             var isToday = day == today;
+            var dayName = new TextBlock
+            {
+                Text = ShortDays[i], FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = isToday ? _palette.AccentForeground : _palette.Secondary,
+            };
+            var dayNumber = new TextBlock
+            {
+                Text = day.Day.ToString(Culture), FontSize = 15, FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0),
+                Foreground = isToday ? _palette.AccentForeground : _palette.Foreground,
+            };
+            RenderOptions.SetClearTypeHint(dayName, clearType);
+            RenderOptions.SetClearTypeHint(dayNumber, clearType);
             var cell = new Border
             {
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(0, 5, 0, 6),
                 Margin = new Thickness(2, 0, 2, 0),
                 Background = isToday ? _palette.Accent : Brushes.Transparent,
-                Child = new StackPanel
-                {
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = ShortDays[i], FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center,
-                            Foreground = isToday ? _palette.AccentForeground : _palette.Secondary,
-                        },
-                        new TextBlock
-                        {
-                            Text = day.Day.ToString(Culture), FontSize = 15, FontWeight = FontWeights.SemiBold,
-                            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0),
-                            Foreground = isToday ? _palette.AccentForeground : _palette.Foreground,
-                        },
-                    },
-                },
+                Child = new StackPanel { Children = { dayName, dayNumber } },
             };
             Week.Children.Add(cell);
         }
@@ -86,7 +86,8 @@ public partial class DateView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
-        Effect = palette.TextShadow ? new DropShadowEffect { BlurRadius = 10, ShadowDepth = 1, Opacity = 0.4, Color = Colors.Black } : null;
+        // Cam: büyük yazıların altında efektsiz gölge kopyası (bkz. ShadowText).
+        foreach (var shadow in new[] { DayShadow, MonthShadow, SubShadow }) shadow.Show(palette.TextShadow);
         Render();
     }
 

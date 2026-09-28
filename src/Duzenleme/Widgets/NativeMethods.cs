@@ -140,6 +140,19 @@ internal static class NativeMethods
     [DllImport("shcore.dll")]
     private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
 
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForSystem();
+
+    /// <summary>Sistemin ölçeği (oturum açılırken birincil ekranınki; 1.0 = %100): pencere yokken simge boyutu tahmini için.</summary>
+    public static double SystemPixelsPerDip
+    {
+        get
+        {
+            try { return Math.Max(96u, GetDpiForSystem()) / 96.0; }
+            catch (EntryPointNotFoundException) { return 1.0; }
+        }
+    }
+
     /// <summary>Noktadaki monitörün ölçeği (1.0 = %100).</summary>
     public static double ScaleAt(POINT pt)
     {

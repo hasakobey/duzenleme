@@ -3,6 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:l="clr-namespace:Duzenleme.Localization"
+      xmlns:views="clr-namespace:Duzenleme.Views"
       Title="Ana sayfa">
     <Page.Resources>
         <!-- Eylem kutucuğunun iki satırı; renk düğmeden gelir (Primary kutucukta da okunur kalsın). -->
@@ -118,7 +119,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Image Source="{Binding Icon}" Width="28" Height="28" Margin="0,0,12,0" />
+                            <Image views:ShellIconImage.Path="{Binding IconPath}" Width="28" Height="28" Margin="0,0,12,0" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}" />

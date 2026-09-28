@@ -56,6 +56,9 @@ public partial class FenceView : UserControl, IWidgetView
         {
             if (e.ClickCount == 2) { e.Handled = true; CollapseToggleRequested?.Invoke(); }
         };
+        Header.SizeChanged += (_, e) => { if (e.WidthChanged) ApplyParts(); };
+        // Pencereye bağlanınca (ölçeği artık kesin) simgeler o ekranın piksel boyutunda istenir.
+        Loaded += (_, _) => UpdateIconSizes();
         Menus.AttachItemMenu(Items, FillItemMenu);
 
         // Öğeyi başka bir bölmeye, Gezgin'e ya da bir uygulamaya sürükleyebilmek için.
@@ -277,10 +280,11 @@ public partial class FenceView : UserControl, IWidgetView
         var reuse = _rebuildTiles ? new Dictionary<string, TileItem>() : _byKey;
         var fresh = new Dictionary<string, TileItem>(StringComparer.OrdinalIgnoreCase);
         var all = new List<TileItem>(result.SystemIcons.Count + result.Entries.Count);
+        var dpi = IconDpi;
         foreach (var icon in result.SystemIcons)
         {
             var key = "::" + icon.Clsid;
-            var item = reuse.GetValueOrDefault(key) ?? TileItem.CreateShell(icon, _config);
+            var item = reuse.GetValueOrDefault(key) ?? TileItem.CreateShell(icon, _config, dpi);
             fresh[key] = item;
             all.Add(item);
         }
@@ -288,7 +292,7 @@ public partial class FenceView : UserControl, IWidgetView
         {
             var key = KeyOf(entry);
             if (fresh.ContainsKey(key)) continue;
-            var item = reuse.GetValueOrDefault(key) ?? TileItem.Create(entry.Path, _config, entry.IsDirectory, entry.Attributes);
+            var item = reuse.GetValueOrDefault(key) ?? TileItem.Create(entry.Path, _config, entry.IsDirectory, entry.Attributes, pixelsPerDip: dpi);
             fresh[key] = item;
             all.Add(item);
         }
@@ -306,7 +310,6 @@ public partial class FenceView : UserControl, IWidgetView
                 _stamp = Stamp();
             }
         }
-        CountBadge.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
         ShowItems();
         if (_query.Length > 0) DeepSearch();
     }
@@ -321,7 +324,7 @@ public partial class FenceView : UserControl, IWidgetView
         _fillToken++;
         _view = [];
         Items.ItemsSource = _view;
-        CountBadge.Visibility = Visibility.Collapsed;
+        ApplyParts(); // sayı rozeti gizlenir (_stamp yok): başlık yeniden sığdırılır
         ShowEmpty(icon, text, showCreate);
     }
 
@@ -331,6 +334,27 @@ public partial class FenceView : UserControl, IWidgetView
         if (key == _panelKey) return;
         _panelKey = key;
         Items.ItemsPanel = TileItem.Panel(_config);
+    }
+
+    /// <summary>
+    /// Simgelerin istendiği ekran ölçeği: pencereye bağlıysa bulunduğu monitörünki, değilse (açılış) açılacağı monitörünki.
+    /// </summary>
+    private double IconDpi => PresentationSource.FromVisual(this) is not null
+        ? VisualTreeHelper.GetDpi(this).PixelsPerDip
+        : WidgetWindow.ExpectedPixelsPerDip(_config);
+
+    /// <summary>Ekran ya da widget ölçeği değişince simgeler yeni piksel boyutunda istenir (değişmediyse bir şey yapmaz).</summary>
+    private void UpdateIconSizes()
+    {
+        var dpi = IconDpi;
+        foreach (var item in _all) item.UpdateIconSize(dpi, _config.Scale);
+        foreach (var item in _deep) item.UpdateIconSize(dpi, _config.Scale);
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        UpdateIconSizes();
     }
 
     /// <summary>Öğeleri (arama varsa süzülmüş hâliyle) gösterir; ekrandaki listeye yalnızca farkı uygular.</summary>
@@ -360,6 +384,7 @@ public partial class FenceView : UserControl, IWidgetView
         else if (steps.Count > 0) ListDiff.Apply(_view, steps, _view.Move);
 
         CountText.Text = q.Length == 0 ? _all.Count.ToString() : $"{shown.Count}";
+        ApplyParts(); // sayı rozeti (genişliği de) değişti: başlık yeniden sığdırılır
         if (q.Length > 0 && shown.Count > 0) Items.SelectedIndex = 0;
 
         if (shown.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
@@ -463,7 +488,8 @@ public partial class FenceView : UserControl, IWidgetView
         var hidden = new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase);
         var found = await Task.Run(() => FindBelow(roots, q, maxDepth: 5, maxResults: 80).Where(e => !hidden.Contains(e.Path)).ToList());
         if (generation != _searchGeneration || _detached) return;
-        _deep = found.Select(e => TileItem.Create(e.Path, _config, e.IsDirectory, e.Attributes)).ToList();
+        var dpi = IconDpi;
+        _deep = found.Select(e => TileItem.Create(e.Path, _config, e.IsDirectory, e.Attributes, pixelsPerDip: dpi)).ToList();
         ShowItems();
     }
 
@@ -540,15 +566,20 @@ public partial class FenceView : UserControl, IWidgetView
         ("open", "Klasörü aç düğmesi"), ("divider", "Ayraç çizgisi"), Menus.ClosePart,
     ];
 
-    /// <summary>Kullanıcının kapattığı parçaları gizler. Kaldırma düğmesi kilitliyken de gizlidir.</summary>
+    /// <summary>
+    /// Kullanıcının kapattığı parçaları gizler. Kaldırma düğmesi kilitliyken de gizlidir. Dar bölmede başlık okunsun diye
+    /// sayı, "Klasörü aç", arama ve başlık simgesi (bu sırayla) geçici olarak gizlenir; kaydedilmez, genişleyince döner.
+    /// </summary>
     private void ApplyParts()
     {
         Header.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
+        HeaderIcon.Visibility = Visibility.Visible;
         SearchButton.Visibility = _config.Shows("search") ? Visibility.Visible : Visibility.Collapsed;
         OpenButton.Visibility = !DesktopMode && _config.Shows("open") ? Visibility.Visible : Visibility.Collapsed;
         Divider.Visibility = _config.Shows("divider") && _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
         CountBadge.Visibility = _config.Shows("count") && _stamp is not null ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        HeaderFitter.Fit(Header, TitleText, [CountBadge, OpenButton, SearchButton, HeaderIcon], [RemoveButton]);
     }
 
     private void Items_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -770,7 +801,8 @@ public partial class FenceView : UserControl, IWidgetView
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
         RemoveButton.Foreground = palette.Foreground;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
+        UpdateIconSizes(); // ölçek değiştiyse simgeler yeni piksel boyutunda
     }
 
     /// <summary>Menüden/tekerlekten gelen görünüm ya da içerik ayarı: kaydedilir, kutucuklar yeni ayarla yeniden kurulur.</summary>

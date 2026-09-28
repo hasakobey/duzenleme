@@ -29,6 +29,9 @@
         <Setter Property="Grid.IsSharedSizeScope" Value="True" />
         <Setter Property="Popup.PopupAnimation" Value="None" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
+        <!-- Menü saydam bir açılır pencerededir; 30 DIP'lik gölge payı %125'te yarım piksele düşer ve yuvarlanmazsa bütün menü
+             (yazılar dahil) yarım piksel kaymış, bulanık çizilir. Alt menülerin açılır penceresi şablonda ayrıca yuvarlanır. -->
+        <Setter Property="UseLayoutRounding" Value="True" />
         <Setter Property="OverridesDefaultStyle" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -79,7 +82,7 @@
             <Popup x:Name="Popup" Grid.Row="1" AllowsTransparency="True" Focusable="False"
                    IsOpen="{TemplateBinding IsSubmenuOpen}" Placement="Right"
                    PlacementTarget="{Binding ElementName=MenuItemContent}" PopupAnimation="None" VerticalOffset="-20">
-                <Grid>
+                <Grid UseLayoutRounding="True">
                     <Border x:Name="SubmenuBorder" Margin="12,10,12,30" Padding="0,3,0,3" BorderThickness="1" CornerRadius="8"
                             Background="{DynamicResource FlyoutBackground}" BorderBrush="{DynamicResource FlyoutBorderBrush}"
                             SnapsToDevicePixels="True">

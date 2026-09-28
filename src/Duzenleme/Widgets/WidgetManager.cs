@@ -402,7 +402,14 @@ public sealed class WidgetManager
             var columnWidth = 0;
             var y = area.Top;
             var first = true;
-            foreach (var (window, bounds) in group.OrderByDescending(t => t.Bounds!.Value.Width).ThenBy(t => t.Bounds!.Value.Top))
+            // Çalışma alanından uzun widget'ın görünen yüksekliği sütuna sığacak kadar kısılır (kayıtlı yüksekliği değişmez).
+            var windows = group.Select(t =>
+            {
+                if (t.Bounds!.Value.Height <= area.Height) return t;
+                t.Window.LimitDisplayHeight(area.Height);
+                return (t.Window, Bounds: t.Window.PixelBounds ?? t.Bounds);
+            }).ToList();
+            foreach (var (window, bounds) in windows.OrderByDescending(t => t.Bounds!.Value.Width).ThenBy(t => t.Bounds!.Value.Top))
             {
                 var r = bounds!.Value;
                 if (first || (y + r.Height > area.Bottom && y > area.Top))

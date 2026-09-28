@@ -154,16 +154,28 @@
         </Setter>
     </Style>
 
+    <!--
+        Simge ekrandaki gerçek piksel boyutunda gelir (TileItem.UpdateIconSize) ve 1:1 çizilir; HighQuality yalnızca simge
+        tam boyutta alınamadığında (widget ölçeği, yedek yol) devreye girer. Ad, kart opaksa ClearType ile çizilir: kaydırılan
+        listenin kırpması ClearType'ı kapattığı için ipucu yazının kendisine görünümden (WidgetWindow.ApplyStyle) verilir;
+        bulunamayan öğe soluk (yarı saydam katman) olduğundan onda gri tonlama kalır.
+    -->
     <DataTemplate x:Key="TileTemplate">
         <StackPanel Orientation="{Binding Orientation}" Width="{Binding TileWidth}" ToolTip="{Binding Tooltip}" Opacity="{Binding Dim}">
             <Image Source="{Binding Icon}" Width="{Binding IconPx}" Height="{Binding IconPx}"
                    HorizontalAlignment="{Binding IconAlign}" VerticalAlignment="Center"
                    RenderOptions.BitmapScalingMode="HighQuality" />
-            <TextBlock Text="{Binding Name}" FontSize="{Binding LabelFont}" Visibility="{Binding LabelVisibility}"
+            <TextBlock x:Name="Label" Text="{Binding Name}" FontSize="{Binding LabelFont}" Visibility="{Binding LabelVisibility}"
                        TextAlignment="{Binding TextAlign}" TextWrapping="{Binding Wrap}"
                        TextTrimming="CharacterEllipsis" MaxHeight="{Binding TextMaxHeight}" Margin="{Binding TextMargin}"
                        VerticalAlignment="Center"
-                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       RenderOptions.ClearTypeHint="{Binding (RenderOptions.ClearTypeHint), RelativeSource={RelativeSource AncestorType=UserControl}}" />
         </StackPanel>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Missing}" Value="True">
+                <Setter TargetName="Label" Property="RenderOptions.ClearTypeHint" Value="Auto" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
     </DataTemplate>
 </ResourceDictionary>
