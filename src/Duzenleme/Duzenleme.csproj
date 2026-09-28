@@ -38,6 +38,8 @@
     <!-- WPF ile çakışan WinForms/Drawing adlarını global using'den çıkar. -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+    <!-- Arayüz metinleri her dosyada L.T/L.F/L.P ile çevrilir (Localization/L.cs). -->
+    <Using Include="Duzenleme.Localization" />
   </ItemGroup>
 
   <ItemGroup>

@@ -108,7 +108,7 @@ public sealed class WidgetManager
         foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
             if (!names.Any(n => FolderName.Equal(n, rule.TargetFolder)))
                 names.Add(existing.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder)) ?? rule.TargetFolder);
-        foreach (var folder in existing.OrderBy(f => f, StringComparer.Create(Views.UiText.Tr, true)))
+        foreach (var folder in existing.OrderBy(f => f, L.Sorter))
             if (!names.Any(n => FolderName.Equal(n, folder))) names.Add(folder);
         return names.Select(n => (n, existing.Any(f => FolderName.Equal(f, n)))).ToList();
     }
@@ -278,8 +278,8 @@ public sealed class WidgetManager
         }
     }
 
-    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı düzenler'de durur).</summary>
-    public const string ApplyBackupName = "Düzen uygulanmadan önce";
+    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı düzenler'de durur; arayüz dilinde).</summary>
+    public static string ApplyBackupName => LayoutBackup.ApplyName;
 
     /// <summary>
     /// Kayıtlı bir düzeni uygular: mevcut widget'lar kapanır, düzendekiler açılır. Önceki yerleşim önce
@@ -287,11 +287,7 @@ public sealed class WidgetManager
     /// </summary>
     public void ApplyLayout(LayoutSnapshot layout)
     {
-        if (layout.Name != ApplyBackupName)
-        {
-            AppHost.Settings.Layouts.RemoveAll(l => l.Name == ApplyBackupName);
-            AppHost.Settings.Layouts.Add(LayoutSnapshot.Capture(ApplyBackupName, AppHost.Settings.Widgets));
-        }
+        if (!LayoutBackup.IsApply(layout.Name)) LayoutBackup.SaveBeforeApply(AppHost.Settings.Layouts, AppHost.Settings.Widgets);
         foreach (var (id, window) in _open.ToList())
         {
             _closingOnPurpose.Add(id);
@@ -334,7 +330,7 @@ public sealed class WidgetManager
         window.Reveal(RevealTime);
     }
 
-    public const string ArrangeBackupName = "Otomatik yerleştirmeden önce";
+    public static string ArrangeBackupName => LayoutBackup.ArrangeName;
 
     /// <summary>
     /// Tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü simgeleri
@@ -346,8 +342,7 @@ public sealed class WidgetManager
         var placed = _open.Values.Select(w => (Window: w, Bounds: w.PixelBounds)).Where(t => t.Bounds is not null).ToList();
         if (placed.Count == 0) return 0;
 
-        AppHost.Settings.Layouts.RemoveAll(l => l.Name == ArrangeBackupName);
-        AppHost.Settings.Layouts.Add(LayoutSnapshot.Capture(ArrangeBackupName, AppHost.Settings.Widgets));
+        LayoutBackup.SaveBeforeArrange(AppHost.Settings.Layouts, AppHost.Settings.Widgets);
 
         var byMonitor = placed.GroupBy(t =>
         {

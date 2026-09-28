@@ -305,7 +305,7 @@ public partial class FenceView : UserControl, IWidgetView
 
     private IEnumerable<FileSystemInfo> Sort(IEnumerable<FileSystemInfo> entries)
     {
-        var byName = StringComparer.Create(Views.UiText.Tr, true);
+        var byName = L.Sorter;
         return _config.Sort switch
         {
             FenceSort.Name => entries.OrderBy(i => i is DirectoryInfo ? 0 : 1).ThenBy(i => TileItem.DisplayName(i.FullName), byName),
@@ -626,7 +626,7 @@ public partial class FenceView : UserControl, IWidgetView
         foreach (var filter in DesktopItems.Filters)
             pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), _config.Filter == filter,
                 () => Set(() => { _config.Filter = filter; _config.Title = null; })));
-        var folders = AppHost.Organizer.ExistingFolders().OrderBy(n => n, StringComparer.Create(Views.UiText.Tr, true)).ToList();
+        var folders = AppHost.Organizer.ExistingFolders().OrderBy(n => n, L.Sorter).ToList();
         if (folders.Count > 0)
         {
             pick.Items.Add(new Separator());

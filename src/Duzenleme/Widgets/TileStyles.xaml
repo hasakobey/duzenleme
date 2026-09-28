@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:l="clr-namespace:Duzenleme.Localization">
 
     <!--
         "Widget'ı kaldır" düğmesi (×). Tüm widget'larda hep yerinde durur ve sönüktür: fare widget'a gelince hiçbir şey

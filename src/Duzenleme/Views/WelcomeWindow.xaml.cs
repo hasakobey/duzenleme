@@ -491,8 +491,8 @@ public partial class WelcomeWindow : FluentWindow
     private void UpdateToolPreviews()
     {
         var now = DateTime.Now;
-        if (_clockPreview is not null) _clockPreview.Text = now.ToString("HH:mm", UiText.Tr);
-        if (_datePreview is not null) _datePreview.Text = now.ToString("d MMM", UiText.Tr);
+        if (_clockPreview is not null) _clockPreview.Text = now.ToString("HH:mm", L.Culture);
+        if (_datePreview is not null) _datePreview.Text = now.ToString("d MMM", L.Culture);
     }
 
     /// <summary>"Windows ile başlat" kartı gerçek durumu gösterir (paketsizde Run kaydı, Store'da başlangıç görevi).</summary>

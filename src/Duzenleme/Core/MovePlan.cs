@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.IO;
 
 namespace Duzenleme.Core;
@@ -12,8 +11,6 @@ public sealed record PlannedMove(string FileName, string Folder, bool FolderExis
 /// <summary>Taşıma önizlemesi ve bekleyen dosya sayısı (karşılama ve Otomatik taşıma sayfası). Saf hesap: dosya sistemine dokunmaz.</summary>
 public static class MovePlan
 {
-    private static readonly StringComparer TrOrder = StringComparer.Create(CultureInfo.GetCultureInfo("tr-TR"), ignoreCase: true);
-
     /// <summary>Bu dosyalar şimdi taşınsaydı nereye giderdi? Dosya sistemine dokunmaz. RuleEngine.Decide kullanılır
     /// (.lnk/.url/desktop.ini/gizli/sistem/yarım indirme hariç); WasUndone olanlar hariç. assumeFolders: masaüstünde yok ama
     /// varmış sayılacak klasörler (karşılamada oluşturulacaklar; "bekleyen" sayımında tüm kural klasörleri).
@@ -43,11 +40,11 @@ public static class MovePlan
         return moves;
     }
 
-    /// <summary>Klasör başına sayı; çoktan aza, eşitse tr-TR sırasına göre.</summary>
+    /// <summary>Klasör başına sayı; çoktan aza, eşitse arayüz dilinin sırasına göre (Türkçede tr-TR).</summary>
     public static List<(string Folder, int Count)> ByFolder(IEnumerable<PlannedMove> moves) =>
         moves.GroupBy(m => FolderName.Fold(m.Folder))
             .Select(g => (Folder: g.First().Folder, Count: g.Count()))
             .OrderByDescending(x => x.Count)
-            .ThenBy(x => x.Folder, TrOrder)
+            .ThenBy(x => x.Folder, L.Sorter)
             .ToList();
 }

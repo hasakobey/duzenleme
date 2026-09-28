@@ -356,7 +356,8 @@ public partial class AutoMovePage : Page
 
     private void AddDefaults_Click(object sender, RoutedEventArgs e)
     {
-        AppHost.Settings.Rules = Rule.Defaults();
+        // Masaüstünde öteki dildeki klasör varsa (ör. İngilizce arayüzde "Resimler") kural ona yönelir.
+        AppHost.Settings.Rules = Rule.Defaults(L.Current, DesktopFolders());
         BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
         Recount();
@@ -464,7 +465,7 @@ public partial class AutoMovePage : Page
                 "Eklediğin ya da değiştirdiğin kurallar silinir; PDF, Resimler, Belgeler, Arşivler, Videolar ve Müzik kuralları geri gelir. Dosyalarına dokunulmaz.",
                 "Varsayılana döndür"))
             return;
-        AppHost.Settings.Rules = Rule.Defaults();
+        AppHost.Settings.Rules = Rule.Defaults(L.Current, DesktopFolders());
         BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
         AppHost.SaveSettings();
         Recount();

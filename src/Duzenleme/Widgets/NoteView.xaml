@@ -1,6 +1,7 @@
 <UserControl x:Class="Duzenleme.Widgets.NoteView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:Duzenleme.Localization">
     <DockPanel>
         <Grid x:Name="HeaderRow" DockPanel.Dock="Top" Margin="0,-4,0,6" Background="Transparent" Cursor="SizeAll">
             <Grid.ColumnDefinitions>

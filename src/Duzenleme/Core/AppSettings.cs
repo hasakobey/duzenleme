@@ -198,4 +198,11 @@ public sealed class AppSettings
 
     /// <summary>Yapay zekâ simge üretimi için DPAPI ile şifrelenmiş API anahtarı (isteğe bağlı).</summary>
     public string? AiKeyProtected { get; set; }
+
+    // 2.1 P2b Yerelleştirme
+    /// <summary>
+    /// Arayüz dili: null = Windows ile aynı, "tr", "en". Yeniden başlatınca uygulanır (L.Init). Enum değil metin: eski
+    /// sürüm tanımadığı özelliği yok sayar, yeni diller için enum'a üye eklemek gerekmez.
+    /// </summary>
+    public string? Language { get; set; }
 }
