@@ -30,7 +30,6 @@ internal static partial class En
         new("{0} öğe kutularda; dosyalar {1} klasöründe.",
             "{0} item is in a box; the file is in the {1} folder.",
             "{0} items are in boxes; the files are in the {1} folder."),
-        new("Kutulardaki öğeler masaüstüne geri konsun mu?", "Put the items in boxes back on the desktop?"),
         new("{0} öğe masaüstüne döner ve kutularda kalır.",
             "{0} item goes back to the desktop and stays in its box.",
             "{0} items go back to the desktop and stay in their boxes."),
