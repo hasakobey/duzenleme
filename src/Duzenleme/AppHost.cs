@@ -132,15 +132,29 @@ public static class AppHost
             ? root
             : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
+    /// <summary>
+    /// --desktop ile --data verilmediyse test örneğinin veri klasörü geçici klasöre düşer (bkz.
+    /// <see cref="DataFolderLocator.TestDataFallback"/>): kullanıcının gerçek veri klasörü taşınmaz, üzerine yazılmaz.
+    /// </summary>
+    private static string? DataOverrideFor(string? desktopOverride, string? dataOverride)
+    {
+        if (DataFolderLocator.TestDataFallback(desktopOverride, dataOverride, AppEnvironment.Get("APPDATA_ROOT") is not null,
+                Path.GetTempPath()) is not { } testData) return dataOverride;
+        DebugLog.Write($"test örneği --data olmadan açıldı: veriler {testData} klasöründe"); // l10n: çevrilmez (günlük)
+        return testData;
+    }
+
     public static void Initialize(string? desktopOverride, string? dataOverride)
     {
         IsTestDesktop = desktopOverride is not null;
+        dataOverride = DataOverrideFor(desktopOverride, dataOverride);
         _dispatcher = Dispatcher.CurrentDispatcher;
         // Store (MSIX) paketinin klasörü salt okunurdur ve portable.txt taşımaz: paketliyken taşınabilir mod denenmez.
         var portable = dataOverride is null && !PackageInfo.IsPackaged ? PortableDataDirectory() : null;
         IsPortable = portable is not null;
         // 2.1: %AppData%\Duzenleme → %AppData%\NestDesk. Tek örnek kilidi burada zaten tutuluyor (App.OnStartup): klasöre
-        // aynı anda yazan başka bir NestDesk/Düzenleme yok. Taşınamazsa bu oturum eski klasörle çalışır.
+        // aynı anda yazan başka bir NestDesk/Düzenleme yok. Taşınamazsa bu oturum eski klasörle çalışır. Test örneği gerçek
+        // kilidi tutmaz; --data'sız açılsa da buraya gerçek %AppData% ile gelmez (DataOverrideFor).
         var data = DataFolderLocator.Apply(
             DataFolderLocator.Plan(dataOverride, portable, PackageInfo.IsPackaged, RoamingAppData(IsTestDesktop)), log: DebugLog.Write);
         DataDirectory = data.Directory;
@@ -769,6 +783,7 @@ public static class AppHost
     public static void RestoreDesktopForUninstall(string? desktopOverride, string? dataOverride)
     {
         var testDesktop = desktopOverride is not null;
+        dataOverride = DataOverrideFor(desktopOverride, dataOverride);
         var portableFile = Path.Combine(AppContext.BaseDirectory, "portable.txt");
         var portable = dataOverride is null && !PackageInfo.IsPackaged && File.Exists(portableFile)
             ? Path.Combine(AppContext.BaseDirectory, "data")

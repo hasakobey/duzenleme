@@ -97,6 +97,30 @@ public static class DataFolderLocator
         return files;
     }
 
+    /// <summary>
+    /// Test masaüstü klasörünün kalıcı kısa anahtarı (tek örnek adı ve geçici veri klasörü için; string.GetHashCode süreçten
+    /// sürece değişir). Büyük/küçük harf ve sondaki ayraç fark etmez.
+    /// </summary>
+    public static string TestDesktopKey(string desktop)
+    {
+        string full;
+        try { full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(desktop)); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { full = desktop; }
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(full.ToUpperInvariant()));
+        return Convert.ToHexString(hash, 0, 6);
+    }
+
+    /// <summary>
+    /// Test örneği (--desktop) --data verilmeden açıldıysa kullanılacak veri klasörü: geçici klasörde, o test masaüstüne özgü.
+    /// Kullanıcının gerçek %AppData%\NestDesk ya da Duzenleme klasörüne dokunulmaz, taşınmaz: test örneği gerçek tek örnek
+    /// kilidini tutmaz, o klasörü o an kurulu sürüm kullanıyor olabilir. --data ya da (veri klasörü geçişini denemek için)
+    /// NESTDESK_APPDATA_ROOT verildiyse, ya da test masaüstü yoksa null.
+    /// </summary>
+    public static string? TestDataFallback(string? testDesktop, string? dataOverride, bool appDataRootGiven, string tempRoot) =>
+        testDesktop is null || dataOverride is not null || appDataRootGiven
+            ? null
+            : Path.Combine(tempRoot, "NestDesk-test-data", TestDesktopKey(testDesktop));
+
     private static bool IsReparsePoint(string path)
     {
         // Olmayan yolda Attributes -1 (bütün bayraklar) döner.

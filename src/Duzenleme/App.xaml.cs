@@ -74,7 +74,7 @@ public partial class App : Application
 
         // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir. Test örnekleri (--desktop) test masaüstü başına
         // ayrıdır: aynı anda birden çok test klasörü denenebilir, "--desktop <aynı> --exit" doğru örneği kapatır.
-        var id = AppInfo.InstanceIdPrefix + Environment.UserName + (args.Desktop is null ? "" : ".test." + TestInstanceKey(args.Desktop));
+        var id = AppInfo.InstanceIdPrefix + Environment.UserName + (args.Desktop is null ? "" : ".test." + DataFolderLocator.TestDesktopKey(args.Desktop));
 
         // Kurulum/kaldırma programı için: çalışan örneği düzgünce kapat (masaüstü simgeleri geri açılır) ve kapanmasını bekle.
         if (args.Exit)
@@ -541,16 +541,6 @@ public partial class App : Application
         AppHost.SaveSettingsNow();
         System.Windows.MessageBox.Show(e.Exception.Message, L.F("{0} — beklenmeyen hata", AppInfo.Name), System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         e.Handled = true;
-    }
-
-    /// <summary>Test masaüstü klasörünün kalıcı kısa anahtarı (string.GetHashCode süreçten sürece değişir).</summary>
-    private static string TestInstanceKey(string desktop)
-    {
-        string full;
-        try { full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(desktop)); }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { full = desktop; }
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(full.ToUpperInvariant()));
-        return Convert.ToHexString(hash, 0, 6);
     }
 
     private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool RestoreDesktop,

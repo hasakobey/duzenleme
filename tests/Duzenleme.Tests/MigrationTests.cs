@@ -400,4 +400,21 @@ public class MigrationTests
             catch (UnauthorizedAccessException) { }
         }
     }
+
+    [Fact]
+    public void Test_instance_without_data_folder_never_touches_the_real_one()
+    {
+        // --desktop verilip --data unutulursa gerçek %AppData%\Duzenleme taşınmamalı (kurulu sürüm onu kullanıyor olabilir).
+        var temp = @"C:\Users\ali\AppData\Local\Temp";
+        var folder = DataFolderLocator.TestDataFallback(@"C:\t\masaüstü", null, appDataRootGiven: false, temp);
+        Assert.NotNull(folder);
+        Assert.StartsWith(Path.Combine(temp, "NestDesk-test-data") + @"\", folder);
+        // Aynı test masaüstü hep aynı klasörü alır (büyük/küçük harf ve sondaki ayraç fark etmez), başkası başkasını.
+        Assert.Equal(folder, DataFolderLocator.TestDataFallback(@"C:\T\MASAÜSTÜ\", null, false, temp));
+        Assert.NotEqual(folder, DataFolderLocator.TestDataFallback(@"C:\t\başka", null, false, temp));
+
+        Assert.Null(DataFolderLocator.TestDataFallback(null, null, false, temp));                      // gerçek örnek
+        Assert.Null(DataFolderLocator.TestDataFallback(@"C:\t\masaüstü", @"C:\t\veri", false, temp));  // --data verildi
+        Assert.Null(DataFolderLocator.TestDataFallback(@"C:\t\masaüstü", null, true, temp));           // geçiş denemesi
+    }
 }
