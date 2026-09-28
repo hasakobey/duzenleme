@@ -154,17 +154,25 @@ internal static class WidgetCatalog
 
     private static SymbolRegular KnownIcon(string? id) => WidgetIcons.ForKnownFolder(id);
 
-    /// <summary>128×82 kutucuk: 26 px simge, etiket (CharacterEllipsis, MaxWidth 110), Badge varsa altında 11 pt, Opacity 0.7.
-    /// AutomationId "Add." + Key; AutomationProperties.Name = Label; HelpText = Tip; ToolTip = Tip.</summary>
+    /// <summary>128×82 kutucuk: 26 px simge, etiket (CharacterEllipsis, MaxWidth 110; rozetsizse en çok iki satır), Badge varsa
+    /// altında 11 pt, Opacity 0.7. AutomationId "Add." + Key; AutomationProperties.Name = Label; HelpText = Tip; ToolTip = Tip.</summary>
     public static Button Tile(WidgetChoice choice, Action<WidgetChoice> onClick)
     {
         var content = new StackPanel();
         content.Children.Add(new SymbolIcon { Symbol = choice.Icon, FontSize = 26, HorizontalAlignment = HorizontalAlignment.Center });
-        content.Children.Add(new TextBlock
+        var label = new TextBlock
         {
             Text = choice.Label, Margin = new Thickness(0, 6, 0, 0), TextAlignment = TextAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 110,
-        });
+        };
+        // Rozetsiz kutucukta uzun ad ikinci satıra geçer ("Geri Dönüşüm Kutusu" tek satırda kesiliyordu); rozetli kutucuk
+        // 82 DIP'e ancak tek satırla sığar. 40 DIP: 14 pt'lik iki satır, üçüncüsü üç noktayla kesilir.
+        if (choice.Badge is null)
+        {
+            label.TextWrapping = TextWrapping.Wrap;
+            label.MaxHeight = 40;
+        }
+        content.Children.Add(label);
         if (choice.Badge is { } badge)
             content.Children.Add(new TextBlock
             {
