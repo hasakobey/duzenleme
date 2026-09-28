@@ -65,7 +65,14 @@ public class IdentityTests
     }
 
     [Fact]
-    public void Version_is_2_1_0() => Assert.Equal("2.1.0", AppInfo.Version);
+    public void Version_comes_from_project_file()
+    {
+        // Kurulum, MSIX (<sürüm>.0) ve CI etiket denetimi sürümü csproj'dan okur; Hakkında da aynı sayıyı göstermeli.
+        var csproj = XDocument.Load(Path.Combine(RepoRoot(), "src", "Duzenleme", "Duzenleme.csproj"));
+        var version = csproj.Descendants("Version").Single().Value;
+        Assert.Matches(@"^\d+\.\d+\.\d+$", version);
+        Assert.Equal(version, AppInfo.Version);
+    }
 
     private static readonly XNamespace Foundation = "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
     private static readonly XNamespace Uap = "http://schemas.microsoft.com/appx/manifest/uap/windows10";
