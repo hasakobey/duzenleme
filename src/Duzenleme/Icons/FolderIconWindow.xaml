@@ -96,6 +96,13 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
+                            <!-- Store 11.16: yapay zekâ içeriğini bildirme yolu. Tarayıcıda boş bir bildirim formu açar; hiçbir şey gönderilmez. -->
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap">
+                                <Hyperlink x:Name="ReportLink" Click="Report_Click" AutomationProperties.AutomationId="FolderIcon.ReportAi"
+                                           ToolTip="Tarayıcıda boş bir bildirim formu açılır; hiçbir şey kendiliğinden gönderilmez.">Uygunsuz içeriği bildir</Hyperlink>
+                                <Run Text=" · " />
+                                <Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="FolderIcon.Privacy">Gizlilik politikası</Hyperlink>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
                 </StackPanel>

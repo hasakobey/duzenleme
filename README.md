@@ -1,14 +1,12 @@
 # NestDesk
 
-*Eski adı: Düzenleme.* 2.0.0 ile adı ve ana penceresi yenilendi; ayarların, widget düzenin ve kuralların korunur.
-
 **Masaüstün için derli toplu bir yuva.** Windows için modern masaüstü düzenleyici. Masaüstüne düşen dosyaları **senin oluşturduğun klasörlere** kendiliğinden taşır; masaüstüne saat, tarih, not, yapılacaklar listesi, kısayol kutusu ve klasör bölmesi widget'ları ekler; klasörlerine şık simgeler verir.
 
 Stardock Fences, iTop Easy Desktop, SlideSlide, ViPad ve LaunchBar Commander'ın öne çıkan özelliklerinden esinlenildi.
 
-**Download / İndir:** [Releases](https://github.com/hasakobey/duzenleme/releases) — `NestDesk-Kurulum-<sürüm>.exe` (installer) or portable zips, free.
+**Download / İndir:** [Releases](https://github.com/hasakobey/duzenleme/releases) — `NestDesk-Setup-<version>.exe` (installer, English/Türkçe) or `NestDesk-<version>-<arch>-portable.zip`, free.
 
-> **English:** NestDesk (formerly Düzenleme) is a free, open source (MIT) desktop organizer for Windows 10/11, similar to Stardock Fences — a tidy home for your desktop. It moves files dropped on the desktop into folders the user created (e.g. PDFs into a `PDF` folder, undoable, and only after the user agrees), and adds desktop widgets: fences that show desktop items or folder contents, clock, date, sticky notes, to-do lists and an app launcher. Built with .NET 10 WPF; the installer and portable builds are produced by GitHub Actions from this repository.
+> **English:** NestDesk is a free, open source (MIT) desktop organizer for Windows 10/11, similar to Stardock Fences — a tidy home for your desktop. It moves files dropped on the desktop into folders the user created (e.g. PDFs into a `PDF` folder, undoable, and only after the user agrees), and adds desktop widgets: fences that show desktop items or folder contents, clock, date, sticky notes, to-do lists and an app launcher. Built with .NET 10 WPF; the installer and portable builds are produced by GitHub Actions from this repository.
 
 ## İlk açılış
 
@@ -87,18 +85,17 @@ Widget'lar monitör takılıp çıkarılınca ya da uykudan uyanınca kayıtlı 
 
 ## Kurulum
 
-**`NestDesk-Kurulum-<sürüm>.exe`** — tek kurulum sihirbazı, her bilgisayar için:
+**`NestDesk-Setup-<sürüm>.exe`** — tek kurulum sihirbazı, her bilgisayar için:
 
 - Windows 10 (1607+) ve Windows 11; **x64, ARM64 ve 32-bit** — bilgisayara uygun sürümü kendisi seçer.
-- .NET kurulumu gerekmez (çalışma zamanı pakete dahil), **yönetici izni istemez** (kullanıcı başına; yeni kurulumlar `%LOCALAPPDATA%\Programs\NestDesk`'e gider, Düzenleme'den güncellenenler `Programs\Duzenleme`'de kalır).
-- Program dosyasının adı uyumluluk için `Duzenleme.exe`'dir ("Windows ile başlat", görev çubuğu sabitlemeleri ve tepsi simgesi tercihi bozulmasın diye).
-- Türkçe/İngilizce sihirbaz; Başlat menüsü kısayolu, isteğe bağlı masaüstü kısayolu ve "Windows ile başlat".
-- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur. Düzenleme'den güncellemede eski "Düzenleme" kısayolları NestDesk'inkilerle değişir.
-- "Uygulamalar ve özellikler"den kaldırılabilir; kaldırırken ayarların silinip silinmeyeceğini sorar.
+- .NET kurulumu gerekmez (çalışma zamanı pakete dahil), **yönetici izni istemez** (kullanıcı başına; `%LOCALAPPDATA%\Programs\NestDesk`'e kurulur, güncellemeler önceki kurulumun klasöründe kalır).
+- İngilizce/Türkçe sihirbaz: dil başta sorulur (Windows'un dili seçili gelir; başka dillerde İngilizce). Açık/koyu Windows temasına uyar. Başlat menüsü kısayolu, isteğe bağlı masaüstü kısayolu ve "Windows ile başlat".
+- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur.
+- "Uygulamalar ve özellikler"den kaldırılabilir; kaldırırken gizli kalmış masaüstü simgelerini geri açar ve ayarların silinip silinmeyeceğini sorar. Klasörlere verilen simgeler klasörlerin içinde kalır; istersen kaldırmadan önce **Ayarlar → Gelişmiş → Klasör simgelerinin hepsini kaldır**.
 
 **Microsoft Store (MSIX):** Store sürümünü Microsoft imzalar ve günceller; uyarı çıkmaz. Aynı program, yalnızca birkaç fark var: "Windows ile başlat" Windows'un başlangıç görevidir (Ayarlar → Uygulamalar → Başlangıç'ta da görünür) ve ayarlar paketin kendi klasöründe tutulur (önceden kurulum sürümü kullanıldıysa var olan ayarlar okunmaya devam eder). Masaüstünün "Bu Bilgisayar, Geri Dönüşüm Kutusu…" simgeleri Store sürümünde Windows'un Temalar → Masaüstü simgesi ayarlarından açılıp kapatılır.
 
-**Taşınabilir kullanım:** `NestDesk-<sürüm>-<mimari>-tasinabilir.zip` dosyasını yazılabilir bir klasöre çıkar ve `Duzenleme.exe`'yi çalıştır. İçindeki `portable.txt` sayesinde ayarlar exe'nin yanındaki `data` klasöründe tutulur (USB bellekte taşınabilir).
+**Taşınabilir kullanım:** `NestDesk-<sürüm>-<mimari>-portable.zip` dosyasını yazılabilir bir klasöre çıkar ve `NestDesk.exe`'yi çalıştır. İçindeki `portable.txt` sayesinde ayarlar exe'nin yanındaki `data` klasöründe tutulur (USB bellekte taşınabilir).
 
 **Güncelleme:** NestDesk gizlilik sözü gereği kendisi güncelleme denetlemez. Store sürümü kendiliğinden güncellenir; kurulum sürümünde yeni kurulum dosyasını çalıştırman yeterli (yeni sürümü **Ayarlar → Hakkında → İndirme sayfasını aç**'tan görürsün); taşınabilir sürümde yeni zip'i aynı klasörün üzerine çıkar (`data` korunur).
 
@@ -106,7 +103,7 @@ Widget'lar monitör takılıp çıkarılınca ya da uykudan uyanınca kayıtlı 
 
 ## Geliştirme
 
-Gerekenler: Windows 10/11, **.NET 10 SDK**, paketleme için [Inno Setup 6.3+](https://jrsoftware.org/isdl.php).
+Gerekenler: Windows 10/11, **.NET 10 SDK**, paketleme için [Inno Setup 6.6+](https://jrsoftware.org/isdl.php).
 
 ```powershell
 dotnet test Duzenleme.sln                     # testler
@@ -117,23 +114,25 @@ powershell -File tools/publish.ps1 -Arch x64  # hızlı deneme (yalnızca x64)
 powershell -File tools/package-msix.ps1 -Strict  # dist-store/: Microsoft Store'a yüklenecek .msixbundle (kimlik: tools/store/identity.json)
 ```
 
-Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--add` ("Widget ekle" penceresi; uygulama çalışıyorsa ona iletilir), `--welcome` (karşılamayı aç; ilk açılış tamamlandıysa var olanları silmeden yeniden kurulum. Yalnızca uygulama kapalıyken çalışır: çalışan bir örnek varsa yalnızca ana penceresi öne gelir, karşılamayı oradan **Ayarlar → Yardım → Karşılama** açar), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır). Tanılama günlüğü için `DUZENLEME_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
+Diğer komut satırı seçenekleri: `--minimized` (tepside başla), `--add` ("Widget ekle" penceresi; uygulama çalışıyorsa ona iletilir), `--welcome` (karşılamayı aç; ilk açılış tamamlandıysa var olanları silmeden yeniden kurulum. Yalnızca uygulama kapalıyken çalışır: çalışan bir örnek varsa yalnızca ana penceresi öne gelir, karşılamayı oradan **Ayarlar → Yardım → Karşılama** açar), `--exit` (çalışan örneği düzgünce kapat; kurulum programı kullanır), `--restore-desktop` (uygulama zorla kapatılıp Windows masaüstü simgelerini gizli bıraktıysa geri açıp çıkar; kaldırma programı kullanır, çalışan örneğe dokunmaz). Tanılama günlüğü için `NESTDESK_DEBUGLOG` ortam değişkenine bir dosya yolu ver.
 
-Test ortam değişkenleri: `DUZENLEME_WINDOW_AT="x,y"` (fiziksel piksel) verilirse ana pencere ve karşılama bu noktanın monitöründe açılır; `DUZENLEME_QUICKADD_AT` aynısını "Widget ekle" penceresi için yapar. Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. `--desktop` ile açılan test örneği gerçek masaüstü simgelerine ve "Windows ile başlat" kaydına dokunmaz.
+Test ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_WINDOW_AT="x,y"` (fiziksel piksel) verilirse ana pencere ve karşılama bu noktanın monitöründe açılır; `NESTDESK_QUICKADD_AT` aynısını "Widget ekle" penceresi için yapar. `NESTDESK_APPDATA_ROOT` yalnızca `--desktop` ile ve `--data` verilmeden çalışan test örneğinde `%AppData%` yerine geçer (eski `Duzenleme` veri klasörünün taşınmasını gerçek `%AppData%`'ya dokunmadan denemek için). Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. `--desktop` ile açılan test örneği gerçek masaüstü simgelerine ve "Windows ile başlat" kaydına dokunmaz.
 
 Geliştirme yardımcıları: `--export-icon-sheet out.png` (simge kütüphanesi önizlemesi), `--render-svg in.svg out.png` (SVG'yi yapay zekâ çıktısıyla aynı temizleme/çizim yolundan geçirir, yanına `.ico` yazar).
 
-Ayarlar ve geçmiş `%AppData%\Duzenleme` altında (`settings.json`, `journal.json`, `ai-icons/`) tutulur; klasör adı uyumluluk için eski addır. Ayarların son 7 günlük kopyası `yedekler/` klasöründedir.
+Ayarlar ve geçmiş `%AppData%\NestDesk` altında (`settings.json`, `journal.json`, `ai-icons/`) tutulur. Ayarların son 7 günlük kopyası `yedekler/` klasöründedir.
 
-**Performans:** klasör taramaları ve simge/önizleme yüklemeleri arka planda yapılır (büyük klasörde arayüz donmaz); saat yalnızca dakika (ya da saniye) başında çizilir; widget'lar yazılımla çizilir (7 widget'ta ~85 MB daha az bellek). Donanım çizimine dönmek için `DUZENLEME_GPU=1`.
+**Performans:** klasör taramaları ve simge/önizleme yüklemeleri arka planda yapılır (büyük klasörde arayüz donmaz); saat yalnızca dakika (ya da saniye) başında çizilir; widget'lar yazılımla çizilir (7 widget'ta ~85 MB daha az bellek). Donanım çizimine dönmek için `NESTDESK_GPU=1`.
+
+Proje, ad alanı ve çözüm adları (`Duzenleme.sln`, `src/Duzenleme`, `Duzenleme.*`) ile tek örnek kilidinin adı (`Duzenleme.<kullanıcı>`) bilerek eski addır: kullanıcıya görünmezler ve 2.0 ile 2.1'in birbirini görmesini sağlarlar.
 
 ## Yeni sürüm yayınlama
 
-1. `src/Duzenleme/Duzenleme.csproj` → `<Version>` bir artırılır (ör. 2.0.1). Store aynı sürümü ikinci kez kabul etmez.
+1. `src/Duzenleme/Duzenleme.csproj` → `<Version>` bir artırılır (ör. 2.1.1). Store aynı sürümü ikinci kez kabul etmez.
 2. `tools/store/listing.md` → "Bu sürümdeki yenilikler" (TR/EN) yazılır.
 3. `dotnet test` yeşil olmalı. Ayar dosyası geriye uyumlu kalır: yeni ayar = yeni `bool` alan; kalıcı enum'lara üye eklenmez (eski sürüm bütün ayarları okunamaz sayar).
-4. Commit → `git tag v2.0.1` → push. GitHub Actions kurulum dosyasını ve 3 zip'i üretip Releases'ta "NestDesk 2.0.1" sürümünü açar.
-5. **Store:** `powershell -File tools/package-msix.ps1 -Strict` → `dist-store\NestDesk-2.0.1.msixbundle`. Partner Center'da **yeni gönderim** açılır, yalnızca bu dosya yüklenir ve "What's new" doldurulur. Onay genelde 1–3 gün sürer.
+4. Commit → `git tag v2.1.1` → push. GitHub Actions kurulum dosyasını (`NestDesk-Setup-2.1.1.exe`) ve 3 zip'i üretip Releases'ta "NestDesk 2.1.1" sürümünü açar.
+5. **Store:** `powershell -File tools/package-msix.ps1 -Strict` → `dist-store\NestDesk-2.1.1.msixbundle`. Partner Center'da **yeni gönderim** açılır, yalnızca bu dosya yüklenir ve "What's new" doldurulur. Onay genelde 1–3 gün sürer.
 6. **İmza:** SignPath onaylanana dek kurulum dosyası imzasızdır ve her yeni sürümde SmartScreen uyarısı çıkabilir. Store sürümünü Microsoft imzalar.
 
 ## Code signing policy (kod imzalama)
@@ -145,6 +144,12 @@ Sürümler, [SignPath Foundation](https://signpath.org)'ın ücretsiz açık kay
 - Approvers: [hasakobey](https://github.com/hasakobey)
 
 **Privacy policy (gizlilik):** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. — NestDesk, kullanıcı özellikle istemedikçe hiçbir bilgiyi internete göndermez. Tek istisna isteğe bağlı "yapay zekâ ile klasör simgesi" özelliğidir: kullanıcı kendi API anahtarını girip simge istediğinde yalnızca klasör adı ve yazdığı açıklama Anthropic'e gönderilir ([Anthropic gizlilik politikası](https://www.anthropic.com/legal/privacy)). Ayrıntılar: [PRIVACY.md](PRIVACY.md).
+
+## Geçmiş
+
+NestDesk'in 2.0.0'dan önceki adı **Düzenleme**'ydi. 2.1.0'da eski ad görünen her yerden kalktı: program dosyası `Duzenleme.exe` → `NestDesk.exe`, ayar klasörü `%AppData%\Duzenleme` → `%AppData%\NestDesk`, "Windows ile başlat" kaydı ve klasör simgesi dosyaları (`.duzenleme-*.ico` → `.nestdesk-*.ico`). Güncellemede hepsi kendiliğinden taşınır; ayarlar, notlar, widget'lar ve kurallar olduğu gibi kalır. Windows bazı tercihleri program dosyasının yoluna göre tuttuğu için görev çubuğuna sabitlenmiş eski kısayolu yeniden sabitlemen, tepsi simgesini de (saatin yanındaki ^ altındaysa) yeniden görev çubuğuna sürüklemen gerekebilir. 2.1'den 2.0'a geri dönmek desteklenmez (2.0 taşınan ayar klasörünü bulamaz).
+
+*English:* NestDesk was called Düzenleme before 2.0.0. In 2.1.0 the program file, data folder (`%AppData%\NestDesk`), startup entry and folder-icon files moved to the new name; updating migrates everything automatically. Taskbar pins and the "always show" tray setting may need to be set again.
 
 ## Lisans
 

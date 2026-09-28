@@ -384,8 +384,29 @@
                     <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0">
                         <Run Text="Anahtarın yoksa: " /><Hyperlink NavigateUri="https://console.anthropic.com/settings/keys" RequestNavigate="Link_RequestNavigate">console.anthropic.com</Hyperlink>
                     </TextBlock>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0">
+                        <Run Text="Neyin gönderildiği: " /><Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="Settings.AiPrivacy">Gizlilik politikası</Hyperlink>
+                    </TextBlock>
                 </StackPanel>
             </StackPanel>
+        </Border>
+        <Border Style="{StaticResource Row}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="FolderProhibited24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource RowTitle}" Text="Klasör simgelerinin hepsini kaldır" />
+                    <TextBlock x:Name="RemoveIconsText" Style="{StaticResource Muted}" />
+                </StackPanel>
+                <ui:Button x:Name="RemoveIconsButton" Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center" Content="Kaldır"
+                           AutomationProperties.AutomationId="Settings.RemoveAllFolderIcons"
+                           AutomationProperties.Name="Klasör simgelerinin hepsini kaldır" Click="RemoveAllFolderIcons_Click" />
+            </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
             <StackPanel>
@@ -471,6 +492,9 @@
                     <TextBlock x:Name="TaglineText" Style="{StaticResource Muted}" />
                     <TextBlock x:Name="ChannelText" Style="{StaticResource Muted}" Margin="0,10,0,0" AutomationProperties.AutomationId="Settings.Channel" />
                     <TextBlock x:Name="PrivacyText" Style="{StaticResource Muted}" Margin="0,4,0,0" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0">
+                        <Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="Settings.Privacy">Gizlilik politikası</Hyperlink>
+                    </TextBlock>
                     <DockPanel Margin="0,14,0,0" LastChildFill="False">
                         <ui:Button x:Name="ReleasesButton" Icon="{ui:SymbolIcon Open24}" Content="İndirme sayfasını aç"
                                    AutomationProperties.AutomationId="Settings.Releases" Click="Releases_Click" />

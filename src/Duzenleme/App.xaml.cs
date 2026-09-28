@@ -56,6 +56,15 @@ public partial class App : Application
             return;
         }
 
+        // Kaldırma programı için: uygulama zorla kapatılıp masaüstü simgelerini gizli bıraktıysa geri aç. Tek örnek kilidi
+        // alınmaz ve çalışan örneğe sinyal gönderilmez.
+        if (args.RestoreDesktop)
+        {
+            AppHost.RestoreDesktopForUninstall(args.Desktop, args.Data);
+            Shutdown();
+            return;
+        }
+
         // Store (MSIX) sürümü: başlangıç görevi exe'yi argümansız açar; --minimized gibi tepside sessizce başlasın.
         if (e.Args.Length == 0 && PackageInfo.LaunchedByStartupTask()) args = args with { Minimized = true };
 
@@ -73,6 +82,17 @@ public partial class App : Application
                 catch (AbandonedMutexException) { }
             }
             catch (WaitHandleCannotBeOpenedException) { }
+            Shutdown();
+            return;
+        }
+
+        // Store sürümü: Başlat'taki "Widget ekle" girişi ayrı bir uygulama kimliğidir (PFN!AddWidget). Uygulama kapalıyken
+        // oradan açıldıysa tepsi, bildirimler ve görev çubuğu oturum boyunca o kimlikle çalışmasın: ana uygulamayı (PFN!NestDesk)
+        // "--add" ile başlat ve kapan. Çalışan bir örnek varsa aşağıdaki olağan yol isteği ona iletir; başlatılamazsa bu süreç
+        // eskisi gibi devam eder.
+        if (PackagedApp.MainAppUserModelIdFor(PackageInfo.ApplicationUserModelId) is { } main && !InstanceRunning(id)
+            && PackageInfo.ActivateApplication(main, "--add"))
+        {
             Shutdown();
             return;
         }
@@ -157,6 +177,7 @@ public partial class App : Application
             try { Icons.FolderIconService.RepairDesktopFolders(desktop); }
             catch (Exception ex) { DebugLog.Write($"klasör simgesi onarımı: {ex}"); }
         });
+        MigrateFromLegacyNameInBackground();
 
         _started = true;
         if (args.Add) Dispatcher.BeginInvoke(ShowQuickAdd, DispatcherPriority.ApplicationIdle);
@@ -179,6 +200,51 @@ public partial class App : Application
                 "Adı ve ana penceresi yenilendi; ayarların, widget'ların ve kuralların olduğu gibi duruyor. Açmak için tıkla.",
                 ShowMainWindow), DispatcherPriority.ApplicationIdle);
         }
+        else if (AppHost.Settings.FirstRunDone && AppHost.DataFolderSource == DataFolderSource.Moved)
+        {
+            // 2.0'dan güncelleme (veri klasörü bu açılışta taşındı; bir kez olur). Windows tepsi simgesi tercihini ve görev
+            // çubuğu sabitlemesini exe yoluna göre tutar: program dosyasının adı değiştiği için ikisi de sıfırlanmış olabilir.
+            // Ana pencere açıksa şeritte, değilse balonda.
+            Dispatcher.BeginInvoke(() => Views.Notice.Show(
+                $"{AppInfo.Name} güncellendi. Program dosyasının adı değiştiği için tepsi simgesi saatin yanındaki ^ okunun altına " +
+                "geçmiş olabilir; oradan görev çubuğuna sürükleyebilirsin. Görev çubuğuna sabitlediysen yeniden sabitle.",
+                Views.NoticeKind.Info), DispatcherPriority.ApplicationIdle);
+        }
+    }
+
+    /// <summary>
+    /// 2.0 ve öncesinden (Duzenleme.exe) kalanlar, arka planda: "Windows ile başlat" değerinin yeni adı ve taşınabilir klasörün
+    /// üzerine açılan 2.1'in yanında kalan eski program dosyaları. Test örneği gerçek kayıt defterine ve dosyalara dokunmaz.
+    /// </summary>
+    private static void MigrateFromLegacyNameInBackground()
+    {
+        if (AppHost.IsTestDesktop || PackageInfo.IsPackaged) return;
+        var portable = AppHost.IsPortable;
+        Task.Run(() =>
+        {
+            StartupRegistration.MigrateLegacyRunValue();
+            if (!portable) return;
+            var current = typeof(App).Assembly.GetName().Version ?? new Version(0, 0);
+            var files = LegacyFiles.ProgramFilesToDelete(AppContext.BaseDirectory, current, System.IO.File.Exists, FileVersionOf);
+            foreach (var file in files)
+            {
+                try { System.IO.File.Delete(file); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { DebugLog.Write($"eski dosya silinemedi: {file} {ex.Message}"); }
+            }
+            if (files.Count > 0) DebugLog.Write($"taşınabilir klasörden eski program dosyaları silindi: {files.Count}");
+        });
+    }
+
+    private static Version? FileVersionOf(string path)
+    {
+        try
+        {
+            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(path);
+            // Sürüm bilgisi olmayan dosya 0.0.0.0 döner: bilinmiyor sayılır (silinmez).
+            return info.FileMajorPart == 0 && info.FileMinorPart == 0 && info.FileBuildPart == 0 ? null
+                : new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart, info.FilePrivatePart);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
     private static string StartupErrorMessage(Exception ex) => ex switch
@@ -257,7 +323,7 @@ public partial class App : Application
         if (!_started || _exiting) return;
         if (_mainWindow is null)
         {
-            // Açılış süresi ölçümü (DUZENLEME_DEBUGLOG açıksa): oluşturmadan ilk Loaded'a dek.
+            // Açılış süresi ölçümü (NESTDESK_DEBUGLOG açıksa): oluşturmadan ilk Loaded'a dek.
             var opening = System.Diagnostics.Stopwatch.StartNew();
             var window = new MainWindow();
             RoutedEventHandler? onLoaded = null;
@@ -332,16 +398,17 @@ public partial class App : Application
         e.Handled = true;
     }
 
-    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome);
+    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool RestoreDesktop);
 
     /// <summary>
     /// --desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır;
-    /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak).
+    /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak); --restore-desktop gizli bırakılmış
+    /// masaüstü simgelerini açıp çıkar (kaldırma programı).
     /// </summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        bool minimized = false, exit = false, add = false, welcome = false;
+        bool minimized = false, exit = false, add = false, welcome = false, restoreDesktop = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -352,8 +419,21 @@ public partial class App : Application
                 case "--exit": exit = true; break;
                 case "--add": add = true; break;
                 case "--welcome": welcome = true; break;
+                case "--restore-desktop": restoreDesktop = true; break;
             }
         }
-        return new Args(desktop, data, minimized, exit, add, welcome);
+        return new Args(desktop, data, minimized, exit, add, welcome, restoreDesktop);
+    }
+
+    /// <summary>Bu kullanıcının (ya da test örneğinin) çalışan bir NestDesk'i var mı? (Tek örnek kilidi alınmadan bakılır.)</summary>
+    private static bool InstanceRunning(string id)
+    {
+        try
+        {
+            if (!Mutex.TryOpenExisting(id, out var running)) return false;
+            running.Dispose();
+            return true;
+        }
+        catch (UnauthorizedAccessException) { return true; }   // var ama açılamıyor: çalışıyor say
     }
 }

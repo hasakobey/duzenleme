@@ -185,7 +185,7 @@ public sealed class WidgetManager
             // Açılamayan widget listede "eklendi" görünüp masaüstünde hiç çıkmasın.
             AppHost.Settings.Widgets.Remove(config);
             AppHost.SaveSettings();
-            MessageBox.Show("Widget açılamadı. Ayrıntı için DUZENLEME_DEBUGLOG ile günlük tutulabilir.", AppInfo.Name,
+            MessageBox.Show($"Widget açılamadı. {AppInfo.Name}'ten çıkıp yeniden açtıktan sonra tekrar dene.", AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Changed?.Invoke();

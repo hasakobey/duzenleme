@@ -222,6 +222,11 @@ public partial class FolderIconWindow : FluentWindow
         }
     }
 
+    /// <summary>Yapay zekânın ürettiği uygunsuz içeriği bildirme: tarayıcıda önceden doldurulmuş, boş bir GitHub sorunu açar.</summary>
+    private void Report_Click(object sender, RoutedEventArgs e) => Views.Browser.Open(SupportLinks.ReportAiContent(AppInfo.Version));
+
+    private void Privacy_Click(object sender, RoutedEventArgs e) => Views.Browser.Open(AppInfo.PrivacyUrl);
+
     private void Prompt_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && GenerateButton.IsEnabled) Generate_Click(sender, e);

@@ -9,13 +9,15 @@
 #   NestDesk-<sürüm>.msixbundle           Partner Center'a yüklenecek dosya
 #   NestDesk-DenemeImzasi.pfx / .cer      yalnızca -TestSign ile; paket, .cer yerel makinenin "Güvenilen Kişiler"
 #                                         deposuna eklenmeden (yönetici izni gerekir) kurulamaz
-# Paketin içindeki program dosyası bilerek Duzenleme.exe kalır (AppxManifest.xml: Executable, Application Id, TaskId).
+# Paketin program dosyası NestDesk.exe (AppxManifest.xml: Executable; Application Id NestDesk / AddWidget, TaskId NestDeskStartup).
 # Her şey önce geçici klasörde üretilir; dist-store/ içindeki eski çıktı ancak çalıştırma baştan sona başarılı olunca
 # yenisiyle değiştirilir (yarıda kalan çalıştırma son sağlam paketi silmez).
 #
-# Store kimliği tools/store/identity.json'dan, paket bildirimi tools/store/AppxManifest.xml şablonundan gelir; görseller
-# src/Duzenleme/Assets/app.ico'dan üretilir. makeappx/makepri/signtool için Windows SDK kurmak gerekmez: sürümü sabit
-# Microsoft.Windows.SDK.BuildTools NuGet paketi bir kez %LOCALAPPDATA%\DuzenlemeBuildTools altına indirilir.
+# Store kimliği tools/store/identity.json'dan, paket bildirimi tools/store/AppxManifest.xml şablonundan gelir; bildirimdeki
+# ms-resource: metinleri (açıklamalar, "Add a widget" girişinin adı) tools/store/Strings/<dil>/Resources.resw'den (en-US
+# varsayılan + tr-TR) resources.pri'ye girer. Görseller src/Duzenleme/Assets/app.ico'dan üretilir. makeappx/makepri/signtool
+# için Windows SDK kurmak gerekmez: sürümü sabit Microsoft.Windows.SDK.BuildTools NuGet paketi bir kez
+# %LOCALAPPDATA%\DuzenlemeBuildTools altına indirilir (önbellek klasörünün adı eski; değiştirmek yeniden indirtir).
 param(
     [ValidateSet('x64', 'arm64', 'x86')]
     [string[]]$Arch = @('x64', 'arm64', 'x86'),
@@ -63,7 +65,7 @@ if ($isPlaceholder) {
     Write-Warning $placeholderMessage
 }
 
-$work = Join-Path ([IO.Path]::GetTempPath()) ('duzenleme-msix-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$work = Join-Path ([IO.Path]::GetTempPath()) ('nestdesk-msix-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Force $work | Out-Null
 # Çıktılar burada toplanır; $outDir'e yalnızca her şey bitince taşınır.
 $staging = Join-Path $work 'cikti'
@@ -234,6 +236,29 @@ function Write-Manifest([string]$arch, [string]$path) {
     [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false))
 }
 
+# Bildirimin dilleri ve ms-resource: anahtarları. makeappx eksik anahtarı fark etmez (paket oluşur, Windows ve Store boş ya da
+# ham metin gösterir): bildirimdeki her dilin Strings\<dil>\Resources.resw'si olmalı, her anahtar her dilde dolu bulunmalı ve
+# bildirimde olmayan dil klasörü bulunmamalı. tests/Duzenleme.Tests/IdentityTests.cs de aynısını denetler.
+function Get-ManifestStrings {
+    $source = Join-Path $storeSrc 'Strings'
+    $languages = @(([xml]$template).Package.Resources.Resource | ForEach-Object { $_.Language })
+    if ($languages.Count -eq 0) { throw 'AppxManifest.xml içinde <Resources> dili yok.' }
+    $keys = @([regex]::Matches($template, 'ms-resource:([\w.-]+)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    foreach ($language in $languages) {
+        $resw = Join-Path $source "$language\Resources.resw"
+        if (-not (Test-Path $resw)) { throw "Bildirimdeki $language dili için $resw yok." }
+        $data = @{}
+        foreach ($entry in ([xml][IO.File]::ReadAllText($resw, [Text.Encoding]::UTF8)).root.data) { $data[$entry.name] = "$($entry.value)".Trim() }
+        foreach ($key in $keys) {
+            if (-not $data.ContainsKey($key)) { throw "$resw içinde '$key' yok (bildirim ms-resource:$key kullanıyor)." }
+            if (-not $data[$key]) { throw "$resw içinde '$key' boş." }
+        }
+    }
+    $extra = @(Get-ChildItem $source -Directory | Where-Object { $languages -notcontains $_.Name })
+    if ($extra.Count -gt 0) { throw "Strings altında bildirimde olmayan dil klasörü: $($extra[0].Name)" }
+    return @{ Source = $source; Languages = $languages; Keys = $keys }
+}
+
 try {
     $tools = Get-BuildTools
     $makeappx = Join-Path $tools 'makeappx.exe'
@@ -274,11 +299,15 @@ try {
         $base = [IO.Path]::GetFileNameWithoutExtension($ref)
         if (-not (Get-ChildItem (Join-Path $priRoot 'Assets') -Filter "$base.*png")) { throw "Bildirimdeki $ref için görsel üretilmedi." }
     }
+    # Bildirimdeki ms-resource: metinleri resources.pri'ye girer (Strings\<dil>\Resources.resw; klasör adı dil niteleyicisidir).
+    $strings = Get-ManifestStrings
+    Copy-Item $strings.Source (Join-Path $priRoot 'Strings') -Recurse
     # makepri yalnızca kimlik adını (kaynak haritası adı) okur; mimari önemsiz.
     $priManifest = Join-Path $work 'pri-manifest\AppxManifest.xml'
     Write-Manifest $Arch[0] $priManifest
     $priConfig = Join-Path $work 'priconfig.xml'
-    Invoke-Tool $makepri @('createconfig', '/cf', $priConfig, '/dq', 'tr-TR', '/pv', '10.0.0', '/o')
+    # Varsayılan dil bildirimdeki ilk dil (en-US): listede olmayan Windows dillerinde bu gösterilir.
+    Invoke-Tool $makepri @('createconfig', '/cf', $priConfig, '/dq', $strings.Languages[0], '/pv', '10.0.0', '/o')
     # <packaging> bölümü PRI'yi dil/ölçek başına ayrı dosyalara böler (kaynak paketleri içindir); tek resources.pri istiyoruz.
     $config = New-Object xml
     $config.Load($priConfig)
@@ -302,6 +331,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız: $a" }
         foreach ($reserved in 'AppxManifest.xml', 'resources.pri', 'Assets') {
             if (Test-Path (Join-Path $layout $reserved)) { throw "Yayın çıktısında paket dosyasıyla çakışan öğe var: $reserved" }
+        }
+        # makeappx bildirimdeki Executable'ın pakette olduğunu denetlemez (kurulur ama açılmaz).
+        foreach ($exe in [regex]::Matches($template, 'Executable="([^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique) {
+            if (-not (Test-Path (Join-Path $layout $exe))) { throw "Bildirimdeki Executable yayın çıktısında yok: $exe" }
         }
         Copy-Item (Join-Path $priRoot 'Assets') (Join-Path $layout 'Assets') -Recurse
         Copy-Item $pri $layout

@@ -1,11 +1,12 @@
 using System.IO;
+using Duzenleme.Core;
 
 namespace Duzenleme;
 
-/// <summary>Tanılama günlüğü: yalnızca DUZENLEME_DEBUGLOG ortam değişkeni bir dosya yolu gösteriyorsa yazar.</summary>
+/// <summary>Tanılama günlüğü: yalnızca NESTDESK_DEBUGLOG (ya da eski adı DUZENLEME_DEBUGLOG) ortam değişkeni bir dosya yolu gösteriyorsa yazar.</summary>
 public static class DebugLog
 {
-    private static readonly string? Path = Environment.GetEnvironmentVariable("DUZENLEME_DEBUGLOG");
+    private static readonly string? Path = AppEnvironment.Get("DEBUGLOG");
     private static readonly object Lock = new();
 
     public static bool Enabled => Path is not null;

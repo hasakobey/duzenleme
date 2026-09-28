@@ -4,7 +4,7 @@
 
 ## Türkçe
 
-**Son güncelleme:** 27 Eylül 2026
+**Son güncelleme:** 28 Eylül 2026
 
 Bu politika, Windows için masaüstü düzenleyici **NestDesk**'in (Microsoft Store, kurulum sihirbazı ve taşınabilir sürümler) verileri nasıl işlediğini anlatır. NestDesk açık kaynaklıdır; aşağıda yazılanların hepsi [kaynak kodda](https://github.com/hasakobey/duzenleme) doğrulanabilir.
 
@@ -18,15 +18,15 @@ Bu politika, Windows için masaüstü düzenleyici **NestDesk**'in (Microsoft St
 
 Yok. NestDesk'in bir sunucusu yoktur; uygulama kullanım bilgisi, cihaz bilgisi, dosya adı ya da başka herhangi bir bilgiyi geliştiriciye göndermez. İsteğe bağlı yapay zekâ özelliği dışında (bkz. 4. bölüm) üçüncü kişilere de bir şey göndermez. Uygulama güncelleme denetimi de yapmaz (Store sürümünü Microsoft Store günceller).
 
-NestDesk'in eski adı Düzenleme'dir; veri klasörü ve bazı iç adlar bu yüzden hâlâ "Duzenleme" adını taşır.
+NestDesk'in eski adı Düzenleme'dir. 2.1'den önceki sürümler verileri `%AppData%\Duzenleme` klasöründe tutuyordu; 2.1 bu klasörü ilk açılışta, bilgisayarının içinde, `%AppData%\NestDesk` olarak yeniden adlandırır.
 
 ### 2. Bilgisayarında tutulanlar
 
 NestDesk'in çalışması için gereken her şey yerel olarak şu klasörde saklanır:
 
-- Kurulum sihirbazıyla kurulan sürüm: `%AppData%\Duzenleme`
+- Kurulum sihirbazıyla kurulan sürüm: `%AppData%\NestDesk` (klasör açıkken yeniden adlandırılamadıysa geçici olarak eski `%AppData%\Duzenleme`)
 - Taşınabilir sürüm: programın yanındaki `data` klasörü
-- Microsoft Store sürümü: Windows, uygulamanın `%AppData%\Duzenleme`'de yeni oluşturduğu dosyaları paketine ayrılmış klasöre (`%LocalAppData%\Packages\…\LocalCache\Roaming\Duzenleme`) yönlendirir. Daha önce kurulum sihirbazı sürümü kullanıldıysa Store sürümü `%AppData%\Duzenleme`'deki mevcut ayarları ve geçmişi yerinde okuyup kullanmaya devam eder; bu dosyalar Store sürümü kaldırılınca silinmez. Uygulamanın kullandığı klasörü Ayarlar → **Gelişmiş** → **Dosya konumları** → **Ayar ve geçmiş dosyaları** → **Aç** ile görebilirsin.
+- Microsoft Store sürümü: Windows, uygulamanın `%AppData%\NestDesk`'te yeni oluşturduğu dosyaları paketine ayrılmış klasöre (`%LocalAppData%\Packages\…\LocalCache\Roaming\NestDesk`) yönlendirir. Daha önce kurulum sihirbazı sürümü kullanıldıysa Store sürümü o sürümün klasöründeki (`%AppData%\NestDesk` ya da 2.1 öncesinden kalan `%AppData%\Duzenleme`) mevcut ayarları ve geçmişi yerinde okuyup kullanmaya devam eder; Store sürümü paket dışındaki bu klasörü taşımaz, yeniden adlandırmaz ve kaldırılınca silmez. Uygulamanın kullandığı klasörü Ayarlar → **Gelişmiş** → **Dosya konumları** → **Ayar ve geçmiş dosyaları** → **Aç** ile görebilirsin.
 
 | Dosya | İçerik |
 |---|---|
@@ -38,9 +38,9 @@ NestDesk'in çalışması için gereken her şey yerel olarak şu klasörde sakl
 
 Ayrıca:
 
-- Bir klasöre simge verdiğinde simge, o klasörün içine gizli bir `.ico` dosyası olarak yazılır ve klasörün `desktop.ini` dosyası güncellenir (Windows'un standart klasör simgesi yöntemi). Simge penceresindeki **Varsayılana dön** bunları kaldırır.
+- Bir klasöre simge verdiğinde simge, o klasörün içine gizli bir `.nestdesk-<zaman>.ico` dosyası (2.1 öncesinde `.duzenleme-<zaman>.ico`) olarak yazılır ve klasörün `desktop.ini` dosyası güncellenir (Windows'un standart klasör simgesi yöntemi). Simge penceresindeki **Varsayılana dön** bunları kaldırır; Ayarlar → **Gelişmiş** → **Klasör simgelerinin hepsini kaldır** masaüstündeki klasörlerde (ve içlerindeki klasörlerde) NestDesk'in verdiği bütün simgeleri bir kerede kaldırır.
 - "Windows ile başlat" gibi seçenekler Windows'un kendi kullanıcı ayarlarına yazılır.
-- Tanılama günlüğü yalnızca `DUZENLEME_DEBUGLOG` ortam değişkeniyle açıkça istenirse, senin belirttiğin dosyaya yazılır.
+- Tanılama günlüğü yalnızca `NESTDESK_DEBUGLOG` (ya da eski adı `DUZENLEME_DEBUGLOG`) ortam değişkeniyle açıkça istenirse, senin belirttiğin dosyaya yazılır.
 
 Bunların hiçbiri bilgisayarından dışarı gönderilmez.
 
@@ -64,12 +64,13 @@ Bu özellik varsayılan olarak kapalıdır ve yalnızca Ayarlar'a kendi Claude A
 - Başka hiçbir şey gönderilmez: dosyaların, diğer dosya adların, notların, ayarların ve geçmişin bilgisayarında kalır.
 - Gelen SVG çizimi, çalıştırılabilir ya da dışarı bağlanan her şeyden temizlenir ve `ai-icons/` klasörüne kaydedilir.
 - İstekler senin Anthropic hesabın üzerinden yapılır ve kullanım ücretini Anthropic senin hesabına yansıtır. Anthropic'in bu verileri nasıl işlediği Anthropic'in koşullarına ve [gizlilik politikasına](https://www.anthropic.com/legal/privacy) tabidir.
+- Üretilen bir simge uygunsuzsa klasör simgesi penceresindeki **Uygunsuz içeriği bildir** bağlantısı tarayıcında boş bir GitHub bildirim formu açar. Kendiliğinden hiçbir şey gönderilmez: formun adresinde yalnızca NestDesk'in sürüm numarası bulunur; neyi yazacağına ve formu gönderip göndermeyeceğine sen karar verirsin (GitHub hesabı gerekir, bildirim herkese açıktır).
 
 **API anahtarının saklanması:** Anahtar, Windows'un veri koruma arayüzüyle (DPAPI, "geçerli kullanıcı" kapsamı) şifrelenir; `settings.json` içinde yalnızca şifreli hali tutulur. Şifreli anahtar genellikle yalnızca aynı bilgisayardaki aynı Windows hesabında çözülebilir: ayar dosyası ya da bir kopyası başka bir hesaba ya da başka bir bilgisayara taşınırsa okunamaz. (İstisna: kurumsal ağlarda dolaşım profili kullanan bir hesap, anahtarı ağdaki başka bir bilgisayarda da çözebilir.) DPAPI'nin doğası gereği aynı Windows hesabıyla çalışan programlar anahtarı çözebilir; bu yüzden anahtarı yalnızca güvendiğin bir bilgisayarda kaydet. Ayarlar'daki **Sil** düğmesi anahtarı `settings.json`'dan kaldırır; şifreli hali `yedekler/` klasöründeki eski kopyalarda bu kopyalar yenileriyle değişene kadar, varsa `settings.json.bozuk-<zaman>` dosyalarında ise sen silene kadar kalır (hemen kaldırmak için bunları silebilirsin). Anahtarı tamamen geçersiz kılmak için Anthropic Console'dan iptal edebilirsin.
 
 ### 5. Senin başlattığın diğer bağlantılar
 
-- Ayarlar'daki bağlantılar (ör. Anthropic Console, indirme sayfası) yalnızca sen tıklayınca varsayılan tarayıcında açılır.
+- Ayarlar'daki bağlantılar (ör. Anthropic Console, indirme sayfası, bu gizlilik politikası) yalnızca sen tıklayınca varsayılan tarayıcında açılır.
 - Bölmelerden ve kısayol kutusundan açtığın öğeler (internet kısayolları dahil) Windows tarafından ilgili programla açılır.
 - Masaüstün OneDrive'a ya da bir ağ klasörüne yönlendirilmişse dosya işlemleri Windows üzerinden o konumda yapılır; NestDesk bu hizmetlere kendisi bağlanmaz.
 
@@ -79,10 +80,10 @@ NestDesk'i Microsoft Store'dan yüklediysen, indirme bilgileri ve (Windows tanı
 
 ### 7. Verilerini silmek
 
-- **Microsoft Store sürümü:** Uygulamayı kaldırınca Windows paket klasörünü de siler. (Store sürümünden önce kurulum sihirbazı sürümü kullanıldıysa Store sürümünün de kullandığı `%AppData%\Duzenleme` klasörü kalır; elle silebilirsin.)
-- **Kurulum sihirbazı sürümü:** Kaldırma programı ayarların silinip silinmeyeceğini sorar; istersen `%AppData%\Duzenleme` klasörünü elle de silebilirsin.
+- **Microsoft Store sürümü:** Uygulamayı kaldırınca Windows paket klasörünü de siler. (Store sürümünden önce kurulum sihirbazı sürümü kullanıldıysa Store sürümünün de kullandığı `%AppData%\NestDesk` ya da `%AppData%\Duzenleme` klasörü kalır; elle silebilirsin.)
+- **Kurulum sihirbazı sürümü:** Kaldırma programı ayarların silinip silinmeyeceğini sorar (`%AppData%\NestDesk` ve varsa 2.1 öncesinden kalan `%AppData%\Duzenleme`); istersen bu klasörleri elle de silebilirsin.
 - **Taşınabilir sürüm:** Programın yanındaki `data` klasörünü sil.
-- Klasör simgeleri klasörlerin içinde kalır; simge penceresindeki **Varsayılana dön** ile kaldırılır. Taşınan dosyalar taşındıkları yerde kalır; **Otomatik taşıma** sayfasından geri alınabilir.
+- Klasör simgeleri klasörlerin içinde kalır ve uygulama kaldırılınca silinmez; kaldırmadan önce Ayarlar → **Gelişmiş** → **Klasör simgelerinin hepsini kaldır** ile hepsini, simge penceresindeki **Varsayılana dön** ile tek tek kaldırabilirsin. Taşınan dosyalar taşındıkları yerde kalır; **Otomatik taşıma** sayfasından geri alınabilir.
 
 ### 8. Çocuklar
 
@@ -100,7 +101,7 @@ Sorular ve talepler için: [GitHub Issues](https://github.com/hasakobey/duzenlem
 
 ## English
 
-**Last updated:** September 27, 2026
+**Last updated:** September 28, 2026
 
 This policy explains how **NestDesk**, a desktop organizer for Windows, handles data in all of its editions (Microsoft Store, installer and portable). NestDesk is open source; everything below can be verified in the [source code](https://github.com/hasakobey/duzenleme).
 
@@ -114,15 +115,15 @@ This policy explains how **NestDesk**, a desktop organizer for Windows, handles 
 
 None. NestDesk has no server of its own; the app does not send usage data, device information, file names or any other information to the developer. Apart from the optional AI feature (see section 4), it sends nothing to third parties either. The app does not check for updates either (the Store edition is updated by the Microsoft Store).
 
-NestDesk was formerly called Düzenleme; that is why its data folder and some internal names still use "Duzenleme".
+NestDesk was formerly called Düzenleme. Versions before 2.1 kept their data in `%AppData%\Duzenleme`; on first start, 2.1 renames that folder to `%AppData%\NestDesk`, locally on your PC.
 
 ### 2. Data stored on your PC
 
 Everything NestDesk needs is stored locally in this folder:
 
-- Installer edition: `%AppData%\Duzenleme`
+- Installer edition: `%AppData%\NestDesk` (temporarily the old `%AppData%\Duzenleme` if that folder could not be renamed because it was in use)
 - Portable edition: the `data` folder next to the program
-- Microsoft Store edition: Windows redirects files the app newly creates in `%AppData%\Duzenleme` to the folder reserved for its package (`%LocalAppData%\Packages\…\LocalCache\Roaming\Duzenleme`). If you used the installer edition before, the Store edition keeps reading and using your existing settings and history in `%AppData%\Duzenleme` in place; those files are not deleted when the Store edition is uninstalled. To see the folder the app uses, go to Settings → **Gelişmiş** (Advanced) → **Dosya konumları** (File locations) → **Ayar ve geçmiş dosyaları** (Settings and history files) → **Aç** (Open).
+- Microsoft Store edition: Windows redirects files the app newly creates in `%AppData%\NestDesk` to the folder reserved for its package (`%LocalAppData%\Packages\…\LocalCache\Roaming\NestDesk`). If you used the installer edition before, the Store edition keeps reading and using your existing settings and history in that edition's folder (`%AppData%\NestDesk`, or `%AppData%\Duzenleme` left over from before 2.1) in place; the Store edition never moves or renames that folder outside its package, and does not delete it when uninstalled. To see the folder the app uses, go to Settings → **Gelişmiş** (Advanced) → **Dosya konumları** (File locations) → **Ayar ve geçmiş dosyaları** (Settings and history files) → **Aç** (Open).
 
 | File | Contents |
 |---|---|
@@ -134,9 +135,9 @@ Everything NestDesk needs is stored locally in this folder:
 
 In addition:
 
-- When you give a folder an icon, the icon is written into that folder as a hidden `.ico` file and the folder's `desktop.ini` is updated (the standard Windows folder icon mechanism). **Varsayılana dön** (Reset to default) in the icon window removes them.
+- When you give a folder an icon, the icon is written into that folder as a hidden `.nestdesk-<time>.ico` file (`.duzenleme-<time>.ico` before 2.1) and the folder's `desktop.ini` is updated (the standard Windows folder icon mechanism). **Varsayılana dön** (Reset to default) in the icon window removes them; Settings → **Gelişmiş** (Advanced) → **Klasör simgelerinin hepsini kaldır** (Remove all folder icons) removes every icon NestDesk gave to folders on your desktop (and the folders inside them) at once.
 - Options such as "start with Windows" are written to Windows' own user settings.
-- A diagnostic log is written only if you explicitly request it with the `DUZENLEME_DEBUGLOG` environment variable, to the file you specify.
+- A diagnostic log is written only if you explicitly request it with the `NESTDESK_DEBUGLOG` (or the older `DUZENLEME_DEBUGLOG`) environment variable, to the file you specify.
 
 None of this ever leaves your PC.
 
@@ -160,12 +161,13 @@ This feature is off by default and works only if you enter your own Claude API k
 - Nothing else is sent: your files, other file names, notes, settings and history stay on your PC.
 - The returned SVG drawing is stripped of anything executable or externally linked and saved in the `ai-icons/` folder.
 - Requests are made with your own Anthropic account, and Anthropic bills the usage to that account. How Anthropic processes this data is governed by Anthropic's terms and [privacy policy](https://www.anthropic.com/legal/privacy).
+- If a generated icon is inappropriate, the **Uygunsuz içeriği bildir** (Report inappropriate content) link in the folder icon window opens a blank GitHub issue form in your browser. Nothing is sent automatically: the form's address contains only NestDesk's version number; you decide what to write and whether to submit it (a GitHub account is required and reports are public).
 
 **How the API key is stored:** The key is encrypted with the Windows Data Protection API (DPAPI, current-user scope); only the encrypted form is kept in `settings.json`. It can usually be decrypted only by the same Windows account on the same PC: if the settings file or a copy of it is moved to another account or another PC, the key cannot be read. (Exception: an account with a roaming profile on a corporate network can also decrypt it on another PC on that network.) By the nature of DPAPI, programs running under the same Windows account can decrypt it, so save the key only on a PC you trust. The **Sil** (Delete) button in Settings removes the key from `settings.json`; the encrypted key stays in older copies in `yedekler/` until they are replaced by newer ones, and in any `settings.json.bozuk-<time>` files until you delete them (delete these to remove it immediately). To invalidate the key completely, revoke it in the Anthropic Console.
 
 ### 5. Other connections you start
 
-- Links in Settings (e.g. the Anthropic Console, the download page) open in your default browser only when you click them.
+- Links in Settings (e.g. the Anthropic Console, the download page, this privacy policy) open in your default browser only when you click them.
 - Items you open from fences and launchers (including internet shortcuts) are opened by Windows with the associated program.
 - If your desktop is redirected to OneDrive or a network folder, file operations happen there through Windows; NestDesk does not connect to those services itself.
 
@@ -175,10 +177,10 @@ If you installed NestDesk from the Microsoft Store, data such as download inform
 
 ### 7. Deleting your data
 
-- **Microsoft Store edition:** Uninstalling the app also makes Windows delete the package folder. (If you used the installer edition before, the `%AppData%\Duzenleme` folder, which the Store edition also uses, remains; you can delete it manually.)
-- **Installer edition:** The uninstaller asks whether to delete your settings; you can also delete `%AppData%\Duzenleme` manually.
+- **Microsoft Store edition:** Uninstalling the app also makes Windows delete the package folder. (If you used the installer edition before, the `%AppData%\NestDesk` or `%AppData%\Duzenleme` folder, which the Store edition also uses, remains; you can delete it manually.)
+- **Installer edition:** The uninstaller asks whether to delete your settings (`%AppData%\NestDesk` and, if present, `%AppData%\Duzenleme` left over from before 2.1); you can also delete these folders manually.
 - **Portable edition:** Delete the `data` folder next to the program.
-- Folder icons stay inside the folders; remove them with **Varsayılana dön** (Reset to default) in the icon window. Moved files stay where they were moved; you can undo moves on the **Otomatik taşıma** (Auto-move) page.
+- Folder icons stay inside the folders and are not deleted when the app is uninstalled; before uninstalling, remove all of them with Settings → **Gelişmiş** (Advanced) → **Klasör simgelerinin hepsini kaldır** (Remove all folder icons), or one by one with **Varsayılana dön** (Reset to default) in the icon window. Moved files stay where they were moved; you can undo moves on the **Otomatik taşıma** (Auto-move) page.
 
 ### 8. Children
 

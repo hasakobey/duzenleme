@@ -487,5 +487,6 @@ $RECYCLE.BIN/
 dist/
 dist-store/
 
-# NestDesk masaüstündeki bu klasöre simge verirse oluşan dosya (desktop.ini yukarıda yok sayılıyor)
+# NestDesk masaüstündeki bu klasöre simge verirse oluşan dosya (desktop.ini yukarıda yok sayılıyor); 2.0 ve öncesi eski önekle
+.nestdesk-*.ico
 .duzenleme-*.ico

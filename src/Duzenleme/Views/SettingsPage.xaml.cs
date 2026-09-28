@@ -123,6 +123,8 @@ public partial class SettingsPage : Page
                       "Anthropic hesabına yansır. Anahtar zorunlu değil; hazır simgeler anahtarsız çalışır. " +
                       $"{AppInfo.Name} internete yalnızca anahtarı doğrularken ve sen \"Üret\"e bastığında Anthropic'e bağlanır; " +
                       "simge için yalnızca klasör adı ve yazdığın açıklama gönderilir.";
+        RemoveIconsText.Text = $"Masaüstündeki klasörlere {AppInfo.Name}'in verdiği simgeleri kaldırır. {AppInfo.Name}'i kaldırmadan " +
+                               "önce kullanabilirsin: simgeler klasörlerin içinde durduğu için kendiliğinden silinmez.";
         LoadAbout();
 
         Fold.Attach(SystemIconsFold, SystemIconsContent, LoadSystemIcons);
@@ -481,8 +483,40 @@ public partial class SettingsPage : Page
 
     private void Link_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
     {
-        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        Browser.Open(e.Uri.AbsoluteUri);
         e.Handled = true;
+    }
+
+    // ---- Gelişmiş: klasör simgelerinin hepsini kaldır ----
+
+    /// <summary>
+    /// Store sürümünde kaldırma programı olmadığı için (Store 10.2.7) klasör simgelerini toplu kaldırmanın uygulama içi yolu.
+    /// Diske dokunan iş arka planda; bitince sonuç şeritte.
+    /// </summary>
+    private async void RemoveAllFolderIcons_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Confirm.Ask(Window.GetWindow(this), "Klasör simgelerinin hepsi kaldırılsın mı?",
+                $"{AppInfo.Name}'in verdiği bütün klasör simgeleri silinir ve klasörler Windows'un varsayılan simgesine döner. " +
+                "Klasörlere ve içlerindeki dosyalara dokunulmaz. Simgeleri yeniden vermek istersen \"Klasör simgeleri\" bölümünü kullan.",
+                "Hepsini kaldır"))
+            return;
+        RemoveIconsButton.IsEnabled = false;
+        try
+        {
+            var roots = AppHost.DesktopDirectories.ToList();
+            var (removed, failed) = await Task.Run(() => FolderIconService.RemoveAllOwnIcons(roots));
+            removed.ForEach(ShellIcons.Forget);
+            if (_folderIcons is not null) LoadFolderIcons();
+            var text = removed.Count > 0
+                ? $"{removed.Count} klasörün simgesi kaldırıldı; masaüstü birkaç saniye içinde yenilenir."
+                : $"Kaldırılacak simge yok: {AppInfo.Name}'in verdiği bir klasör simgesi bulunamadı.";
+            if (failed > 0) text += $" {failed} klasöre erişilemediği için dokunulamadı.";
+            Notice.Show(text, failed > 0 ? NoticeKind.Warning : removed.Count > 0 ? NoticeKind.Success : NoticeKind.Info);
+        }
+        finally
+        {
+            RemoveIconsButton.IsEnabled = true;
+        }
     }
 
     // ---- Gelişmiş: dosya konumları ----
@@ -503,8 +537,10 @@ public partial class SettingsPage : Page
         PortableText.Text = AppHost.IsPortable
             ? "Taşınabilir mod açık: ayarlar exe'nin yanındaki data klasöründe."
             : AppHost.PortableFallback
-                ? $"portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik %AppData%\\{AppInfo.DataFolderName}'de. Programı yazılabilir bir klasöre taşı."
-                : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
+                ? "portable.txt var ama programın klasörüne yazılamıyor; ayarlar şimdilik yukarıdaki klasörde. Programı yazılabilir bir klasöre taşı."
+                : AppHost.DataFolderSource == DataFolderSource.MoveFailed
+                    ? $"Klasör o sırada kullanımda olduğu için {AppInfo.DataFolderName} adıyla yeniden adlandırılamadı; bir sonraki açılışta yeniden denenecek."
+                    : "Taşınabilir kullanım için exe'nin yanına boş bir portable.txt dosyası koy.";
     }
 
     private void OpenDesktop_Click(object sender, RoutedEventArgs e) =>
@@ -520,7 +556,7 @@ public partial class SettingsPage : Page
     /// <summary>Sürüm, kanal (Store / taşınabilir / kurulum) ve nasıl güncelleneceği. Uygulama kendisi güncelleme denetlemez.</summary>
     private void LoadAbout()
     {
-        VersionText.Text = $"{AppInfo.Name} {AppInfo.Version} · eski adıyla {AppInfo.FormerName}";
+        VersionText.Text = $"{AppInfo.Name} {AppInfo.Version}";
         TaglineText.Text = AppInfo.Tagline;
         ChannelText.Text = PackageInfo.IsPackaged
             ? "Microsoft Store sürümü · Güncellemeler Microsoft Store'dan kendiliğinden gelir."
@@ -532,8 +568,10 @@ public partial class SettingsPage : Page
         ReleasesButton.Visibility = PackageInfo.IsPackaged ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void Releases_Click(object sender, RoutedEventArgs e) =>
-        Process.Start(new ProcessStartInfo(AppInfo.ReleasesUrl) { UseShellExecute = true });
+    private void Releases_Click(object sender, RoutedEventArgs e) => Browser.Open(AppInfo.ReleasesUrl);
+
+    /// <summary>Gizlilik politikası (Store 10.5.1: uygulama içinden erişilebilir olmalı); Hakkında ve yapay zekâ bölümünde.</summary>
+    private void Privacy_Click(object sender, RoutedEventArgs e) => Browser.Open(AppInfo.PrivacyUrl);
 
     private void Exit_Click(object sender, RoutedEventArgs e) => ((App)Application.Current).ExitApp();
 }

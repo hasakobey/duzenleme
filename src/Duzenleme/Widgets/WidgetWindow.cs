@@ -503,8 +503,8 @@ public sealed class WidgetWindow : Window
         var source = HwndSource.FromHwnd(hwnd);
         source?.AddHook(WndProc);
         // Widget'lar küçük ve durağandır: yazılımla çizmek her katmanlı pencere için ayrı ekran kartı yüzeyi tutmaktan
-        // kaçınır (ölçüldü: 7 widget'ta ~85 MB daha az bellek, işlemci aynı). DUZENLEME_GPU=1 donanım çizimine döner.
-        if (source?.CompositionTarget is { } target && Environment.GetEnvironmentVariable("DUZENLEME_GPU") != "1")
+        // kaçınır (ölçüldü: 7 widget'ta ~85 MB daha az bellek, işlemci aynı). NESTDESK_GPU=1 (ya da DUZENLEME_GPU=1) donanım çizimine döner.
+        if (source?.CompositionTarget is { } target && Core.AppEnvironment.Get("GPU") != "1")
             target.RenderMode = RenderMode.SoftwareOnly;
         if (Application.Current?.MainWindow == this) Application.Current.MainWindow = null;
         AttachToDesktop();

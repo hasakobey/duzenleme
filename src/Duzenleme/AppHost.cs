@@ -90,14 +90,31 @@ public static class AppHost
         return path;
     }
 
+    /// <summary>Veri klasörünün nereden geldiği; bu açılışta eski %AppData%\Duzenleme'den taşındıysa Moved.</summary>
+    public static DataFolderSource DataFolderSource { get; private set; }
+
+    /// <summary>
+    /// %AppData% (Roaming). Test örneğinde (--desktop) NESTDESK_APPDATA_ROOT verilirse o klasör: veri klasörü geçişi
+    /// kullanıcının gerçek %AppData%'sına dokunmadan denenebilsin (--data verilmediğinde).
+    /// </summary>
+    private static string RoamingAppData(bool testDesktop) =>
+        testDesktop && AppEnvironment.Get("APPDATA_ROOT") is { } root
+            ? root
+            : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
     public static void Initialize(string? desktopOverride, string? dataOverride)
     {
+        IsTestDesktop = desktopOverride is not null;
         // Store (MSIX) paketinin klasörü salt okunurdur ve portable.txt taşımaz: paketliyken taşınabilir mod denenmez.
         var portable = dataOverride is null && !PackageInfo.IsPackaged ? PortableDataDirectory() : null;
         IsPortable = portable is not null;
-        DataDirectory = dataOverride ?? portable ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppInfo.DataFolderName);
+        // 2.1: %AppData%\Duzenleme → %AppData%\NestDesk. Tek örnek kilidi burada zaten tutuluyor (App.OnStartup): klasöre
+        // aynı anda yazan başka bir NestDesk/Düzenleme yok. Taşınamazsa bu oturum eski klasörle çalışır.
+        var data = DataFolderLocator.Apply(
+            DataFolderLocator.Plan(dataOverride, portable, PackageInfo.IsPackaged, RoamingAppData(IsTestDesktop)), log: DebugLog.Write);
+        DataDirectory = data.Directory;
+        DataFolderSource = data.Source;
         DesktopDirectory = desktopOverride ?? ResolveDesktop();
-        IsTestDesktop = desktopOverride is not null;
         // Kurulan programların kısayolları çoğunlukla Genel Masaüstü'ndedir; "Kısayollar" bölmesi onları da göstersin.
         var common = desktopOverride is null
             ? Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory, Environment.SpecialFolderOption.DoNotVerify)
@@ -284,6 +301,35 @@ public static class AppHost
                 old.Delete();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>
+    /// --restore-desktop (kaldırma programı çağırır; tek örnek kilidi gerekmez, çalışan örneğe dokunmaz): ayarlar uygulamanın
+    /// Windows masaüstü simgelerini gizli bıraktığını söylüyorsa simgeleri geri açar. Hiçbir dosya yazılmaz ya da taşınmaz;
+    /// test masaüstüyle (--desktop) yalnızca günlüğe yazar.
+    /// </summary>
+    public static void RestoreDesktopForUninstall(string? desktopOverride, string? dataOverride)
+    {
+        var testDesktop = desktopOverride is not null;
+        var portableFile = Path.Combine(AppContext.BaseDirectory, "portable.txt");
+        var portable = dataOverride is null && !PackageInfo.IsPackaged && File.Exists(portableFile)
+            ? Path.Combine(AppContext.BaseDirectory, "data")
+            : null;
+        foreach (var file in DataFolderLocator.SettingsCandidates(dataOverride, portable, RoamingAppData(testDesktop)))
+        {
+            string text;
+            try
+            {
+                if (!File.Exists(file)) continue;
+                text = File.ReadAllText(file);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }
+            // Yalnızca kullanılan (öncelikli) ayar dosyasına bakılır: eski klasörde kalmış eski bir kopya karar vermesin.
+            var hidden = LegacyFiles.IconsLeftHidden(text);
+            DebugLog.Write($"--restore-desktop: {file} → simgeler {(hidden ? "gizli bırakılmış" : "açık")}");
+            if (hidden && !testDesktop) DesktopIcons.SetVisible(true);
+            return;
+        }
     }
 
     /// <summary>Uygulama kapanırken masaüstünü kullanıcıya gizli bırakma.</summary>

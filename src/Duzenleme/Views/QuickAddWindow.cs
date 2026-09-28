@@ -20,7 +20,7 @@ internal sealed class QuickAddWindow : FluentWindow
     private readonly NativeMethods.POINT _anchor;
     private bool _closing;
 
-    /// <summary>İmlecin (ya da testte DUZENLEME_QUICKADD_AT="x,y" noktasının) bulunduğu yerde açar.</summary>
+    /// <summary>İmlecin (ya da testte NESTDESK_QUICKADD_AT="x,y" noktasının; eski adı DUZENLEME_QUICKADD_AT) bulunduğu yerde açar.</summary>
     public static void ShowNearCursor()
     {
         if (_current is not null)
@@ -29,7 +29,7 @@ internal sealed class QuickAddWindow : FluentWindow
             return;
         }
         NativeMethods.GetCursorPos(out var anchor);
-        if (Environment.GetEnvironmentVariable("DUZENLEME_QUICKADD_AT")?.Split(',') is [var x, var y] &&
+        if (Core.AppEnvironment.Get("QUICKADD_AT")?.Split(',') is [var x, var y] &&
             int.TryParse(x, out var px) && int.TryParse(y, out var py))
             anchor = new NativeMethods.POINT { X = px, Y = py };
         _current = new QuickAddWindow(anchor);

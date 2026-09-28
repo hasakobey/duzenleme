@@ -48,6 +48,20 @@ public static class PackagedApp
         return directoryExists(redirected) ? redirected : dataDirectory;
     }
 
+    /// <summary>
+    /// Başlat'taki "NestDesk – Add a widget" girişi ayrı bir uygulama kimliğidir (PFN!AddWidget). Uygulama kapalıyken oradan
+    /// açılan süreç tek örnek olursa tepsi, bildirimler ve görev çubuğu oturum boyunca o kimlikle çalışırdı. Süreç bu kimlikle
+    /// açıldıysa ana uygulamanın kimliği (PFN!NestDesk; onu "--add" ile başlatıp kapanır), değilse null.
+    /// </summary>
+    public static string? MainAppUserModelIdFor(string? currentAumid)
+    {
+        if (currentAumid is null) return null;
+        var bang = currentAumid.LastIndexOf('!');
+        if (bang <= 0 || !string.Equals(currentAumid[(bang + 1)..], AppInfo.PackageAddWidgetAppId, StringComparison.OrdinalIgnoreCase))
+            return null;
+        return currentAumid[..(bang + 1)] + AppInfo.PackageAppId;
+    }
+
     /// <summary>WinRT'den gelen durumu çözer; tanınmıyorsa null (yanlış durum göstermektense bilinmez).</summary>
     public static StartupTaskState? ParseStartupTaskState(int value) =>
         Enum.IsDefined((StartupTaskState)value) ? (StartupTaskState)value : null;
