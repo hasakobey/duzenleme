@@ -250,7 +250,8 @@ internal static class WidgetCatalog
             return null;
         }
         // Adlandırarak eklemede not da önce başlığını alır (sonra yazı alanına geçilir); diğer yüzeylerde not yazı alanıyla açılır.
-        // Yalnızca klasik bölme/kutu/not (ve klasör portalı); alt türlü küçük araçlar (zamanlayıcı, Geri Dönüşüm Kutusu…) F2 ile.
+        // Yalnızca klasik bölme/kutu/not (ve klasör portalı); alt türlü küçük araçlar (zamanlayıcı, takvim, Geri Dönüşüm
+        // Kutusu…) adsız eklenir, sonradan F2 ya da menüdeki "Yeniden adlandır" ile ad alır (WidgetNameLine).
         if (renameAfterAdd && !choice.AsksName && WidgetVariants.Of(config) is null) AppHost.Widgets.BeginRename(config.Id);
         else if (choice.FocusAfterAdd) AppHost.Widgets.FocusNote(config.Id);
         return config;

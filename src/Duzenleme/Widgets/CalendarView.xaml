@@ -7,6 +7,11 @@
          widget'ın boyu oynamaz. Düğmeler hep yerinde; "Bugün" bu ay gösterilirken devre dışıdır (yerleşim değişmez). -->
     <Grid>
         <StackPanel x:Name="Root" MinWidth="236">
+            <!-- Adı (verildiyse; F2 yerinde düzenler). Ad yoksa satır yok. -->
+            <Grid x:Name="NameBox" Margin="2,-2,22,4" Visibility="Collapsed">
+                <TextBlock x:Name="NameText" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                           FontFamily="Segoe UI Variable Text, Segoe UI" />
+            </Grid>
             <Grid x:Name="HeaderRow" Margin="0,-2,16,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

@@ -36,6 +36,7 @@ public partial class SystemStatusView : UserControl, IWidgetView
     }
 
     private readonly WidgetConfig _config;
+    private readonly WidgetNameLine _name;
     private readonly DispatcherTimer _timer;
     private readonly Dictionary<string, Row> _rows = [];
     private CpuTimes? _lastCpu;
@@ -48,6 +49,7 @@ public partial class SystemStatusView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
+        _name = new WidgetNameLine(this, config, NameBox, NameText, shadow: null, UpdateName);
         foreach (var (key, label, hasBar) in RowDefs) AddRow(key, label, hasBar);
         _timer = new DispatcherTimer(DispatcherPriority.Background);
         _timer.Tick += (_, _) => Sample();
@@ -186,8 +188,8 @@ public partial class SystemStatusView : UserControl, IWidgetView
     }
 
     private void UpdateName() =>
-        AutomationProperties.SetName(this, string.Join(", ", _rows.Values.Where(r => r.Root.Visibility == Visibility.Visible)
-            .Select(r => $"{r.Label.Text} {r.Value.Text}")));
+        AutomationProperties.SetName(this, string.Join(", ", new[] { _name.Name }.OfType<string>()
+            .Concat(_rows.Values.Where(r => r.Root.Visibility == Visibility.Visible).Select(r => $"{r.Label.Text} {r.Value.Text}"))));
 
     private void ApplyParts()
     {
@@ -198,10 +200,12 @@ public partial class SystemStatusView : UserControl, IWidgetView
         var visible = _rows.Values.Where(r => r.Root.Visibility == Visibility.Visible).ToList();
         foreach (var row in _rows.Values) row.Root.Margin = new Thickness(0, 0, 0, row == visible.LastOrDefault() ? 0 : 11);
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        _name.Render();
     }
 
     public void ApplyPalette(WidgetPalette palette)
     {
+        _name.ApplyPalette(palette);
         foreach (var row in _rows.Values)
         {
             row.Label.Foreground = palette.Foreground;
@@ -234,8 +238,9 @@ public partial class SystemStatusView : UserControl, IWidgetView
                 _diskAt = DateTime.MinValue;
                 RefreshDisk();
             }));
+        menu.Primary.Add(_name.MenuItem());
         menu.Appearance.Add(Menus.Parts(_config,
-            [("cpu", L.N("İşlemci")), ("memory", L.N("Bellek")), ("disk", L.N("Disk")), ("battery", L.N("Pil")),
+            [WidgetNameLine.Part, ("cpu", L.N("İşlemci")), ("memory", L.N("Bellek")), ("disk", L.N("Disk")), ("battery", L.N("Pil")),
              ("uptime", L.N("Açık kalma süresi")), Menus.ClosePart],
             () =>
             {
@@ -255,7 +260,14 @@ public partial class SystemStatusView : UserControl, IWidgetView
         }
     });
 
+    /// <summary>F2 ve "Yeniden adlandır": widget'ın adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    public bool TryBeginRename() => _name.Begin();
+
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
-    public void Detach() => _timer.Stop();
+    public void Detach()
+    {
+        _name.Cancel();
+        _timer.Stop();
+    }
 }

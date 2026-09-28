@@ -8,11 +8,12 @@ public static class WidgetText
 {
     public static string DisplayName(WidgetConfig c) => WidgetVariants.Of(c) switch
     {
-        WidgetVariants.Month => L.T("Takvim"),
+        // Adı verilebilen küçük widget'lar (F2): "Takvim · İş", "Zamanlayıcı · 10 dk · Çay".
+        WidgetVariants.Month => Named(L.T("Takvim"), c),
         WidgetVariants.Countdown => string.IsNullOrWhiteSpace(c.Title) ? L.T("Geri sayım") : L.F("Geri sayım · {0}", c.Title.Trim()),
-        WidgetVariants.Timer => TimerName(c.Timer),
-        WidgetVariants.World => WorldName(c),
-        WidgetVariants.System => L.T("Sistem durumu"),
+        WidgetVariants.Timer => Named(TimerName(c.Timer), c),
+        WidgetVariants.World => string.IsNullOrWhiteSpace(c.Title) ? WorldName(c) : L.F("Dünya saati · {0}", c.Title.Trim()),
+        WidgetVariants.System => Named(L.T("Sistem durumu"), c),
         // Başlık 2.0 için yazılıdır (varsayılan ad, oluşturulduğu dilde); varsayılansa arayüz dilinde, değiştirildiyse kendisi.
         WidgetVariants.Recycle => string.IsNullOrWhiteSpace(c.Title) || L.Variants("Geri Dönüşüm Kutusu").Contains(c.Title.Trim())
             ? L.T("Geri Dönüşüm Kutusu") : c.Title.Trim(),
@@ -30,6 +31,10 @@ public static class WidgetText
                 : WidgetVariants.IsPortal(c) ? FolderPortal.DisplayName(c.FolderName!) : c.FolderName)),
         },
     };
+
+    /// <summary>Türün adı, kullanıcı bir ad verdiyse arkasında: "Pomodoro · Çalışma".</summary>
+    private static string Named(string kind, WidgetConfig c) =>
+        string.IsNullOrWhiteSpace(c.Title) ? kind : L.F("{0} · {1}", kind, c.Title.Trim());
 
     /// <summary>"Zamanlayıcı · 10 dk", "Pomodoro", "Kronometre" (kalan süre değil: ad durağandır).</summary>
     private static string TimerName(TimerState? timer) => TimerModes.Normalize(timer?.Mode) switch

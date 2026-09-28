@@ -18,6 +18,7 @@ public partial class CalendarView : UserControl, IWidgetView
     private static CultureInfo Culture => L.Culture;
 
     private readonly WidgetConfig _config;
+    private readonly WidgetNameLine _name;
     private readonly List<(Border Cell, TextBlock Number)> _cells = [];
     private readonly List<TextBlock> _names = [], _weeks = [];
     private WidgetPalette _palette = WidgetPalette.Glass;
@@ -29,6 +30,7 @@ public partial class CalendarView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
+        _name = new WidgetNameLine(this, config, NameBox, NameText, shadow: null, ApplyParts);
         for (var i = 0; i < MonthGrid.Columns; i++)
         {
             var name = new TextBlock { FontSize = 11, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -58,7 +60,10 @@ public partial class CalendarView : UserControl, IWidgetView
         NextButton.ToolTip = L.T("Sonraki ay (Page Down)");
         TodayButton.ToolTip = L.T("Bugüne dön (Home)");
         // Tıklanınca klavye bu widget'ta: PageUp/PageDown/Home.
-        PreviewMouseLeftButtonDown += (_, _) => Focus();
+        PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            if (!_name.IsEditing) Focus();
+        };
         PreviewKeyDown += OnKey;
         Render();
     }
@@ -140,13 +145,16 @@ public partial class CalendarView : UserControl, IWidgetView
         WeekHeader.Visibility = DayNames.Visibility;
         WeekColumn.Visibility = _config.Shows("weeknum") ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
-        // Başlık gizliyken × gün adlarının üstüne binmesin.
-        Root.Margin = new Thickness(0, _config.Shows("header") || RemoveButton.Visibility != Visibility.Visible ? 0 : 14, 0, 0);
+        _name.Render();
+        // Başlık (ay ya da ad) gizliyken × gün adlarının üstüne binmesin.
+        Root.Margin = new Thickness(0, _config.Shows("header") || _name.IsShown || RemoveButton.Visibility != Visibility.Visible ? 0 : 14, 0, 0);
+        AutomationProperties.SetName(this, WidgetText.DisplayName(_config));
     }
 
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _name.ApplyPalette(palette);
         MonthTitle.Foreground = palette.Foreground;
         foreach (var name in _names) name.Foreground = palette.Secondary;
         foreach (var week in _weeks) week.Foreground = palette.Secondary;
@@ -171,6 +179,7 @@ public partial class CalendarView : UserControl, IWidgetView
 
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (_name.IsEditing) return; // Home ve Page Up/Down ad kutusunda çalışsın
         switch (e.Key)
         {
             case Key.PageUp: Show(MonthGrid.AddMonths(_month, -1)); break;
@@ -194,12 +203,20 @@ public partial class CalendarView : UserControl, IWidgetView
                 AppHost.SaveSettings();
                 Render();
             }));
+        menu.Primary.Add(_name.MenuItem());
         menu.Appearance.Add(Menus.Parts(_config,
-            [("header", L.N("Ay ve düğmeler")), ("weekdays", L.N("Gün adları")), ("weeknum", L.N("Hafta numaraları")), Menus.ClosePart],
+            [WidgetNameLine.Part, ("header", L.N("Ay ve düğmeler")), ("weekdays", L.N("Gün adları")), ("weeknum", L.N("Hafta numaraları")), Menus.ClosePart],
             Render));
     }
 
+    /// <summary>F2 ve "Yeniden adlandır": takvimin adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    public bool TryBeginRename() => _name.Begin();
+
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
-    public void Detach() => WidgetTicker.DayChanged -= OnDayChanged;
+    public void Detach()
+    {
+        _name.Cancel();
+        WidgetTicker.DayChanged -= OnDayChanged;
+    }
 }

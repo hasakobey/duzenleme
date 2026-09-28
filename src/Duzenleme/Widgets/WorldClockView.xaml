@@ -6,6 +6,11 @@
          menüsünü (adını değiştir, taşı, kaldır) açar, başka yere sağ tık widget menüsünü. -->
     <Grid>
         <StackPanel MinWidth="230" Margin="0,0,14,0">
+            <!-- Adı (verildiyse; F2 yerinde düzenler). Ad yoksa satır yok. -->
+            <Grid x:Name="NameBox" Margin="0,-2,8,8" Visibility="Collapsed">
+                <TextBlock x:Name="NameText" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                           FontFamily="Segoe UI Variable Text, Segoe UI" />
+            </Grid>
             <StackPanel x:Name="Rows" AutomationProperties.AutomationId="WorldClock.Rows" />
             <StackPanel x:Name="EmptyState" Visibility="Collapsed" Margin="0,4,0,4">
                 <TextBlock x:Name="EmptyText" FontSize="13" TextWrapping="Wrap" MaxWidth="230" Margin="0,0,0,10"

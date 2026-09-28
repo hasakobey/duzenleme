@@ -19,6 +19,7 @@ public partial class WorldClockView : UserControl, IWidgetView
     private sealed record Row(WorldZone Zone, Grid Root, TextBlock Name, TextBlock Sub, TextBlock Time);
 
     private readonly WidgetConfig _config;
+    private readonly WidgetNameLine _name;
     private readonly List<Row> _rows = [];
     private WidgetPalette _palette = WidgetPalette.Glass;
     private bool _live;
@@ -28,6 +29,7 @@ public partial class WorldClockView : UserControl, IWidgetView
         _config = config;
         _config.Zones ??= [];
         InitializeComponent();
+        _name = new WidgetNameLine(this, config, NameBox, NameText, shadow: null, Update);
         Rebuild();
     }
 
@@ -109,6 +111,8 @@ public partial class WorldClockView : UserControl, IWidgetView
             AutomationProperties.SetName(row.Root, string.Join(", ", new[] { name, row.Time.Text, WorldClock.DayText(at.DayDelta) }.Where(s => s.Length > 0)));
         }
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        _name.Render();
+        AutomationProperties.SetName(this, WidgetText.DisplayName(_config));
     }
 
     /// <summary>Satırın adı; adsız yerel dilim tabloda yoksa "Yerel saat".</summary>
@@ -136,6 +140,7 @@ public partial class WorldClockView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _name.ApplyPalette(palette);
         Paint();
         Update();
     }
@@ -194,11 +199,19 @@ public partial class WorldClockView : UserControl, IWidgetView
     {
         menu.Primary.Add(Menus.Item(L.T("Şehir ekle…"), AddCity));
         menu.Primary.Add(ClockView.HourFormatChoice(_config, Update));
-        menu.Appearance.Add(Menus.Parts(_config, [("day", L.N("Dün / yarın")), ("offset", L.N("Saat farkı")), Menus.ClosePart], Update));
+        menu.Primary.Add(_name.MenuItem());
+        menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, ("day", L.N("Dün / yarın")), ("offset", L.N("Saat farkı")), Menus.ClosePart], Update));
         menu.More.Add(Menus.Hint(L.T("Satıra sağ tık: adını değiştir, taşı, kaldır")));
     }
 
+    /// <summary>F2 ve "Yeniden adlandır": widget'ın adı (şehirlerin adı satır menüsünden değişir).</summary>
+    public bool TryBeginRename() => _name.Begin();
+
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
-    public void Detach() => WidgetTicker.MinuteTick -= Update;
+    public void Detach()
+    {
+        _name.Cancel();
+        WidgetTicker.MinuteTick -= Update;
+    }
 }

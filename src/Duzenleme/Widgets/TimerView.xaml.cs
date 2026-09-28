@@ -22,6 +22,7 @@ public partial class TimerView : UserControl, IWidgetView
 
     private readonly WidgetConfig _config;
     private readonly DispatcherTimer _alarm;
+    private readonly WidgetNameLine _name;
     private WidgetPalette _palette = WidgetPalette.Glass;
     private bool _live, _ticking, _alert;
 
@@ -30,6 +31,7 @@ public partial class TimerView : UserControl, IWidgetView
         _config = config;
         _config.Timer ??= new TimerState();
         InitializeComponent();
+        _name = new WidgetNameLine(this, config, NameBox, NameText, NameShadow, Render);
         _alarm = new DispatcherTimer(DispatcherPriority.Normal);
         _alarm.Tick += (_, _) => CheckEnd(whileClosed: false);
         AutomationProperties.SetName(ResetButton, L.T("Sıfırla"));
@@ -38,7 +40,7 @@ public partial class TimerView : UserControl, IWidgetView
         PlusButton.ToolTip = L.T("Bir dakika ekle");
         PreviewMouseLeftButtonDown += (_, _) =>
         {
-            Focus();
+            if (!_name.IsEditing) Focus();
             ClearAlert();
         };
         PreviewKeyDown += OnKey;
@@ -118,6 +120,8 @@ public partial class TimerView : UserControl, IWidgetView
                     ? (L.T("Odak bitti"), end.NextPhase == TimerModes.LongBreak ? L.T("Uzun mola zamanı.") : L.T("Kısa bir mola zamanı."))
                     : (L.T("Mola bitti"), L.T("Yeniden odaklanma zamanı."))
                 : (L.T("Süre doldu"), L.F("{0} · {1}", WidgetText.DisplayName(_config), end.EndedUtc.ToLocalTime().ToString("t", Culture)));
+            // Adlı Pomodoro'da hangisinin olduğu da söylenir ("Çalışma · Kısa bir mola zamanı.").
+            if (end.Mode == TimerModes.Pomodoro && _name.Name is { } name) text = L.F("{0} · {1}", name, text);
             var id = _config.Id;
             AppHost.Tray?.Notify(title, text, () => AppHost.Widgets.Reveal(id));
         }
@@ -155,7 +159,8 @@ public partial class TimerView : UserControl, IWidgetView
         ButtonRow.Visibility = _config.Shows("buttons") ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
         AlertFrame.BorderBrush = _alert ? _palette.Accent : Brushes.Transparent;
-        AutomationProperties.SetName(this, $"{PhaseText.Text}, {DigitsText.Text}");
+        _name.Render();
+        AutomationProperties.SetName(this, string.Join(", ", new[] { _name.Name, PhaseText.Text, DigitsText.Text }.OfType<string>()));
     }
 
     /// <summary>"Zamanlayıcı · 10 dk", "Odak · 2/4", "Süre doldu · 14:32", "Kronometre · duraklatıldı".</summary>
@@ -225,6 +230,7 @@ public partial class TimerView : UserControl, IWidgetView
 
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (_name.IsEditing) return; // boşluk ve R ada yazılır
         switch (e.Key)
         {
             case Key.Space: StartPause(); break;
@@ -237,6 +243,7 @@ public partial class TimerView : UserControl, IWidgetView
     public void ApplyPalette(WidgetPalette palette)
     {
         _palette = palette;
+        _name.ApplyPalette(palette);
         PhaseText.Foreground = palette.Secondary;
         Fill.Background = palette.Accent;
         Track.Background = palette.BorderBrush;
@@ -288,10 +295,14 @@ public partial class TimerView : UserControl, IWidgetView
                 State.Notify = !State.Notify;
                 AppHost.SaveSettings();
             }));
+        menu.Primary.Add(_name.MenuItem());
         menu.Appearance.Add(Menus.Parts(_config,
-            [("phase", L.N("Durum satırı")), ("progress", L.N("İlerleme çubuğu")), ("buttons", L.N("Düğmeler")), Menus.ClosePart],
+            [WidgetNameLine.Part, ("phase", L.N("Durum satırı")), ("progress", L.N("İlerleme çubuğu")), ("buttons", L.N("Düğmeler")), Menus.ClosePart],
             Render));
     }
+
+    /// <summary>F2 ve "Yeniden adlandır": zamanlayıcının adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    public bool TryBeginRename() => _name.Begin();
 
     /// <summary>Dakika seçimi; çalışmıyorsa yeni süre hemen görünür (çalışan aşamanın süresi değişmez).</summary>
     private MenuItem MinutesChoice(string header, Func<int> current, Action<int> set, params int[] options) =>
@@ -315,6 +326,7 @@ public partial class TimerView : UserControl, IWidgetView
 
     public void Detach()
     {
+        _name.Cancel();
         _alarm.Stop();
         if (_ticking) WidgetTicker.SecondTick -= OnSecond;
         _ticking = false;

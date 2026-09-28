@@ -85,4 +85,32 @@ public class WidgetTextTests
         bin.Title = "Çöp";
         Assert.Equal("Çöp", Name(bin));
     }
+
+    [Fact]
+    public void Small_widgets_can_be_told_apart_by_their_name()
+    {
+        // İki zamanlayıcı (çay, çamaşır) listede, tepside ve "Süre doldu" bildiriminde ayırt edilsin.
+        var tea = WidgetSeeds.Create(WidgetSeeds.Timer)!;
+        tea.Title = " Çay ";
+        Assert.Equal("Zamanlayıcı · 10 dk · Çay", Name(tea));
+        var focus = WidgetSeeds.Create(WidgetSeeds.Pomodoro)!;
+        focus.Title = "Çalışma";
+        Assert.Equal("Pomodoro · Çalışma", Name(focus));
+        var calendar = WidgetSeeds.Create(WidgetSeeds.Calendar)!;
+        calendar.Title = "İş";
+        Assert.Equal("Takvim · İş", Name(calendar));
+        var status = WidgetSeeds.Create(WidgetSeeds.SystemStatus)!;
+        status.Title = "Ev bilgisayarı";
+        Assert.Equal("Sistem durumu · Ev bilgisayarı", Name(status));
+        // Dünya saatinde ad şehir listesinin yerini alır.
+        var world = new WidgetConfig { Kind = WidgetKind.Clock, Variant = WidgetVariants.World, Zones = WidgetSeeds.DefaultZones("Turkey Standard Time"), Title = "Ofisler" };
+        Assert.Equal("Dünya saati · Ofisler", Name(world));
+        // Boş ad yok sayılır.
+        tea.Title = "  ";
+        Assert.Equal("Zamanlayıcı · 10 dk", Name(tea));
+
+        using var _ = Localization.L.Use(Localization.Lang.En);
+        Assert.Equal("Pomodoro · Çalışma", Name(focus));
+        Assert.Equal("Calendar · İş", Name(calendar));
+    }
 }
