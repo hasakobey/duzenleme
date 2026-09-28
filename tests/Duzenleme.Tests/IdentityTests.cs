@@ -26,7 +26,7 @@ public class IdentityTests
     public void Program_file_and_identities_use_new_name()
     {
         Assert.Equal("NestDesk", typeof(AppInfo).Assembly.GetName().Name);
-        Assert.Equal(typeof(AppInfo).Assembly.GetName().Name + ".exe", AppInfo.ExeName);
+        Assert.Equal(AppInfo.ExeName, typeof(AppInfo).Assembly.GetName().Name + ".exe");
         Assert.Equal("NestDesk", AppInfo.DataFolderName);
         Assert.Equal("NestDesk", AppInfo.RunValueName);
         Assert.Equal("NestDeskStartup", AppInfo.StartupTaskId);
