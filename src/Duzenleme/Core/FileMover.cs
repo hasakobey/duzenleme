@@ -20,12 +20,25 @@ public static class FileMover
     }
 
     /// <summary>Dosyayı klasöre taşır ve dosyanın son yolunu döner.</summary>
-    public static string MoveInto(string sourcePath, string targetDirectory)
+    /// <param name="move">Asıl taşıma (kaynak, hedef tam yol); verilmezse <see cref="File.Move(string, string)"/>.</param>
+    public static string MoveInto(string sourcePath, string targetDirectory, Action<string, string>? move = null)
     {
         Directory.CreateDirectory(targetDirectory);
         var destination = UniquePath(targetDirectory, Path.GetFileName(sourcePath));
-        File.Move(sourcePath, destination);
+        (move ?? File.Move)(sourcePath, destination);
         return destination;
+    }
+
+    /// <summary>İki yol aynı birimde mi (taşıma yalnızca ad değişikliği mi)? Diske dokunmaz; emin değilse false.</summary>
+    public static bool SameVolume(string a, string b)
+    {
+        try
+        {
+            var ra = Path.GetPathRoot(Path.GetFullPath(a));
+            var rb = Path.GetPathRoot(Path.GetFullPath(b));
+            return !string.IsNullOrEmpty(ra) && string.Equals(ra, rb, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
     }
 
     /// <summary>Taşınan dosyayı eski yerine döndürür. Eski yer doluysa yeni bir ad seçer.</summary>

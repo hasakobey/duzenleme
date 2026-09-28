@@ -47,6 +47,8 @@ public sealed class SystemIconRow(SystemIcon icon) : INotifyPropertyChanged
         {
             if (CanChange) DesktopSystemIcons.SetShown(Item, value);
             Reload();
+            // Bu simgeleri gösteren bölmeler (Kısayollar, Tümü) güncellensin; masaüstü klasörü değişmediği için kendileri fark etmez.
+            AppHost.Widgets.RefreshSystemIcons();
         }
     }
 
@@ -131,20 +133,23 @@ public partial class SettingsPage : Page
         Fold.Attach(AiFold, AiContent);
         Fold.Attach(LocationsFold, LocationsContent);
 
-        Loaded += (_, _) =>
-        {
-            AppHost.DesktopVisibilityChanged += UpdateHideNow;
-            AppHost.SettingsChanged += UpdateFencesNote;
-            FolderIconWindow.IconChanged += OnFolderIconChanged;
-            Load();
-        };
-        Unloaded += (_, _) =>
-        {
-            AppHost.DesktopVisibilityChanged -= UpdateHideNow;
-            AppHost.SettingsChanged -= UpdateFencesNote;
-            FolderIconWindow.IconChanged -= OnFolderIconChanged;
-            WatchHostActivation(false);
-        };
+        Loaded += (_, _) => Load();
+        Unloaded += (_, _) => WatchHostActivation(false);
+        // Ana pencere gizliyken sayfa kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
+        PageLife.WhileShown(this,
+            attach: () =>
+            {
+                AppHost.DesktopVisibilityChanged += UpdateHideNow;
+                AppHost.SettingsChanged += UpdateFencesNote;
+                FolderIconWindow.IconChanged += OnFolderIconChanged;
+            },
+            detach: () =>
+            {
+                AppHost.DesktopVisibilityChanged -= UpdateHideNow;
+                AppHost.SettingsChanged -= UpdateFencesNote;
+                FolderIconWindow.IconChanged -= OnFolderIconChanged;
+            },
+            refresh: Load);
     }
 
     private void Load()
@@ -241,6 +246,8 @@ public partial class SettingsPage : Page
     {
         if (PackageInfo.IsPackaged) UpdateStartupTask(enable: null);
         _systemIcons.ForEach(row => row.Reload());
+        // Kullanıcı Windows'un "Masaüstü simgesi ayarları"ndan dönmüş olabilir.
+        if (_systemIcons.Count > 0) AppHost.Widgets.RefreshSystemIcons();
     }
 
     private void StartupToggle_Click(object sender, RoutedEventArgs e)
@@ -322,11 +329,8 @@ public partial class SettingsPage : Page
         AppHost.SaveSettings();
     }
 
-    private static List<string> DesktopFolders()
-    {
-        try { return AppHost.Organizer.ExistingFolders().ToList(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
-    }
+    /// <summary>Masaüstündeki klasörler: diskten değil, arka planda güncel tutulan anlık görüntüden.</summary>
+    private static List<string> DesktopFolders() => AppHost.DesktopFolders();
 
     private void BeautifyAll_Click(object sender, RoutedEventArgs e)
     {

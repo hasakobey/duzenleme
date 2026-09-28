@@ -67,22 +67,31 @@ public partial class WidgetsPage : Page
         Fold.Attach(LayoutsFold, LayoutsContent);
         // Araçlar sabit; bölmeler (klasörler değişebilir) her açılışta yeniden kurulur.
         WidgetCatalog.AddTiles(ToolTiles, WidgetCatalog.Tools, AddWidget);
-        Loaded += (_, _) =>
-        {
-            AppHost.Widgets.Changed += OnWidgetsChanged;
-            AppHost.SettingsChanged += OnSettingsChanged;
-            AppHost.DesktopVisibilityChanged += OnSettingsChanged;
-            FenceTiles.Children.Clear();
-            WidgetCatalog.AddTiles(FenceTiles, WidgetCatalog.Fences(), AddWidget);
-            OnWidgetsChanged();
-            OnSettingsChanged();
-        };
-        Unloaded += (_, _) =>
-        {
-            AppHost.Widgets.Changed -= OnWidgetsChanged;
-            AppHost.SettingsChanged -= OnSettingsChanged;
-            AppHost.DesktopVisibilityChanged -= OnSettingsChanged;
-        };
+        Loaded += (_, _) => Reload();
+        // Ana pencere gizliyken sayfa widget değişikliklerine ve kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
+        PageLife.WhileShown(this,
+            attach: () =>
+            {
+                AppHost.Widgets.Changed += OnWidgetsChanged;
+                AppHost.SettingsChanged += OnSettingsChanged;
+                AppHost.DesktopVisibilityChanged += OnSettingsChanged;
+            },
+            detach: () =>
+            {
+                AppHost.Widgets.Changed -= OnWidgetsChanged;
+                AppHost.SettingsChanged -= OnSettingsChanged;
+                AppHost.DesktopVisibilityChanged -= OnSettingsChanged;
+            },
+            refresh: Reload);
+    }
+
+    /// <summary>Bölme kutucukları (masaüstündeki klasörler değişebilir), liste ve ayarlar baştan.</summary>
+    private void Reload()
+    {
+        FenceTiles.Children.Clear();
+        WidgetCatalog.AddTiles(FenceTiles, WidgetCatalog.Fences(), AddWidget);
+        OnWidgetsChanged();
+        OnSettingsChanged();
     }
 
     /// <summary>Widget eklendi, kaldırıldı, düzen uygulandı ya da yerleştirildi: liste, sayılar ve görünüm kutuları.</summary>
@@ -184,7 +193,7 @@ public partial class WidgetsPage : Page
     {
         var folder = choice.Key.StartsWith(FolderKeyPrefix, StringComparison.Ordinal) ? choice.Key[FolderKeyPrefix.Length..] : null;
         // Klasör eklerken açılacak mı? Kutucuktaki rozete değil diske bakılır (kutucuk kurulduktan sonra değişmiş olabilir).
-        var creates = folder is not null && !AppHost.Organizer.ExistingFolders().Any(f => FolderName.Equal(f, folder));
+        var creates = folder is not null && !AppHost.DesktopFolders().Any(f => FolderName.Equal(f, folder));
         if (WidgetCatalog.Invoke(choice, WindowCenter()) is not { } config) return; // klasör açılamadı; kullanıcı uyarıldı
         // Pencere açılamadıysa WidgetManager widget'ı geri çıkarıp uyardı: "eklendi" denmesin.
         if (!AppHost.Settings.Widgets.Any(w => w.Id == config.Id)) return;
@@ -204,7 +213,10 @@ public partial class WidgetsPage : Page
         if (old is null || WidgetCatalog.Fences().FirstOrDefault(c => c.Key == key) is not { } fresh) return;
         var tile = WidgetCatalog.Tile(fresh, AddWidget);
         tile.Visibility = old.Visibility;
-        FenceTiles.Children[FenceTiles.Children.IndexOf(old)] = tile;
+        // Dolu bir yuvaya doğrudan atamak (Children[i] = tile) WPF'te hata verir: önce eskisi çıkarılır.
+        var index = FenceTiles.Children.IndexOf(old);
+        FenceTiles.Children.RemoveAt(index);
+        FenceTiles.Children.Insert(index, tile);
     }
 
     private void RevealAll_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RevealAll();

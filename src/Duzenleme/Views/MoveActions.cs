@@ -57,13 +57,12 @@ internal static class AutoMoveStatus
 {
     /// <summary>
     /// Masaüstünde klasörü bulunan etkin kural sayısı: bu kuralların dosyaları gerçekten taşınır. Yalnızca masaüstündeki
-    /// klasör adlarına bakılır, klasörlerin içi sayılmaz (Ana sayfa açılışı yavaşlamasın).
+    /// klasör adlarına bakılır; onlar da diskten değil, arka planda güncel tutulan anlık görüntüden okunur (her ayar
+    /// kaydında çağrılır).
     /// </summary>
     public static int ReadyRules()
     {
-        List<string> folders;
-        try { folders = AppHost.Organizer.ExistingFolders().ToList(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
+        var folders = AppHost.DesktopFolders();
         return AppHost.Settings.Rules.Count(r => r.Enabled && r.Extensions.Count > 0 && !string.IsNullOrWhiteSpace(r.TargetFolder)
                                                  && folders.Any(f => FolderName.Equal(f, r.TargetFolder)));
     }

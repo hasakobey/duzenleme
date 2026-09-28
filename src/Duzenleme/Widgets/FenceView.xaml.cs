@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -5,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Duzenleme.Core;
+using Duzenleme.Desktop;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace Duzenleme.Widgets;
@@ -13,31 +15,35 @@ namespace Duzenleme.Widgets;
 /// Fences tarzı bölme. İki kaynaktan birini gösterir:
 /// bir masaüstü klasörünün içeriği (ör. PDF; üstüne bırakılan dosya klasöre taşınır) ya da
 /// masaüstündeki belli türde öğeler (Klasörler, Kısayollar, Dosyalar). Başlığa çift tıklayınca katlanır.
+/// <para>İçerik diskten değil paylaşılan anlık görüntülerden (<see cref="DirectorySnapshot"/>) gelir: aynı klasörü gösteren
+/// bütün bölmeler tek izleyiciyi paylaşır, klasör arka planda okunur. Bir şey değişince liste yeniden kurulmaz; yalnızca
+/// eklenen/kalkan/yer değiştiren öğeler uygulanır (diğer kutucuklar ve simgeleri yerinde kalır).</para>
 /// </summary>
 public partial class FenceView : UserControl, IWidgetView
 {
     private readonly WidgetConfig _config;
-    private readonly DispatcherTimer _refreshTimer;
-    private readonly DispatcherTimer _sourcePoll;
-    private readonly List<ResilientWatcher> _watchers = [];
     private readonly DispatcherTimer _searchDelay;
-    private string _watchedKey = "";
+    private readonly List<DirectorySnapshot> _desktopSources = [];
+    private DirectorySnapshot? _folderSource;
+    private string? _folderPath;
 
-    private List<TileItem> _all = [];      // bölmenin tüm öğeleri
-    private List<TileItem> _deep = [];     // aramada alt klasörlerde bulunanlar
+    private ObservableCollection<TileItem> _view = [];            // ekranda gösterilen (arama süzgecinden geçmiş)
+    private List<TileItem> _all = [];                             // bölmenin tüm öğeleri, sıralı
+    private Dictionary<string, TileItem> _byKey = new(StringComparer.OrdinalIgnoreCase);
+    private List<TileItem> _deep = [];                            // aramada alt klasörlerde bulunanlar
     private string _query = "";
     private int _generation, _searchGeneration;
+    private bool _updateQueued;
+    private bool _rebuildTiles;
+    private string? _stamp;
+    private string _panelKey = "";
+    private int _systemIconsVersion;
+    private bool _detached;
 
     public FenceView(WidgetConfig config)
     {
         _config = config;
         InitializeComponent();
-        _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
-        _refreshTimer.Tick += (_, _) => { _refreshTimer.Stop(); Refresh(); };
-        // Klasör masaüstünde sonradan oluşturulur/silinir/yeniden adlandırılırsa fark et.
-        _sourcePoll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        _sourcePoll.Tick += (_, _) => { if (WatchKey(Sources()) != _watchedKey) Refresh(); };
-        _sourcePoll.Start();
         _searchDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
         _searchDelay.Tick += (_, _) => { _searchDelay.Stop(); DeepSearch(); };
 
@@ -55,15 +61,20 @@ public partial class FenceView : UserControl, IWidgetView
         // Öğeyi başka bir bölmeye, Gezgin'e ya da bir uygulamaya sürükleyebilmek için.
         Menus.EnableDragOut(Items, DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link);
         Items.PreviewMouseLeftButtonUp += OnItemClick;
-        DragEnter += OnDragOver;
+        DragEnter += OnDragEnter;
         DragOver += OnDragOver;
         DragLeave += (_, _) => DropOverlay.Visibility = Visibility.Collapsed;
         Drop += OnDrop;
-        AppHost.Organizer.FileMoved += OnAnyMove;
-        AppHost.Journal.Changed += OnJournalChanged;
-        AppHost.DesktopVisibilityChanged += QueueRefresh;
 
-        Refresh();
+        Items.ItemsSource = _view;
+        // Masaüstü klasörleri her bölmede izlenir: masaüstü bölmesi içeriği, klasör bölmesi klasörünün yerini buradan bilir.
+        foreach (var dir in AppHost.DesktopDirectories)
+        {
+            var snapshot = AppHost.Snapshots.Acquire(dir);
+            snapshot.Changed += ScheduleUpdate;
+            _desktopSources.Add(snapshot);
+        }
+        Update();
     }
 
     public bool Resizable => true;
@@ -80,33 +91,81 @@ public partial class FenceView : UserControl, IWidgetView
 
     private bool DesktopMode => _config.Filter != DesktopFilter.None;
 
-    /// <summary>Kullanıcının masaüstündeki klasörü; adı büyük/küçük harf ve Türkçe karakterden bağımsız eşleşir.</summary>
-    private string? ResolveFolder() =>
-        AppHost.Organizer.ExistingFolders()
-            .Where(f => Core.FolderName.Equal(f, FolderName))
-            .Select(f => System.IO.Path.Combine(AppHost.DesktopDirectory, f))
-            .FirstOrDefault();
-
-    /// <summary>Bölmenin okuduğu klasörler: masaüstü türü için masaüstü (+ Genel Masaüstü), yoksa seçilen klasör.</summary>
-    private List<string> Sources()
-    {
-        if (DesktopMode) return AppHost.DesktopDirectories.Where(Directory.Exists).ToList();
-        return ResolveFolder() is { } folder ? [folder] : [];
-    }
-
-    private static string WatchKey(List<string> sources) => string.Join("|", sources);
-
-    private string DefaultTitle => DesktopMode ? DesktopItems.Label(_config.Filter)
-        : ResolveFolder() is { } folder ? System.IO.Path.GetFileName(folder) : FolderName;
+    /// <summary>Kullanıcının masaüstünün anlık görüntüsü (DesktopDirectories'in ilki).</summary>
+    private DirectorySnapshot UserDesktop => _desktopSources[0];
 
     /// <summary>
-    /// Bölmeyi yeniden doldurur. Klasör taraması arka planda yapılır (büyük/ağ klasörlerinde arayüz donmasın);
-    /// arada yeni bir yenileme başladıysa eski sonuç atılır.
+    /// Kullanıcının masaüstündeki klasör; adı büyük/küçük harf ve Türkçe karakterden bağımsız eşleşir. Diske dokunmaz
+    /// (masaüstü anlık görüntüsünden).
     /// </summary>
-    private async void Refresh()
+    private string? ResolveFolder() =>
+        UserDesktop.Entries.Where(e => e.IsDirectory && Core.FolderName.Equal(e.Name, FolderName)).Select(e => e.Path).FirstOrDefault();
+
+    private string DefaultTitle => DesktopMode ? DesktopItems.Label(_config.Filter)
+        : _folderPath is { } folder ? System.IO.Path.GetFileName(folder) : FolderName;
+
+    private void ScheduleUpdate()
     {
+        if (_updateQueued || _detached) return;
+        _updateQueued = true;
+        Dispatcher.BeginInvoke(Update, DispatcherPriority.Background);
+    }
+
+    /// <summary>Kaynaklar ya da ayarlar değişmemiş olsa da listeyi yeniden hesaplar.</summary>
+    private void ForceUpdate()
+    {
+        _stamp = null;
+        ScheduleUpdate();
+    }
+
+    /// <summary>"Yenile": klasörler diskten yeniden okunur, liste yeniden kurulur.</summary>
+    private void Refresh()
+    {
+        foreach (var source in _desktopSources) source.Request();
+        _folderSource?.Request();
+        _rebuildTiles = true;
+        ForceUpdate();
+    }
+
+    /// <summary>Klasör bölmesinin kaynağını (masaüstündeki klasörü) bulur; klasör değiştiyse izlemeyi ona geçirir.</summary>
+    private void ResolveSources()
+    {
+        var wanted = DesktopMode ? null : ResolveFolder();
+        if (string.Equals(wanted, _folderPath, StringComparison.OrdinalIgnoreCase)) return;
+        if (_folderSource is not null)
+        {
+            _folderSource.Changed -= ScheduleUpdate;
+            AppHost.Snapshots.Release(_folderSource);
+            _folderSource = null;
+        }
+        _folderPath = wanted;
+        if (wanted is not null)
+        {
+            _folderSource = AppHost.Snapshots.Acquire(wanted);
+            _folderSource.Changed += ScheduleUpdate;
+        }
+        _stamp = null;
+    }
+
+    /// <summary>Hesabı etkileyen her şeyin özeti: değişmediyse liste yeniden hesaplanmaz.</summary>
+    private string Stamp()
+    {
+        var parts = new List<string> { _config.Filter.ToString(), _config.Sort.ToString(), _config.HiddenItems.Count.ToString(), _systemIconsVersion.ToString() };
+        if (DesktopMode) parts.AddRange(_desktopSources.Select(s => $"{s.State}{s.Version}"));
+        else parts.Add($"{_folderPath}|{_folderSource?.State}{_folderSource?.Version}");
+        return string.Join("|", parts);
+    }
+
+    /// <summary>
+    /// Bölmeyi anlık görüntüden günceller. Süzme ve sıralama arka planda yapılır; arada yeni bir güncelleme başladıysa eski
+    /// sonuç atılır. Sonuç listeye en az değişiklikle uygulanır.
+    /// </summary>
+    private async void Update()
+    {
+        _updateQueued = false;
+        if (_detached) return;
         var generation = ++_generation;
-        var sources = Sources();
+        ResolveSources();
         TitleText.Text = !string.IsNullOrWhiteSpace(_config.Title) ? _config.Title : DefaultTitle;
         HeaderIcon.Symbol = _config.Filter switch
         {
@@ -116,51 +175,165 @@ public partial class FenceView : UserControl, IWidgetView
             _ => SymbolRegular.Folder24,
         };
         ApplyParts();
-        EnsureWatchers(sources);
-        Items.ItemsPanel = TileItem.Panel(_config);
+        ApplyPanel();
 
-        if (sources.Count == 0)
+        // İlk okuma bitmediyse beklenir (bitince Changed gelir); "klasör yok" gibi yanlış bir durum bir an bile görünmesin,
+        // Genel Masaüstü'nün kısayolları da sonradan araya girmesin.
+        if (UserDesktop.State == SnapshotState.Pending) return;
+        if (DesktopMode && _desktopSources.Any(s => s.State == SnapshotState.Pending)) return;
+        if (DesktopMode && UserDesktop.State != SnapshotState.Ready)
         {
-            _all = [];
-            Items.ItemsSource = null;
-            CountBadge.Visibility = Visibility.Collapsed;
-            if (DesktopMode) ShowEmpty(SymbolRegular.Desktop24, "Masaüstü klasörü bulunamadı.", showCreate: false);
-            else ShowEmpty(SymbolRegular.FolderProhibited24, $"Masaüstünde \"{FolderName}\" klasörü yok.", showCreate: true);
+            ShowUnavailable(SymbolRegular.Desktop24, UserDesktop.State == SnapshotState.Missing
+                ? "Masaüstü klasörü bulunamadı." : "Masaüstü şu an okunamıyor.", showCreate: false);
             return;
         }
-
-        List<string> paths;
-        try
+        if (!DesktopMode)
         {
-            paths = await Task.Run(() => Sort(Enumerate(sources)).Select(i => i.FullName).ToList());
+            if (_folderSource is null)
+            {
+                ShowUnavailable(SymbolRegular.FolderProhibited24, $"Masaüstünde \"{FolderName}\" klasörü yok.", showCreate: UserDesktop.State == SnapshotState.Ready);
+                return;
+            }
+            if (_folderSource.State == SnapshotState.Pending) return;
+            if (_folderSource.State != SnapshotState.Ready)
+            {
+                // Klasör tam o anda silindi/taşındı ya da erişilemiyor: hata kutusu yerine sakin bir durum göster.
+                ShowUnavailable(SymbolRegular.FolderProhibited24, $"\"{TitleText.Text}\" şu an okunamıyor.", showCreate: false);
+                return;
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+        var stamp = Stamp();
+        if (stamp == _stamp && !_rebuildTiles) return;
+
+        var input = new FenceInput(DesktopMode, _config.Filter, _config.Sort,
+            DesktopMode ? _desktopSources.Select(s => s.Entries).ToArray() : [_folderSource!.Entries],
+            new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase),
+            // Gizleme kayıtları yalnızca okunan kendi klasöründe temizlenir (Genel Masaüstü ve alt klasörler hariç).
+            DesktopMode ? AppHost.DesktopDirectory : _folderPath!, DesktopMode ? UserDesktop.Entries : _folderSource!.Entries,
+            _config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All);
+        var clock = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
+        FenceResult result;
+        try { result = await Task.Run(() => Compute(input)); }
+        catch (Exception ex)
         {
-            if (generation != _generation) return;
-            // Klasör tam o anda silindi/taşındı ya da erişilemiyor: hata kutusu yerine sakin bir durum göster.
-            _all = [];
-            Items.ItemsSource = null;
-            CountBadge.Visibility = Visibility.Collapsed;
-            ShowEmpty(SymbolRegular.FolderProhibited24, $"\"{TitleText.Text}\" şu an okunamıyor.", showCreate: false);
+            DebugLog.Write($"bölme hesaplanamadı: {ex}");
             return;
         }
-        if (generation != _generation) return;
+        if (generation != _generation || _detached) return;
+        var computed = clock?.Elapsed.TotalMilliseconds ?? 0;
+        Apply(result, stamp);
+        if (clock is not null)
+        {
+            PerfLog.Count("FenceUpdate");
+            PerfLog.Write($"bölme güncellendi [{_config.Id[..6]}] {_all.Count} öğe, hesap {computed:0.0} ms, toplam {clock.Elapsed.TotalMilliseconds:0.0} ms");
+        }
+    }
 
-        PruneHidden(paths, DesktopMode ? AppHost.DesktopDirectory : sources[0]);
-        var hidden = new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase);
-        _all = paths.Where(p => !hidden.Contains(p)).Select(p => TileItem.Create(p, _config)).ToList();
+    private sealed record FenceInput(bool DesktopMode, DesktopFilter Filter, FenceSort Sort, IReadOnlyList<DirEntry>[] Sources,
+        HashSet<string> Hidden, string PruneDirectory, IReadOnlyList<DirEntry> PruneEntries, bool SystemIcons);
+
+    private sealed record FenceResult(List<DirEntry> Entries, List<SystemIcon> SystemIcons, List<string> Pruned);
+
+    /// <summary>Süzme, sıralama ve gizleme temizliği (arka planda; diske yalnızca sistem simgeleri için kayıt defterine bakar).</summary>
+    private static FenceResult Compute(FenceInput input)
+    {
+        var entries = input.DesktopMode
+            ? input.Sources.SelectMany(s => s.Where(e => DesktopItems.Matches(input.Filter, e)))
+            : input.Sources[0].Where(e => !e.IsHiddenOrSystem);
+        var sorted = Sort(entries.Where(e => !input.Hidden.Contains(e.Path)), input.Sort).ToList();
+
         // Masaüstünde gösterilen sistem simgeleri (Bu Bilgisayar, Geri Dönüşüm Kutusu…) de bölmede yer alsın:
         // Windows simgeleri gizliyken başka yerde görünmezler.
-        if (_config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All)
-            _all.InsertRange(0, Desktop.DesktopSystemIcons.All.Where(Desktop.DesktopSystemIcons.IsShown)
-                .Where(icon => !IsHidden("::" + icon.Clsid))
-                .Select(icon => TileItem.CreateShell(icon, _config)));
+        var icons = input.SystemIcons
+            ? DesktopSystemIcons.All.Where(DesktopSystemIcons.IsShown).Where(i => !input.Hidden.Contains("::" + i.Clsid)).ToList()
+            : [];
+
+        // Silinen/taşınan öğenin gizleme kaydı temizlenir; yoksa sonradan aynı adla gelen yeni dosya da gizlenirdi.
+        // Listede olmaması yetmez (bölmenin türü onu süzmüş olabilir): klasörün tam okumasında da olmamalı.
+        var present = new HashSet<string>(input.PruneEntries.Select(e => e.Path), StringComparer.OrdinalIgnoreCase);
+        var dir = input.PruneDirectory.TrimEnd('\\', '/');
+        var pruned = input.Hidden.Where(p => !TileItem.IsShellObject(p) && !present.Contains(p) &&
+            string.Equals(System.IO.Path.GetDirectoryName(p), dir, StringComparison.OrdinalIgnoreCase)).ToList();
+        return new FenceResult(sorted, icons, pruned);
+    }
+
+    private static IEnumerable<DirEntry> Sort(IEnumerable<DirEntry> entries, FenceSort sort)
+    {
+        var byName = StringComparer.Create(Views.UiText.Tr, true);
+        return sort switch
+        {
+            FenceSort.Name => entries.OrderBy(e => e.IsDirectory ? 0 : 1).ThenBy(e => TileItem.DisplayName(e.Path), byName),
+            FenceSort.Type => entries.OrderBy(e => e.IsDirectory ? "" : System.IO.Path.GetExtension(e.Name).ToLowerInvariant()).ThenBy(e => e.Name, byName),
+            _ => entries.OrderByDescending(e => e.LastWriteUtc),
+        };
+    }
+
+    /// <summary>Kutucuk anahtarı: yol ve öznitelikler (klasörleşen ya da bulutta kalan öğe yeni simge alsın).</summary>
+    private static string KeyOf(DirEntry entry) => $"{entry.Path}|{(int)entry.Attributes}";
+
+    private void Apply(FenceResult result, string stamp)
+    {
+        var reuse = _rebuildTiles ? new Dictionary<string, TileItem>() : _byKey;
+        var fresh = new Dictionary<string, TileItem>(StringComparer.OrdinalIgnoreCase);
+        var all = new List<TileItem>(result.SystemIcons.Count + result.Entries.Count);
+        foreach (var icon in result.SystemIcons)
+        {
+            var key = "::" + icon.Clsid;
+            var item = reuse.GetValueOrDefault(key) ?? TileItem.CreateShell(icon, _config);
+            fresh[key] = item;
+            all.Add(item);
+        }
+        foreach (var entry in result.Entries)
+        {
+            var key = KeyOf(entry);
+            if (fresh.ContainsKey(key)) continue;
+            var item = reuse.GetValueOrDefault(key) ?? TileItem.Create(entry.Path, _config, entry.IsDirectory, entry.Attributes);
+            fresh[key] = item;
+            all.Add(item);
+        }
+        _byKey = fresh;
+        _all = all;
+        _stamp = stamp;
+        _rebuildTiles = false;
+
+        if (result.Pruned.Count > 0)
+        {
+            var pruned = new HashSet<string>(result.Pruned, StringComparer.OrdinalIgnoreCase);
+            if (_config.HiddenItems.RemoveAll(pruned.Contains) > 0)
+            {
+                AppHost.SaveSettings();
+                _stamp = Stamp();
+            }
+        }
         CountBadge.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
         ShowItems();
         if (_query.Length > 0) DeepSearch();
     }
 
-    /// <summary>Öğeleri (arama varsa süzülmüş hâliyle) gösterir.</summary>
+    /// <summary>Bölme gösterilecek bir şey bulamadı (klasör yok, okunamıyor): liste boşaltılır, durum yazılır.</summary>
+    private void ShowUnavailable(SymbolRegular icon, string text, bool showCreate)
+    {
+        _all = [];
+        _byKey.Clear();
+        _deep = [];
+        _stamp = null;
+        _fillToken++;
+        _view = [];
+        Items.ItemsSource = _view;
+        CountBadge.Visibility = Visibility.Collapsed;
+        ShowEmpty(icon, text, showCreate);
+    }
+
+    private void ApplyPanel()
+    {
+        var key = TileItem.PanelKey(_config);
+        if (key == _panelKey) return;
+        _panelKey = key;
+        Items.ItemsPanel = TileItem.Panel(_config);
+    }
+
+    /// <summary>Öğeleri (arama varsa süzülmüş hâliyle) gösterir; ekrandaki listeye yalnızca farkı uygular.</summary>
     private void ShowItems()
     {
         var q = Core.FolderName.Fold(_query);
@@ -169,17 +342,52 @@ public partial class FenceView : UserControl, IWidgetView
         else
         {
             shown = _all.Where(i => Core.FolderName.Fold(i.Name).Contains(q, StringComparison.Ordinal)).ToList();
-            shown.AddRange(_deep.Where(d => !shown.Any(s => string.Equals(s.Path, d.Path, StringComparison.OrdinalIgnoreCase))));
+            var paths = new HashSet<string>(shown.Select(s => s.Path), StringComparer.OrdinalIgnoreCase);
+            shown.AddRange(_deep.Where(d => paths.Add(d.Path)));
         }
 
-        // Her seferinde yeni liste: aynı nesne yeniden atanırsa WPF değişikliği görmez.
-        Items.ItemsSource = shown.ToList();
+        var token = ++_fillToken;
+        var steps = ListDiff.Plan(_view, shown);
+        if (steps.Count > Math.Max(12, shown.Count / 2))
+        {
+            // Değişiklik çoksa (ilk dolum, sıralama değişti) yeni liste: öğe öğe bildirimden ucuz. Çok öğeli bölmede
+            // (yüzlerce dosyalı masaüstü) kutucuklar parça parça eklenir: tek seferde yüzlerce kutucuk kurmak arayüzü
+            // saniyelerce kilitlerdi; böylece ilk simgeler hemen görünür, fare ve diğer widget'lar yanıt vermeye devam eder.
+            _view = new ObservableCollection<TileItem>(shown.Count > FillChunk ? shown.Take(FillChunk) : shown);
+            Items.ItemsSource = _view;
+            if (shown.Count > FillChunk) FillLater(shown, token);
+        }
+        else if (steps.Count > 0) ListDiff.Apply(_view, steps, _view.Move);
+
         CountText.Text = q.Length == 0 ? _all.Count.ToString() : $"{shown.Count}";
         if (q.Length > 0 && shown.Count > 0) Items.SelectedIndex = 0;
 
         if (shown.Count > 0) EmptyState.Visibility = Visibility.Collapsed;
         else if (q.Length > 0) ShowEmpty(SymbolRegular.Search24, $"\"{_query}\" bulunamadı.", showCreate: false);
         else ShowEmpty(EmptyIconFor(), EmptyTextFor(), showCreate: false);
+    }
+
+    /// <summary>Tek iş dağıtıcı turunda kurulan en fazla kutucuk (yaklaşık bir karelik iş).</summary>
+    private const int FillChunk = 100;
+
+    private int _fillToken;
+
+    /// <summary>
+    /// Uzun listenin kalanını parça parça, iş dağıtıcı boşaldıkça (ContextIdle) ekler: açılışta önce bütün widget'lar
+    /// görünür, sonra dolar; araya yeni bir gösterim girerse bırakır.
+    /// </summary>
+    private void FillLater(List<TileItem> shown, int token) => Dispatcher.BeginInvoke(() =>
+    {
+        if (token != _fillToken || _detached) return;
+        foreach (var item in shown.Skip(_view.Count).Take(FillChunk)) _view.Add(item);
+        if (_view.Count < shown.Count) FillLater(shown, token);
+    }, DispatcherPriority.ContextIdle);
+
+    /// <summary>Masaüstü sistem simgeleri (Ayarlar'dan) açılıp kapandı.</summary>
+    public void RefreshSystemIcons()
+    {
+        _systemIconsVersion++;
+        if (_config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All) ScheduleUpdate();
     }
 
     // --- Arama ---
@@ -246,22 +454,22 @@ public partial class FenceView : UserControl, IWidgetView
         var q = Core.FolderName.Fold(_query);
         var roots = _config.Filter switch
         {
-            DesktopFilter.None => Sources(),
-            DesktopFilter.Folders or DesktopFilter.All => _all.Where(i => Directory.Exists(i.Path)).Select(i => i.Path).ToList(),
+            DesktopFilter.None => _folderPath is { } folder ? [folder] : new List<string>(),
+            DesktopFilter.Folders or DesktopFilter.All => _all.Where(i => i.IsDirectory && !TileItem.IsShellObject(i.Path)).Select(i => i.Path).ToList(),
             _ => [],
         };
         if (q.Length < 2 || roots.Count == 0) return;
 
         var hidden = new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase);
-        var found = await Task.Run(() => FindBelow(roots, q, maxDepth: 5, maxResults: 80).Where(p => !hidden.Contains(p)).ToList());
-        if (generation != _searchGeneration) return;
-        _deep = found.Select(p => TileItem.Create(p, _config)).ToList();
+        var found = await Task.Run(() => FindBelow(roots, q, maxDepth: 5, maxResults: 80).Where(e => !hidden.Contains(e.Path)).ToList());
+        if (generation != _searchGeneration || _detached) return;
+        _deep = found.Select(e => TileItem.Create(e.Path, _config, e.IsDirectory, e.Attributes)).ToList();
         ShowItems();
     }
 
-    private static List<string> FindBelow(List<string> roots, string foldedQuery, int maxDepth, int maxResults)
+    private static List<DirEntry> FindBelow(List<string> roots, string foldedQuery, int maxDepth, int maxResults)
     {
-        var result = new List<string>();
+        var result = new List<DirEntry>();
         var queue = new Queue<(string Dir, int Depth)>(roots.Select(r => (r, 0)));
         var scanned = 0;
         while (queue.Count > 0 && result.Count < maxResults && scanned++ < 4000)
@@ -275,7 +483,7 @@ public partial class FenceView : UserControl, IWidgetView
                 if ((entry.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0) continue;
                 if (Core.FolderName.Fold(entry.Name).Contains(foldedQuery, StringComparison.Ordinal))
                 {
-                    result.Add(entry.FullName);
+                    result.Add(DirEntry.From(entry));
                     if (result.Count >= maxResults) break;
                 }
                 // Bağlantı noktalarına (junction) girme: döngü ve yavaşlık olmasın.
@@ -284,34 +492,6 @@ public partial class FenceView : UserControl, IWidgetView
             }
         }
         return result;
-    }
-
-    private IEnumerable<FileSystemInfo> Enumerate(List<string> sources)
-    {
-        if (!DesktopMode)
-            return new DirectoryInfo(sources[0]).EnumerateFileSystemInfos()
-                .Where(i => (i.Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0)
-                .ToList();
-
-        var result = new List<FileSystemInfo>();
-        foreach (var dir in sources)
-        {
-            // Genel Masaüstü okunamazsa kullanıcının masaüstü yine gösterilsin.
-            try { result.AddRange(new DirectoryInfo(dir).EnumerateFileSystemInfos().Where(i => DesktopItems.Matches(_config.Filter, i))); }
-            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && dir != AppHost.DesktopDirectory) { }
-        }
-        return result;
-    }
-
-    private IEnumerable<FileSystemInfo> Sort(IEnumerable<FileSystemInfo> entries)
-    {
-        var byName = StringComparer.Create(Views.UiText.Tr, true);
-        return _config.Sort switch
-        {
-            FenceSort.Name => entries.OrderBy(i => i is DirectoryInfo ? 0 : 1).ThenBy(i => TileItem.DisplayName(i.FullName), byName),
-            FenceSort.Type => entries.OrderBy(i => i is DirectoryInfo ? "" : i.Extension.ToLowerInvariant()).ThenBy(i => i.Name, byName),
-            _ => entries.OrderByDescending(i => i.LastWriteTime),
-        };
     }
 
     private SymbolRegular EmptyIconFor() => DesktopMode ? SymbolRegular.Sparkle24 : SymbolRegular.ArrowDownload24;
@@ -333,28 +513,6 @@ public partial class FenceView : UserControl, IWidgetView
         EmptyState.Visibility = Visibility.Visible;
     }
 
-    private void EnsureWatchers(List<string> sources)
-    {
-        var key = WatchKey(sources);
-        if (key == _watchedKey) return;
-        foreach (var watcher in _watchers) watcher.Dispose();
-        _watchers.Clear();
-        _watchedKey = key;
-        foreach (var dir in sources)
-        {
-            var watcher = new ResilientWatcher(dir, NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite,
-                _ => QueueRefresh(), onOverflow: QueueRefresh, onRecovered: QueueRefresh);
-            watcher.Start();
-            _watchers.Add(watcher);
-        }
-    }
-
-    private void QueueRefresh() => Dispatcher.BeginInvoke(() => { _refreshTimer.Stop(); _refreshTimer.Start(); });
-
-    private void OnAnyMove(MoveEntry _) => QueueRefresh();
-
-    private void OnJournalChanged() => QueueRefresh();
-
     private bool IsHidden(string path) => _config.HiddenItems.Contains(path, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Öğeyi bu bölmede göstermez (dosyaya dokunmaz); "Gizlenen öğeler"den geri getirilir.</summary>
@@ -362,26 +520,10 @@ public partial class FenceView : UserControl, IWidgetView
     {
         if (!IsHidden(item.Path)) _config.HiddenItems.Add(item.Path);
         AppHost.SaveSettings();
-        // Yeni liste: ItemsSource aynı nesneye yeniden atanırsa WPF değişikliği görmez, öğe ekranda kalır.
         _all = _all.Where(i => !string.Equals(i.Path, item.Path, StringComparison.OrdinalIgnoreCase)).ToList();
         _deep = _deep.Where(i => !string.Equals(i.Path, item.Path, StringComparison.OrdinalIgnoreCase)).ToList();
+        _stamp = Stamp();
         ShowItems();
-    }
-
-    /// <summary>
-    /// Silinen/taşınan öğenin gizleme kaydını temizler; yoksa sonradan aynı adla gelen yeni dosya da gizlenirdi.
-    /// Yalnızca bu taramada okunan klasördeki kayıtlara bakılır (alt klasörler, Genel Masaüstü ve sistem simgeleri hariç).
-    /// </summary>
-    private void PruneHidden(List<string> enumerated, string directory)
-    {
-        if (_config.HiddenItems.Count == 0) return;
-        // Listede olmaması yetmez (bölmenin türü onu süzmüş olabilir): gerçekten silinmiş/taşınmış olmalı.
-        var present = new HashSet<string>(enumerated, StringComparer.OrdinalIgnoreCase);
-        var dir = directory.TrimEnd('\\', '/');
-        var removed = _config.HiddenItems.RemoveAll(p => !TileItem.IsShellObject(p) && !present.Contains(p) &&
-            string.Equals(System.IO.Path.GetDirectoryName(p), dir, StringComparison.OrdinalIgnoreCase) &&
-            !File.Exists(p) && !Directory.Exists(p));
-        if (removed > 0) AppHost.SaveSettings();
     }
 
     private void UnhideItems(IEnumerable<string> paths)
@@ -389,7 +531,7 @@ public partial class FenceView : UserControl, IWidgetView
         foreach (var path in paths.ToList())
             _config.HiddenItems.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
         AppHost.SaveSettings();
-        Refresh();
+        ForceUpdate();
     }
 
     private static readonly (string Key, string Label)[] FenceParts =
@@ -405,7 +547,7 @@ public partial class FenceView : UserControl, IWidgetView
         SearchButton.Visibility = _config.Shows("search") ? Visibility.Visible : Visibility.Collapsed;
         OpenButton.Visibility = !DesktopMode && _config.Shows("open") ? Visibility.Visible : Visibility.Collapsed;
         Divider.Visibility = _config.Shows("divider") && _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
-        CountBadge.Visibility = _config.Shows("count") && Items.ItemsSource is not null ? Visibility.Visible : Visibility.Collapsed;
+        CountBadge.Visibility = _config.Shows("count") && _stamp is not null ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -428,7 +570,7 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)
     {
-        if (ResolveFolder() is { } folder) TileItem.Launch(folder);
+        if (_folderPath is { } folder) TileItem.Launch(folder);
     }
 
     private void CreateFolder_Click(object sender, RoutedEventArgs e)
@@ -443,7 +585,7 @@ public partial class FenceView : UserControl, IWidgetView
             MessageBox.Show(ex.Message, AppInfo.Name);
             return;
         }
-        Refresh();
+        AppHost.NoteFolderCreated(path);
         AppHost.OrganizeIfActive();
     }
 
@@ -460,14 +602,14 @@ public partial class FenceView : UserControl, IWidgetView
             return;
         }
         menu.Items.Add(Menus.Item("Klasörde göster", () => TileItem.Reveal(item.Path)));
-        if (Directory.Exists(item.Path))
+        if (item.IsDirectory)
         {
             menu.Items.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(item.Path)));
             // Masaüstündeki bir klasör kendi bölmesine alınabilir ("klasörleri ayrı ayrı").
             if (string.Equals(System.IO.Path.GetDirectoryName(item.Path), AppHost.DesktopDirectory.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
                 menu.Items.Add(Menus.Item("Bu klasörü ayrı bölme yap", () => AppHost.Widgets.Add(WidgetKind.Fence, System.IO.Path.GetFileName(item.Path))));
         }
-        if (!DesktopMode && File.Exists(item.Path))
+        if (!DesktopMode && !item.IsDirectory && !item.Missing)
             menu.Items.Add(Menus.Item("Masaüstüne geri taşı", () => MoveToDesktop(item)));
         // Masaüstü simgeleri gizliyken (bölmeler yönetirken) bu işler yalnızca buradan yapılabilir.
         menu.Items.Add(Menus.Item("Yeniden adlandır…", () => Rename(item)));
@@ -476,10 +618,21 @@ public partial class FenceView : UserControl, IWidgetView
         menu.Items.Add(Menus.Item("Bölme ayarları…", () => MenuRequested?.Invoke()));
     }
 
+    /// <summary>Dosya işlemini arka planda yapar; hata olursa (vazgeçme dışında) kullanıcıya gösterir.</summary>
+    private void RunFileOperation(Action work)
+    {
+        var dispatcher = Dispatcher;
+        ShellFileOperations.RunSta(work).ContinueWith(t =>
+        {
+            if (t.Exception?.GetBaseException() is { } ex and not OperationCanceledException)
+                dispatcher.BeginInvoke(() => MessageBox.Show(ex.Message, AppInfo.Name));
+        }, TaskScheduler.Default);
+    }
+
     private void Rename(TileItem item)
     {
         var path = item.Path;
-        var isDir = Directory.Exists(path);
+        var isDir = item.IsDirectory;
         var oldName = System.IO.Path.GetFileName(path);
         if (InputDialog.Ask("Yeniden adlandır", "Yeni ad", oldName) is not { Length: > 0 } newName || newName == oldName) return;
         if (newName.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
@@ -488,73 +641,81 @@ public partial class FenceView : UserControl, IWidgetView
             return;
         }
         var target = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, newName);
-        try
+        RunFileOperation(() =>
         {
             if (isDir) Directory.Move(path, target);
             else File.Move(path, target);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            MessageBox.Show(ex.Message, AppInfo.Name);
-        }
-        QueueRefresh();
+        });
     }
 
     private void Recycle(TileItem item)
     {
-        try
-        {
-            if (Directory.Exists(item.Path))
-                Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(item.Path,
-                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-            else if (File.Exists(item.Path))
-                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(item.Path,
-                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs, Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
-        {
-            // Kullanıcı iptal etti ya da dosya kullanımda; Windows zaten bildirir.
-        }
-        QueueRefresh();
+        var path = item.Path;
+        // Büyük klasörde Windows kendi ilerleme penceresini gösterir; bölme o sırada donmaz.
+        RunFileOperation(() => ShellFileOperations.Recycle(path));
     }
 
     /// <summary>Bölmenin gösterdiği yerde (masaüstü ya da klasör) yeni klasör açar.</summary>
     private void NewFolder()
     {
-        var parent = DesktopMode ? AppHost.DesktopDirectory : ResolveFolder();
+        var parent = DesktopMode ? AppHost.DesktopDirectory : _folderPath;
         if (parent is null) return;
         if (InputDialog.Ask("Yeni klasör", "Klasör adı", "Yeni klasör") is not { Length: > 0 } name) return;
-        try { Directory.CreateDirectory(FileMover.UniquePath(parent, name)); }
+        try
+        {
+            var path = FileMover.UniquePath(parent, name);
+            Directory.CreateDirectory(path);
+            AppHost.NoteFolderCreated(path);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
             MessageBox.Show(ex.Message, AppInfo.Name);
         }
-        QueueRefresh();
     }
 
-    private static void MoveToDesktop(TileItem item)
+    private void MoveToDesktop(TileItem item)
     {
-        try
+        var source = item.Path;
+        RunFileOperation(() =>
         {
-            var target = FileMover.UniquePath(AppHost.DesktopDirectory, System.IO.Path.GetFileName(item.Path));
-            File.Move(item.Path, target);
+            var target = FileMover.UniquePath(AppHost.DesktopDirectory, System.IO.Path.GetFileName(source));
+            if (FileMover.SameVolume(source, target)) File.Move(source, target);
+            else ShellFileOperations.Move(source, target);
             // Kullanıcı bilerek geri çıkardı: izleyici tekrar taşımasın.
-            AppHost.Journal.Add(new MoveEntry { Source = target, Destination = item.Path, Undone = true });
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            MessageBox.Show(ex.Message, AppInfo.Name);
-        }
+            AppHost.Journal.Add(new MoveEntry { Source = target, Destination = source, Undone = true });
+        });
     }
+
+    // --- Sürükle-bırak ---
+    // Sürükleme boyunca yollar değişmez: dosya mı diye diske bir kez, arka planda bakılır; DragOver yalnızca metin karşılaştırır.
+    private string[]? _dragPaths;
+    private bool? _dragHasFiles;
+
+    private void OnDragEnter(object sender, DragEventArgs e)
+    {
+        _dragPaths = e.Data.GetData(DataFormats.FileDrop) as string[];
+        _dragHasFiles = null;
+        if (_dragPaths is { Length: > 0 } paths && !DesktopMode)
+        {
+            Task.Run(() => paths.Any(File.Exists)).ContinueWith(t =>
+            {
+                if (ReferenceEquals(_dragPaths, paths)) _dragHasFiles = t.IsCompletedSuccessfully && t.Result;
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+        OnDragOver(sender, e);
+    }
+
+    /// <summary>Bırakılırsa klasöre taşınacak yollar (zaten o klasördekiler hariç); diske dokunmaz.</summary>
+    private List<string> DropCandidates(string folder) =>
+        (_dragPaths ?? []).Where(p => !string.Equals(System.IO.Path.GetDirectoryName(p), folder, StringComparison.OrdinalIgnoreCase)).ToList();
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
         // Masaüstü türü bölmesi bir klasör değildir; üstüne bırakılan dosyanın gideceği yer yok.
         // Kısayol kutusundan gelen öğeler yalnızca bağlantıdır (taşımaya izin vermez): asıl dosyalar yerinden oynamasın.
-        var folder = DesktopMode ? null : ResolveFolder();
+        var folder = DesktopMode ? null : _folderPath;
         var ok = folder is not null && e.AllowedEffects.HasFlag(DragDropEffects.Move)
-                 && e.Data.GetData(DataFormats.FileDrop) is string[] paths
-                 && paths.Any(p => File.Exists(p) && !string.Equals(System.IO.Path.GetDirectoryName(p), folder, StringComparison.OrdinalIgnoreCase));
+                 && _dragHasFiles != false && DropCandidates(folder).Count > 0;
         e.Effects = ok ? DragDropEffects.Move : DragDropEffects.None;
         DropOverlay.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
         e.Handled = true;
@@ -563,19 +724,31 @@ public partial class FenceView : UserControl, IWidgetView
     private void OnDrop(object sender, DragEventArgs e)
     {
         DropOverlay.Visibility = Visibility.Collapsed;
-        if (DesktopMode || !e.AllowedEffects.HasFlag(DragDropEffects.Move) || ResolveFolder() is not { } folder
-            || e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+        if (DesktopMode || !e.AllowedEffects.HasFlag(DragDropEffects.Move) || _folderPath is not { } folder) return;
+        _dragPaths ??= e.Data.GetData(DataFormats.FileDrop) as string[];
+        var paths = DropCandidates(folder);
+        _dragPaths = null;
+        if (paths.Count == 0) return;
 
-        foreach (var path in paths.Where(File.Exists))
+        // Taşıma arka planda: başka sürücüden gelen büyük dosyada Windows ilerleme gösterir, widget'lar donmaz.
+        RunFileOperation(() =>
         {
-            if (string.Equals(System.IO.Path.GetDirectoryName(path), folder, StringComparison.OrdinalIgnoreCase)) continue;
-            try { AppHost.Organizer.MoveManually(path, folder); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            var errors = new List<string>();
+            foreach (var path in paths)
             {
-                MessageBox.Show(ex.Message, AppInfo.Name);
+                if (!File.Exists(path)) continue; // klasörler ve kaybolanlar taşınmaz
+                try
+                {
+                    AppHost.Organizer.MoveManually(path, folder, FileMover.SameVolume(path, folder) ? null : ShellFileOperations.Move);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    errors.Add(ex.Message);
+                }
             }
-        }
-        Refresh();
+            if (errors.Count > 0) throw new IOException(string.Join("\n", errors.Distinct()));
+        });
     }
 
     public void ApplyPalette(WidgetPalette palette)
@@ -600,11 +773,13 @@ public partial class FenceView : UserControl, IWidgetView
         RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>Menüden/tekerlekten gelen görünüm ya da içerik ayarı: kaydedilir, kutucuklar yeni ayarla yeniden kurulur.</summary>
     private void Set(Action change)
     {
         change();
         AppHost.SaveSettings();
-        Refresh();
+        _rebuildTiles = true;
+        ForceUpdate();
     }
 
     public bool OnCtrlWheel(int delta)
@@ -615,7 +790,7 @@ public partial class FenceView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        var folder = DesktopMode ? null : ResolveFolder();
+        var folder = DesktopMode ? null : _folderPath;
         if (folder is not null)
             menu.Primary.Add(Menus.Item("Klasörü aç", () => TileItem.Launch(folder)));
         if (_config.Filter is DesktopFilter.None or DesktopFilter.Folders or DesktopFilter.All)
@@ -626,7 +801,7 @@ public partial class FenceView : UserControl, IWidgetView
         foreach (var filter in DesktopItems.Filters)
             pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), _config.Filter == filter,
                 () => Set(() => { _config.Filter = filter; _config.Title = null; })));
-        var folders = AppHost.Organizer.ExistingFolders().OrderBy(n => n, StringComparer.Create(Views.UiText.Tr, true)).ToList();
+        var folders = AppHost.DesktopFolders().OrderBy(n => n, StringComparer.Create(Views.UiText.Tr, true)).ToList();
         if (folders.Count > 0)
         {
             pick.Items.Add(new Separator());
@@ -672,12 +847,19 @@ public partial class FenceView : UserControl, IWidgetView
 
     public void Detach()
     {
-        _refreshTimer.Stop();
-        _sourcePoll.Stop();
-        foreach (var watcher in _watchers) watcher.Dispose();
-        _watchers.Clear();
-        AppHost.Organizer.FileMoved -= OnAnyMove;
-        AppHost.Journal.Changed -= OnJournalChanged;
-        AppHost.DesktopVisibilityChanged -= QueueRefresh;
+        _detached = true;
+        _searchDelay.Stop();
+        foreach (var source in _desktopSources)
+        {
+            source.Changed -= ScheduleUpdate;
+            AppHost.Snapshots.Release(source);
+        }
+        _desktopSources.Clear();
+        if (_folderSource is not null)
+        {
+            _folderSource.Changed -= ScheduleUpdate;
+            AppHost.Snapshots.Release(_folderSource);
+            _folderSource = null;
+        }
     }
 }

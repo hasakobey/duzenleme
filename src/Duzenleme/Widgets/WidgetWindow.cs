@@ -467,24 +467,42 @@ public sealed class WidgetWindow : Window
         _saveTimer.Start();
     }
 
+    /// <summary>
+    /// Konumu/boyutu ayarlara yazar; yalnızca gerçekten değiştiyse kaydettirir (açılışta her widget, ya da yerinden
+    /// oynamayan bir tıklama dosyayı yeniden yazdırmasın). Konum fiziksel pikselle karşılaştırılır: DIP konumu (Left/Top)
+    /// ölçeği farklı monitörde açılış sırasına göre değişebilir; yine de eski sürümler için yazılır.
+    /// </summary>
     private void SaveBounds()
     {
         if (!_positionReady) return;
-        Config.Left = Left;
-        Config.Top = Top;
+        var changed = false;
         if (Handle != IntPtr.Zero && NativeMethods.GetWindowRect(Handle, out var r))
         {
+            changed |= Config.PixelLeft != r.Left || Config.PixelTop != r.Top;
             Config.PixelLeft = r.Left;
             Config.PixelTop = r.Top;
         }
+        else changed |= Differs(Config.Left, Left) || Differs(Config.Top, Top);
+        Config.Left = Left;
+        Config.Top = Top;
         if (View.Resizable)
         {
             // Width/Height ayarlandıktan hemen sonra ActualWidth henüz güncellenmemiş olabilir.
-            Config.Width = double.IsNaN(Width) ? ActualWidth : Width;
-            if (!IsCollapsedNow) Config.Height = double.IsNaN(Height) ? ActualHeight : Height;
+            var width = double.IsNaN(Width) ? ActualWidth : Width;
+            changed |= Differs(Config.Width, width);
+            Config.Width = width;
+            if (!IsCollapsedNow)
+            {
+                var height = double.IsNaN(Height) ? ActualHeight : Height;
+                changed |= Differs(Config.Height, height);
+                Config.Height = height;
+            }
         }
-        AppHost.SaveSettings();
+        if (changed) AppHost.SaveSettings();
     }
+
+    private static bool Differs(double saved, double now) =>
+        double.IsNaN(saved) != double.IsNaN(now) || (!double.IsNaN(saved) && Math.Abs(saved - now) > 0.01);
 
     protected override void OnSourceInitialized(EventArgs e)
     {

@@ -146,9 +146,6 @@ public partial class AutoMovePage : Page
         Loaded += (_, _) =>
         {
             _current = this;
-            AppHost.SettingsChanged += OnSettingsChanged;
-            AppHost.Journal.Changed += OnJournalChanged;
-            WatchHostActivation(true);
             CreateMissing.IsChecked = AppHost.Settings.CreateMissingFolders;
             RefreshCard();
             BuildRules();
@@ -160,11 +157,31 @@ public partial class AutoMovePage : Page
         Unloaded += (_, _) =>
         {
             if (_current == this) _current = null;
-            AppHost.SettingsChanged -= OnSettingsChanged;
-            AppHost.Journal.Changed -= OnJournalChanged;
-            WatchHostActivation(false);
-            _recountDelay.Stop();
         };
+        // Ana pencere gizliyken sayfa kayıtlara, taşımalara ve pencere etkinleşmesine tepki vermez (masaüstünü de saymaz);
+        // yeniden görününce bir kez güncellenir.
+        PageLife.WhileShown(this,
+            attach: () =>
+            {
+                AppHost.SettingsChanged += OnSettingsChanged;
+                AppHost.Journal.Changed += OnJournalChanged;
+                WatchHostActivation(true);
+            },
+            detach: () =>
+            {
+                AppHost.SettingsChanged -= OnSettingsChanged;
+                AppHost.Journal.Changed -= OnJournalChanged;
+                WatchHostActivation(false);
+                _recountDelay.Stop();
+            },
+            refresh: () =>
+            {
+                CreateMissing.IsChecked = AppHost.Settings.CreateMissingFolders;
+                RefreshCard();
+                if (!RebuildIfRulesReplaced()) RefreshStatuses();
+                RefreshHistory();
+                ScheduleRecount();
+            });
     }
 
     /// <summary>Ana pencerede Otomatik taşıma → Son taşınanlar'ı açar ("Geçmişi gör", Ana sayfadaki "Tümünü gör").</summary>
@@ -279,11 +296,8 @@ public partial class AutoMovePage : Page
         ScheduleRecount();
     }
 
-    private static List<string> DesktopFolders()
-    {
-        try { return AppHost.Organizer.ExistingFolders().ToList(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
-    }
+    /// <summary>Masaüstündeki klasörler: diskten değil, arka planda güncel tutulan anlık görüntüden.</summary>
+    private static List<string> DesktopFolders() => AppHost.DesktopFolders();
 
     /// <summary>Satırların durumunu (klasör var mı, kaç dosya bekliyor) son hesaba göre günceller. Ucuz: klasörlerin içine bakmaz.</summary>
     private void RefreshStatuses()
@@ -400,6 +414,7 @@ public partial class AutoMovePage : Page
             // Uygulamanın açtığı klasör için "simge ver" balonu çıkmaz.
             AppHost.MarkQuietFolder(path);
             Directory.CreateDirectory(path);
+            AppHost.NoteFolderCreated(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
