@@ -29,7 +29,7 @@ public static class ShellDesktop
                 if (shell is not null && Marshal.IsComObject(shell)) Marshal.ReleaseComObject(shell);
             }
         })
-        { IsBackground = true, Name = $"{Core.AppInfo.Name} masaüstünü göster" };
+        { IsBackground = true, Name = $"{Core.AppInfo.Name} masaüstünü göster" }; // l10n: çevrilmez (iş parçacığı adı)
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
     }

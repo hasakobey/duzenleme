@@ -3,7 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:l="clr-namespace:Duzenleme.Localization"
-      Title="Widget'lar">
+      Title="{l:T 'Widget\'lar'}">
     <Page.Resources>
         <Style x:Key="RowTitle" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -35,9 +35,9 @@
     </Page.Resources>
 
     <StackPanel Style="{StaticResource PageRoot}">
-        <TextBlock Style="{StaticResource PageTitle}" Text="Widget'lar" />
+        <TextBlock Style="{StaticResource PageTitle}" Text="{l:T 'Widget\'lar'}" />
         <TextBlock Style="{StaticResource PageSubtitle}"
-                   Text="Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın." />
+                   Text="{l:T 'Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın.'}" />
 
         <!-- Windows masaüstü simgeleri: Ayarlar, tepsi ve widget menüleriyle aynı üç seçenek (DesktopModes). "Yalnızca bölmelerde"
              seçilince bölme yoksa başlangıç bölmeleri kurulur. -->
@@ -50,26 +50,26 @@
                 </Grid.ColumnDefinitions>
                 <ui:SymbolIcon Symbol="Board24" Style="{StaticResource RowIcon}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Windows masaüstü simgeleri" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Windows masaüstü simgeleri'}" />
                     <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" Margin="0,2,0,0"
                                AutomationProperties.AutomationId="Widgets.IconModeText" />
                 </StackPanel>
                 <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" VerticalAlignment="Center"
                           SelectionChanged="IconModeBox_SelectionChanged"
-                          AutomationProperties.AutomationId="Widgets.IconMode" AutomationProperties.Name="Windows masaüstü simgeleri" />
+                          AutomationProperties.AutomationId="Widgets.IconMode" AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
             </Grid>
         </Border>
 
         <!-- Ekle: kutucuklar WidgetCatalog'dan ("Widget ekle" penceresi ve karşılamayla aynı liste). -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="Ekle" />
-        <TextBlock Style="{StaticResource SubHeader}" Margin="0,0,0,8" Text="Bölmeler" />
+        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Ekle'}" />
+        <TextBlock Style="{StaticResource SubHeader}" Margin="0,0,0,8" Text="{l:T 'Bölmeler'}" />
         <WrapPanel x:Name="FenceTiles" />
-        <TextBlock Style="{StaticResource SubHeader}" Text="Araçlar" />
+        <TextBlock Style="{StaticResource SubHeader}" Text="{l:T 'Araçlar'}" />
         <WrapPanel x:Name="ToolTiles" />
         <TextBlock Style="{StaticResource SubHeader}" Text="{l:T 'Saat ve bilgi'}" />
         <WrapPanel x:Name="InfoTiles" />
         <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                   Text="İpucu: Widget'ı sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla." />
+                   Text="{l:T 'İpucu: Widget\'ı sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.'}" />
 
         <!-- Masaüstündekiler -->
         <Grid Margin="0,24,0,8">
@@ -78,13 +78,13 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="ActiveHeader" Style="{StaticResource SectionHeader}" Margin="0,0,12,0" VerticalAlignment="Center"
-                       TextWrapping="Wrap" Text="Masaüstündekiler" />
+                       TextWrapping="Wrap" Text="{l:T 'Masaüstündekiler'}" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="RevealAllButton" Icon="{ui:SymbolIcon Eye24}" Content="Hepsini öne getir" Margin="0,0,8,0"
-                           ToolTip="Widget'lar pencerelerin arkasında kalır; hepsini birkaç saniyeliğine öne getirir"
+                <ui:Button x:Name="RevealAllButton" Icon="{ui:SymbolIcon Eye24}" Content="{l:T 'Hepsini öne getir'}" Margin="0,0,8,0"
+                           ToolTip="{l:T 'Widget\'lar pencerelerin arkasında kalır; hepsini birkaç saniyeliğine öne getirir'}"
                            AutomationProperties.AutomationId="Widgets.RevealAll" Click="RevealAll_Click" />
-                <ui:Button x:Name="ArrangeButton" Icon="{ui:SymbolIcon Grid24}" Content="Düzenli yerleştir"
-                           ToolTip="Widget'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki yerleşim kaydedilir"
+                <ui:Button x:Name="ArrangeButton" Icon="{ui:SymbolIcon Grid24}" Content="{l:T 'Düzenli yerleştir'}"
+                           ToolTip="{l:T 'Widget\'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki yerleşim kaydedilir'}"
                            AutomationProperties.AutomationId="Widgets.Arrange" Click="Arrange_Click" />
             </StackPanel>
         </Grid>
@@ -103,10 +103,10 @@
                                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                             <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"
                                        TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <ui:Button Grid.Column="2" Icon="{ui:SymbolIcon Eye24}" Content="Bul" VerticalAlignment="Center"
-                                       ToolTip="Masaüstündeki yerini göster" AutomationProperties.Name="{Binding RevealName}"
+                            <ui:Button Grid.Column="2" Icon="{ui:SymbolIcon Eye24}" Content="{l:T 'Bul'}" VerticalAlignment="Center"
+                                       ToolTip="{l:T 'Masaüstündeki yerini göster'}" AutomationProperties.Name="{Binding RevealName}"
                                        Click="Reveal_Click" />
-                            <ui:Button Grid.Column="3" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Content="Kaldır" VerticalAlignment="Center"
+                            <ui:Button Grid.Column="3" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Content="{l:T 'Kaldır'}" VerticalAlignment="Center"
                                        Appearance="Secondary" AutomationProperties.Name="{Binding RemoveName}" Click="Remove_Click" />
                         </Grid>
                     </Border>
@@ -114,7 +114,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock x:Name="ActiveEmpty" Style="{StaticResource Muted}"
-                   Text="Masaüstünde henüz widget yok. Yukarıdan birine tıkla, hemen masaüstüne gelsin." />
+                   Text="{l:T 'Masaüstünde henüz widget yok. Yukarıdan birine tıkla, hemen masaüstüne gelsin.'}" />
 
         <!-- Tüm widget'ların görünümü (katlanır) -->
         <Border Style="{StaticResource Surface}" Margin="0,24,0,6">
@@ -126,11 +126,11 @@
                 </Grid.ColumnDefinitions>
                 <ui:SymbolIcon Symbol="Color24" Style="{StaticResource RowIcon}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Tüm widget'ların görünümü" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Arka plan, renk ve yerleşim" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tüm widget\'ların görünümü'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Arka plan, renk ve yerleşim'}" />
                 </StackPanel>
                 <ui:Button x:Name="LookFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                           AutomationProperties.AutomationId="Widgets.LookFold" AutomationProperties.HelpText="Tüm widget'ların görünümü" />
+                           AutomationProperties.AutomationId="Widgets.LookFold" AutomationProperties.HelpText="{l:T 'Tüm widget\'ların görünümü'}" />
             </Grid>
         </Border>
         <StackPanel x:Name="LookContent">
@@ -140,12 +140,12 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Arka plan" />
+                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Arka plan'}" />
                     <ComboBox x:Name="StyleBox" Grid.Column="1" Width="170" SelectionChanged="StyleBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.Background" AutomationProperties.Name="Arka plan">
-                        <ComboBoxItem Content="Cam" />
-                        <ComboBoxItem Content="Koyu" />
-                        <ComboBoxItem Content="Açık" />
+                              AutomationProperties.AutomationId="Widgets.Background" AutomationProperties.Name="{l:T 'Arka plan'}">
+                        <ComboBoxItem Content="{l:T 'Cam'}" />
+                        <ComboBoxItem Content="{l:T 'Koyu'}" />
+                        <ComboBoxItem Content="{l:T 'Açık'}" />
                     </ComboBox>
                 </Grid>
             </Border>
@@ -155,14 +155,14 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Vurgu rengi" />
+                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Vurgu rengi'}" />
                     <ComboBox x:Name="AccentBox" Grid.Column="1" Width="170" SelectionChanged="AccentBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.Accent" AutomationProperties.Name="Vurgu rengi">
-                        <ComboBoxItem Content="Mor" />
-                        <ComboBoxItem Content="Mavi" />
-                        <ComboBoxItem Content="Yeşil" />
-                        <ComboBoxItem Content="Turuncu" />
-                        <ComboBoxItem Content="Pembe" />
+                              AutomationProperties.AutomationId="Widgets.Accent" AutomationProperties.Name="{l:T 'Vurgu rengi'}">
+                        <ComboBoxItem Content="{l:T 'Mor'}" />
+                        <ComboBoxItem Content="{l:T 'Mavi'}" />
+                        <ComboBoxItem Content="{l:T 'Yeşil'}" />
+                        <ComboBoxItem Content="{l:T 'Turuncu'}" />
+                        <ComboBoxItem Content="{l:T 'Pembe'}" />
                     </ComboBox>
                 </Grid>
             </Border>
@@ -172,9 +172,9 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Kenarlara yapışsın (mıknatıs)" />
+                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Kenarlara yapışsın (mıknatıs)'}" />
                     <ui:ToggleSwitch x:Name="SnapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Snap_Changed" Unchecked="Snap_Changed"
-                                     AutomationProperties.AutomationId="Widgets.Snap" AutomationProperties.Name="Kenarlara yapışsın (mıknatıs)" />
+                                     AutomationProperties.AutomationId="Widgets.Snap" AutomationProperties.Name="{l:T 'Kenarlara yapışsın (mıknatıs)'}" />
                 </Grid>
             </Border>
             <Border Style="{StaticResource SettingRow}">
@@ -183,9 +183,9 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Widget'lar üst üste binmesin" />
+                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Widget\'lar üst üste binmesin'}" />
                     <ui:ToggleSwitch x:Name="OverlapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Overlap_Changed" Unchecked="Overlap_Changed"
-                                     AutomationProperties.AutomationId="Widgets.PreventOverlap" AutomationProperties.Name="Widget'lar üst üste binmesin" />
+                                     AutomationProperties.AutomationId="Widgets.PreventOverlap" AutomationProperties.Name="{l:T 'Widget\'lar üst üste binmesin'}" />
                 </Grid>
             </Border>
             <Border Style="{StaticResource SettingRow}">
@@ -195,16 +195,16 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Yeni widget'ların yeri" />
-                        <TextBlock Style="{StaticResource Muted}" Text="Kısayolla ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Bu sayfadan eklenenler ekranın köşesine gelir." />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Yeni widget\'ların yeri'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Kısayolla ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Bu sayfadan eklenenler ekranın köşesine gelir.'}" />
                     </StackPanel>
                     <ComboBox x:Name="PlacementBox" Grid.Column="1" Width="220" VerticalAlignment="Center"
                               SelectionChanged="PlacementBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.NewWidgetPlacement" AutomationProperties.Name="Yeni widget'ların yeri" />
+                              AutomationProperties.AutomationId="Widgets.NewWidgetPlacement" AutomationProperties.Name="{l:T 'Yeni widget\'ların yeri'}" />
                 </Grid>
             </Border>
             <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                       Text="Tek bir widget'ı ayarlamak için ona sağ tıkla → Görünüm. Notlar kendi kağıt rengini kullanır." />
+                       Text="{l:T 'Tek bir widget\'ı ayarlamak için ona sağ tıkla → Görünüm. Notlar kendi kağıt rengini kullanır.'}" />
         </StackPanel>
 
         <!-- Kayıtlı düzenler (katlanır) -->
@@ -217,11 +217,11 @@
                 </Grid.ColumnDefinitions>
                 <ui:SymbolIcon Symbol="Board24" Style="{StaticResource RowIcon}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock x:Name="LayoutsTitle" Style="{StaticResource RowTitle}" Text="Kayıtlı düzenler" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Yerleşimi bir adla sakla, tek tıkla geri dön" />
+                    <TextBlock x:Name="LayoutsTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Kayıtlı düzenler'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Yerleşimi bir adla sakla, tek tıkla geri dön'}" />
                 </StackPanel>
                 <ui:Button x:Name="LayoutsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                           AutomationProperties.AutomationId="Widgets.LayoutsFold" AutomationProperties.HelpText="Kayıtlı düzenler" />
+                           AutomationProperties.AutomationId="Widgets.LayoutsFold" AutomationProperties.HelpText="{l:T 'Kayıtlı düzenler'}" />
             </Grid>
         </Border>
         <StackPanel x:Name="LayoutsContent">
@@ -230,9 +230,9 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ui:TextBox x:Name="LayoutName" PlaceholderText="Düzen adı (ör. İş)" Icon="{ui:SymbolIcon Board24}" KeyDown="LayoutName_KeyDown"
-                            AutomationProperties.AutomationId="Widgets.LayoutName" AutomationProperties.Name="Düzen adı" />
-                <ui:Button Grid.Column="1" Margin="10,0,0,0" Appearance="Primary" Icon="{ui:SymbolIcon Save24}" Content="Şu anki düzeni kaydet"
+                <ui:TextBox x:Name="LayoutName" PlaceholderText="{l:T 'Düzen adı (ör. İş)'}" Icon="{ui:SymbolIcon Board24}" KeyDown="LayoutName_KeyDown"
+                            AutomationProperties.AutomationId="Widgets.LayoutName" AutomationProperties.Name="{l:T 'Düzen adı'}" />
+                <ui:Button Grid.Column="1" Margin="10,0,0,0" Appearance="Primary" Icon="{ui:SymbolIcon Save24}" Content="{l:T 'Şu anki düzeni kaydet'}"
                            VerticalAlignment="Stretch" AutomationProperties.AutomationId="Widgets.SaveLayout" Click="SaveLayout_Click" />
             </Grid>
             <ItemsControl x:Name="LayoutList" AutomationProperties.AutomationId="Widgets.Layouts">
@@ -253,17 +253,17 @@
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                     <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" />
                                 </StackPanel>
-                                <ui:Button Grid.Column="2" Content="Uygula" Icon="{ui:SymbolIcon Play24}" VerticalAlignment="Center"
+                                <ui:Button Grid.Column="2" Content="{l:T 'Uygula'}" Icon="{ui:SymbolIcon Play24}" VerticalAlignment="Center"
                                            AutomationProperties.Name="{Binding ApplyName}" Click="ApplyLayout_Click" />
                                 <ui:Button Grid.Column="3" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent" VerticalAlignment="Center"
-                                           ToolTip="Düzeni sil" AutomationProperties.Name="{Binding DeleteName}" Click="DeleteLayout_Click" />
+                                           ToolTip="{l:T 'Düzeni sil'}" AutomationProperties.Name="{Binding DeleteName}" Click="DeleteLayout_Click" />
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
             <TextBlock x:Name="LayoutEmpty" Style="{StaticResource Muted}"
-                       Text="Henüz kayıtlı düzen yok. Beğendiğin yerleşimi bir adla kaydet, sonra tek tıkla geri dön." />
+                       Text="{l:T 'Henüz kayıtlı düzen yok. Beğendiğin yerleşimi bir adla kaydet, sonra tek tıkla geri dön.'}" />
         </StackPanel>
     </StackPanel>
 </Page>
