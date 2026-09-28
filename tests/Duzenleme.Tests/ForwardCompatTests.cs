@@ -173,4 +173,23 @@ public class ForwardCompatTests : IDisposable
         });
         Assert.Null(s.Extra);
     }
+
+    [Fact]
+    public void Copied_rules_keep_fields_written_by_a_newer_version()
+    {
+        // Daha yeni sürümün kurala eklediği bir alan: F2 ile klasör yeniden adlandırılıp "Kuralları güncelle" denince ya da
+        // karşılama yeniden bitirilince kaybolmamalı.
+        var rules = Load("""{ "Rules": [ { "TargetFolder": "PDF", "Extensions": ["pdf"], "Enabled": true, "Schedule": "daily" } ] }""").Rules;
+        Assert.True(rules[0].Extra?.ContainsKey("Schedule"));
+
+        var renamed = PathRenames.RetargetRules(rules, "PDF", "Belgelerim")!;
+        Assert.Equal("Belgelerim", renamed[0].TargetFolder);
+        Assert.Equal("daily", renamed[0].Extra!["Schedule"].GetString());
+        Assert.NotSame(rules[0], renamed[0]);
+        Assert.Equal("PDF", rules[0].TargetFolder); // eski liste yerinde değişmez (izleyici okuyor olabilir)
+
+        var chosen = Onboarding.ApplyFolderSelection(rules, ["PDF"], ["PDF"]);
+        Assert.Equal("daily", chosen[0].Extra!["Schedule"].GetString());
+        Assert.Contains("\"Schedule\": \"daily\"", System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(new AppSettings { Rules = chosen })));
+    }
 }

@@ -108,7 +108,7 @@ public static class Onboarding
         var existing = existingFolders.ToList();
         return rules.Select(rule =>
         {
-            var copy = new Rule { TargetFolder = rule.TargetFolder, Extensions = [.. rule.Extensions], Enabled = rule.Enabled };
+            var copy = rule.Clone();
             if (!IsChoice(rule)) return copy;
             if (chosen.Any(s => FolderName.Equal(s, rule.TargetFolder))) copy.Enabled = true;
             else if (createMissing || existing.Any(f => FolderName.Equal(f, rule.TargetFolder))) copy.Enabled = false;

@@ -13,6 +13,18 @@ public sealed class Rule
         return Extensions.Any(e => NormalizeExtension(e) == ext);
     }
 
+    /// <summary>
+    /// Kuralın kopyası (izleyici listeyi okurken yerinde değiştirmemek için). Daha yeni sürümün yazdığı alanlar
+    /// (<see cref="Extra"/>) da kopyalanır: kopyalanan kural onları sessizce kaybetmesin.
+    /// </summary>
+    public Rule Clone() => new()
+    {
+        TargetFolder = TargetFolder,
+        Extensions = [.. Extensions],
+        Enabled = Enabled,
+        Extra = Extra is null ? null : new Dictionary<string, System.Text.Json.JsonElement>(Extra),
+    };
+
     public static string NormalizeExtension(string extension) =>
         extension.Trim().TrimStart('*').TrimStart('.').ToLowerInvariant();
 

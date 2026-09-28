@@ -52,11 +52,11 @@ public static class PathRenames
     public static List<Rule>? RetargetRules(IReadOnlyList<Rule> rules, string oldName, string newName)
     {
         if (!rules.Any(r => FolderName.Equal(r.TargetFolder, oldName))) return null;
-        return rules.Select(r => new Rule
+        return rules.Select(r =>
         {
-            TargetFolder = FolderName.Equal(r.TargetFolder, oldName) ? newName : r.TargetFolder,
-            Extensions = [.. r.Extensions],
-            Enabled = r.Enabled,
+            var copy = r.Clone();
+            if (FolderName.Equal(r.TargetFolder, oldName)) copy.TargetFolder = newName;
+            return copy;
         }).ToList();
     }
 
