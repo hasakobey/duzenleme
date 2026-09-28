@@ -28,7 +28,13 @@ internal static class CountdownDialog
         };
         AutomationProperties.SetName(name, L.T("Etkinliğin adı"));
         AutomationProperties.SetAutomationId(name, "Countdown.Name");
-        var picker = new DatePicker { SelectedDate = date.Date, Margin = new Thickness(0, 6, 0, 14), SelectedDateFormat = DatePickerFormat.Long };
+        // Tarih ve takvim arayüz dilinde (widget'taki tarih gibi, L.Culture): WPF'in DatePicker'ı yoksa Windows'un bölge
+        // biçimine uyar ve İngilizce arayüzde "28 Ekim 2026 Çarşamba" yazardı. Yazılan tarih de bu dilde okunur.
+        var language = System.Windows.Markup.XmlLanguage.GetLanguage(L.Culture.IetfLanguageTag);
+        var picker = new DatePicker
+        {
+            SelectedDate = date.Date, Margin = new Thickness(0, 6, 0, 14), SelectedDateFormat = DatePickerFormat.Long, Language = language,
+        };
         AutomationProperties.SetName(picker, L.T("Gün"));
         AutomationProperties.SetAutomationId(picker, "Countdown.Date");
         var repeat = new CheckBox { Content = L.T("Her yıl yinele (doğum günü, yıl dönümü)"), IsChecked = yearly, Margin = new Thickness(0, 0, 0, 18) };
@@ -68,6 +74,7 @@ internal static class CountdownDialog
             ShowInTaskbar = false,
             MinWidth = 0,
             MinHeight = 0,
+            Language = language, // takvim açılır penceresi de (DatePicker'ın içinden) aynı dili alsın
         };
         WindowFit.FitChromeToContent(window);
         DialogPlacement.CenterOn(window, near);
