@@ -179,3 +179,56 @@ public sealed class DirectorySnapshotTests : IDisposable
         Assert.Null(all.Find(_dir));
     }
 }
+
+public sealed class ResilientWatcherTests : IDisposable
+{
+    private readonly string _dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "duzenleme-watch-" + Guid.NewGuid().ToString("N"))).FullName;
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
+    }
+
+    [Fact]
+    public async Task Dispose_does_not_wait_for_a_start_stuck_on_an_unreachable_folder()
+    {
+        // Ulaşılamayan ağ klasörü (\sunucu\paylaşım, VPN kapalı): klasöre bakmak ~40 sn sürer. Portal kaldırılınca ya da
+        // uygulama kapanırken Dispose arayüzde çağrılır; kurulumun bitmesini beklememeli.
+        using var probing = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var watcher = ResilientWatcher.ForTests(_dir, path =>
+        {
+            probing.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+            return Directory.Exists(path);
+        });
+        var start = Task.Run(watcher.Start);
+        Assert.True(probing.Wait(TimeSpan.FromSeconds(5)));
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        watcher.Dispose();
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(1), $"Dispose {sw.ElapsedMilliseconds} ms bekledi");
+
+        // Kurulum sonradan bitince izleyici yerine konmaz, kendini atar.
+        release.Set();
+        await start.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(watcher.IsRunning);
+    }
+
+    [Fact]
+    public void Watcher_reports_changes_and_stops_after_dispose()
+    {
+        var seen = 0;
+        var watcher = ResilientWatcher.ForTests(_dir, Directory.Exists, _ => Interlocked.Increment(ref seen));
+        watcher.Start();
+        Assert.True(watcher.IsRunning);
+        File.WriteAllText(Path.Combine(_dir, "a.txt"), "a");
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (Volatile.Read(ref seen) == 0 && DateTime.UtcNow < deadline) Thread.Sleep(20);
+        Assert.True(Volatile.Read(ref seen) > 0);
+
+        watcher.Dispose();
+        Assert.False(watcher.IsRunning);
+        watcher.Dispose(); // ikinci kez de sorun değil
+    }
+}

@@ -17,6 +17,7 @@ public sealed class ResilientWatcher : IDisposable
     private readonly Action? _onOverflow;
     private readonly Action? _onRecovered;
     private readonly object _lock = new();
+    private readonly Func<string, bool> _directoryExists;
     private FileSystemWatcher? _watcher;
     private Timer? _retry;
     private Timer? _stable;
@@ -42,7 +43,8 @@ public sealed class ResilientWatcher : IDisposable
         new(path, filter, onChange, onOverflow, onRecovered, rich: true);
 
     // "rich" yalnızca iki kurucuyu ayırır: ortak kurucu Action<string> alan genel kurucuyla karışmasın (lambda belirsizliği).
-    private ResilientWatcher(string path, NotifyFilters filter, Action<FileSystemEventArgs> onChange, Action? onOverflow, Action? onRecovered, bool rich)
+    private ResilientWatcher(string path, NotifyFilters filter, Action<FileSystemEventArgs> onChange, Action? onOverflow, Action? onRecovered, bool rich,
+        Func<string, bool>? directoryExists = null)
     {
         _ = rich;
         _path = path;
@@ -50,27 +52,59 @@ public sealed class ResilientWatcher : IDisposable
         _onChange = onChange;
         _onOverflow = onOverflow;
         _onRecovered = onRecovered;
+        _directoryExists = directoryExists ?? Directory.Exists;
     }
+
+    /// <summary>Testler için: klasör var mı sorusu yerine verilen işlev (ör. ulaşılamayan ağ yolunda saniyelerce bekleyen).</summary>
+    internal static ResilientWatcher ForTests(string path, Func<string, bool> directoryExists, Action<FileSystemEventArgs>? onChange = null) =>
+        new(path, NotifyFilters.FileName, onChange ?? (_ => { }), null, null, rich: true, directoryExists);
 
     public void Start() => TryStart();
 
+    /// <summary>
+    /// İzleyiciyi (yeniden) kurar. Klasöre bakmak ve izleyiciyi açmak kilidin DIŞINDA yapılır: ulaşılamayan bir ağ klasöründe
+    /// (\\sunucu\paylaşım, VPN kapalı) bunlar SMB zaman aşımına dek (~40 sn) bekler; kilit tutulsaydı arayüzden gelen
+    /// <see cref="Dispose"/> (portal kaldırıldı, klasör değişti, çıkış) de o kadar beklerdi. Kilit yalnızca durumu okumak ve
+    /// kurulan izleyiciyi yerine koymak için alınır; bu arada kapatıldıysa yeni izleyici atılır.
+    /// </summary>
     private void TryStart()
     {
+        FileSystemWatcher? old;
         lock (_lock)
         {
             if (_disposed) return;
-            _watcher?.Dispose();
+            old = _watcher;
             _watcher = null;
-            try
+        }
+        DisposeQuietly(old);
+
+        FileSystemWatcher? w = null;
+        try
+        {
+            if (!_directoryExists(_path)) throw new DirectoryNotFoundException(_path);
+            w = new FileSystemWatcher(_path) { IncludeSubdirectories = false, NotifyFilter = _filter, InternalBufferSize = 64 * 1024 };
+            var created = w;
+            w.Created += (_, e) => Safe(() => _onChange(e));
+            w.Changed += (_, e) => Safe(() => _onChange(e));
+            w.Deleted += (_, e) => Safe(() => _onChange(e));
+            w.Renamed += (_, e) => Safe(() => _onChange(e));
+            w.Error += (_, e) => OnError(created, e.GetException());
+            w.EnableRaisingEvents = true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or DirectoryNotFoundException)
+        {
+            DisposeQuietly(w);
+            lock (_lock) ScheduleRetry();
+            return;
+        }
+
+        FileSystemWatcher? discard = null;
+        lock (_lock)
+        {
+            // Bu arada kapatıldı ya da (üst üste gelen bir yeniden deneme) başka bir izleyici kuruldu: bu fazladır.
+            if (_disposed || _watcher is not null) discard = w;
+            else
             {
-                if (!Directory.Exists(_path)) throw new DirectoryNotFoundException(_path);
-                var w = new FileSystemWatcher(_path) { IncludeSubdirectories = false, NotifyFilter = _filter, InternalBufferSize = 64 * 1024 };
-                w.Created += (_, e) => Safe(() => _onChange(e));
-                w.Changed += (_, e) => Safe(() => _onChange(e));
-                w.Deleted += (_, e) => Safe(() => _onChange(e));
-                w.Renamed += (_, e) => Safe(() => _onChange(e));
-                w.Error += (_, e) => OnError(w, e.GetException());
-                w.EnableRaisingEvents = true;
                 _watcher = w;
                 if (_failures > 0)
                 {
@@ -81,11 +115,8 @@ public sealed class ResilientWatcher : IDisposable
                     _stable = new Timer(_ => { lock (_lock) if (_watcher == w) _failures = 0; }, null, TimeSpan.FromSeconds(30), Timeout.InfiniteTimeSpan);
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or DirectoryNotFoundException)
-            {
-                ScheduleRetry();
-            }
         }
+        DisposeQuietly(discard);
     }
 
     private void OnError(FileSystemWatcher source, Exception? error)
@@ -118,15 +149,30 @@ public sealed class ResilientWatcher : IDisposable
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
     }
 
+    /// <summary>
+    /// İzlemeyi bırakır. Kurulmakta olan bir izleyiciyi beklemez (o, kurulunca kendini atar); izleyicinin kapatılması kilit
+    /// dışında yapılır. Arayüz iş parçacığından güvenle çağrılabilir.
+    /// </summary>
     public void Dispose()
     {
+        FileSystemWatcher? watcher;
+        Timer? retry, stable;
         lock (_lock)
         {
+            if (_disposed) return;
             _disposed = true;
-            _retry?.Dispose();
-            _stable?.Dispose();
-            _watcher?.Dispose();
-            _watcher = null;
+            (watcher, retry, stable) = (_watcher, _retry, _stable);
+            (_watcher, _retry, _stable) = (null, null, null);
         }
+        retry?.Dispose();
+        stable?.Dispose();
+        DisposeQuietly(watcher);
+    }
+
+    private static void DisposeQuietly(FileSystemWatcher? watcher)
+    {
+        if (watcher is null) return;
+        try { watcher.Dispose(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
     }
 }

@@ -349,8 +349,16 @@ public sealed class DirectorySnapshots : IDisposable
             }
             _open.Remove(key);
         }
-        snapshot.Dispose();
+        DisposeInBackground(snapshot);
     }
+
+    /// <summary>
+    /// Bırakılan anlık görüntü arka planda kapatılır: izleyicisini kapatmak ulaşılamayan bir ağ klasöründe saniyelerce
+    /// sürebilir, arayüz (portal kaldırıldı, klasörü değişti) ve çıkış beklemesin. Tüketiciler <see cref="DirectorySnapshot.Changed"/>
+    /// aboneliğini bırakmadan önce kaldırır; kapatılana dek gelen bir bildirim kimseye ulaşmaz.
+    /// </summary>
+    private static void DisposeInBackground(DirectorySnapshot snapshot) =>
+        ThreadPool.UnsafeQueueUserWorkItem(static s => s.Dispose(), snapshot, preferLocal: false);
 
     /// <summary>İzlenen klasörse anlık görüntüsü (sayaç artmaz); değilse null.</summary>
     public DirectorySnapshot? Find(string directory)
@@ -366,6 +374,6 @@ public sealed class DirectorySnapshots : IDisposable
             all = _open.Values.Select(v => v.Snapshot).ToList();
             _open.Clear();
         }
-        foreach (var snapshot in all) snapshot.Dispose();
+        foreach (var snapshot in all) DisposeInBackground(snapshot);
     }
 }
