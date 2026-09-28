@@ -287,7 +287,7 @@ public partial class FenceView : UserControl, IWidgetView
         if (clock is not null)
         {
             PerfLog.Count("FenceUpdate");
-            PerfLog.Write($"bölme güncellendi [{_config.Id[..6]}] {_all.Count} öğe, hesap {computed:0.0} ms, toplam {clock.Elapsed.TotalMilliseconds:0.0} ms"); // l10n: çevrilmez
+            PerfLog.Write($"bölme güncellendi [{DebugLog.ShortId(_config.Id)}] {_all.Count} öğe, hesap {computed:0.0} ms, toplam {clock.Elapsed.TotalMilliseconds:0.0} ms"); // l10n: çevrilmez
         }
     }
 

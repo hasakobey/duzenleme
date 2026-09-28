@@ -155,7 +155,7 @@ public sealed class WidgetWindow : Window
 
         if (DebugLog.Enabled)
         {
-            var tag = $"[{Config.Kind}:{Config.Id[..6]}]";
+            var tag = $"[{Config.Kind}:{DebugLog.ShortId(Config.Id)}]";
             _card.ContextMenuOpening += (_, e) => DebugLog.Write($"{tag} ContextMenuOpening src={e.OriginalSource?.GetType().Name} handled={e.Handled}");
             _card.ContextMenu.Opened += (_, _) => DebugLog.Write($"{tag} menu Opened items={_card.ContextMenu.Items.Count}");
             _card.ContextMenu.Closed += (_, _) => DebugLog.Write($"{tag} menu Closed");

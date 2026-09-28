@@ -82,7 +82,7 @@ public partial class NoteView : UserControl, IWidgetView
 
         if (opening is not null)
         {
-            var tag = $"[Note:{config.Id[..6]}]";
+            var tag = $"[Note:{DebugLog.ShortId(config.Id)}]";
             DebugLog.Write($"{tag} kuruldu: {(config.NoteChecklist ? $"{_rows.Count + _pending.Count} madde ({_rows.Count} satır hemen)" : "düz not")}, {opening.ElapsedMilliseconds} ms");
             RoutedEventHandler? loaded = null;
             loaded = (_, _) =>
@@ -432,7 +432,7 @@ public partial class NoteView : UserControl, IWidgetView
                 if (generation != _attachGeneration) return;
                 var count = _pending.Count;
                 AttachAll();
-                if (clock is not null) DebugLog.Write($"[Note:{_config.Id[..6]}] kalan {count} madde eklendi: {clock.ElapsedMilliseconds} ms sonra");
+                if (clock is not null) DebugLog.Write($"[Note:{DebugLog.ShortId(_config.Id)}] kalan {count} madde eklendi: {clock.ElapsedMilliseconds} ms sonra");
             }, DispatcherPriority.Background);
         }
         UpdateProgress();

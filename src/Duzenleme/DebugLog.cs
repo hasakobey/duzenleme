@@ -11,6 +11,9 @@ public static class DebugLog
 
     public static bool Enabled => Path is not null;
 
+    /// <summary>Günlükteki kısa widget kimliği (ilk 6 karakter; elle yazılmış kısa kimlikte kimliğin kendisi).</summary>
+    public static string ShortId(string id) => id.Length <= 6 ? id : id[..6];
+
     public static void Write(string message)
     {
         if (Path is null) return;
