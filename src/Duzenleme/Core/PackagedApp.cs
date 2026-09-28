@@ -76,10 +76,10 @@ public static class PackagedApp
         StartupTaskState.Enabled => new(ShowToggle: true, IsOn: true, Note: null),
         StartupTaskState.Disabled => new(ShowToggle: true, IsOn: false, Note: null),
         StartupTaskState.DisabledByUser => new(ShowToggle: false, IsOn: false,
-            Note: "Windows'un Başlangıç ayarlarından ya da Görev Yöneticisi'nden kapatılmış; Windows yeniden açmaya yalnızca oradan izin verir."),
-        StartupTaskState.DisabledByPolicy => new(ShowToggle: false, IsOn: false, Note: "Yönetici ilkesiyle kapalı; buradan değiştirilemez."),
-        StartupTaskState.EnabledByPolicy => new(ShowToggle: false, IsOn: true, Note: "Yönetici ilkesiyle açık; buradan değiştirilemez."),
-        _ => new(ShowToggle: false, IsOn: false, Note: "Durum okunamadı; ayar Windows'un Başlangıç uygulamaları sayfasında."),
+            Note: L.T("Windows'un Başlangıç ayarlarından ya da Görev Yöneticisi'nden kapatılmış; Windows yeniden açmaya yalnızca oradan izin verir.")),
+        StartupTaskState.DisabledByPolicy => new(ShowToggle: false, IsOn: false, Note: L.T("Yönetici ilkesiyle kapalı; buradan değiştirilemez.")),
+        StartupTaskState.EnabledByPolicy => new(ShowToggle: false, IsOn: true, Note: L.T("Yönetici ilkesiyle açık; buradan değiştirilemez.")),
+        _ => new(ShowToggle: false, IsOn: false, Note: L.T("Durum okunamadı; ayar Windows'un Başlangıç uygulamaları sayfasında.")),
     };
 }
 

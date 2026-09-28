@@ -175,7 +175,7 @@ public static class AppHost
         Watcher = new DesktopWatcher(Organizer, () => Settings.Paused);
         BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
         Widgets = new WidgetManager();
-        BackgroundIo.Run($"{AppInfo.Name} ayar yedeği", BackupSettingsDaily);
+        BackgroundIo.Run($"{AppInfo.Name} ayar yedeği", BackupSettingsDaily); // l10n: çevrilmez (iş parçacığı adı)
         // Kutulardaki masaüstü öğeleri kurallarla taşınmasın; widget eklenince/kaldırılınca küme yenilenir, kaldırılan
         // kutunun taşınmış öğeleri masaüstüne döner (kutu "Geri al" ile gelirse yeniden taşınır).
         Widgets.Changed += () =>
@@ -248,7 +248,7 @@ public static class AppHost
     {
         SaveSettingsNow(TimeSpan.FromSeconds(3));
         if (PerfLog.Enabled)
-            PerfLog.Write($"sayaçlar: {PerfLog.Summary()} ayar yazma={_store?.File.WriteCount} geçmiş yazma={Journal?.WriteCount}");
+            PerfLog.Write($"sayaçlar: {PerfLog.Summary()} ayar yazma={_store?.File.WriteCount} geçmiş yazma={Journal?.WriteCount}"); // l10n: çevrilmez
         try { Journal?.Flush(TimeSpan.FromSeconds(2)); }
         catch (Exception ex) { DebugLog.Write($"geçmiş yazılamadı: {ex.Message}"); }
     }
@@ -269,7 +269,7 @@ public static class AppHost
         // Kullanıcıya bir oturumda en fazla iki kez söylenir; değişiklikler bellekte durur, yazma arka planda yeniden denenir.
         if (Interlocked.Increment(ref _writeWarnings) > 2) return;
         _dispatcher?.BeginInvoke(() => Views.Notice.Show(
-            "Ayarlar şu an kaydedilemedi (dosyayı başka bir program kullanıyor olabilir). Değişikliklerin duruyor; kayıt birazdan yeniden denenecek.",
+            L.T("Ayarlar şu an kaydedilemedi (dosyayı başka bir program kullanıyor olabilir). Değişikliklerin duruyor; kayıt birazdan yeniden denenecek."),
             Views.NoticeKind.Warning));
     }
 
@@ -328,13 +328,13 @@ public static class AppHost
     public static void StartDeferredWork(bool autostart)
     {
         var desktop = DesktopDirectory;
-        BackgroundIo.Run($"{AppInfo.Name} açılış taraması", () =>
+        BackgroundIo.Run($"{AppInfo.Name} açılış taraması", () => // l10n: çevrilmez (iş parçacığı adı)
         {
             if (!Settings.Paused)
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var moved = Organizer.OrganizeAll();
-                PerfLog.Write($"açılış taraması {sw.ElapsedMilliseconds} ms, {moved.Count} dosya taşındı");
+                PerfLog.Write($"açılış taraması {sw.ElapsedMilliseconds} ms, {moved.Count} dosya taşındı"); // l10n: çevrilmez
             }
             // Eski sürümün mutlak yollu klasör simgelerini onar.
             Icons.FolderIconService.RepairDesktopFolders(desktop);
@@ -456,8 +456,8 @@ public static class AppHost
                 if (!Peeking || Settings.PeekHintsShown >= 3) return;
                 Settings.PeekHintsShown++;
                 SaveSettings();
-                Tray?.Notify("Windows masaüstü açıldı",
-                    $"Geri dönmek için yeniden çift tıkla ya da üstteki \"{AppInfo.Name}'e dön\"e bas. Çift tıklamanın ne yapacağını Ayarlar > Masaüstü'nden seçebilirsin.",
+                Tray?.Notify(L.T("Windows masaüstü açıldı"),
+                    L.F("Geri dönmek için yeniden çift tıkla ya da üstteki \"{0}'e dön\"e bas. Çift tıklamanın ne yapacağını Ayarlar > Masaüstü'nden seçebilirsin.", AppInfo.Name),
                     () => EndPeek());
                 break;
             case DoubleClickEffect.ToggleDesktop:
@@ -465,8 +465,8 @@ public static class AppHost
                 if (!DesktopHidden || Settings.DoubleClickHintsShown >= 3) return;
                 Settings.DoubleClickHintsShown++;
                 SaveSettings();
-                Tray?.Notify(Widgets.Hidden ? "Widget'lar ve simgeler gizlendi" : "Masaüstü simgeleri gizlendi",
-                    "Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir.",
+                Tray?.Notify(Widgets.Hidden ? L.T("Widget'lar ve simgeler gizlendi") : L.T("Masaüstü simgeleri gizlendi"),
+                    L.T("Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir."),
                     () => SetDesktopHidden(false));
                 break;
         }
@@ -648,8 +648,8 @@ public static class AppHost
         if (!Settings.FencesReplaceIcons || Widgets.CoversDesktop()) return false;
         SetFencesManageDesktop(false);
         if (notify)
-            Tray?.Notify("Masaüstü simgeleri yeniden gösteriliyor",
-                "Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç.",
+            Tray?.Notify(L.T("Masaüstü simgeleri yeniden gösteriliyor"),
+                L.T("Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç."),
                 () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
         return true;
     }
@@ -769,7 +769,7 @@ public static class AppHost
                 _timer.Stop();
                 var sw = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
                 tick();
-                if (sw is not null) PerfLog.Write($"ayarlar yazmaya verildi: anlık görüntü {sw.Elapsed.TotalMilliseconds:0.00} ms");
+                if (sw is not null) PerfLog.Write($"ayarlar yazmaya verildi: anlık görüntü {sw.Elapsed.TotalMilliseconds:0.00} ms"); // l10n: çevrilmez
             };
         }
 

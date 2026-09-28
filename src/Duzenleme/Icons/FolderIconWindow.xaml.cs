@@ -50,7 +50,7 @@ public partial class FolderIconWindow : FluentWindow
         Views.WindowFit.Attach(this);
         var name = System.IO.Path.GetFileName(folder.TrimEnd('\\'));
         (_glyph, _color) = FolderIconCatalog.Suggest(name);
-        TitleBar.Title = $"Klasör simgesi — {name}";
+        TitleBar.Title = L.F("Klasör simgesi — {0}", name);
         FolderNameText.Text = name;
 
         BuildColors();
@@ -150,7 +150,7 @@ public partial class FolderIconWindow : FluentWindow
                 Width = 64, Height = 64, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(4), ToolTip = label,
                 Content = new Image { Source = FolderIconRenderer.Render(drawing, 96), Width = 48, Height = 48 },
             };
-            tile.Click += (_, _) => SetCustom(drawing, "Yapay zekâ · " + label);
+            tile.Click += (_, _) => SetCustom(drawing, L.F("Yapay zekâ · {0}", label));
             HistoryList.Items.Add(tile);
         }
     }
@@ -179,11 +179,11 @@ public partial class FolderIconWindow : FluentWindow
             FolderIconService.Apply(_folder, CurrentDrawing);
             Widgets.ShellIcons.Forget(_folder);
             IconChanged?.Invoke(_folder);
-            Show("Uygulandı", "Masaüstü birkaç saniye içinde yeni simgeyi gösterir.", InfoBarSeverity.Success);
+            Show(L.T("Uygulandı"), L.T("Masaüstü birkaç saniye içinde yeni simgeyi gösterir."), InfoBarSeverity.Success);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
         {
-            Show("Uygulanamadı", ex.Message, InfoBarSeverity.Error);
+            Show(L.T("Uygulanamadı"), ex.Message, InfoBarSeverity.Error);
         }
     }
 
@@ -194,17 +194,18 @@ public partial class FolderIconWindow : FluentWindow
             FolderIconService.Reset(_folder);
             Widgets.ShellIcons.Forget(_folder);
             IconChanged?.Invoke(_folder);
-            Show("Varsayılana döndü", "Klasör standart Windows simgesini kullanıyor.", InfoBarSeverity.Informational);
+            Show(L.T("Varsayılana döndü"), L.T("Klasör standart Windows simgesini kullanıyor."), InfoBarSeverity.Informational);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Show("Geri alınamadı", ex.Message, InfoBarSeverity.Error);
+            // Bağlam: simgeyi varsayılana döndürme (taşımayı geri almak değil).
+            Show(L.T("Geri alınamadı", "klasör simgesi"), ex.Message, InfoBarSeverity.Error);
         }
     }
 
     private void LoadFile_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "Simge ve resimler|*.ico;*.png;*.jpg;*.jpeg;*.svg|Tüm dosyalar|*.*" };
+        var dialog = new OpenFileDialog { Filter = L.T("Simge ve resimler|*.ico;*.png;*.jpg;*.jpeg;*.svg|Tüm dosyalar|*.*") };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
@@ -221,11 +222,11 @@ public partial class FolderIconWindow : FluentWindow
                 drawing = new ImageDrawing(frame, new Rect(0, 0, 256, 256 * frame.PixelHeight / (double)frame.PixelWidth));
                 drawing.Freeze();
             }
-            SetCustom(drawing, "Dosya · " + System.IO.Path.GetFileName(path));
+            SetCustom(drawing, L.F("Dosya · {0}", System.IO.Path.GetFileName(path)));
         }
         catch (Exception ex)
         {
-            Show("Dosya okunamadı", ex.Message, InfoBarSeverity.Error);
+            Show(L.T("Dosya okunamadı"), ex.Message, InfoBarSeverity.Error);
         }
     }
 
@@ -256,16 +257,16 @@ public partial class FolderIconWindow : FluentWindow
             var safe = string.Concat((Prompt.Text.Length > 0 ? Prompt.Text : name).Take(40).Select(c => System.IO.Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
             File.WriteAllText(System.IO.Path.Combine(AiDirectory, $"{DateTime.Now:yyyyMMdd-HHmmss} {safe}.svg"), svg);
 
-            SetCustom(drawing, "Yapay zekâ · " + Prompt.Text);
+            SetCustom(drawing, L.F("Yapay zekâ · {0}", Prompt.Text));
             LoadHistory();
         }
         catch (AiIconException ex)
         {
-            Show("Üretilemedi", ex.Message, InfoBarSeverity.Warning);
+            Show(L.T("Üretilemedi"), ex.Message, InfoBarSeverity.Warning);
         }
         catch (Exception ex)
         {
-            Show("Beklenmeyen hata", ex.Message, InfoBarSeverity.Error);
+            Show(L.T("Beklenmeyen hata"), ex.Message, InfoBarSeverity.Error);
         }
         finally
         {

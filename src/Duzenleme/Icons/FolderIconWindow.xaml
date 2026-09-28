@@ -3,7 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:l="clr-namespace:Duzenleme.Localization"
-                 Title="Klasör simgesi" Width="900" Height="700" MinWidth="680" MinHeight="460"
+                 Title="{l:T 'Klasör simgesi'}" Width="900" Height="700" MinWidth="680" MinHeight="460"
                  WindowStartupLocation="CenterScreen" ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica" WindowCornerPreference="Round"
                  Icon="pack://application:,,,/Assets/app.ico">
@@ -12,7 +12,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:TitleBar x:Name="TitleBar" Title="Klasör simgesi" ShowMaximize="False" />
+        <ui:TitleBar x:Name="TitleBar" Title="{l:T 'Klasör simgesi'}" ShowMaximize="False" />
 
         <Grid Grid.Row="1" Margin="24,4,24,24">
             <Grid.ColumnDefinitions>
@@ -36,11 +36,11 @@
                     <TextBlock x:Name="FolderNameText" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                     <TextBlock x:Name="SourceText" Style="{StaticResource Muted}" Margin="0,2,0,16" />
-                    <ui:Button x:Name="ApplyButton" Appearance="Primary" Icon="{ui:SymbolIcon Checkmark24}" Content="Simgeyi uygula"
+                    <ui:Button x:Name="ApplyButton" Appearance="Primary" Icon="{ui:SymbolIcon Checkmark24}" Content="{l:T 'Simgeyi uygula'}"
                                HorizontalAlignment="Stretch" Click="Apply_Click" />
-                    <ui:Button Margin="0,8,0,0" Icon="{ui:SymbolIcon FolderOpen24}" Content="Dosyadan yükle…"
-                               HorizontalAlignment="Stretch" Click="LoadFile_Click" ToolTip=".ico, .png, .jpg veya .svg" />
-                    <ui:Button Margin="0,8,0,0" Icon="{ui:SymbolIcon ArrowReset24}" Content="Varsayılana dön"
+                    <ui:Button Margin="0,8,0,0" Icon="{ui:SymbolIcon FolderOpen24}" Content="{l:T 'Dosyadan yükle…'}"
+                               HorizontalAlignment="Stretch" Click="LoadFile_Click" ToolTip="{l:T '.ico, .png, .jpg veya .svg'}" />
+                    <ui:Button Margin="0,8,0,0" Icon="{ui:SymbolIcon ArrowReset24}" Content="{l:T 'Varsayılana dön'}"
                                HorizontalAlignment="Stretch" Click="Reset_Click" />
                     <ui:InfoBar x:Name="Feedback" Margin="0,12,0,0" IsClosable="True" />
                 </StackPanel>
@@ -49,7 +49,7 @@
 
             <ScrollViewer Grid.Column="1" Margin="18,0,0,0" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,8" Text="Renk" />
+                    <TextBlock Style="{StaticResource SectionHeader}" Margin="0,0,0,8" Text="{l:T 'Renk'}" />
                     <ItemsControl x:Name="ColorList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -58,7 +58,7 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
 
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="Sembol" />
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Sembol'}" />
                     <ItemsControl x:Name="GlyphList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -67,30 +67,30 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
 
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="Yapay zekâ ile üret (isteğe bağlı)" />
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Yapay zekâ ile üret (isteğe bağlı)'}" />
                     <Border Style="{StaticResource Surface}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10"
-                                       Text="Ne görmek istediğini yaz; Claude bu klasöre özel bir simge çizsin. Ör: &quot;retro oyun kolu, neon mor&quot;, &quot;kahve fincanı ve kitap&quot;." />
+                                       Text="{l:T 'Ne görmek istediğini yaz; Claude bu klasöre özel bir simge çizsin. Ör: &quot;retro oyun kolu, neon mor&quot;, &quot;kahve fincanı ve kitap&quot;.'}" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <ui:TextBox x:Name="Prompt" PlaceholderText="Simge açıklaması" Icon="{ui:SymbolIcon Sparkle24}" KeyDown="Prompt_KeyDown"
+                                <ui:TextBox x:Name="Prompt" PlaceholderText="{l:T 'Simge açıklaması'}" Icon="{ui:SymbolIcon Sparkle24}" KeyDown="Prompt_KeyDown"
                                             AutomationProperties.Name="{l:T 'Simge açıklaması'}" />
                                 <ui:Button x:Name="GenerateButton" Grid.Column="1" Margin="10,0,0,0" Appearance="Primary"
-                                           Icon="{ui:SymbolIcon Sparkle24}" Content="Üret" Click="Generate_Click" />
+                                           Icon="{ui:SymbolIcon Sparkle24}" Content="{l:T 'Üret'}" Click="Generate_Click" />
                             </Grid>
                             <StackPanel x:Name="Busy" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Collapsed">
                                 <ui:ProgressRing IsIndeterminate="True" Width="18" Height="18" />
-                                <TextBlock Text="Claude simgeyi çiziyor… (10–30 sn)" Margin="10,0,0,0" VerticalAlignment="Center"
+                                <TextBlock Text="{l:T 'Claude simgeyi çiziyor… (10–30 sn)'}" Margin="10,0,0,0" VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <ui:InfoBar x:Name="NoKeyInfo" Margin="0,12,0,0" IsClosable="False" Severity="Informational"
-                                        Title="API anahtarı eklenmemiş"
-                                        Message="Bu özellik isteğe bağlı. Ayarlar → Gelişmiş → Yapay zekâ ile klasör simgesi bölümünden Claude API anahtarını ekleyince açılır; hazır simgeler anahtarsız da çalışır." />
-                            <TextBlock x:Name="HistoryHeader" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0,14,0,6" Text="Önceki üretimler" />
+                                        Title="{l:T 'API anahtarı eklenmemiş'}"
+                                        Message="{l:T 'Bu özellik isteğe bağlı. Ayarlar → Gelişmiş → Yapay zekâ ile klasör simgesi bölümünden Claude API anahtarını ekleyince açılır; hazır simgeler anahtarsız da çalışır.'}" />
+                            <TextBlock x:Name="HistoryHeader" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0,14,0,6" Text="{l:T 'Önceki üretimler'}" />
                             <ItemsControl x:Name="HistoryList">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -101,9 +101,9 @@
                             <!-- Store 11.16: yapay zekâ içeriğini bildirme yolu. Tarayıcıda boş bir bildirim formu açar; hiçbir şey gönderilmez. -->
                             <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap">
                                 <Hyperlink x:Name="ReportLink" Click="Report_Click" AutomationProperties.AutomationId="FolderIcon.ReportAi"
-                                           ToolTip="Tarayıcıda boş bir bildirim formu açılır; hiçbir şey kendiliğinden gönderilmez.">Uygunsuz içeriği bildir</Hyperlink>
+                                           ToolTip="{l:T 'Tarayıcıda boş bir bildirim formu açılır; hiçbir şey kendiliğinden gönderilmez.'}"><Run Text="{l:T 'Uygunsuz içeriği bildir'}" /></Hyperlink>
                                 <Run Text=" · " />
-                                <Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="FolderIcon.Privacy">Gizlilik politikası</Hyperlink>
+                                <Hyperlink Click="Privacy_Click" AutomationProperties.AutomationId="FolderIcon.Privacy"><Run Text="{l:T 'Gizlilik politikası'}" /></Hyperlink>
                             </TextBlock>
                         </StackPanel>
                     </Border>
