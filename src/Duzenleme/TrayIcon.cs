@@ -29,31 +29,31 @@ public sealed class TrayIcon : IDisposable
         Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnPreferenceChanged;
 
         // İşaretli = otomatik taşıma açık (Paused'ın tersi).
-        _autoMoveItem = new Forms.ToolStripMenuItem("Otomatik taşıma", null, (_, _) => AppHost.SetPaused(!AppHost.Settings.Paused));
+        _autoMoveItem = new Forms.ToolStripMenuItem(L.T("Otomatik taşıma"), null, (_, _) => AppHost.SetPaused(!AppHost.Settings.Paused));
         var menu = new Forms.ContextMenuStrip();
         // Her ekleme yolu aynı "Widget ekle" penceresini açar (bölme, araç ve "Masaüstümü bölmelere ayır" orada).
-        menu.Items.Add(new Forms.ToolStripMenuItem("Widget ekle…", null, (_, _) => quickAdd()) { Font = new System.Drawing.Font(menu.Font, System.Drawing.FontStyle.Bold) });
-        menu.Items.Add(new Forms.ToolStripMenuItem($"{AppInfo.Name}'i aç", null, (_, _) => openMainWindow()));
+        menu.Items.Add(new Forms.ToolStripMenuItem(L.T("Widget ekle…"), null, (_, _) => quickAdd()) { Font = new System.Drawing.Font(menu.Font, System.Drawing.FontStyle.Bold) });
+        menu.Items.Add(new Forms.ToolStripMenuItem(L.F("{0}'i aç", AppInfo.Name), null, (_, _) => openMainWindow()));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(_autoMoveItem);
-        menu.Items.Add("Masaüstünü şimdi düzenle", null, (_, _) => AppHost.OrganizeNowInBackground());
-        menu.Items.Add("Son taşımayı geri al", null, (_, _) => UndoLast());
-        _hideItem = new Forms.ToolStripMenuItem("Masaüstünü gizle", null, (_, _) => AppHost.ToggleDesktop());
+        menu.Items.Add(L.T("Masaüstünü şimdi düzenle"), null, (_, _) => AppHost.OrganizeNowInBackground());
+        menu.Items.Add(L.T("Son taşımayı geri al"), null, (_, _) => UndoLast());
+        _hideItem = new Forms.ToolStripMenuItem(L.T("Masaüstünü gizle"), null, (_, _) => AppHost.ToggleDesktop());
         menu.Items.Add(_hideItem);
-        _peekItem = new Forms.ToolStripMenuItem("Windows masaüstüne göz at", null, (_, _) => AppHost.TogglePeek(AppHost.PeekOrigin.Tray));
+        _peekItem = new Forms.ToolStripMenuItem(L.T("Windows masaüstüne göz at"), null, (_, _) => AppHost.TogglePeek(AppHost.PeekOrigin.Tray));
         menu.Items.Add(_peekItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
-        _undoRemoveItem = new Forms.ToolStripMenuItem("Son kaldırılan widget'ı geri getir", null, (_, _) => AppHost.Widgets.UndoRemove());
+        _undoRemoveItem = new Forms.ToolStripMenuItem(L.T("Son kaldırılan widget'ı geri getir"), null, (_, _) => AppHost.Widgets.UndoRemove());
         menu.Items.Add(_undoRemoveItem);
         // Windows masaüstü simgeleri: Ayarlar ve Widget'lar sayfasıyla aynı üç seçenek (Views.DesktopModes).
-        _iconModeItem = new Forms.ToolStripMenuItem("Windows masaüstü simgeleri");
+        _iconModeItem = new Forms.ToolStripMenuItem(L.T("Windows masaüstü simgeleri"));
         foreach (var mode in Views.DesktopModes.Choices)
             _iconModeItem.DropDownItems.Add(new Forms.ToolStripMenuItem(Views.DesktopModes.Label(mode), null,
                 (_, _) => Views.DesktopModes.Set(mode, null, null)) { Tag = mode });
         menu.Items.Add(_iconModeItem);
-        menu.Items.Add("Widget'ları öne getir (5 sn)", null, (_, _) => AppHost.Widgets.RevealAll());
+        menu.Items.Add(L.T("Widget'ları öne getir (5 sn)"), null, (_, _) => AppHost.Widgets.RevealAll());
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Çıkış", null, (_, _) => exit());
+        menu.Items.Add(L.T("Çıkış"), null, (_, _) => exit());
         menu.Opening += (_, _) =>
         {
             RefreshIcon();
@@ -63,9 +63,9 @@ public sealed class TrayIcon : IDisposable
                 item.Checked = item.Tag is Views.IconMode mode && mode == current;
             var removed = AppHost.Widgets.LastRemovedName;
             _undoRemoveItem.Visible = removed is not null;
-            _undoRemoveItem.Text = $"Geri getir: {removed}";
-            _hideItem.Text = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
-            _peekItem.Text = AppHost.Peeking ? $"{AppInfo.Name}'e dön" : "Windows masaüstüne göz at";
+            _undoRemoveItem.Text = L.F("Geri getir: {0}", removed);
+            _hideItem.Text = AppHost.DesktopHidden ? L.T("Masaüstünü göster") : L.T("Masaüstünü gizle");
+            _peekItem.Text = AppHost.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at");
             _peekItem.ShortcutKeyDisplayString = AppHost.Settings.Hotkeys.PeekDesktop;
         };
         _icon.ContextMenuStrip = menu;
@@ -146,8 +146,8 @@ public sealed class TrayIcon : IDisposable
         if (_pendingNotices.Count == 0) return;
         var text = _pendingNotices.Count == 1
             ? $"{_pendingNotices[0].FileName}  →  {_pendingNotices[0].FolderName}"
-            : string.Join(", ", _pendingNotices.GroupBy(e => e.FolderName).Select(g => $"{g.Count()} dosya → {g.Key}"));
-        var title = _pendingNotices.Count == 1 ? "Dosya taşındı" : $"{_pendingNotices.Count} dosya düzenlendi";
+            : string.Join(", ", _pendingNotices.GroupBy(e => e.FolderName).Select(g => L.P(g.Count(), "{0} dosya → {1}", g.Key)));
+        var title = _pendingNotices.Count == 1 ? L.T("Dosya taşındı") : L.P(_pendingNotices.Count, "{0} dosya düzenlendi");
         _pendingNotices.Clear();
         ShowBalloon(3000, title, text, Forms.ToolTipIcon.None, null);
     }
@@ -174,8 +174,9 @@ public sealed class TrayIcon : IDisposable
     public void SuggestFolderIcon(string folder)
     {
         var (glyph, _) = Core.FolderIconCatalog.Suggest(Path.GetFileName(folder));
-        ShowBalloon(6000, $"“{Path.GetFileName(folder)}” klasörüne simge ver",
-            $"Önerilen: {glyph.Label}. Seçmek için tıkla.", Forms.ToolTipIcon.None, () => Icons.FolderIconWindow.ShowFor(folder));
+        // Simge adları katalogda Türkçe saklanır (L.N): gösterirken çevrilir.
+        ShowBalloon(6000, L.F("“{0}” klasörüne simge ver", Path.GetFileName(folder)),
+            L.F("Önerilen: {0}. Seçmek için tıkla.", L.Dyn(glyph.Label)), Forms.ToolTipIcon.None, () => Icons.FolderIconWindow.ShowFor(folder));
     }
 
     private void UndoLast()
@@ -183,24 +184,24 @@ public sealed class TrayIcon : IDisposable
         var last = AppHost.Journal.LastActive();
         if (last is null)
         {
-            ShowBalloon(2000, "Geri alınacak bir şey yok", "Henüz taşınmış bir dosya yok.", Forms.ToolTipIcon.None, null);
+            ShowBalloon(2000, L.T("Geri alınacak bir şey yok"), L.T("Henüz taşınmış bir dosya yok."), Forms.ToolTipIcon.None, null);
             return;
         }
         try
         {
             AppHost.Organizer.Undo(last);
-            ShowBalloon(2000, "Geri alındı", $"{last.FileName} masaüstüne döndü.", Forms.ToolTipIcon.None, null);
+            ShowBalloon(2000, L.T("Geri alındı"), L.F("{0} masaüstüne döndü.", last.FileName), Forms.ToolTipIcon.None, null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ShowBalloon(3000, "Geri alınamadı", ex.Message, Forms.ToolTipIcon.Warning, null);
+            ShowBalloon(3000, L.T("Geri alınamadı"), ex.Message, Forms.ToolTipIcon.Warning, null);
         }
     }
 
     private void UpdateTooltip() =>
-        _icon.Text = AppHost.Peeking
-            ? $"{AppInfo.Name} — Windows masaüstüne göz atılıyor"
-            : $"{AppInfo.Name} — otomatik taşıma {(AppHost.Settings.Paused ? "kapalı" : "açık")}";
+        _icon.Text = AppHost.Peeking ? L.F("{0} — Windows masaüstüne göz atılıyor", AppInfo.Name)
+            : AppHost.Settings.Paused ? L.F("{0} — otomatik taşıma kapalı", AppInfo.Name)
+            : L.F("{0} — otomatik taşıma açık", AppInfo.Name);
 
     public void Dispose()
     {

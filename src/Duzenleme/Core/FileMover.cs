@@ -41,11 +41,14 @@ public static class FileMover
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return false; }
     }
 
-    /// <summary>Taşınan dosyayı eski yerine döndürür. Eski yer doluysa yeni bir ad seçer.</summary>
+    /// <summary>
+    /// Taşınan dosyayı eski yerine döndürür. Eski yer doluysa yeni bir ad seçer. Hata iletisi kullanıcıya gösterilir
+    /// ("Geri alınamadı: …"): arayüz dilinde.
+    /// </summary>
     public static string MoveBack(MoveEntry entry)
     {
         if (!File.Exists(entry.Destination))
-            throw new FileNotFoundException("Dosya taşındığı klasörde artık yok.", entry.Destination);
+            throw new FileNotFoundException(L.T("Dosya taşındığı klasörde artık yok."), entry.Destination);
 
         var directory = Path.GetDirectoryName(entry.Source)!;
         Directory.CreateDirectory(directory);
