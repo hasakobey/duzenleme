@@ -84,7 +84,6 @@ internal static partial class En
             "You can undo any move on the \"Auto-move\" page in {0}, and a file you move back won't be moved again. Shortcuts, folders and files that are still downloading are never moved."),
 
         // Önizleme satırları (Onboarding.MovePreviewLines)
-        new("{0} dosya → {1}", "{0} file → {1}", "{0} files → {1}"),
         new("+ {0} dosya daha, {1}", "+ {0} more file {1}", "+ {0} more files {1}"),
         new("{0} klasöre", "in {0} folder", "in {0} folders"),
 
@@ -117,7 +116,6 @@ internal static partial class En
         new("Klasörler, Kısayollar, Dosyalar ve PDF gibi klasörler için bölme kurar; masaüstü simgeleri yalnızca bölmelerde görünür",
             "Sets up panels for Folders, Shortcuts, Files and folders like PDF; desktop icons then appear only in panels"),
         new("Widget'ları yönet…", "Manage widgets…"),
-        new("Geri almak için buraya tıkla.", "Click here to undo."),
         new("Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu", "App shortcuts, This PC, Recycle Bin"),
         new("Masaüstünde duran dosyalar", "Files on the desktop"),
         new("Tüm masaüstü", "Whole desktop"),
