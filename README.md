@@ -65,7 +65,7 @@ Widget'lar monitör takılıp çıkarılınca ya da uykudan uyanınca kayıtlı 
 
 ### Masaüstü
 - **Hızlı gizle:** boş masaüstüne çift tıkla ya da `Ctrl+Alt+H` → simgeler (ve istersen widget'lar) gizlenir (Fences / iTop). Yalnızca masaüstünün kendisine çift tıklama sayılır; Gezgin pencereleri ve dosya seçme kutuları etkilemez. Ayarı **Ayarlar → Masaüstü**'nde.
-- **Varsayılan simgeler:** Bu Bilgisayar, Geri Dönüşüm Kutusu, Kullanıcı dosyaları, Ağ ve Denetim Masası'nı **Ayarlar → Masaüstü → Windows masaüstü simgeleri**'nden tek tıkla aç/kapat.
+- **Varsayılan simgeler:** Bu Bilgisayar, Geri Dönüşüm Kutusu, Kullanıcı dosyaları, Ağ ve Denetim Masası'nı **Ayarlar → Masaüstü → Sistem simgeleri**'nden tek tıkla aç/kapat.
 
 ### Klasör simgeleri
 - 30 sembol × 10 renkli hazır kütüphane; klasör adına göre otomatik öneri ("Oyunlarım" → yeşil oyun kolu).

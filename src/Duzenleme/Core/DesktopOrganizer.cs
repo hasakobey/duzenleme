@@ -14,6 +14,18 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
     public event Action<MoveEntry>? FileMoved;
     public event Action<string, Exception>? MoveFailed;
 
+    private IReadOnlySet<string> _pinned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Kısayol kutularında duran masaüstü dosyaları (tam yol, büyük/küçük harf duyarsız): kurallar bunları taşımaz, yoksa kutu
+    /// "bulunamadı" gösterirdi. Arayüz iş parçacığında yeni bir küme atanır (yerinde değiştirilmez); izleyici arka planda okur.
+    /// </summary>
+    public IReadOnlySet<string> Pinned
+    {
+        get => Volatile.Read(ref _pinned);
+        set => Volatile.Write(ref _pinned, value);
+    }
+
     public IEnumerable<string> ExistingFolders() =>
         Directory.Exists(DesktopDirectory)
             ? Directory.EnumerateDirectories(DesktopDirectory).Select(d => Path.GetFileName(d)!)
@@ -24,8 +36,9 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
     {
         if (!Directory.Exists(DesktopDirectory)) return [];
         var undone = journal.UndoneSources();
+        var pinned = Pinned;
         return new DirectoryInfo(DesktopDirectory).EnumerateFiles()
-            .Select(f => new DesktopFile(f.Name, f.Attributes, undone.Contains(f.FullName))).ToList();
+            .Select(f => new DesktopFile(f.Name, f.Attributes, undone.Contains(f.FullName), pinned.Contains(f.FullName))).ToList();
     }
 
     public RuleDecision Decide(string path) =>
@@ -39,6 +52,7 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
     {
         if (!IsOnDesktop(path) || !File.Exists(path)) return false;
         if (journal.WasUndone(path)) return false;
+        if (Pinned.Contains(path)) return false; // kısayol kutusunda duruyor
         return Decide(path).ShouldMove;
     }
 
@@ -58,6 +72,7 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
                 if (!File.Exists(path)) return null;
                 if (!IsOnDesktop(path)) return null;
                 if (journal.WasUndone(path)) return null;
+                if (Pinned.Contains(path)) return null; // kısayol kutusunda duruyor
 
                 var decision = _engine.Decide(DesktopDirectory, Path.GetFileName(path), File.GetAttributes(path),
                     (IEnumerable<string>?)folders ?? ExistingFolders());
@@ -87,9 +102,10 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
         if (!Directory.Exists(DesktopDirectory)) return moved;
         var folders = ExistingFolders().ToList();
         var undone = journal.UndoneSources();
+        var pinned = Pinned;
         foreach (var file in new DirectoryInfo(DesktopDirectory).EnumerateFiles().ToList())
         {
-            if (undone.Contains(file.FullName)) continue;
+            if (undone.Contains(file.FullName) || pinned.Contains(file.FullName)) continue;
             FileAttributes attributes;
             try { attributes = file.Attributes; }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { continue; }

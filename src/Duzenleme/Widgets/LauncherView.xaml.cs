@@ -38,6 +38,8 @@ public partial class LauncherView : UserControl, IWidgetView
         DragOver += OnDragOver;
         DragLeave += (_, _) => DropOverlay.Visibility = Visibility.Collapsed;
         Drop += OnDrop;
+        // Öğeler masaüstünden kutuya taşınınca ya da geri konunca yolları değişir.
+        BoxMover.Changed += Render;
         Render();
     }
 
@@ -162,11 +164,16 @@ public partial class LauncherView : UserControl, IWidgetView
         if (_config.Tabs.Count > 1)
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item("Sekmeyi sil", () => Change(() =>
+            menu.Items.Add(Menus.Item("Sekmeyi sil", () =>
             {
-                _config.Tabs.RemoveAt(index);
-                _config.ActiveTab = Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1);
-            })));
+                Change(() =>
+                {
+                    _config.Tabs.RemoveAt(index);
+                    _config.ActiveTab = Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1);
+                });
+                // Sekmedeki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
+                BoxMover.Reconcile();
+            }));
         }
     }
 
@@ -195,20 +202,31 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         change();
         AppHost.SaveSettings();
+        // Kutudaki masaüstü dosyaları kurallarla taşınmasın (bkz. DesktopOrganizer.Pinned).
+        AppHost.RefreshPinnedPaths();
         Render();
     }
 
     /// <summary>Dock gibi: tek tıkla açılır.</summary>
     private (LauncherTab Tab, int Index, string Path)? _lastRemoved;
 
-    /// <summary>Öğeyi listeden çıkarır; kutunun menüsündeki "Geri al" ile yerine döner.</summary>
+    /// <summary>
+    /// Öğeyi listeden çıkarır; kutunun menüsündeki "Geri al" ile yerine döner. Masaüstünden kutuya taşınmış öğe (başka kutuda
+    /// yoksa) masaüstüne geri konur; "Geri al" onu yeniden kutuya taşır.
+    /// </summary>
     private void RemoveItem(TileItem item)
     {
         var tab = Current;
         var index = tab.Items.FindIndex(p => string.Equals(p, item.Path, StringComparison.OrdinalIgnoreCase));
         if (index < 0) return;
+        var moved = BoxMover.IsMoved(item.Path);
         _lastRemoved = (tab, index, tab.Items[index]);
         Change(() => tab.Items.RemoveAt(index));
+        if (!moved) return;
+        BoxMover.Reconcile();
+        if (!BoxPlan.Referenced(AppHost.Settings.Widgets).Contains(item.Path))
+            Views.Notice.Show($"\"{item.Name}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", Views.NoticeKind.Info, "Geri al", UndoRemove,
+                "Geri almak için buraya tıkla.");
     }
 
     private void UndoRemove()
@@ -216,6 +234,30 @@ public partial class LauncherView : UserControl, IWidgetView
         if (_lastRemoved is not { } last || !_config.Tabs.Contains(last.Tab)) return;
         _lastRemoved = null;
         Change(() => last.Tab.Items.Insert(Math.Min(last.Index, last.Tab.Items.Count), last.Path));
+        // Öğe bu arada masaüstüne geri konduysa kutu onu yeniden bulur (kip açıksa yeniden taşınır).
+        BoxMover.Reconcile();
+    }
+
+    /// <summary>
+    /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Kutulara eklediklerim masaüstünden kalksın" açıksa
+    /// masaüstündekiler kutunun klasörüne taşınır.
+    /// </summary>
+    private async void AddItems(IReadOnlyList<string> paths)
+    {
+        var tab = Current;
+        var existing = await Task.Run(() => paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList());
+        if (!_config.Tabs.Contains(tab)) tab = Current;
+        var added = new List<string>();
+        Change(() =>
+        {
+            foreach (var path in existing)
+                if (!tab.Items.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    tab.Items.Add(path);
+                    added.Add(path);
+                }
+        });
+        if (added.Count > 0 && BoxMover.Active) BoxMover.Claim(_config, added, justAdded: true);
     }
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
@@ -231,9 +273,30 @@ public partial class LauncherView : UserControl, IWidgetView
     private void FillItemMenu(ContextMenu menu, TileItem item)
     {
         menu.Items.Add(Menus.Item("Aç", () => TileItem.Launch(item.Path)));
-        var remove = Menus.Item("Widget'tan kaldır", () => RemoveItem(item));
-        remove.ToolTip = "Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al";
-        menu.Items.Add(remove);
+        var moved = BoxMover.IsMoved(item.Path);
+        if (moved)
+        {
+            // Masaüstünden kutuya taşınmış öğe (NestDesk klasöründe).
+            var back = Menus.Item("Masaüstüne geri koy", () => BoxMover.Return([item.Path]));
+            back.ToolTip = "Öğe masaüstüne döner ve kutuda kalır.";
+            menu.Items.Add(back);
+            var takeOut = Menus.Item("Kutudan çıkar (masaüstüne döner)", () => RemoveItem(item));
+            takeOut.ToolTip = "Öğe masaüstüne geri konur ve kutudan çıkar.\nGeri almak için: kutuya sağ tık → Geri al";
+            menu.Items.Add(takeOut);
+        }
+        else
+        {
+            var remove = Menus.Item("Widget'tan kaldır", () => RemoveItem(item));
+            remove.ToolTip = "Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al";
+            menu.Items.Add(remove);
+            // Kip sonradan açıldıysa önceden eklenen masaüstü öğesi de tek tek kutuya alınabilir.
+            if (BoxMover.Active && !item.Missing && BoxPlan.PinnedDesktopPaths([_config], AppHost.DesktopDirectories).Contains(item.Path))
+            {
+                var claim = Menus.Item("Masaüstünden kaldır (kutuya taşı)", () => BoxMover.Claim(_config, [item.Path], justAdded: false));
+                claim.ToolTip = $"Öğe {BoxMover.Root} klasörüne taşınır ve kutuda durur.";
+                menu.Items.Add(claim);
+            }
+        }
         var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
         if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
             menu.Items.Add(Menus.Item("Yönetici olarak çalıştır", () => TileItem.Launch(item.Path, asAdmin: true)));
@@ -266,12 +329,7 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         DropOverlay.Visibility = Visibility.Collapsed;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
-        // Bırakılan yollar Gezgin'den gelir ve vardır; diske burada bakılmaz (öğe arka planda denetlenir).
-        Change(() =>
-        {
-            foreach (var path in paths.Where(p => !string.IsNullOrWhiteSpace(p)))
-                if (!Current.Items.Contains(path, StringComparer.OrdinalIgnoreCase)) Current.Items.Add(path);
-        });
+        AddItems(paths);
     }
 
     public void ApplyPalette(WidgetPalette palette)
@@ -307,6 +365,12 @@ public partial class LauncherView : UserControl, IWidgetView
         }));
         menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
         menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes).
+        var leaves = Views.DesktopModes.Current == Views.IconMode.BoxItemsLeave;
+        var toggle = Menus.Toggle("Kutuya eklediklerim masaüstünden kalksın", leaves,
+            () => Views.DesktopModes.Set(leaves ? Views.IconMode.ShowAll : Views.IconMode.BoxItemsLeave, null, null));
+        toggle.ToolTip = $"Açıkken kutuya eklenen masaüstü öğeleri {BoxMover.Root} klasörüne taşınır ve kutuda durur.";
+        menu.More.Add(toggle);
     }
 
     public bool OnCtrlWheel(int delta)
@@ -327,12 +391,8 @@ public partial class LauncherView : UserControl, IWidgetView
             InitialDirectory = AppHost.DesktopDirectory,
         };
         if (dialog.ShowDialog() != true) return;
-        Change(() =>
-        {
-            foreach (var path in dialog.FileNames)
-                if (!Current.Items.Contains(path, StringComparer.OrdinalIgnoreCase)) Current.Items.Add(path);
-        });
+        AddItems(dialog.FileNames);
     }
 
-    public void Detach() { }
+    public void Detach() => BoxMover.Changed -= Render;
 }

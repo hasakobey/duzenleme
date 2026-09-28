@@ -39,7 +39,8 @@
         <TextBlock Style="{StaticResource PageSubtitle}"
                    Text="Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın." />
 
-        <!-- "Masaüstü simgelerini yalnızca bölmelerde göster" (FencesReplaceIcons): açılınca bölme yoksa başlangıç bölmeleri kurulur. -->
+        <!-- Windows masaüstü simgeleri: Ayarlar, tepsi ve widget menüleriyle aynı üç seçenek (DesktopModes). "Yalnızca bölmelerde"
+             seçilince bölme yoksa başlangıç bölmeleri kurulur. -->
         <Border Style="{StaticResource Surface}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -49,13 +50,13 @@
                 </Grid.ColumnDefinitions>
                 <ui:SymbolIcon Symbol="Board24" Style="{StaticResource RowIcon}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Masaüstü simgelerini yalnızca bölmelerde göster" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                               Text="Açınca masaüstündeki her şey bölmelerde toplanır; Windows'un kendi simgeleri gizlenir. Dosyalarına dokunulmaz; kapatınca simgeler geri gelir." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="Windows masaüstü simgeleri" />
+                    <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" Margin="0,2,0,0"
+                               AutomationProperties.AutomationId="Widgets.IconModeText" />
                 </StackPanel>
-                <ui:ToggleSwitch x:Name="FencesModeToggle" Grid.Column="2" VerticalAlignment="Center" Click="FencesMode_Click"
-                                 AutomationProperties.AutomationId="Widgets.FencesMode"
-                                 AutomationProperties.Name="Masaüstü simgelerini yalnızca bölmelerde göster" />
+                <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" VerticalAlignment="Center"
+                          SelectionChanged="IconModeBox_SelectionChanged"
+                          AutomationProperties.AutomationId="Widgets.IconMode" AutomationProperties.Name="Windows masaüstü simgeleri" />
             </Grid>
         </Border>
 
@@ -183,6 +184,21 @@
                     <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Widget'lar üst üste binmesin" />
                     <ui:ToggleSwitch x:Name="OverlapToggle" Grid.Column="1" VerticalAlignment="Center" Click="Overlap_Click"
                                      AutomationProperties.AutomationId="Widgets.PreventOverlap" AutomationProperties.Name="Widget'lar üst üste binmesin" />
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource SettingRow}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Style="{StaticResource RowTitle}" Text="Yeni widget'ların yeri" />
+                        <TextBlock Style="{StaticResource Muted}" Text="Kısayolla ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Bu sayfadan eklenenler ekranın köşesine gelir." />
+                    </StackPanel>
+                    <ComboBox x:Name="PlacementBox" Grid.Column="1" Width="220" VerticalAlignment="Center"
+                              SelectionChanged="PlacementBox_SelectionChanged"
+                              AutomationProperties.AutomationId="Widgets.NewWidgetPlacement" AutomationProperties.Name="Yeni widget'ların yeri" />
                 </Grid>
             </Border>
             <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"

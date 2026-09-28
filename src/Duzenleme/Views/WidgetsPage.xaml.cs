@@ -65,6 +65,10 @@ public partial class WidgetsPage : Page
         InitializeComponent();
         Fold.Attach(LookFold, LookContent);
         Fold.Attach(LayoutsFold, LayoutsContent);
+        foreach (var mode in DesktopModes.Choices)
+            IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
+        foreach (var mode in PlaceModes.Choices)
+            PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
         // Araçlar sabit; bölmeler (klasörler değişebilir) her açılışta yeniden kurulur.
         WidgetCatalog.AddTiles(ToolTiles, WidgetCatalog.Tools, AddWidget);
         Loaded += (_, _) => Reload();
@@ -142,7 +146,10 @@ public partial class WidgetsPage : Page
         _loading = true;
         try
         {
-            FencesModeToggle.IsChecked = AppHost.Settings.FencesReplaceIcons;
+            var mode = DesktopModes.Current;
+            IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, mode);
+            IconModeText.Text = DesktopModes.Description(mode);
+            PlacementBox.SelectedIndex = Array.IndexOf(PlaceModes.Choices, PlaceModes.Parse(AppHost.Settings.NewWidgetPlacement));
             // Notlar kendi kağıt rengini kullanır: toplu görünüm onları saymaz.
             var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
             StyleBox.SelectedIndex = Common(targets.Select(w => Array.IndexOf(Styles, w.Style)));
@@ -174,18 +181,18 @@ public partial class WidgetsPage : Page
             : null;
     }
 
-    private void FencesMode_Click(object sender, RoutedEventArgs e)
+    private void IconModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (FencesModeToggle.IsChecked == true)
-        {
-            DesktopFences.TurnOnWithNotice(allStarters: false, WindowCenter());
-        }
-        else
-        {
-            DesktopFences.TurnOff();
-            Notice.Show("Masaüstü simgeleri yeniden gösteriliyor. Bölmelerin yerinde duruyor.", NoticeKind.Info);
-        }
+        if (_loading || IconModeBox.SelectedItem is not ComboBoxItem { Tag: IconMode mode }) return;
+        DesktopModes.Set(mode, WindowCenter(), Window.GetWindow(this));
+        // Soru penceresinden sonra ya da ayar değişmediyse de kutu gerçek durumu göstersin.
         RefreshSettings();
+    }
+
+    private void PlacementBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || PlacementBox.SelectedItem is not ComboBoxItem { Tag: PlaceMode mode }) return;
+        DesktopModes.SetPlacement(mode);
     }
 
     /// <summary>Kutucuktaki widget'ı ana pencerenin ekranına ekler; bildirimdeki "Bul" onu öne getirir.</summary>
@@ -240,9 +247,12 @@ public partial class WidgetsPage : Page
         if (!AppHost.Settings.Widgets.Any(w => w.Id == row.Config.Id)) return;
         var name = WidgetText.DisplayName(row.Config); // kaldırmadan önce
         var id = row.Config.Id;
+        var returning = BoxMover.MovedOnlyIn(row.Config);
         var modeOff = AppHost.Widgets.RemoveWithUndo(id, notify: false);
         // "Geri al" bu widget'ı getirir: bildirim açıkken masaüstünden başka bir widget kaldırılsa da.
-        Notice.Show($"{name} kaldırıldı." + (modeOff ? " Masaüstü simgeleri yeniden gösteriliyor." : ""),
+        Notice.Show($"{name} kaldırıldı." +
+                    (returning > 0 ? $" Kutudaki {returning} öğe masaüstüne geri konuyor." : "") +
+                    (modeOff ? " Masaüstü simgeleri yeniden gösteriliyor." : ""),
             NoticeKind.Info, "Geri al", () => AppHost.Widgets.UndoRemove(id));
     }
 

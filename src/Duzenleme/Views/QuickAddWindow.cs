@@ -29,9 +29,7 @@ internal sealed class QuickAddWindow : FluentWindow
             return;
         }
         NativeMethods.GetCursorPos(out var anchor);
-        if (Core.AppEnvironment.Get("QUICKADD_AT")?.Split(',') is [var x, var y] &&
-            int.TryParse(x, out var px) && int.TryParse(y, out var py))
-            anchor = new NativeMethods.POINT { X = px, Y = py };
+        if (NativeMethods.PointFromEnvironment("DUZENLEME_QUICKADD_AT") is { } test) anchor = test;
         _current = new QuickAddWindow(anchor);
         _current.Closed += (_, _) => _current = null;
         _current.Show();
@@ -145,13 +143,18 @@ internal sealed class QuickAddWindow : FluentWindow
             : null;
     }
 
-    /// <summary>Widget'ı bu pencerenin bulunduğu ekrana ekler ve pencereyi kapatır.</summary>
+    /// <summary>
+    /// Pencereyi kapatır ve widget'ı ayardaki yere (varsayılan: bu pencerenin olduğu yer, imlecin yanı) ekler. Widget'lar
+    /// gizliyse ya da göz atılıyorsa geri gelir; ilk seferlerde nereye eklendiği tepside söylenir.
+    /// </summary>
     private void Run(WidgetChoice choice)
     {
         var near = Center();
         _closing = true;
         Close();
-        WidgetCatalog.Invoke(choice, near);
+        if (WidgetCatalog.Invoke(choice, near, followSetting: true) is { } config &&
+            AppHost.Settings.Widgets.Any(w => w.Id == config.Id))
+            AppHost.ShowNewWidgetHint(config);
     }
 
     /// <summary>"Masaüstümü bölmelere ayır": başlangıç bölmelerini kurup modu açar; bildirimden geri alınabilir.</summary>

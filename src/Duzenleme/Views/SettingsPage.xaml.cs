@@ -104,6 +104,7 @@ public partial class SettingsPage : Page
         (HotkeyAction.NewNote, "Yeni not", SymbolRegular.NoteAdd24),
         (HotkeyAction.PeekWidgets, "Widget'ları öne getir (5 sn)", SymbolRegular.Eye24),
         (HotkeyAction.QuickAdd, "Widget ekle penceresi", SymbolRegular.Add24),
+        (HotkeyAction.PeekDesktop, "Windows masaüstüne göz at", SymbolRegular.Glance24),
     ];
 
     private bool _loading;
@@ -137,23 +138,48 @@ public partial class SettingsPage : Page
         Fold.Attach(AiFold, AiContent);
         Fold.Attach(LocationsFold, LocationsContent);
 
+        foreach (var mode in DesktopModes.Choices)
+            IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
+        foreach (var mode in PlaceModes.Choices)
+            PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
+
         Loaded += (_, _) => Load();
         Unloaded += (_, _) => WatchHostActivation(false);
         // Ana pencere gizliyken sayfa kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
             attach: () =>
             {
-                AppHost.DesktopVisibilityChanged += UpdateHideNow;
-                AppHost.SettingsChanged += UpdateFencesNote;
+                AppHost.DesktopVisibilityChanged += OnDesktopStateChanged;
+                AppHost.SettingsChanged += OnSettingsChanged;
+                BoxMover.Changed += UpdateBoxPanel;
                 FolderIconWindow.IconChanged += OnFolderIconChanged;
             },
             detach: () =>
             {
-                AppHost.DesktopVisibilityChanged -= UpdateHideNow;
-                AppHost.SettingsChanged -= UpdateFencesNote;
+                AppHost.DesktopVisibilityChanged -= OnDesktopStateChanged;
+                AppHost.SettingsChanged -= OnSettingsChanged;
+                BoxMover.Changed -= UpdateBoxPanel;
                 FolderIconWindow.IconChanged -= OnFolderIconChanged;
             },
             refresh: Load);
+    }
+
+    private void OnDesktopStateChanged()
+    {
+        UpdateHideNow();
+        UpdatePeek();
+    }
+
+    /// <summary>Ayarlar başka yerden (tepsi, widget menüsü, Widget'lar sayfası) değişince masaüstü satırları eşitlenir.</summary>
+    private void OnSettingsChanged()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(OnSettingsChanged);
+            return;
+        }
+        UpdateFencesNote();
+        LoadDesktopChoices();
     }
 
     private void Load()
@@ -163,7 +189,6 @@ public partial class SettingsPage : Page
         LoadLanguage();
         ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
         NotifyToggle.IsChecked = s.ShowNotifications;
-        DoubleClickToggle.IsChecked = s.DoubleClickHidesDesktop;
         HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
         SuggestToggle.IsChecked = s.SuggestFolderIcons;
         DesktopPath.Text = AppHost.DesktopDirectory;
@@ -171,7 +196,9 @@ public partial class SettingsPage : Page
         LoadHotkeys();
         UpdateKeyStatus();
         UpdateHideNow();
+        UpdatePeek();
         UpdateFencesNote();
+        LoadDesktopChoices();
         SystemIconsStoreNote.Visibility = DesktopSystemIcons.CanChange ? Visibility.Collapsed : Visibility.Visible;
         SystemIconsTestNote.Visibility = DesktopSystemIcons.CanChange && AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
         // Kullanıcı Windows ayarlarından ya da Görev Yöneticisi'nden dönünce durumlar yenilensin.
@@ -308,11 +335,136 @@ public partial class SettingsPage : Page
 
     // ---- Masaüstü ----
 
-    private void DoubleClickToggle_Click(object sender, RoutedEventArgs e)
+    // Kutular koddan güncellenirken SelectionChanged ayarı yeniden yazmasın.
+    private bool _loadingDesktop;
+
+    /// <summary>Simge kipi, çift tıklama, göz atma ve yeni widget yeri kutularını ayarlardan doldurur.</summary>
+    private void LoadDesktopChoices()
     {
-        AppHost.Settings.DoubleClickHidesDesktop = DoubleClickToggle.IsChecked == true;
+        _loadingDesktop = true;
+        try
+        {
+            var s = AppHost.Settings;
+            var mode = DesktopModes.Current;
+            IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, mode);
+            IconModeText.Text = DesktopModes.Description(mode);
+            PlacementBox.SelectedIndex = Array.IndexOf(PlaceModes.Choices, PlaceModes.Parse(s.NewWidgetPlacement));
+            var doubleClick = DesktopState.DoubleClickChoice(s.DoubleClickAction, s.DoubleClickHidesDesktop);
+            DoubleClickBox.SelectedIndex = Array.IndexOf(DesktopState.DoubleClickChoices, doubleClick);
+            DoubleClickText.Text = doubleClick switch
+            {
+                DesktopState.DoubleClickToggle => "Simgeler (ve ayara göre widget'lar) gizlenir; yeniden çift tıklayınca geri gelir.",
+                DesktopState.DoubleClickPeek => "Windows'un simgeleri görünür, widget'lar kısa süre çekilir; yeniden çift tıklayınca dönülür.",
+                DesktopState.DoubleClickNone => "Çift tıklama yalnızca Windows'un kendi işini yapar.",
+                _ => "Bölmeler masaüstünü yönetirken Windows masaüstüne göz atar, yoksa masaüstünü gizler/gösterir. Simgeye çift tıklamak yine dosyayı açar.",
+            };
+            PeekHidesWidgetsToggle.IsChecked = s.PeekHidesWidgets;
+            PeekShowsDesktopToggle.IsChecked = s.PeekShowsDesktop;
+            // Test örneği gerçek pencereleri küçültmez (AppHost.StartPeek); anahtar orada salt okunur.
+            PeekShowsDesktopToggle.IsEnabled = !AppHost.IsTestDesktop;
+            PeekMinutesBox.SelectedIndex = Array.IndexOf(DesktopState.PeekMinuteChoices, DesktopState.NormalizePeekMinutes(s.PeekMinutes));
+            PublicBoxToggle.IsChecked = s.BoxIncludesPublicDesktop;
+            UpdateBoxPanel();
+        }
+        finally
+        {
+            _loadingDesktop = false;
+        }
+    }
+
+    private void IconModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDesktop || IconModeBox.SelectedItem is not ComboBoxItem { Tag: IconMode mode }) return;
+        DesktopModes.Set(mode, WindowCenter(), Window.GetWindow(this));
+        // Soru penceresinden sonra ya da ayar değişmediyse de kutu gerçek durumu göstersin.
+        LoadDesktopChoices();
+    }
+
+    /// <summary>Kutulara taşınan öğeler: sayı ve klasör. Kip açıkken ya da taşınmış öğe kaldıysa görünür.</summary>
+    private void UpdateBoxPanel()
+    {
+        var moved = BoxMover.MovedCount;
+        var active = DesktopModes.Current == IconMode.BoxItemsLeave;
+        BoxPanel.Visibility = active || moved > 0 ? Visibility.Visible : Visibility.Collapsed;
+        BoxCountText.Text = moved == 0
+            ? $"Henüz kutuya taşınan öğe yok. Taşınanlar {BoxMover.Root} klasöründe durur."
+            : $"{moved} öğe kutularda; dosyalar {BoxMover.Root} klasöründe.";
+        ReturnAllButton.IsEnabled = moved > 0;
+        OpenBoxFolderButton.IsEnabled = moved > 0;
+        PublicBoxRow.Visibility = active && !AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OpenBoxFolder_Click(object sender, RoutedEventArgs e) => TileItem.Launch(BoxMover.Root);
+
+    private void ReturnAll_Click(object sender, RoutedEventArgs e)
+    {
+        var moved = BoxMover.MovedCount;
+        if (moved == 0) return;
+        if (Confirm.Ask(Window.GetWindow(this), "Kutulardaki öğeler masaüstüne geri konsun mu?",
+                $"{moved} öğe masaüstüne döner ve kutularda kalır.", "Masaüstüne geri koy", danger: false))
+            BoxMover.ReturnAll();
+    }
+
+    private void PublicBoxToggle_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.BoxIncludesPublicDesktop = PublicBoxToggle.IsChecked == true;
         AppHost.SaveSettings();
-        AppHost.ApplyDoubleClickSetting();
+    }
+
+    /// <summary>"Windows masaüstüne göz at" satırı şu anki durumu ve kısayolu gösterir.</summary>
+    private void UpdatePeek()
+    {
+        var peeking = AppHost.Peeking;
+        PeekTitle.Text = peeking ? "Windows masaüstüne göz atılıyor" : "Windows masaüstüne göz at";
+        PeekButton.Content = peeking ? $"{AppInfo.Name}'e dön" : "Göz at";
+        System.Windows.Automation.AutomationProperties.SetName(PeekButton, peeking ? $"{AppInfo.Name}'e dön" : "Windows masaüstüne göz at");
+        var shortcut = AppHost.Settings.Hotkeys.PeekDesktop;
+        PeekText.Text = "Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir; ekranın üstündeki çubuktan dönülür. " +
+                        (string.IsNullOrWhiteSpace(shortcut) ? "Kısayol atanmamış." : $"Kısayol: {shortcut}");
+    }
+
+    private void Peek_Click(object sender, RoutedEventArgs e) => AppHost.TogglePeek(AppHost.PeekOrigin.Settings);
+
+    private void PeekHidesWidgets_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.PeekHidesWidgets = PeekHidesWidgetsToggle.IsChecked == true;
+        AppHost.SaveSettings();
+        if (AppHost.Peeking) AppHost.ApplyDesktopState();
+    }
+
+    private void PeekShowsDesktop_Click(object sender, RoutedEventArgs e)
+    {
+        AppHost.Settings.PeekShowsDesktop = PeekShowsDesktopToggle.IsChecked == true;
+        AppHost.SaveSettings();
+    }
+
+    private void PeekMinutesBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDesktop || PeekMinutesBox.SelectedIndex < 0) return;
+        AppHost.Settings.PeekMinutes = DesktopState.PeekMinuteChoices[PeekMinutesBox.SelectedIndex];
+        AppHost.SaveSettings();
+    }
+
+    private void DoubleClickBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDesktop || DoubleClickBox.SelectedIndex < 0) return;
+        AppHost.SetDoubleClickAction(DesktopState.DoubleClickChoices[DoubleClickBox.SelectedIndex]);
+    }
+
+    private void PlacementBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingDesktop || PlacementBox.SelectedItem is not ComboBoxItem { Tag: PlaceMode mode }) return;
+        DesktopModes.SetPlacement(mode);
+    }
+
+    /// <summary>Ana pencerenin ortası: eklenecek bölmeler bu pencerenin ekranına yerleşir.</summary>
+    private NativeMethods.POINT? WindowCenter()
+    {
+        if (Window.GetWindow(this) is not { } window) return null;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        return hwnd != IntPtr.Zero && NativeMethods.GetWindowRect(hwnd, out var r)
+            ? new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 }
+            : null;
     }
 
     private void HideWidgetsToggle_Click(object sender, RoutedEventArgs e)
@@ -432,6 +584,7 @@ public partial class SettingsPage : Page
         AppHost.Hotkeys?.Apply(AppHost.Settings.Hotkeys);
         LoadHotkeys();
         UpdateHideNow();
+        UpdatePeek();
     }
 
     private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)

@@ -128,6 +128,13 @@ public sealed class WidgetConfig
 
     public WidgetConfig Clone() =>
         JsonSerializer.Deserialize<WidgetConfig>(JsonSerializer.Serialize(this, JsonFile.Options), JsonFile.Options)!;
+
+    // 2.1 P3
+    /// <summary>
+    /// Kısayol kutusu: masaüstünden taşınan öğelerin klasörünün adı (NestDesk klasörünün altında). İlk taşımada başlıktan
+    /// üretilir ve sonra değişmez; başlık değişse de öğeler aynı klasörde kalır.
+    /// </summary>
+    public string? BoxFolder { get; set; }
 }
 
 /// <summary>Kaydedilmiş widget düzeni (Fences'taki düzen anlık görüntüleri gibi).</summary>
@@ -205,4 +212,42 @@ public sealed class AppSettings
     /// sürüm tanımadığı özelliği yok sayar, yeni diller için enum'a üye eklemek gerekmez.
     /// </summary>
     public string? Language { get; set; }
+    // 2.1 P3 — masaüstü kipleri, göz atma, yeni widget'ın yeri, kutulara taşınan öğeler
+    // (Hepsi yeni bool/int/metin: eski sürüm bilmediği alanları yok sayar. Kalıcı enum'a üye eklenmedi.)
+
+    /// <summary>
+    /// Boş masaüstüne çift tıklayınca: null/"auto" (bölmeler masaüstünü yönetirken göz at, yoksa gizle/göster), "toggle",
+    /// "peek", "none" (bkz. <see cref="DesktopState.DoubleClickChoice"/>). Boşsa eski <see cref="DoubleClickHidesDesktop"/>'a bakılır.
+    /// </summary>
+    public string? DoubleClickAction { get; set; }
+
+    /// <summary>Windows masaüstüne göz atarken widget'lar da çekilsin (altlarındaki simgelere ulaşılsın).</summary>
+    public bool PeekHidesWidgets { get; set; } = true;
+
+    /// <summary>Göz atarken açık pencereler küçültülsün (Win+D gibi; çift tıklamayla başlayınca yapılmaz).</summary>
+    public bool PeekShowsDesktop { get; set; }
+
+    /// <summary>Göz atma kaç dakika sonra kendiliğinden biter (1/2/5/10; 0 = ben dönene dek).</summary>
+    public int PeekMinutes { get; set; } = DesktopState.DefaultPeekMinutes;
+
+    /// <summary>Çift tıklamayla göz atmanın nasıl biteceğini anlatan ipucu kaç kez gösterildi.</summary>
+    public int PeekHintsShown { get; set; }
+
+    /// <summary>Yeni widget'ların yeri: "cursor" (imlecin yanı), "center" (etkin ekranın ortası), "corner" (türüne göre köşe).</summary>
+    public string? NewWidgetPlacement { get; set; } = PlaceModes.Cursor;
+
+    /// <summary>Kısayolla ya da "Widget ekle" penceresiyle eklenen widget'ın nereye geldiğini anlatan ipucu kaç kez gösterildi.</summary>
+    public int NewWidgetHintsShown { get; set; }
+
+    /// <summary>
+    /// "Kutulara eklediklerim masaüstünden kalksın": kısayol kutusuna eklenen masaüstü öğesi görünür bir klasöre
+    /// (masaüstünün yanındaki NestDesk klasörü) taşınır. Bölmeler masaüstünü yönetirken (FencesReplaceIcons) etkisizdir.
+    /// </summary>
+    public bool BoxItemsLeaveDesktop { get; set; }
+
+    /// <summary>Ortak masaüstündeki (tüm hesaplar) öğeler de kutuya taşınsın. Varsayılan kapalı: yalnızca bağlantı eklenir.</summary>
+    public bool BoxIncludesPublicDesktop { get; set; }
+
+    /// <summary>Ortak masaüstü öğesinin taşınmadığını anlatan bildirim gösterildi mi?</summary>
+    public bool PublicBoxNoticeShown { get; set; }
 }

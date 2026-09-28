@@ -11,6 +11,52 @@ public readonly record struct Box(int Left, int Top, int Right, int Bottom)
     public bool Overlaps(Box other) => Left < other.Right && other.Left < Right && Top < other.Bottom && other.Top < Bottom;
 
     public bool Inside(Box area) => Left >= area.Left && Top >= area.Top && Right <= area.Right && Bottom <= area.Bottom;
+
+    /// <summary>Her yandan <paramref name="by"/> kadar büyütülmüş dikdörtgen.</summary>
+    public Box Inflate(int by) => new(Left - by, Top - by, Right + by, Bottom + by);
+
+    /// <summary>Kesişim alanı (piksel²); kesişmiyorsa 0.</summary>
+    public long OverlapArea(Box other) =>
+        (long)Math.Max(0, Math.Min(Right, other.Right) - Math.Max(Left, other.Left)) *
+        Math.Max(0, Math.Min(Bottom, other.Bottom) - Math.Max(Top, other.Top));
+}
+
+/// <summary>Yeni widget'ın yeri (AppSettings.NewWidgetPlacement). Kalıcı değildir: ayar metin olarak saklanır.</summary>
+public enum PlaceMode
+{
+    /// <summary>İmlecin yanına (varsayılan).</summary>
+    Cursor,
+
+    /// <summary>Etkin pencerenin bulunduğu ekranın ortasına.</summary>
+    Center,
+
+    /// <summary>Türüne göre köşeye (2.0'daki davranış): saat, tarih ve not sağ üste; bölme ve kutu üst ortaya.</summary>
+    Corner,
+}
+
+public static class PlaceModes
+{
+    public const string Cursor = "cursor";
+    public const string Center = "center";
+    public const string Corner = "corner";
+
+    /// <summary>Ayar kutusundaki sıra.</summary>
+    public static readonly PlaceMode[] Choices = [PlaceMode.Cursor, PlaceMode.Center, PlaceMode.Corner];
+
+    /// <summary>Bilinmeyen ya da boş değer (gelecek sürüm, elle düzenleme) varsayılana, imlecin yanına döner.</summary>
+    public static PlaceMode Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        Center => PlaceMode.Center,
+        Corner => PlaceMode.Corner,
+        _ => PlaceMode.Cursor,
+    };
+
+    public static string ToSetting(PlaceMode mode) => mode switch
+    {
+        PlaceMode.Center => Center,
+        PlaceMode.Corner => Corner,
+        _ => Cursor,
+    };
 }
 
 /// <summary>
@@ -127,6 +173,94 @@ public static class WidgetLayout
             frontier = next.Count > 64 ? next.Take(64).ToList() : next;
         }
         return best;
+    }
+
+    /// <summary>
+    /// Yeni widget için istenen sol üst köşe (kart, fiziksel piksel), çalışma alanına sıkıştırılmış.
+    /// İmleç: imlecin <paramref name="offset"/> sağ altı; ekrandan taşacaksa imlecin soluna/üstüne döner.
+    /// Orta: çalışma alanının ortası. Köşe: <paramref name="cornerRight"/> ise sağ üst, değilse üst orta (aralıklı).
+    /// </summary>
+    public static (int X, int Y) DesiredSpot(PlaceMode mode, Box area, int w, int h, int anchorX, int anchorY,
+        bool cornerRight, int offset, int gap)
+    {
+        int x, y;
+        switch (mode)
+        {
+            case PlaceMode.Cursor:
+                x = anchorX + offset;
+                if (x + w > area.Right) x = anchorX - offset - w;
+                y = anchorY + offset;
+                if (y + h > area.Bottom) y = anchorY - offset - h;
+                break;
+            case PlaceMode.Center:
+                x = area.Left + (area.Width - w) / 2;
+                y = area.Top + (area.Height - h) / 2;
+                break;
+            default:
+                x = cornerRight ? area.Right - w - gap : area.Left + (area.Width - w) / 2;
+                y = area.Top + gap;
+                break;
+        }
+        return (Math.Clamp(x, area.Left, Math.Max(area.Left, area.Right - w)),
+                Math.Clamp(y, area.Top, Math.Max(area.Top, area.Bottom - h)));
+    }
+
+    /// <summary>
+    /// İstenen noktaya en yakın boş yer (kartın sol üstü): çalışma alanı içinde, istenen noktadan başlayan
+    /// <paramref name="step"/> aralıklı ızgara taranır; diğer kartlara <paramref name="gap"/>'ten fazla yaklaşmayan en yakın
+    /// aday seçilir. Uzaklıkta yatay fark <paramref name="horizontalWeight"/> kat ağır sayılır (köşe kipinde önce aynı
+    /// sütunda aşağı inilir). Boş yer yoksa en az çakışan (eşitse en yakın) aday: bir widget'ın tam üstüne binmesin.
+    /// </summary>
+    public static (int X, int Y) FindSpot(Box area, int w, int h, int desiredX, int desiredY, IReadOnlyList<Box> taken,
+        int gap, int step, int horizontalWeight = 1)
+    {
+        step = Math.Max(1, step);
+        horizontalWeight = Math.Max(1, horizontalWeight);
+        int maxX = Math.Max(area.Left, area.Right - w), maxY = Math.Max(area.Top, area.Bottom - h);
+        desiredX = Math.Clamp(desiredX, area.Left, maxX);
+        desiredY = Math.Clamp(desiredY, area.Top, maxY);
+        var xs = Axis(area.Left, maxX, desiredX, step);
+        var ys = Axis(area.Top, maxY, desiredY, step);
+        var inflated = taken.Select(t => t.Inflate(gap)).ToList();
+
+        (int X, int Y)? free = null;
+        var freeDistance = long.MaxValue;
+        var fallback = (desiredX, desiredY);
+        long fallbackOverlap = long.MaxValue, fallbackDistance = long.MaxValue;
+        foreach (var y in ys)
+            foreach (var x in xs)
+            {
+                long dx = x - desiredX, dy = y - desiredY;
+                var distance = dx * dx * horizontalWeight + dy * dy;
+                if (free is not null && distance >= freeDistance) continue;
+                var box = new Box(x, y, x + w, y + h);
+                if (!inflated.Any(t => t.Overlaps(box)))
+                {
+                    free = (x, y);
+                    freeDistance = distance;
+                    continue;
+                }
+                if (free is not null) continue;
+                var overlap = taken.Sum(t => t.OverlapArea(box));
+                if (overlap < fallbackOverlap || (overlap == fallbackOverlap && distance < fallbackDistance))
+                {
+                    fallback = (x, y);
+                    fallbackOverlap = overlap;
+                    fallbackDistance = distance;
+                }
+            }
+        return free ?? fallback;
+    }
+
+    /// <summary>Bir eksendeki adaylar: istenen değer, ondan adım adım iki yana ve alanın iki ucu.</summary>
+    private static List<int> Axis(int min, int max, int desired, int step)
+    {
+        var values = new List<int> { desired };
+        for (var v = desired - step; v > min; v -= step) values.Add(v);
+        for (var v = desired + step; v < max; v += step) values.Add(v);
+        if (desired != min) values.Add(min);
+        if (desired != max && max != min) values.Add(max);
+        return values;
     }
 
     /// <summary>

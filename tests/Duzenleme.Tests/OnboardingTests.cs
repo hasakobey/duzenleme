@@ -224,17 +224,18 @@ public class OnboardingTests
             var existing = folderNames.Where(n => n.Trim().Length > 0 && random.Next(3) == 0)
                 .Select(n => n.Trim().ToLowerInvariant()).Distinct().ToList();
             var files = fileNames.Where(_ => random.Next(2) == 0)
-                .Select(n => new DesktopFile(n, random.Next(10) == 0 ? FileAttributes.Hidden : FileAttributes.Normal, random.Next(6) == 0))
+                .Select(n => new DesktopFile(n, random.Next(10) == 0 ? FileAttributes.Hidden : FileAttributes.Normal, random.Next(6) == 0,
+                    Pinned: random.Next(7) == 0))
                 .ToList();
             var createMissing = random.Next(2) == 0;
             var selected = Onboarding.FolderChoices(rules, existing, files, createMissing)
                 .Where(_ => random.Next(2) == 0).Select(c => c.Folder).ToList();
 
-            // Taşıyıcı: "Bitti"de yazılan kurallar, açılan klasörler; geri alınmış dosyalara dokunmaz.
+            // Taşıyıcı: "Bitti"de yazılan kurallar, açılan klasörler; geri alınmış ve kısayol kutusunda duran dosyalara dokunmaz.
             var applied = Onboarding.ApplyFolderSelection(rules, selected, existing, createMissing);
             var after = existing.Concat(Onboarding.FoldersToCreate(applied, selected, existing, createMissing)).ToList();
             var engine = new RuleEngine(() => new AppSettings { Rules = applied, CreateMissingFolders = createMissing });
-            var expected = files.Where(f => !f.WasUndone)
+            var expected = files.Where(f => !f.WasUndone && !f.Pinned)
                 .Select(f => (f.Name, Decision: engine.Decide(@"C:\Masaüstü", f.Name, f.Attributes, after)))
                 .Where(x => x.Decision.ShouldMove)
                 .Select(x => $"{x.Name} → {FolderName.Fold(Path.GetFileName(x.Decision.TargetDirectory!))}")

@@ -18,6 +18,7 @@ public partial class App : Application
     private EventWaitHandle? _showSignal;
     private EventWaitHandle? _exitSignal;
     private EventWaitHandle? _addSignal;
+    private EventWaitHandle? _peekSignal;
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool AllowSetForegroundWindow(int processId);
@@ -107,8 +108,16 @@ public partial class App : Application
         _instanceMutex = takenOver ?? new Mutex(true, id, out isFirst);
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".show");
         _addSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".add");
+        _peekSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".peek");
         if (!isFirst)
         {
+            // --peek: çalışan örnekte Windows masaüstüne göz at / NestDesk'e dön (öne getirilecek pencere yok).
+            if (args.Peek)
+            {
+                _peekSignal.Set();
+                Shutdown();
+                return;
+            }
             // Store sürümünün arka plan açılışları (başlangıç görevi, güncelleme sonrası yeniden başlatma) zaten çalışan
             // örneğin penceresini öne getirmesin.
             if (!(PackageInfo.IsPackaged && args.Minimized))
@@ -123,6 +132,7 @@ public partial class App : Application
         }
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, -1, false);
         ThreadPool.RegisterWaitForSingleObject(_addSignal, (_, _) => Dispatcher.BeginInvoke(ShowQuickAdd), null, -1, false);
+        ThreadPool.RegisterWaitForSingleObject(_peekSignal, (_, _) => Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command)), null, -1, false);
         _exitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".exit");
         ThreadPool.RegisterWaitForSingleObject(_exitSignal, (_, _) => Dispatcher.BeginInvoke(ExitApp), null, -1, true);
 
@@ -181,15 +191,17 @@ public partial class App : Application
         AppHost.Tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
-        AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.ToggleDesktopByDoubleClick);
+        AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.OnDesktopDoubleClick);
         AppHost.ApplyDoubleClickSetting();
         AppHost.Widgets.RestoreAll();
         if (AppHost.Settings.FencesReplaceIcons)
         {
             // Hiçbir öğe görünmez kalmasın: eksik Klasörler/Kısayollar/Dosyalar bölmesi varsa ekle.
             AppHost.Widgets.EnsureDesktopCoverage();
-            AppHost.ApplyIconVisibility();
+            AppHost.ApplyDesktopState();
         }
+        // Kutulara taşınan öğeler: önceki oturum yarıda kaldıysa ya da kutu dışarıdan silindiyse kayıtlar kutularla uzlaşır.
+        Widgets.BoxMover.Reconcile();
         _newFolders = new NewFolderWatcher(AppHost.DesktopDirectory, folder => Dispatcher.BeginInvoke(() =>
         {
             // Uygulamanın kendi açtığı klasör (bölme, "Klasörü oluştur", karşılama) için "simge ver" balonu çıkmaz.
@@ -205,6 +217,7 @@ public partial class App : Application
             PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms");
 
         _started = true;
+        if (args.Peek) Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command), DispatcherPriority.ApplicationIdle);
         if (args.Add) Dispatcher.BeginInvoke(ShowQuickAdd, DispatcherPriority.ApplicationIdle);
         else if (args.Welcome) ShowWelcome(rerun: AppHost.Settings.FirstRunDone);
         else if (!AppHost.Settings.FirstRunDone)
@@ -447,10 +460,31 @@ public partial class App : Application
             case HotkeyAction.ToggleDesktop: AppHost.ToggleDesktop(); break;
             case HotkeyAction.OrganizeNow: AppHost.OrganizeNowInBackground(); break;
             case HotkeyAction.OpenApp: ShowMainWindow(); break;
-            case HotkeyAction.NewNote: AppHost.Widgets.FocusNote(AppHost.Widgets.Add(WidgetKind.Note).Id); break;
+            case HotkeyAction.NewNote: NewNote(); break;
             case HotkeyAction.PeekWidgets: AppHost.Widgets.RevealAll(); break;
             case HotkeyAction.QuickAdd: ShowQuickAdd(); break;
+            case HotkeyAction.PeekDesktop: TogglePeek(AppHost.PeekOrigin.Hotkey); break;
         }
+    }
+
+    /// <summary>
+    /// Kısayolla yeni not: gizli masaüstü ya da göz atma biter (widget'lar ve simgeler durumla birlikte geri gelir), not
+    /// ayardaki yere eklenir ve yazmaya hazırdır; ilk seferlerde nereye geldiği söylenir.
+    /// </summary>
+    private void NewNote()
+    {
+        if (!_started || _exiting) return;
+        AppHost.EnsureWidgetsShown();
+        var config = AppHost.Widgets.Add(WidgetKind.Note);
+        AppHost.Widgets.FocusNote(config.Id);
+        AppHost.ShowNewWidgetHint(config);
+    }
+
+    /// <summary>Windows masaüstüne göz at ya da NestDesk'e dön (kısayol, --peek).</summary>
+    private void TogglePeek(AppHost.PeekOrigin origin)
+    {
+        if (!_started || _exiting) return;
+        AppHost.TogglePeek(origin);
     }
 
     public void ExitApp()
@@ -462,6 +496,7 @@ public partial class App : Application
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             SystemParameters.StaticPropertyChanged -= OnSystemParameterChanged;
             AppHost.RestoreDesktopOnExit();
+            Views.PeekBar.CloseBar();
             AppHost.DoubleClick?.Dispose();
             _newFolders?.Dispose();
             AppHost.Hotkeys?.Dispose();
@@ -490,6 +525,8 @@ public partial class App : Application
         _instanceMutex?.Dispose();
         _showSignal?.Dispose();
         _exitSignal?.Dispose();
+        _addSignal?.Dispose();
+        _peekSignal?.Dispose();
         base.OnExit(e);
     }
 
@@ -514,7 +551,7 @@ public partial class App : Application
     }
 
     private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool RestoreDesktop,
-        bool Restart);
+        bool Restart, bool Peek);
 
     private Args? _args;
 
@@ -522,12 +559,12 @@ public partial class App : Application
     /// --desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır;
     /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak); --restore-desktop gizli bırakılmış
     /// masaüstü simgelerini açıp çıkar (kaldırma programı); --restart önceki örneğin kapanmasını bekleyip onun yerine
-    /// başlar (dil değişikliği).
+    /// başlar (dil değişikliği); --peek Windows masaüstüne göz atar (göz atılıyorsa NestDesk'e döner).
     /// </summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        bool minimized = false, exit = false, add = false, welcome = false, restoreDesktop = false, restart = false;
+        bool minimized = false, exit = false, add = false, welcome = false, restoreDesktop = false, restart = false, peek = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -540,9 +577,10 @@ public partial class App : Application
                 case "--welcome": welcome = true; break;
                 case "--restore-desktop": restoreDesktop = true; break;
                 case "--restart": restart = true; break;
+                case "--peek": peek = true; break;
             }
         }
-        return new Args(desktop, data, minimized, exit, add, welcome, restoreDesktop, restart);
+        return new Args(desktop, data, minimized, exit, add, welcome, restoreDesktop, restart, peek);
     }
 
     /// <summary>Bu kullanıcının (ya da test örneğinin) çalışan bir NestDesk'i var mı? (Tek örnek kilidi alınmadan bakılır.)</summary>
