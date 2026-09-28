@@ -50,8 +50,9 @@ public partial class LauncherView : UserControl, IWidgetView
     public event Action? MenuRequested;
     public event Action? LayoutChanged;
 
+    // Etiketler Menus.Parts'ta çevrilir (L.Dyn).
     private static readonly (string Key, string Label)[] LauncherParts =
-        [("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("tabs", "Sekmeler"), Menus.ClosePart];
+        [("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("tabs", L.N("Sekmeler")), Menus.ClosePart];
 
     /// <summary>
     /// Kullanıcının kapattığı parçaları gizler. Dar kutuda başlık okunsun diye öğe sayısı ve başlık simgesi (bu sırayla)
@@ -306,7 +307,7 @@ public partial class LauncherView : UserControl, IWidgetView
         {
             var move = new MenuItem { Header = "Sekmeye taşı" };
             foreach (var tab in _config.Tabs.Where(t => t != Current))
-                move.Items.Add(Menus.Item(tab.Name, () => Change(() =>
+                move.Items.Add(Menus.Item(Menus.Literal(tab.Name), () => Change(() =>
                 {
                     Current.Items.Remove(item.Path);
                     tab.Items.Add(item.Path);
@@ -365,11 +366,12 @@ public partial class LauncherView : UserControl, IWidgetView
         }));
         menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
         menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
-        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes).
-        var leaves = Views.DesktopModes.Current == Views.IconMode.BoxItemsLeave;
-        var toggle = Menus.Toggle("Kutuya eklediklerim masaüstünden kalksın", leaves,
-            () => Views.DesktopModes.Set(leaves ? Views.IconMode.ShowAll : Views.IconMode.BoxItemsLeave, null, null));
-        toggle.ToolTip = $"Açıkken kutuya eklenen masaüstü öğeleri {BoxMover.Root} klasörüne taşınır ve kutuda durur.";
+        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes). Kip değişimi dosya taşımayı
+        // sorabilir: menüyü kapatır.
+        static bool Leaves() => Views.DesktopModes.Current == Views.IconMode.BoxItemsLeave;
+        var toggle = Menus.Toggle(L.T("Kutuya eklediklerim masaüstünden kalksın"), Leaves,
+            () => Views.DesktopModes.Set(Leaves() ? Views.IconMode.ShowAll : Views.IconMode.BoxItemsLeave, null, null), staysOpen: false);
+        toggle.ToolTip = L.F("Açıkken kutuya eklenen masaüstü öğeleri {0} klasörüne taşınır ve kutuda durur.", BoxMover.Root);
         menu.More.Add(toggle);
     }
 

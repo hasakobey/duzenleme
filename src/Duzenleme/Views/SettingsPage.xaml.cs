@@ -280,7 +280,10 @@ public partial class SettingsPage : Page
     private void ShowStartupTask(StartupTaskState? state)
     {
         var view = PackagedApp.DescribeStartupTask(state);
-        StartupToggle.IsChecked = view.IsOn;
+        var loading = _loading;
+        _loading = true; // koddan gösterilen durum görevi yeniden değiştirmesin (StartupToggle_Changed)
+        try { StartupToggle.IsChecked = view.IsOn; }
+        finally { _loading = loading; }
         StartupToggle.IsEnabled = !AppHost.IsTestDesktop;
         StartupToggle.Visibility = view.ShowToggle ? Visibility.Visible : Visibility.Collapsed;
         StartupSettingsButton.Visibility = view.ShowToggle ? Visibility.Collapsed : Visibility.Visible;
@@ -310,8 +313,11 @@ public partial class SettingsPage : Page
         if (_systemIcons.Count > 0) AppHost.Widgets.RefreshSystemIcons();
     }
 
-    private void StartupToggle_Click(object sender, RoutedEventArgs e)
+    // Anahtarlar Click değil Checked/Unchecked dinler: ekran okuyucunun "Aç/Kapat"ı (UI Automation Toggle) Click olayını
+    // tetiklemez, ayar değişmezdi. Koddan yapılan atamalar _loading / _loadingDesktop ile ayrılır.
+    private void StartupToggle_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loading) return;
         if (PackageInfo.IsPackaged) UpdateStartupTask(StartupToggle.IsChecked == true);
         else StartupRegistration.Set(StartupToggle.IsChecked == true);
     }
@@ -319,8 +325,9 @@ public partial class SettingsPage : Page
     private void OpenStartupSettings_Click(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(StartupRegistration.StartupAppsSettingsUri) { UseShellExecute = true });
 
-    private void NotifyToggle_Click(object sender, RoutedEventArgs e)
+    private void NotifyToggle_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loading) return;
         AppHost.Settings.ShowNotifications = NotifyToggle.IsChecked == true;
         AppHost.SaveSettings();
     }
@@ -405,8 +412,9 @@ public partial class SettingsPage : Page
             BoxMover.ReturnAll();
     }
 
-    private void PublicBoxToggle_Click(object sender, RoutedEventArgs e)
+    private void PublicBoxToggle_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loadingDesktop) return;
         AppHost.Settings.BoxIncludesPublicDesktop = PublicBoxToggle.IsChecked == true;
         AppHost.SaveSettings();
     }
@@ -425,15 +433,17 @@ public partial class SettingsPage : Page
 
     private void Peek_Click(object sender, RoutedEventArgs e) => AppHost.TogglePeek(AppHost.PeekOrigin.Settings);
 
-    private void PeekHidesWidgets_Click(object sender, RoutedEventArgs e)
+    private void PeekHidesWidgets_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loadingDesktop) return;
         AppHost.Settings.PeekHidesWidgets = PeekHidesWidgetsToggle.IsChecked == true;
         AppHost.SaveSettings();
         if (AppHost.Peeking) AppHost.ApplyDesktopState();
     }
 
-    private void PeekShowsDesktop_Click(object sender, RoutedEventArgs e)
+    private void PeekShowsDesktop_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loadingDesktop) return;
         AppHost.Settings.PeekShowsDesktop = PeekShowsDesktopToggle.IsChecked == true;
         AppHost.SaveSettings();
     }
@@ -467,8 +477,9 @@ public partial class SettingsPage : Page
             : null;
     }
 
-    private void HideWidgetsToggle_Click(object sender, RoutedEventArgs e)
+    private void HideWidgetsToggle_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loading) return;
         AppHost.Settings.HideWidgetsWithIcons = HideWidgetsToggle.IsChecked == true;
         AppHost.SaveSettings();
         if (AppHost.DesktopHidden) AppHost.SetDesktopHidden(true);
@@ -508,8 +519,9 @@ public partial class SettingsPage : Page
 
     // ---- Klasör simgeleri ----
 
-    private void SuggestToggle_Click(object sender, RoutedEventArgs e)
+    private void SuggestToggle_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loading) return;
         AppHost.Settings.SuggestFolderIcons = SuggestToggle.IsChecked == true;
         AppHost.SaveSettings();
     }

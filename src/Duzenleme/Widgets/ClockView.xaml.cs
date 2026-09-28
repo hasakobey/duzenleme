@@ -92,14 +92,14 @@ public partial class ClockView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        menu.Primary.Add(Menus.Toggle("Saniyeyi göster", _config.ShowSeconds, () =>
+        menu.Primary.Add(Menus.Toggle(L.T("Saniyeyi göster"), () => _config.ShowSeconds, () =>
         {
             _config.ShowSeconds = !_config.ShowSeconds;
             AppHost.SaveSettings();
             Update();
             Schedule();
         }));
-        menu.Appearance.Add(Menus.Parts(_config, [("greeting", "Selam ve gün"), Menus.ClosePart], ApplyParts));
+        menu.Appearance.Add(Menus.Parts(_config, [("greeting", L.N("Selam ve gün")), Menus.ClosePart], ApplyParts));
     }
 
     public void Detach()

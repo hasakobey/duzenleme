@@ -268,14 +268,17 @@ public partial class WidgetsPage : Page
         AppHost.Widgets.SetLookForAll(null, Accents[AccentBox.SelectedIndex]);
     }
 
-    private void Snap_Click(object sender, RoutedEventArgs e)
+    // Checked/Unchecked (Click değil): ekran okuyucunun "Aç/Kapat"ı da ayarı değiştirsin; koddan atama _loading ile ayrılır.
+    private void Snap_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loading) return;
         AppHost.Settings.SnapWidgets = SnapToggle.IsChecked == true;
         AppHost.SaveSettings();
     }
 
-    private void Overlap_Click(object sender, RoutedEventArgs e)
+    private void Overlap_Changed(object sender, RoutedEventArgs e)
     {
+        if (_loading) return;
         // Yalnızca ayar yazılır: sonraki bırakma/büyütmede uygulanır, var olan widget'lar yerinden oynamaz.
         AppHost.Settings.PreventOverlap = OverlapToggle.IsChecked == true;
         AppHost.SaveSettings();

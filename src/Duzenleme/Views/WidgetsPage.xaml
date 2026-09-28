@@ -171,7 +171,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Kenarlara yapışsın (mıknatıs)" />
-                    <ui:ToggleSwitch x:Name="SnapToggle" Grid.Column="1" VerticalAlignment="Center" Click="Snap_Click"
+                    <ui:ToggleSwitch x:Name="SnapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Snap_Changed" Unchecked="Snap_Changed"
                                      AutomationProperties.AutomationId="Widgets.Snap" AutomationProperties.Name="Kenarlara yapışsın (mıknatıs)" />
                 </Grid>
             </Border>
@@ -182,7 +182,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="Widget'lar üst üste binmesin" />
-                    <ui:ToggleSwitch x:Name="OverlapToggle" Grid.Column="1" VerticalAlignment="Center" Click="Overlap_Click"
+                    <ui:ToggleSwitch x:Name="OverlapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Overlap_Changed" Unchecked="Overlap_Changed"
                                      AutomationProperties.AutomationId="Widgets.PreventOverlap" AutomationProperties.Name="Widget'lar üst üste binmesin" />
                 </Grid>
             </Border>
