@@ -41,6 +41,22 @@ public class FileNamesTests
     }
 
     [Theory]
+    [InlineData(@"C:\M\Chrome.lnk", "")]
+    [InlineData(@"C:\M\Chrome.lnk", "...")]
+    [InlineData(@"C:\M\Chrome.lnk", "   ")]
+    [InlineData(@"C:\M\Chrome.lnk", " . . ")]
+    [InlineData(@"C:\M\app.exe", "")]
+    [InlineData(@"C:\M\Site.url", ". ")]
+    [InlineData(@"C:\M\rapor.pdf", "")]
+    public void Emptied_name_is_rejected_instead_of_becoming_a_bare_extension(string path, string edited)
+    {
+        // Eski hata: kısayolun adı silinince dosya ".lnk" oluyor, bölmede adsız görünüyordu. Gezgin boş adı kabul etmez.
+        var composed = FileNames.SplitForEditing(path, isDirectory: false).Compose(edited);
+        Assert.Equal("", composed);
+        Assert.NotNull(FileNames.Validate(composed));
+    }
+
+    [Theory]
     [InlineData("a. ", "a")]
     [InlineData("  rapor.pdf  ", "rapor.pdf")]
     [InlineData("klasör...", "klasör")]

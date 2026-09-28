@@ -42,8 +42,11 @@ public static class FileNames
     /// <param name="SelectLength">Başta seçilen kısım: uzantısı görünen dosyada noktadan öncesi, diğerlerinde hepsi.</param>
     public readonly record struct EditName(string Editable, string HiddenExtension, int SelectLength)
     {
-        /// <summary>Kutudaki metinden diskteki yeni ad (gizli uzantı geri eklenir).</summary>
-        public string Compose(string edited) => Normalize(edited) + HiddenExtension;
+        /// <summary>
+        /// Kutudaki metinden diskteki yeni ad (gizli uzantı geri eklenir). Kutu boşaltıldıysa (ya da yalnızca nokta ve boşluk
+        /// kaldıysa) boş döner: "Chrome.lnk" adı yalnızca ".lnk" olmasın, <see cref="Validate"/> "Bir ad yazmalısın." desin.
+        /// </summary>
+        public string Compose(string edited) => Normalize(edited) is { Length: > 0 } stem ? stem + HiddenExtension : "";
     }
 
     public static EditName SplitForEditing(string path, bool isDirectory)
