@@ -248,7 +248,9 @@ internal static class BoxMover
             var records = AppHost.BoxMoves.Snapshot();
             if (records.Count == 0) return;
             var referenced = BoxPlan.Referenced(AppHost.Settings.Widgets);
-            var plan = await Task.Run(() => BoxPlan.Reconcile(records, referenced, BoxFiles.Exists));
+            var journal = AppHost.Journal;
+            // Geri konan öğe masaüstünden bir kuralla taşınmışsa (ör. önceki sürümde) kutu onu geçmişten bulur.
+            var plan = await Task.Run(() => BoxPlan.Reconcile(records, referenced, BoxFiles.Exists, BoxPlan.MovedByRule(journal.Snapshot())));
             var results = plan.Return.Count > 0 ? await ReturnInBackground(plan.Return, reclaim: true) : [];
             ApplyReturns(results);
             if (plan.Remap.Count == 0) return;
@@ -272,6 +274,7 @@ internal static class BoxMover
         var desktop = AppHost.DesktopDirectory;
         var root = Root;
         var log = AppHost.BoxMoves;
+        var organizer = AppHost.Organizer;
         return Task.Run(() =>
         {
             var results = records.Select(record => ReturnOne(record)).ToList();
@@ -292,10 +295,10 @@ internal static class BoxMover
                     log.MarkReturned(record.Id, record.Original, reclaim: false);
                     return new ReturnResult(record, null, NotFound);
                 }
-                // Kutuda kalan öğe masaüstünde de kurallarla taşınmaz (DesktopOrganizer.Pinned, izleyici 2 sn bekler);
-                // hiçbir kutuda kalmayan öğe sıradan bir masaüstü dosyasıdır.
+                // Kutuda kalan öğe masaüstünde de kurallarla taşınmaz (DesktopOrganizer.Pinned, izleyici 2 sn bekler).
                 var restored = BoxFiles.MoveBack(record.Current, record.Original, desktop);
                 log.MarkReturned(record.Id, restored, reclaim);
+                if (reclaim) KeepOnDesktop(organizer, restored, record.Current);
                 return new ReturnResult(record, restored, null);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -303,6 +306,26 @@ internal static class BoxMover
                 DebugLog.Write($"masaüstüne geri konamadı {record.Current}: {ex.Message}");
                 return new ReturnResult(record, null, ex is UnauthorizedAccessException ? L.T("izin yok") : ex.Message);
             }
+        }
+    }
+
+    /// <summary>
+    /// Kutudan (ya da kutu kaldırıldığı için) masaüstüne dönen öğe artık hiçbir kutuda değil, ama kullanıcı onu bilerek masaüstüne
+    /// geri aldı: bildirim "masaüstüne geri konuyor" der, kutunun "Geri al"ı onu orada arar. Otomatik taşıma açıkken bir kural
+    /// onu hemen taşıyacaksa bölmedeki "Masaüstüne geri taşı" gibi "geri alındı" yazılır ve bir daha otomatik taşınmaz. İzleyici
+    /// yeni dosyaya ~2 sn sonra bakar; kayıt ondan önce, eşzamanlı yazılır. Taşıma kapalıyken dokunulmaz: sonra açılınca her
+    /// masaüstü dosyası gibi taşınır (kutu geri gelirse taşıma geçmişinden bulunur). Arka planda çağrılır.
+    /// </summary>
+    private static void KeepOnDesktop(DesktopOrganizer organizer, string restored, string boxPath)
+    {
+        try
+        {
+            if (AppHost.Settings.Paused || !organizer.WouldMove(restored)) return;
+            AppHost.Journal.Add(new MoveEntry { Source = restored, Destination = boxPath, Undone = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DebugLog.Write($"geri konan öğe korunamadı {restored}: {ex.Message}");
         }
     }
 

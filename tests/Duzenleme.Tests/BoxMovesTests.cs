@@ -193,6 +193,45 @@ public class BoxMovesTests
     }
 
     [Fact]
+    public void Box_that_comes_back_finds_an_item_a_rule_moved_after_it_was_returned()
+    {
+        // Kutu kaldırıldı, öğe masaüstüne döndü, sonra bir kural onu PDF klasörüne taşıdı; kutu "Geri al" ile geldi.
+        var returnedAt = new DateTime(2026, 9, 28, 18, 8, 0);
+        var removed = Returned(@$"{Desktop}\rapor.pdf", @$"{Box}\rapor.pdf", @$"{Desktop}\rapor.pdf", reclaim: true);
+        removed.Time = returnedAt;
+        var referenced = new HashSet<string>([@$"{Box}\rapor.pdf"], StringComparer.OrdinalIgnoreCase);
+        var journal = new List<MoveEntry>
+        {
+            // Aynı adlı başka bir dosyanın eski taşıması ve geri alınmış bir kayıt sayılmaz.
+            new() { Source = @$"{Desktop}\rapor.pdf", Destination = @$"{Desktop}\Eski\rapor.pdf", Time = returnedAt.AddDays(-3) },
+            new() { Source = @$"{Desktop}\rapor.pdf", Destination = @$"{Desktop}\Geri\rapor.pdf", Time = returnedAt.AddSeconds(1), Undone = true },
+            new() { Source = @$"{Desktop}\rapor.pdf", Destination = @$"{Desktop}\PDF\rapor.pdf", Time = returnedAt.AddSeconds(2) },
+        };
+        var onDisk = new HashSet<string>([@$"{Desktop}\PDF\rapor.pdf", @$"{Desktop}\Eski\rapor.pdf", @$"{Desktop}\Geri\rapor.pdf"],
+            StringComparer.OrdinalIgnoreCase);
+
+        var plan = BoxPlan.Reconcile([removed], referenced, onDisk.Contains, BoxPlan.MovedByRule(journal));
+
+        Assert.Equal((@$"{Box}\rapor.pdf", @$"{Desktop}\PDF\rapor.pdf", true), Assert.Single(plan.Remap));
+        Assert.Empty(plan.Return);
+    }
+
+    [Fact]
+    public void Journal_moves_before_the_return_are_not_taken_for_the_returned_item()
+    {
+        var returnedAt = new DateTime(2026, 9, 28, 18, 8, 0);
+        var removed = Returned(@$"{Desktop}\rapor.pdf", @$"{Box}\rapor.pdf", @$"{Desktop}\rapor.pdf", reclaim: true);
+        removed.Time = returnedAt;
+        var referenced = new HashSet<string>([@$"{Box}\rapor.pdf"], StringComparer.OrdinalIgnoreCase);
+        List<MoveEntry> journal = [new() { Source = @$"{Desktop}\rapor.pdf", Destination = @$"{Desktop}\Eski\rapor.pdf", Time = returnedAt.AddDays(-3) }];
+
+        var plan = BoxPlan.Reconcile([removed], referenced, p => p == @$"{Desktop}\Eski\rapor.pdf", BoxPlan.MovedByRule(journal));
+
+        // Başka bir dosyaya (aynı adlı eski taşıma) bağlanmaz: öğe kutuda "bulunamadı" kalır.
+        Assert.Empty(plan.Remap);
+    }
+
+    [Fact]
     public void Reconcile_looks_at_the_disk_only_for_box_move_paths()
     {
         var record = Active(@$"{Desktop}\a.pdf", @$"{Box}\a.pdf");

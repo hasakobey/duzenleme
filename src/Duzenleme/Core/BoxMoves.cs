@@ -281,7 +281,13 @@ public static class BoxPlan
     /// </summary>
     /// <param name="exists">Diske bakar; yalnızca bir kayıtla ilgili yollar için çağrılır (kutudaki çevrimdışı bir ağ yolu
     /// arka plan işini bile saniyelerce bekletebilir).</param>
-    public static Reconciliation Reconcile(IReadOnlyList<BoxMove> records, IReadOnlySet<string> referenced, Func<string, bool> exists)
+    /// <param name="movedByRule">
+    /// Masaüstüne geri konan öğe o yolda artık yoksa (ör. geri konduktan sonra bir kural onu klasörüne taşıdı) taşıma geçmişinden
+    /// nereye gittiği: yol ve geri konma zamanı verilir, o zamandan sonraki son (geri alınmamış) taşımanın hedefi döner
+    /// (bkz. <see cref="MovedByRule"/>). Verilmezse bakılmaz.
+    /// </param>
+    public static Reconciliation Reconcile(IReadOnlyList<BoxMove> records, IReadOnlySet<string> referenced, Func<string, bool> exists,
+        Func<string, DateTime, string?>? movedByRule = null)
     {
         var remap = new List<(string From, string To, bool Reclaim)>();
         foreach (var path in referenced)
@@ -294,11 +300,25 @@ public static class BoxPlan
                 remap.Add((path, interrupted.Current, false));
             else if (returned.LastOrDefault(r => exists(r.ReturnedTo!)) is { } back)
                 remap.Add((path, back.ReturnedTo!, back.Reclaim));
+            else if (movedByRule is not null &&
+                     returned.Select(r => (Record: r, To: movedByRule(r.ReturnedTo!, r.Time))).LastOrDefault(x => x.To is not null && exists(x.To))
+                         is { To: { } ruleTarget } found)
+                remap.Add((path, ruleTarget, found.Record.Reclaim));
         }
         // Yeniden bağlanan öğe kutuda gösterilmiş sayılır: masaüstüne geri konmaz.
         var linked = new HashSet<string>(remap.Select(r => r.To), StringComparer.OrdinalIgnoreCase);
         var toReturn = records.Where(r => r.Active && !referenced.Contains(r.Current) && !linked.Contains(r.Current)).ToList();
         return new Reconciliation(toReturn, remap);
+    }
+
+    /// <summary>
+    /// Taşıma geçmişinden arama: masaüstündeki yoldan, verilen zamandan sonra (ya da aynı anda) kuralla ya da elle taşınan
+    /// dosyanın son hedefi; yoksa null. Geri alınmış kayıtlar sayılmaz (dosya masaüstüne dönmüştür).
+    /// </summary>
+    public static Func<string, DateTime, string?> MovedByRule(IEnumerable<MoveEntry> journal)
+    {
+        var moves = journal.Where(e => !e.Undone).OrderBy(e => e.Time).ToList();
+        return (path, since) => moves.LastOrDefault(e => e.Time >= since && Same(e.Source, path))?.Destination;
     }
 
     private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
