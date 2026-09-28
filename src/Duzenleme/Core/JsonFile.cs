@@ -10,10 +10,14 @@ public static class JsonFile
     public static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() },
+        // Enum'lar adla yazılır; tanınmayan ad (daha yeni sürümden) bütün ayarları bozuk saydırmaz, yedek değere döner.
+        Converters = { new TolerantEnumConverterFactory() },
         // Elle düzenlenmiş dosyalarda "12" gibi metin sayılar da kabul edilsin.
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals | JsonNumberHandling.AllowReadingFromString,
     };
+
+    /// <summary>Okuma sırasındaki uyarılar (ör. tanınmayan enum değeri); uygulama günlüğe bağlar. Herhangi bir iş parçacığından çağrılır.</summary>
+    public static Action<string>? Log { get; set; }
 
     /// <summary>
     /// Dosyayı okur. Yoksa varsayılanı döner; içerik bozuk ya da boşsa yedekleyip (<c>.bozuk-*</c>) bir önceki sürüme

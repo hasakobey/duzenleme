@@ -65,9 +65,13 @@
                 </DockPanel>
             </Border>
 
+            <!-- Büyük klasörde (İndirilenler gibi) ilk 300 öğe gösterilir; kalanı için klasör açılır (2.1 P6). -->
+            <Button x:Name="MoreButton" DockPanel.Dock="Bottom" Style="{StaticResource WidgetTextButton}" HorizontalAlignment="Left"
+                    Margin="0,6,0,0" Visibility="Collapsed" Click="OpenFolder_Click" AutomationProperties.AutomationId="Fence.More" />
+
             <Grid>
                 <ListBox x:Name="Items" Background="Transparent" BorderThickness="0" Padding="0"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionMode="Single"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionMode="Single" VirtualizingPanel.ScrollUnit="Pixel"
                          ItemContainerStyle="{StaticResource TileContainer}" ItemTemplate="{StaticResource TileTemplate}"
                          MouseDoubleClick="Items_MouseDoubleClick" />
 
@@ -76,6 +80,9 @@
                     <TextBlock x:Name="EmptyText" FontSize="13" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="240" />
                     <Button x:Name="CreateFolderButton" Content="Klasörü oluştur" HorizontalAlignment="Center" Margin="0,12,0,0"
                             Click="CreateFolder_Click" Visibility="Collapsed" />
+                    <!-- Klasör portalının klasörü bulunamadı (silindi, sürücü takılı değil): başka klasör seçilir. -->
+                    <Button x:Name="PickFolderButton" Content="{l:T 'Başka klasör seç…'}" HorizontalAlignment="Center" Margin="0,12,0,0"
+                            Click="PickFolder_Click" Visibility="Collapsed" AutomationProperties.AutomationId="Fence.PickFolder" />
                 </StackPanel>
 
                 <Border x:Name="DropOverlay" CornerRadius="12" BorderThickness="2" Visibility="Collapsed" IsHitTestVisible="False">

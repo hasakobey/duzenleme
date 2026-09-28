@@ -704,7 +704,15 @@ public partial class SettingsPage : Page
         try
         {
             var roots = AppHost.DesktopDirectories.ToList();
-            var (removed, failed) = await Task.Run(() => FolderIconService.RemoveAllOwnIcons(roots));
+            // Klasör portalları masaüstü dışındaki klasörleri gösterir: onların (ve bir alt düzeyin) simgeleri de kaldırılır.
+            var portals = AppHost.Settings.Widgets.Where(WidgetVariants.IsPortal).Select(w => w.FolderName!).ToList();
+            var (removed, failed) = await Task.Run(() =>
+            {
+                var result = FolderIconService.RemoveAllOwnIcons(roots);
+                if (portals.Count == 0) return result;
+                var extra = FolderIconService.RemoveAllOwnIcons(portals, depth: 1, includeRoots: true);
+                return (result.Removed.Concat(extra.Removed).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), result.Failed + extra.Failed);
+            });
             removed.ForEach(ShellIcons.Forget);
             if (_folderIcons is not null) LoadFolderIcons();
             var text = removed.Count > 0

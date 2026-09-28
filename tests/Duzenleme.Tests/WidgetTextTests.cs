@@ -49,5 +49,40 @@ public class WidgetTextTests
         Assert.Equal("Bölme · Klasörler", Name(new() { Kind = WidgetKind.Fence, Filter = DesktopFilter.Folders }));
         Assert.Equal("Bölme · PDF", Name(new() { Kind = WidgetKind.Fence, FolderName = "PDF" }));
         Assert.Equal("Bölme · İş", Name(new() { Kind = WidgetKind.Fence, FolderName = "PDF", Title = "İş" }));
+        // Klasör portalı: yolun son parçası.
+        Assert.Equal("Bölme · Downloads", Name(new() { Kind = WidgetKind.Fence, FolderName = @"C:\Users\x\Downloads" }));
+    }
+
+    [Fact]
+    public void New_widget_names_are_static()
+    {
+        Assert.Equal("Takvim", Name(WidgetSeeds.Create(WidgetSeeds.Calendar)!));
+        var countdown = WidgetSeeds.Create(WidgetSeeds.Countdown)!;
+        Assert.Equal("Geri sayım", Name(countdown));
+        countdown.Title = "Tatil";
+        Assert.Equal("Geri sayım · Tatil", Name(countdown));
+        var timer = WidgetSeeds.Create(WidgetSeeds.Timer)!;
+        TimerLogic.Start(timer.Timer!, DateTime.UtcNow);          // çalışırken de ad değişmez
+        Assert.Equal("Zamanlayıcı · 10 dk", Name(timer));
+        Assert.Equal("Pomodoro", Name(WidgetSeeds.Create(WidgetSeeds.Pomodoro)!));
+        Assert.Equal("Kronometre", Name(WidgetSeeds.Create(WidgetSeeds.Stopwatch)!));
+        Assert.Equal("Dünya saati · İstanbul, Londra, New York",
+            Name(new() { Kind = WidgetKind.Clock, Variant = WidgetVariants.World, Zones = WidgetSeeds.DefaultZones("Turkey Standard Time") }));
+        Assert.Equal("Sistem durumu", Name(WidgetSeeds.Create(WidgetSeeds.SystemStatus)!));
+        Assert.Equal("Geri Dönüşüm Kutusu", Name(WidgetSeeds.Create(WidgetSeeds.RecycleBin)!));
+        // Tanınmayan (daha yeni sürümün) alt tür: temel türün adı.
+        Assert.Equal("Saat", Name(new() { Kind = WidgetKind.Clock, Variant = "weather" }));
+
+        using var _ = Localization.L.Use(Localization.Lang.En);
+        Assert.Equal("Calendar", Name(WidgetSeeds.Create(WidgetSeeds.Calendar)!));
+        Assert.Equal("Timer · 10 min", Name(WidgetSeeds.Create(WidgetSeeds.Timer)!));
+        Assert.Equal("World clock · Istanbul, London, New York",
+            Name(new() { Kind = WidgetKind.Clock, Variant = WidgetVariants.World, Zones = WidgetSeeds.DefaultZones("Turkey Standard Time") }));
+        Assert.Equal("Panel · Downloads", Name(new() { Kind = WidgetKind.Fence, FolderName = @"C:\Users\x\Downloads" }));
+        // Türkçe oluşturulmuş Geri Dönüşüm Kutusu'nun (2.0 için yazılan) varsayılan başlığı İngilizcede İngilizce; özel başlık aynen.
+        var bin = new WidgetConfig { Kind = WidgetKind.Launcher, Variant = WidgetVariants.Recycle, Title = "Geri Dönüşüm Kutusu" };
+        Assert.Equal("Recycle Bin", Name(bin));
+        bin.Title = "Çöp";
+        Assert.Equal("Çöp", Name(bin));
     }
 }

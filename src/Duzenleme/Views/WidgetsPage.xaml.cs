@@ -55,7 +55,9 @@ public partial class WidgetsPage : Page
         foreach (var mode in PlaceModes.Choices)
             PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
         // Araçlar sabit; bölmeler (klasörler değişebilir) her açılışta yeniden kurulur.
-        WidgetCatalog.AddTiles(ToolTiles, WidgetCatalog.Tools, AddWidget);
+        var tools = WidgetCatalog.Tools;
+        WidgetCatalog.AddTiles(ToolTiles, tools.Where(c => c.Group == WidgetGroup.Tool), AddWidget);
+        WidgetCatalog.AddTiles(InfoTiles, tools.Where(c => c.Group == WidgetGroup.Info), AddWidget);
         Loaded += (_, _) => Reload();
         // Ana pencere gizliyken sayfa widget değişikliklerine ve kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
@@ -192,7 +194,7 @@ public partial class WidgetsPage : Page
         if (!AppHost.Settings.Widgets.Any(w => w.Id == config.Id)) return;
 
         var text = choice.Key == WidgetCatalog.NewFenceKey ? L.F("\"{0}\" bölmesi masaüstüne eklendi.", FenceTitle(config))
-            : choice.Group == WidgetGroup.Tool ? $"{choice.Label} masaüstüne eklendi."
+            : choice.Group != WidgetGroup.Fence ? L.F("{0} masaüstüne eklendi.", choice.Label)
             : creates ? $"\"{folder}\" bölmesi eklendi; masaüstünde \"{folder}\" klasörü de oluşturuldu."
             : $"\"{choice.Label}\" bölmesi masaüstüne eklendi.";
         Notice.Show(text, NoticeKind.Success, "Bul", () => AppHost.Widgets.Reveal(config.Id));

@@ -178,10 +178,11 @@ public static class WidgetLayout
     /// <summary>
     /// Yeni widget için istenen sol üst köşe (kart, fiziksel piksel), çalışma alanına sıkıştırılmış.
     /// İmleç: imlecin <paramref name="offset"/> sağ altı; ekrandan taşacaksa imlecin soluna/üstüne döner.
-    /// Orta: çalışma alanının ortası. Köşe: <paramref name="cornerRight"/> ise sağ üst, değilse üst orta (aralıklı).
+    /// Orta: çalışma alanının ortası. Köşe: <paramref name="cornerRight"/> ise sağ üst, değilse üst orta (aralıklı);
+    /// <paramref name="cornerBottom"/> ise üst yerine alt (ör. Geri Dönüşüm Kutusu sağ altta).
     /// </summary>
     public static (int X, int Y) DesiredSpot(PlaceMode mode, Box area, int w, int h, int anchorX, int anchorY,
-        bool cornerRight, int offset, int gap)
+        bool cornerRight, int offset, int gap, bool cornerBottom = false)
     {
         int x, y;
         switch (mode)
@@ -198,7 +199,7 @@ public static class WidgetLayout
                 break;
             default:
                 x = cornerRight ? area.Right - w - gap : area.Left + (area.Width - w) / 2;
-                y = area.Top + gap;
+                y = cornerBottom ? area.Bottom - h - gap : area.Top + gap;
                 break;
         }
         return (Math.Clamp(x, area.Left, Math.Max(area.Left, area.Right - w)),

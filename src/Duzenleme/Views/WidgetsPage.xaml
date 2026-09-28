@@ -66,6 +66,8 @@
         <WrapPanel x:Name="FenceTiles" />
         <TextBlock Style="{StaticResource SubHeader}" Text="Araçlar" />
         <WrapPanel x:Name="ToolTiles" />
+        <TextBlock Style="{StaticResource SubHeader}" Text="{l:T 'Saat ve bilgi'}" />
+        <WrapPanel x:Name="InfoTiles" />
         <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
                    Text="İpucu: Widget'ı sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla." />
 

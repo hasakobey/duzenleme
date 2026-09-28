@@ -140,6 +140,9 @@ public sealed class WidgetWindow : Window
         ApplyLayoutMode();
         _card.ContextMenu = Menus.Dynamic(FillMenu);
         Loaded += (_, _) => PlaceOnScreen();
+        // Görünmeyen widget işlemez (saat, zamanlayıcı, sistem durumu): gizlenince, oturum kilitlenince, uykuda.
+        IsVisibleChanged += (_, _) => UpdateLive();
+        WidgetTicker.SystemActiveChanged += UpdateLive;
         // Ölçeği farklı bir monitöre geçince (ya da monitörün ölçeği değişince) WPF pencereyi DIP boyutunu koruyarak yeniden
         // boyutlar: %100'de seçilmiş yükseklik %125'te çalışma alanından taşabilir. Sürüklerken yalnızca yükseklik uyar.
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => FitToWorkArea(allowMove: !_dragging && !_resizing), DispatcherPriority.Loaded);
@@ -171,6 +174,17 @@ public sealed class WidgetWindow : Window
             SizeChanged += (_, e) => DebugLog.Write($"{tag} SizeChanged {e.NewSize.Width:0}x{e.NewSize.Height:0}");
             DpiChanged += (_, e) => DebugLog.Write($"{tag} DpiChanged {e.OldDpi.PixelsPerDip}->{e.NewDpi.PixelsPerDip}");
         }
+    }
+
+    private bool? _live;
+
+    /// <summary>Görünüme görünür olup olmadığını bildirir (yalnızca değişince; ilk bildirim pencere gösterilince).</summary>
+    private void UpdateLive()
+    {
+        var live = IsVisible && WidgetTicker.SystemActive;
+        if (_live == live) return;
+        _live = live;
+        View.SetLive(live);
     }
 
     public void ApplyStyle()
@@ -427,9 +441,12 @@ public sealed class WidgetWindow : Window
         look.Items.Add(Menus.Toggle(L.T("Fare üstünde değilken soluk dursun"), () => Config.FadeUntilHover,
             () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)));
         look.Items.Add(new Separator());
-        look.Items.Add(Menus.Hint(View.Resizable
-            ? L.T("Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift")
-            : L.T("Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift")));
+        // Ctrl + tekerleğin ne yaptığını görünüm söyleyebilir (not: yazı boyutu); yoksa bölme/kutuda simgeler, diğerlerinde ölçek.
+        look.Items.Add(Menus.Hint(View.CtrlWheelHint is { } wheel
+            ? L.F("Boyut: kenarlardan sürükle · {0} · Izgaraya hizala: Shift", wheel)
+            : View.Resizable
+                ? L.T("Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift")
+                : L.T("Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift")));
         menu.Items.Add(look);
 
         var more = new MenuItem { Header = L.T("Diğer") };
@@ -632,7 +649,7 @@ public sealed class WidgetWindow : Window
         // Yeni widget eklenirken belirlenen yer (bir kez); yoksa ayardaki kip imlecin yerinde.
         var where = place ?? PendingPlacement ?? WidgetPlacement.FromSettings();
         PendingPlacement = null;
-        var p = AppHost.Widgets.FreeSpot(Config.Kind, new Size(ActualWidth, ActualHeight), ShadowMargin, this, where);
+        var p = AppHost.Widgets.FreeSpot(Config, new Size(ActualWidth, ActualHeight), ShadowMargin, this, where);
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, p.X, p.Y, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
         _nudge = 0;
@@ -1246,6 +1263,7 @@ public sealed class WidgetWindow : Window
         _revealTimer?.Stop();
         _rollupTimer.Stop();
         Deactivated -= DemoteWhenDeactivated;
+        WidgetTicker.SystemActiveChanged -= UpdateLive;
         View.Detach();
         base.OnClosed(e);
     }

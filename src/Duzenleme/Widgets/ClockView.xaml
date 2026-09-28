@@ -34,6 +34,11 @@
                     <local:ShadowText x:Name="SecondsShadow" Style="{StaticResource SecondsStyle}" Text="{Binding Text, ElementName=SecondsText}" />
                     <TextBlock x:Name="SecondsText" Style="{StaticResource SecondsStyle}" Text="00" />
                 </Grid>
+                <!-- 12 saatlik biçimde ÖÖ/ÖS (AM/PM); 24 saatlikte gizli. -->
+                <Grid x:Name="DesignatorBox" VerticalAlignment="Bottom" Margin="8,0,0,17" Visibility="Collapsed">
+                    <local:ShadowText x:Name="DesignatorShadow" Style="{StaticResource GreetingStyle}" FontSize="20" Text="{Binding Text, ElementName=DesignatorText}" />
+                    <TextBlock x:Name="DesignatorText" Style="{StaticResource GreetingStyle}" FontSize="20" />
+                </Grid>
             </StackPanel>
             <StackPanel x:Name="GreetingRow" Orientation="Horizontal" Margin="3,-4,0,0">
                 <Ellipse x:Name="Dot" Width="7" Height="7" VerticalAlignment="Center" Margin="0,1,8,0" />

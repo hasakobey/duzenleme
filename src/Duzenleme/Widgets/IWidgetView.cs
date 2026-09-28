@@ -45,6 +45,7 @@ public interface IWidgetView
     /// <summary>Widget kapanırken zamanlayıcı/izleyici gibi kaynakları bırakır.</summary>
     void Detach();
 
+    // 2.1 P5
     /// <summary>
     /// F2 / "Yeniden adlandır": seçili öğeyi (bölme: dosya ya da klasör, diskte; kutu: yalnızca görünen adı) ya da seçili öğe
     /// yoksa başlığı yerinde düzenlemeye açar (<see cref="TitleEditor"/>; pencere klavye için etkinleşir). Yeni eklenen widget
@@ -52,4 +53,15 @@ public interface IWidgetView
     /// widget (saat, tarih) false.
     /// </summary>
     bool TryBeginRename() => false;
+
+    // 2.1 P6
+    /// <summary>
+    /// Widget görünür mü ve kullanıcı onu görebilir mi (pencere gösteriliyor, oturum kilitli değil, bilgisayar uykuda değil)?
+    /// Görünmezken işleyen widget'lar (saat, zamanlayıcı, sistem durumu) uyanmaz; görünür olunca hemen güncellenir.
+    /// İlk çağrı pencere gösterilince gelir; o zamana dek görünüm "görünmez" sayılır. WidgetWindow değişince çağırır.
+    /// </summary>
+    void SetLive(bool live) { }
+
+    /// <summary>Görünüm ▸ altındaki ipucunda Ctrl + tekerleğin ne yaptığı (null: widget'ın ölçeği / simge boyutu).</summary>
+    string? CtrlWheelHint => null;
 }

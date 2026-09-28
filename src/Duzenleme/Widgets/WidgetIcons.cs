@@ -16,22 +16,47 @@ internal static class WidgetIcons
     /// <summary>Başlıkta ve listede gösterilecek simge.</summary>
     public static SymbolRegular For(WidgetConfig config) => Symbol(config.Icon) ?? DefaultFor(config);
 
-    /// <summary>Türün (ve bölmede kaynağının) varsayılan simgesi; ekleme kutucuklarıyla aynı.</summary>
-    public static SymbolRegular DefaultFor(WidgetConfig config) => config.Kind switch
+    /// <summary>
+    /// Türün (alt türün; bölmede kaynağının) varsayılan simgesi; ekleme kutucuklarıyla aynı (<c>WidgetCatalogTests</c>
+    /// denetler). Yeni alt tür (<see cref="WidgetVariants"/>) buraya kendi satırını ekler.
+    /// </summary>
+    public static SymbolRegular DefaultFor(WidgetConfig config) => WidgetVariants.Of(config) switch
     {
-        WidgetKind.Clock => SymbolRegular.Clock24,
-        WidgetKind.Date => SymbolRegular.CalendarLtr24,
-        WidgetKind.Note => config.NoteChecklist ? SymbolRegular.TaskListLtr24 : SymbolRegular.Note24,
-        WidgetKind.Launcher => SymbolRegular.AppsAddIn24,
-        _ => config.Filter switch
+        WidgetVariants.Month => SymbolRegular.CalendarMonth24,
+        WidgetVariants.Countdown => SymbolRegular.CalendarStar24,
+        WidgetVariants.Timer => TimerModes.Normalize(config.Timer?.Mode) == TimerModes.Pomodoro ? SymbolRegular.ClockAlarm24 : SymbolRegular.Timer24,
+        WidgetVariants.World => SymbolRegular.GlobeClock24,
+        WidgetVariants.System => SymbolRegular.Gauge24,
+        WidgetVariants.Recycle => SymbolRegular.Delete24,
+        _ => config.Kind switch
         {
-            DesktopFilter.Folders => SymbolRegular.Folder24,
-            DesktopFilter.Shortcuts => SymbolRegular.Apps24,
-            DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
-            DesktopFilter.All => SymbolRegular.Desktop24,
-            _ => string.Equals(config.FolderName, "PDF", StringComparison.OrdinalIgnoreCase)
-                ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
+            WidgetKind.Clock => SymbolRegular.Clock24,
+            WidgetKind.Date => SymbolRegular.CalendarLtr24,
+            WidgetKind.Note => config.NoteChecklist ? SymbolRegular.TaskListLtr24 : SymbolRegular.Note24,
+            WidgetKind.Launcher => SymbolRegular.AppsAddIn24,
+            _ => config.Filter switch
+            {
+                DesktopFilter.Folders => SymbolRegular.Folder24,
+                DesktopFilter.Shortcuts => SymbolRegular.Apps24,
+                DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
+                DesktopFilter.All => SymbolRegular.Desktop24,
+                _ when WidgetVariants.IsPortal(config) => ForKnownFolder(config.FolderKnownId),
+                _ => string.Equals(config.FolderName, "PDF", StringComparison.OrdinalIgnoreCase)
+                    ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
+            },
         },
+    };
+
+    /// <summary>Klasör portalının simgesi: Windows'un bilinen klasörü (İndirilenler…) ya da herhangi bir klasör.</summary>
+    public static SymbolRegular ForKnownFolder(string? knownId) => knownId switch
+    {
+        FolderPortal.Downloads => SymbolRegular.ArrowDownload24,
+        FolderPortal.Documents => SymbolRegular.Document24,
+        FolderPortal.Pictures => SymbolRegular.Image24,
+        FolderPortal.Music => SymbolRegular.MusicNote224,
+        FolderPortal.Videos => SymbolRegular.Video24,
+        FolderPortal.Screenshots => SymbolRegular.Screenshot24,
+        _ => SymbolRegular.FolderLink24,
     };
 
     /// <summary>

@@ -63,7 +63,7 @@ internal static partial class En
         new("Simgeyi değiştir…", "Change icon…"),
         new("Simge seç", "Choose an icon"),
         new("\"{0}\" için simge", "Icon for \"{0}\""),
-        new("Simgeler", "Icons"),
+        // "Simgeler" (seçicinin sekmesi) En.P4.cs'te
         new("Simge", "Icon"),
         new("Varsayılan", "Default"),
         new("Seçilen simge", "Selected icon"),

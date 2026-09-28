@@ -1,0 +1,58 @@
+<UserControl x:Class="Duzenleme.Widgets.TimerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Duzenleme.Widgets"
+             xmlns:l="clr-namespace:Duzenleme.Localization"
+             Focusable="True" FocusVisualStyle="{x:Null}">
+    <UserControl.Resources>
+        <!-- Saatle aynı yazı; rakamlar eşit genişlikte (süre akarken yazı ve pencere kıpırdamaz). -->
+        <Style x:Key="DigitsStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="58" />
+            <Setter Property="FontWeight" Value="Light" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        </Style>
+        <Style x:Key="PhaseStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </UserControl.Resources>
+    <!-- Süre dolunca kartın içinde durağan vurgu çerçevesi (yanıp sönmez); tıklayınca, başlatınca ya da sıfırlayınca kalkar.
+         Kalınlık hep aynı: çerçeve görünüp kaybolunca yerleşim oynamaz. -->
+    <Border x:Name="AlertFrame" BorderThickness="2" CornerRadius="12" Margin="-8,-6,-8,-6" Padding="8,6,8,6" BorderBrush="Transparent">
+        <Grid>
+            <StackPanel MinWidth="220">
+                <Grid x:Name="PhaseBox" Margin="1,0,22,0">
+                    <local:ShadowText x:Name="PhaseShadow" Style="{StaticResource PhaseStyle}" Text="{Binding Text, ElementName=PhaseText}" />
+                    <TextBlock x:Name="PhaseText" Style="{StaticResource PhaseStyle}" />
+                </Grid>
+                <Grid Margin="0,-6,0,0">
+                    <local:ShadowText x:Name="DigitsShadow" Style="{StaticResource DigitsStyle}" Text="{Binding Text, ElementName=DigitsText}" />
+                    <TextBlock x:Name="DigitsText" Style="{StaticResource DigitsStyle}" Text="00:00" />
+                </Grid>
+                <!-- İlerleme: iki yıldızlı sütun (geçen / kalan); saniyede bir yalnızca oranlar değişir, animasyon yok. -->
+                <Grid x:Name="ProgressBox" Height="4" Margin="2,2,2,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="DoneColumn" Width="0*" />
+                        <ColumnDefinition x:Name="LeftColumn" Width="1*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="Track" Grid.ColumnSpan="2" CornerRadius="2" />
+                    <Border x:Name="Fill" CornerRadius="2" />
+                </Grid>
+                <StackPanel x:Name="ButtonRow" Orientation="Horizontal">
+                    <Button x:Name="StartButton" Style="{StaticResource WidgetGlyphButton}" Width="34" Height="34" FontSize="14"
+                            Background="#1A808080" Click="Start_Click" AutomationProperties.AutomationId="Timer.Start" />
+                    <Button x:Name="ResetButton" Style="{StaticResource WidgetGlyphButton}" Width="34" Height="34" Margin="6,0,0,0"
+                            Background="#1A808080" Content="&#xE72C;" Click="Reset_Click" AutomationProperties.AutomationId="Timer.Reset" />
+                    <Button x:Name="PlusButton" Style="{StaticResource WidgetTextButton}" Height="34" Margin="6,0,0,0"
+                            Content="{l:T '+1 dk'}" Click="Plus_Click" AutomationProperties.AutomationId="Timer.AddMinute" />
+                </StackPanel>
+            </StackPanel>
+            <Button x:Name="RemoveButton" Style="{StaticResource WidgetCloseButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,-10,-12,0" Click="RemoveWidget_Click" />
+        </Grid>
+    </Border>
+</UserControl>

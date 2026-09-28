@@ -145,6 +145,24 @@ public partial class LauncherView : UserControl, IWidgetView
             _selectAfterRender = null;
             if (_tiles.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is { } item) SelectAndFocus(item);
         }
+        WatchRecycleBin(_tiles.Any(t => TileItem.IsRecycleBin(t.Path)));
+    }
+
+    private bool _watchingBin;
+
+    /// <summary>Kutuda Geri Dönüşüm Kutusu varsa dolup boşalınca simgesi yenilenir (önbellekte eskisi kalmasın).</summary>
+    private void WatchRecycleBin(bool watch)
+    {
+        if (watch == _watchingBin) return;
+        _watchingBin = watch;
+        if (watch) Desktop.RecycleBin.Changed += OnRecycleBinChanged;
+        else Desktop.RecycleBin.Changed -= OnRecycleBinChanged;
+    }
+
+    private void OnRecycleBinChanged()
+    {
+        ShellIcons.ForgetShell(Desktop.RecycleBin.ShellName);
+        foreach (var tile in _tiles.Where(t => TileItem.IsRecycleBin(t.Path))) tile.ReloadIcon();
     }
 
     /// <summary>Fluent simgeli öğelerin çizildiği vurgu rengi (değişince öğeler yeniden kurulur).</summary>
@@ -379,10 +397,19 @@ public partial class LauncherView : UserControl, IWidgetView
                 menu.Items.Add(claim);
             }
         }
-        var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
-        if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
-            menu.Items.Add(Menus.Item("Yönetici olarak çalıştır", () => TileItem.Launch(item.Path, asAdmin: true)));
-        menu.Items.Add(Menus.Item("Dosya konumunu aç", () => TileItem.Reveal(item.Path)));
+        if (TileItem.IsShellObject(item.Path))
+        {
+            // Bu Bilgisayar, Geri Dönüşüm Kutusu…: diskte konumu yoktur.
+            if (TileItem.IsRecycleBin(item.Path))
+                menu.Items.Add(Menus.Item(L.T("Geri Dönüşüm Kutusu'nu boşalt…"), RecycleBinActions.EmptyWithConfirm));
+        }
+        else
+        {
+            var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
+            if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
+                menu.Items.Add(Menus.Item("Yönetici olarak çalıştır", () => TileItem.Launch(item.Path, asAdmin: true)));
+            menu.Items.Add(Menus.Item("Dosya konumunu aç", () => TileItem.Reveal(item.Path)));
+        }
 
         if (_config.Tabs.Count > 1)
         {
@@ -609,5 +636,6 @@ public partial class LauncherView : UserControl, IWidgetView
         _titleEditor.Cancel();
         BoxMover.Changed -= Render;
         AppHost.PathRenamed -= OnPathRenamed;
+        WatchRecycleBin(false);
     }
 }

@@ -93,15 +93,23 @@ public sealed class DirectorySnapshot : IDisposable
     /// <summary>İçerik ya da durum değişti (sahibin iş parçacığında, birleştirilmiş olarak).</summary>
     public event Action? Changed;
 
-    /// <summary>İzlemeyi başlatır ve ilk okumayı hemen arka planda yapar.</summary>
+    /// <summary>
+    /// İzlemeyi başlatır ve ilk okumayı yapar; ikisi de arka planda (2.1 P6: klasör portalı ağdaki ya da takılı olmayan bir
+    /// sürücüdeki klasörü gösterebilir: izleyiciyi kurmak — klasör var mı bakmak — orada saniyelerce sürebilir). İlk okuma
+    /// izleyici kurulduktan sonra yapılır: "hazır" görünen klasördeki sonraki değişiklik kaçmaz.
+    /// </summary>
     public void Start()
     {
-        _watcher.Start();
-        lock (_lock)
+        ThreadPool.QueueUserWorkItem(_ =>
         {
-            _requested = true;
-            _timer.Change(0, Timeout.Infinite);
-        }
+            _watcher.Start();
+            lock (_lock)
+            {
+                if (_disposed) return;
+                _requested = true;
+                _timer.Change(0, Timeout.Infinite);
+            }
+        });
     }
 
     /// <summary>Klasörün yeniden okunmasını ister (birleştirilir; ör. "Yenile" ya da uygulamanın kendi yaptığı değişiklik).</summary>

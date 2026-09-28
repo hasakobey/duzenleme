@@ -107,4 +107,9 @@ public sealed class HotkeySettings
             // Bilinmeyen eylem hiçbir kısayolun üzerine yazmaz.
         }
     }
+
+    // 2.1 P6
+    /// <summary>Daha yeni sürümün yazdığı bilinmeyen kısayollar (aynen geri yazılır).</summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? Extra { get; set; }
 }

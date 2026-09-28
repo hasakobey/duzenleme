@@ -370,6 +370,13 @@ public static class ShellIcons
         Cache.RemoveWhere(k => k.StartsWith(path + "|", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
+    /// Kabuk nesnesinin ("::{CLSID}") önbellekteki simgelerini bırakır: Geri Dönüşüm Kutusu dolup boşalınca simgesi değişir
+    /// (eskiden önbellekte sonsuza dek kalıyordu). Sonraki istek yeni simgeyi arka planda yükler.
+    /// </summary>
+    public static void ForgetShell(string parsingName) =>
+        Cache.RemoveWhere(k => k.StartsWith("kabuk|" + parsingName + "|", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Yedek yol (boyutlu simge alınamadıysa): SHGetFileInfo. 32 pikselden büyük istenince sistemin 48 piksellik simge
     /// listesinden alınır; sistemin 32 piksellik simgesini büyütmek bulanık görünür.
     /// </summary>

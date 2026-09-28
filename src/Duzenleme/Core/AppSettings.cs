@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Duzenleme.Core;
 
@@ -27,6 +28,8 @@ public enum LabelSize { Small, Normal, Large }
 public enum CornerStyle { Round, Soft, Square }
 
 /// <summary>Bölme bir klasörü değil masaüstündeki öğeleri gösteriyorsa hangilerini.</summary>
+/// <remarks>Tanınmayan (daha yeni sürümün) değer "Tümü" okunur: hiçbir masaüstü öğesi görünmez kalmasın.</remarks>
+[EnumFallback(All)]
 public enum DesktopFilter { None, All, Folders, Shortcuts, Files }
 
 public enum AppTheme { System, Dark, Light }
@@ -35,6 +38,11 @@ public sealed class LauncherTab
 {
     public string Name { get; set; } = "Uygulamalar";
     public List<string> Items { get; set; } = [];
+
+    // 2.1 P6
+    /// <summary>Daha yeni sürümün yazdığı bilinmeyen alanlar (aynen geri yazılır).</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 public sealed class WidgetConfig
@@ -137,32 +145,166 @@ public sealed class WidgetConfig
     public string? BoxFolder { get; set; }
 
     // 2.1 P5 — ad ve simge
-    // (Metin ve sözlük: eski sürüm bilmediği alanları yok sayar. Kalıcı enum'a üye eklenmedi.)
+    // (Metin ve sözlük: eski sürüm bilmediği alanları yok sayar. Kalıcı enum'a üye eklenmedi. Boşken yazılmaz.)
 
     /// <summary>
     /// Başlık simgesi (<see cref="IconRef"/>: "sym:Games24", "res:yol,sıra", "img:dosya"); boş ya da tanınmıyorsa türün
     /// varsayılanı (<c>WidgetIcons.For</c>). Başlıkta yalnızca "sym:" çizilir; diğerleri varsayılana düşer.
     /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
 
     /// <summary>
     /// Kısayol kutusu: öğe başına görünen ad ve simge; anahtar öğenin yolu (büyük/küçük harf duyarsız aranır, bkz.
     /// <see cref="ItemLooks"/>). Dosyaya dokunmaz. Öğe taşınınca ya da yeniden adlandırılınca anahtar da taşınır.
     /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, ItemLook>? ItemLooks { get; set; }
+
+    // 2.1 P6 — yeni widget'lar ve küçük eklemeler
+    // Hepsi yeni metin/sayı/bool ya da yeni küçük sınıf: 2.0 bilmediği alanı yok sayar ve temel türü (Kind) gösterir.
+    // Kalıcı enum'a üye eklenmedi (bkz. WidgetVariants). Boş/varsayılan değerler yazılmaz: her widget'a on dört boş alan
+    // eklenip ayar dosyası (her kayıtta baştan yazılır) büyümesin.
+
+    /// <summary>
+    /// Alt tür (<see cref="WidgetVariants"/>): null = klasik widget. Kind her zaman bilinen beş türden biridir; eski sürüm
+    /// Variant'ı tanımaz ve temel türü gösterir. Metin olduğu için daha yeni bir sürümün alt türü burada korunur.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Variant { get; set; }
+
+    /// <summary>
+    /// Bölme sırası, <see cref="Sort"/>'u ezer: "size" (büyük üstte), "oldest" (eski üstte), "manual" (elle; bkz.
+    /// <see cref="ItemOrder"/>); null = Sort. Sort 2.0 için en yakın değerde tutulur (FenceSort'a üye eklenmez).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SortBy { get; set; }
+
+    /// <summary>Elle sıralı bölmede öğelerin sırası (yol); listede olmayan yeni öğeler sona eklenir.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ItemOrder { get; set; }
+
+    /// <summary>Yapılacaklar: işaretlenen madde listenin altına iner (açık maddeler üstte kalır).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ChecklistDoneLast { get; set; }
+
+    /// <summary>Saat ve dünya saati: null = Windows'un bölge ayarı, true = 12 saat (ÖÖ/ÖS), false = 24 saat.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Clock12Hour { get; set; }
+
+    /// <summary>
+    /// Klasör portalı (FolderName tam yol): Windows'un bilinen klasörü ("Downloads", "Documents"…). Kayıtlı yol yoksa
+    /// (klasör taşındı, OneDrive'a yönlendi) yeniden bulunur ve FolderName güncellenir.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FolderKnownId { get; set; }
+
+    /// <summary>Takvim: haftanın ilk günü (0 = Pazar, 1 = Pazartesi); null = arayüz dilinin kültürü.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? FirstDayOfWeek { get; set; }
+
+    /// <summary>Geri sayım: hedef gün (yalnızca tarih). Başlık etkinliğin adıdır.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? TargetDate { get; set; }
+
+    /// <summary>Geri sayım her yıl yinelenir (doğum günü): gün geçince bir sonraki yıla sayar.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CountdownYearly { get; set; }
+
+    /// <summary>Zamanlayıcı / Pomodoro / kronometre durumu (UTC; yalnızca başlat, duraklat, sıfırla ve aşama sonunda kaydedilir).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TimerState? Timer { get; set; }
+
+    /// <summary>Dünya saati: gösterilen saat dilimleri (Windows kimlikleriyle), sırasıyla.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<WorldZone>? Zones { get; set; }
+
+    /// <summary>Sistem durumu: yenileme aralığı, saniye (2/3/5/10; null = 3).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? StatusIntervalSeconds { get; set; }
+
+    /// <summary>Sistem durumu: boş alanı gösterilen sürücü ("C:\"); null = Windows'un sürücüsü.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StatusDrive { get; set; }
+
+    /// <summary>Daha yeni bir sürümün yazdığı, bu sürümün bilmediği alanlar: okunur ve aynen geri yazılır (kaybolmaz).</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>Zamanlayıcı widget'ının kalıcı durumu. Zamanlar UTC: saat ve saat dilimi değişse de süre doğru kalır.</summary>
+public sealed class TimerState
+{
+    /// <summary>"countdown" (zamanlayıcı), "pomodoro" ya da "stopwatch" (kronometre); bkz. <see cref="TimerModes"/>.</summary>
+    public string Mode { get; set; } = TimerModes.Countdown;
+
+    /// <summary>Zamanlayıcının süresi (dakika).</summary>
+    public int Minutes { get; set; } = 10;
+
+    public int FocusMinutes { get; set; } = 25;
+    public int BreakMinutes { get; set; } = 5;
+    public int LongBreakMinutes { get; set; } = 15;
+
+    /// <summary>Uzun moladan önceki odak turu sayısı.</summary>
+    public int RoundsBeforeLong { get; set; } = 4;
+
+    /// <summary>Çalışırken bitiş anı (zamanlayıcı, pomodoro).</summary>
+    public DateTime? EndsUtc { get; set; }
+
+    /// <summary>Duraklatılmışken kalan süre (tick); null = aşamanın tam süresi.</summary>
+    public long? RemainingTicks { get; set; }
+
+    /// <summary>Kronometre çalışırken son başlatma anı.</summary>
+    public DateTime? StartedUtc { get; set; }
+
+    /// <summary>Kronometrenin duraklatmadan önce biriken süresi (tick).</summary>
+    public long ElapsedTicks { get; set; }
+
+    /// <summary>Pomodoro: kaçıncı odak turu (1'den başlar).</summary>
+    public int Round { get; set; } = 1;
+
+    /// <summary>Pomodoro aşaması: "focus", "break", "long".</summary>
+    public string Phase { get; set; } = TimerModes.Focus;
+
+    /// <summary>Aşama bitince sonraki kendiliğinden başlasın.</summary>
+    public bool AutoStartNext { get; set; }
+
+    /// <summary>Süre dolunca bildirim gösterilsin (dosya taşıma bildirimlerinden bağımsız).</summary>
+    public bool Notify { get; set; } = true;
+
+    /// <summary>Son bitişin anı ("Süre doldu · 14:32"); yeniden başlatınca ya da sıfırlayınca silinir.</summary>
+    public DateTime? FinishedUtc { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+}
+
+/// <summary>Dünya saatinde bir satır: Windows saat dilimi kimliği ve isteğe bağlı ad (boşsa şehir tablosundan).</summary>
+public sealed class WorldZone
+{
+    public string Id { get; set; } = "";
+    public string? Label { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 /// <summary>Kısayol kutusundaki bir öğenin kullanıcının verdiği adı ve simgesi (boş olan varsayılandır).</summary>
 public sealed class ItemLook
 {
     /// <summary>Görünen ad; null ise dosyanın adı.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Name { get; set; }
 
     /// <summary>Simge (<see cref="IconRef"/>); null ise dosyanın kendi simgesi.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool IsEmpty => string.IsNullOrWhiteSpace(Name) && string.IsNullOrWhiteSpace(Icon);
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 /// <summary>Kaydedilmiş widget düzeni (Fences'taki düzen anlık görüntüleri gibi).</summary>
@@ -177,6 +319,11 @@ public sealed class LayoutSnapshot
 
     /// <summary>Uygulanacak kopyalar: anlık görüntü sonradan değişmesin diye her seferinde yeniden kopyalanır.</summary>
     public List<WidgetConfig> Restore() => Widgets.Select(w => w.Clone()).ToList();
+
+    // 2.1 P6
+    /// <summary>Daha yeni sürümün yazdığı bilinmeyen alanlar (aynen geri yazılır).</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 public sealed class AppSettings
@@ -278,4 +425,12 @@ public sealed class AppSettings
 
     /// <summary>Ortak masaüstü öğesinin taşınmadığını anlatan bildirim gösterildi mi?</summary>
     public bool PublicBoxNoticeShown { get; set; }
+
+    // 2.1 P6
+    /// <summary>
+    /// Daha yeni bir sürümün yazdığı, bu sürümün bilmediği ayarlar: okunur ve aynen geri yazılır. Böylece 2.2'den 2.1'e
+    /// dönen kullanıcı yeniden 2.2'ye geçtiğinde ayarlarını kaybetmez.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }

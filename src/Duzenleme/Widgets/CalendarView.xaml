@@ -1,0 +1,46 @@
+<UserControl x:Class="Duzenleme.Widgets.CalendarView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:Duzenleme.Localization"
+             Focusable="True" FocusVisualStyle="{x:Null}">
+    <!-- Aylık takvim: başlık (ay, ‹ Bugün ›), gün adları ve sabit 6×7 gün ızgarası. Satır sayısı hiç değişmez: ay değişince
+         widget'ın boyu oynamaz. Düğmeler hep yerinde; "Bugün" bu ay gösterilirken devre dışıdır (yerleşim değişmez). -->
+    <Grid>
+        <StackPanel x:Name="Root" MinWidth="236">
+            <Grid x:Name="HeaderRow" Margin="0,-2,16,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="MonthTitle" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Margin="2,0,10,0"
+                           FontFamily="Segoe UI Variable Text, Segoe UI" TextTrimming="CharacterEllipsis" />
+                <Button x:Name="PrevButton" Grid.Column="1" Style="{StaticResource WidgetGlyphButton}" Content="&#xE76B;"
+                        Click="Prev_Click" AutomationProperties.AutomationId="Calendar.Previous" />
+                <Button x:Name="TodayButton" Grid.Column="2" Style="{StaticResource WidgetTextButton}" Margin="2,0,2,0"
+                        Content="{l:T 'Bugün'}" Click="Today_Click" AutomationProperties.AutomationId="Calendar.Today" />
+                <Button x:Name="NextButton" Grid.Column="3" Style="{StaticResource WidgetGlyphButton}" Content="&#xE76C;"
+                        Click="Next_Click" AutomationProperties.AutomationId="Calendar.Next" />
+            </Grid>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <!-- Hafta numaraları (ISO-8601; seçmeli, yeni takvimde gizli). -->
+                <StackPanel x:Name="WeekColumn" Margin="0,0,4,0">
+                    <TextBlock x:Name="WeekHeader" FontSize="11" Height="22" Width="26" TextAlignment="Center" Text="{l:T 'Hf', Context=hafta}" />
+                    <UniformGrid x:Name="WeekNumbers" Columns="1" Rows="6" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <UniformGrid x:Name="DayNames" Columns="7" Rows="1" Height="22" />
+                    <UniformGrid x:Name="Days" Columns="7" Rows="6" AutomationProperties.AutomationId="Calendar.Days" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+        <!-- Sağ üst köşede hep yerinde, sönük (saat ve tarih gibi). -->
+        <Button x:Name="RemoveButton" Style="{StaticResource WidgetCloseButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,-10,-12,0" Click="RemoveWidget_Click" />
+    </Grid>
+</UserControl>

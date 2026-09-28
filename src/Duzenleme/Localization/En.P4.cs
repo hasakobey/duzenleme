@@ -96,6 +96,5 @@ internal static partial class En
         new("Saniyeyi göster", "Show seconds"),
         new("Selam ve gün", "Greeting and day"),
         new("Yıl ve gün adı", "Year and weekday"),
-        new("Haftalık şerit", "Week strip"),
     ]);
 }
