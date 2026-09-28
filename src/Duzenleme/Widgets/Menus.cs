@@ -159,9 +159,12 @@ public static class Menus
             if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
                 Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance) return;
             var path = TileItem.NativePath(item.Path);
+            // Yol diske bakılmadan bilinir (bölmede anlık görüntüden, kutuda arka plan denetiminden): ulaşılamayan bir ağ
+            // yolu sürüklemeyi başlatırken arayüzü dondurmasın.
+            var draggable = !item.Missing && !TileItem.IsShellObject(item.Path);
             start = null;
             item = null;
-            if (!File.Exists(path) && !Directory.Exists(path)) return;
+            if (!draggable) return;
             DragDrop.DoDragDrop(list, new DataObject(DataFormats.FileDrop, new[] { path }), allowed);
         };
     }

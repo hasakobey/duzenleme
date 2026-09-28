@@ -19,22 +19,26 @@ public static class ShellIcons
     /// Dosyanın/klasörün simgesi. <paramref name="pixels"/> verilirse o boyutta keskin simge istenir
     /// (bölmede büyük simgeler bulanık görünmesin); alınamazsa sistemin 32 piksellik simgesine düşer.
     /// </summary>
-    public static ImageSource? For(string path, int pixels = 0, bool preview = false) =>
-        Cache.GetOrAdd(Key(path, pixels, preview, out var isDir), _ =>
+    public static ImageSource? For(string path, int pixels = 0, bool preview = false)
+    {
+        // Arka plandaki yükleyiciden çağrılır (klasör mü diye diske burada bakılır, arayüzde değil).
+        var isDir = Directory.Exists(path);
+        return Cache.GetOrAdd(Key(path, pixels, preview, isDir), _ =>
             (pixels > 0 ? LoadSized(path, pixels, preview) : null) ?? Load(path, isDir, usePathOnly: !isDir && !PerFile.Contains(Path.GetExtension(path))));
+    }
 
     // Klasörler kendi (özel olabilecek) simgeleriyle, program/kısayollar ve önizlemeler dosya bazında,
     // diğerleri uzantı bazında önbelleğe alınır.
-    private static string Key(string path, int pixels, bool preview, out bool isDir)
+    private static string Key(string path, int pixels, bool preview, bool isDir)
     {
         var ext = Path.GetExtension(path);
-        isDir = Directory.Exists(path);
         if (preview) return "önizleme|" + path + "|" + pixels;
         return (isDir || PerFile.Contains(ext) ? path : ext) + "|" + pixels;
     }
 
-    public static bool TryCached(string path, int pixels, bool preview, out ImageSource? icon) =>
-        Cache.TryGetValue(Key(path, pixels, preview, out _), out icon);
+    /// <summary>Önbellekte varsa simgeyi verir. Diske dokunmaz: klasör mü olduğunu çağıran bilir (anlık görüntüden).</summary>
+    public static bool TryCached(string path, int pixels, bool preview, bool isDirectory, out ImageSource? icon) =>
+        Cache.TryGetValue(Key(path, pixels, preview, isDirectory), out icon);
 
     private static readonly HashSet<string> Previewable = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -49,12 +53,15 @@ public static class ShellIcons
     public static bool CanPreview(string path)
     {
         if (!Previewable.Contains(Path.GetExtension(path))) return false;
-        try
-        {
-            const FileAttributes Cloud = (FileAttributes)0x1000 | (FileAttributes)0x40000 | (FileAttributes)0x400000;
-            return (File.GetAttributes(path) & Cloud) == 0;
-        }
+        try { return CanPreview(path, File.GetAttributes(path)); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>Öznitelikleri zaten bilinen dosya için (diske dokunmaz).</summary>
+    public static bool CanPreview(string path, FileAttributes attributes)
+    {
+        const FileAttributes Cloud = (FileAttributes)0x1000 | (FileAttributes)0x40000 | (FileAttributes)0x400000;
+        return Previewable.Contains(Path.GetExtension(path)) && (attributes & (Cloud | FileAttributes.Directory)) == 0;
     }
 
     private static readonly BlockingCollection<(string Path, int Pixels, bool Preview, Action<ImageSource?> Done, Dispatcher Dispatcher)> Queue = new();
@@ -81,7 +88,8 @@ public static class ShellIcons
                 foreach (var (path, pixels, preview, done, dispatcher) in Queue.GetConsumingEnumerable())
                 {
                     ImageSource? icon = null;
-                    try { icon = For(path, pixels, preview); }
+                    // "::{CLSID}" kabuk nesneleri (Geri Dönüşüm Kutusu…) de burada yüklenir: arayüzde yavaş sürücüyü beklemesin.
+                    try { icon = path.StartsWith("::", StringComparison.Ordinal) ? ForShellObject(path) : For(path, pixels, preview); }
                     catch (Exception ex) { DebugLog.Write($"simge yüklenemedi {path}: {ex.Message}"); }
                     dispatcher.BeginInvoke(done, DispatcherPriority.Background, icon);
                 }
@@ -202,6 +210,10 @@ public static class ShellIcons
     /// <summary>"::{CLSID}" gibi kabuk nesnelerinin (Bu Bilgisayar, Geri Dönüşüm Kutusu…) simgesi.</summary>
     public static ImageSource? ForShellObject(string parsingName) =>
         Cache.GetOrAdd("shell|" + parsingName, _ => LoadFromPidl(parsingName));
+
+    /// <summary>Kabuk nesnesinin simgesi önbellekte varsa verir (yoksa <see cref="Request"/> ile arka planda yüklenir).</summary>
+    public static bool TryCachedShellObject(string parsingName, out ImageSource? icon) =>
+        Cache.TryGetValue("shell|" + parsingName, out icon);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHParseDisplayName(string name, IntPtr bindingContext, out IntPtr pidl, uint sfgaoIn, out uint sfgaoOut);

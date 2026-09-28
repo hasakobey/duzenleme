@@ -29,6 +29,8 @@ public sealed class TempDesktop : IDisposable
 
     public void Dispose()
     {
+        // Geçmişin bekleyen yazması silinen klasörü yeniden oluşturmasın.
+        Journal.Dispose();
         try { Directory.Delete(Root, recursive: true); } catch (IOException) { }
     }
 }

@@ -9,19 +9,30 @@ public static class DesktopItems
     public static bool IsShortcut(string path) =>
         Path.GetExtension(path).ToLowerInvariant() is ".lnk" or ".url" or ".appref-ms" or ".exe";
 
-    public static bool Matches(DesktopFilter filter, FileSystemInfo item)
+    public static bool Matches(DesktopFilter filter, FileSystemInfo item) =>
+        Matches(filter, item.Name, item is DirectoryInfo, item.Attributes);
+
+    /// <summary>Masaüstü anlık görüntüsündeki kayıt için (diske yeniden bakmadan).</summary>
+    public static bool Matches(DesktopFilter filter, DirEntry entry) =>
+        Matches(filter, entry.Name, entry.IsDirectory, entry.Attributes);
+
+    public static bool Matches(DesktopFilter filter, string name, bool isDirectory, FileAttributes attributes)
     {
-        if ((item.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0) return false;
-        if (item.Name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) return false;
+        if ((attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0) return false;
+        if (name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase)) return false;
         return filter switch
         {
             DesktopFilter.All => true,
-            DesktopFilter.Folders => item is DirectoryInfo,
-            DesktopFilter.Shortcuts => item is FileInfo && IsShortcut(item.Name),
-            DesktopFilter.Files => item is FileInfo && !IsShortcut(item.Name),
+            DesktopFilter.Folders => isDirectory,
+            DesktopFilter.Shortcuts => !isDirectory && IsShortcut(name),
+            DesktopFilter.Files => !isDirectory && !IsShortcut(name),
             _ => false,
         };
     }
+
+    /// <summary>Tarayıcının/indiricinin henüz bitmemiş dosyası (adı bitince değişir): izlemede olayları gürültü sayılır.</summary>
+    public static bool IsPartialDownload(string? name) =>
+        name is not null && Path.GetExtension(name).ToLowerInvariant() is ".crdownload" or ".part" or ".partial" or ".download" or ".opdownload";
 
     public static string Label(DesktopFilter filter) => filter switch
     {

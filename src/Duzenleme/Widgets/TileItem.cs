@@ -10,15 +10,33 @@ namespace Duzenleme.Widgets;
 
 /// <summary>
 /// Bölme ve kısayol kutusundaki bir öğe; simge boyutu ve görünüm moduna göre yerleşimini taşır.
-/// Simge önbellekte yoksa arka planda yüklenir ve gelince görünür (büyük klasörlerde arayüz donmasın).
+/// Öğe diske bakmaz: bölmede bilgiler masaüstü anlık görüntüsünden gelir, kısayol kutusunda yol arka planda denetlenir
+/// (<see cref="PathProbe"/>). Simge önbellekte yoksa arka planda yüklenir ve gelince görünür (arayüz donmasın).
 /// </summary>
 public sealed class TileItem : INotifyPropertyChanged
 {
     private ImageSource? _icon;
+    private bool _missing;
 
     public required string Name { get; init; }
     public required string Path { get; init; }
-    public bool Missing { get; init; }
+
+    /// <summary>Klasör mü? (Bilinmiyorsa false; kısayol kutusunda denetim bitince güncellenir.)</summary>
+    public bool IsDirectory { get; private set; }
+
+    /// <summary>Yol bulunamadı ya da (ağ yolu) şu an ulaşılamıyor: öğe soluk görünür ve tek tıkla açılmaz.</summary>
+    public bool Missing
+    {
+        get => _missing;
+        private set
+        {
+            if (_missing == value) return;
+            _missing = value;
+            Raise(nameof(Missing));
+            Raise(nameof(Dim));
+            Raise(nameof(Tooltip));
+        }
+    }
 
     public ImageSource? Icon
     {
@@ -26,11 +44,13 @@ public sealed class TileItem : INotifyPropertyChanged
         private set
         {
             _icon = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Icon)));
+            Raise(nameof(Icon));
         }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
     public double IconPx { get; init; }
     public double TileWidth { get; init; }
@@ -64,19 +84,49 @@ public sealed class TileItem : INotifyPropertyChanged
         IconSize.Small => 24, IconSize.Large => 48, IconSize.ExtraLarge => 64, _ => 36,
     };
 
-    public static TileItem Create(string path, WidgetConfig config, string? name = null)
+    /// <summary>
+    /// Durumu zaten bilinen (anlık görüntüden gelen, var olan) öğe: diske hiç dokunulmadan kurulur, simgesi istenir.
+    /// </summary>
+    public static TileItem Create(string path, WidgetConfig config, bool isDirectory, FileAttributes attributes, string? name = null)
     {
+        var item = Shell(path, config, name);
+        item.ApplyState(new PathState(true, isDirectory, attributes), config);
+        return item;
+    }
+
+    /// <summary>
+    /// Kısayol kutusundaki gibi durumu bilinmeyen yol: öğe hemen gösterilir, var mı/klasör mü arka planda (ağ yollarında
+    /// süre sınırıyla) öğrenilir; sonuç gelince soluklaşır ya da simgesi yüklenir. Arayüz iş parçacığı diske bakmaz.
+    /// </summary>
+    public static TileItem CreateUnchecked(string path, WidgetConfig config, string? name = null)
+    {
+        var item = Shell(path, config, name);
         var native = NativePath(path);
-        var exists = File.Exists(native) || Directory.Exists(native);
+        if (PathProbe.Shared.TryGetCached(native, out var known))
+        {
+            item.ApplyState(known, config);
+            return item;
+        }
+        var dispatcher = Application.Current?.Dispatcher;
+        PathProbe.Shared.CheckAsync(native).ContinueWith(t =>
+        {
+            var state = t.IsCompletedSuccessfully ? t.Result : null;
+            dispatcher?.BeginInvoke(() => item.ApplyState(state, config), System.Windows.Threading.DispatcherPriority.Background);
+        }, TaskScheduler.Default);
+        return item;
+    }
+
+    /// <summary>Yerleşimi kurar (simgesiz, durumsuz).</summary>
+    private static TileItem Shell(string path, WidgetConfig config, string? name)
+    {
         var list = config.View == ItemView.List;
         var px = list ? Math.Min(IconPixels(config.IconSize), 32) : IconPixels(config.IconSize);
         var font = config.LabelSize switch { LabelSize.Small => 10.5, LabelSize.Large => 13, _ => 11.5 };
         var labels = !config.HideLabels;
-        var item = new TileItem
+        return new TileItem
         {
             Name = name ?? DisplayName(path),
             Path = path,
-            Missing = !exists,
             IconPx = px,
             TileWidth = list ? double.NaN : labels ? px + Math.Max(40, font * 4) : px + 4,
             Orientation = list ? Orientation.Horizontal : Orientation.Vertical,
@@ -94,20 +144,29 @@ public sealed class TileItem : INotifyPropertyChanged
                 _ => list ? new Thickness(6, 4, 6, 4) : new Thickness(6, 7, 6, 6),
             },
         };
-        // Yüksek DPI'da da keskin kalsın diye simge iki katı çözünürlükte istenir.
-        if (exists)
+    }
+
+    /// <summary>Yolun durumu öğrenildi (null: ulaşılamıyor): soluk gösterir ya da simgesini ister.</summary>
+    private void ApplyState(PathState? state, WidgetConfig config)
+    {
+        if (state is not { Exists: true } known)
         {
-            var pixels = (int)px * 2;
-            var preview = config.ShowPreviews && File.Exists(native) && ShellIcons.CanPreview(native);
-            if (ShellIcons.TryCached(native, pixels, preview, out var cached)) item.Icon = cached;
-            else
-            {
-                // Önizleme gelene kadar (varsa) türün simgesi görünsün.
-                if (preview && ShellIcons.TryCached(native, pixels, false, out var typeIcon)) item.Icon = typeIcon;
-                ShellIcons.Request(native, pixels, preview, icon => item.Icon = icon ?? item.Icon);
-            }
+            Missing = true;
+            return;
         }
-        return item;
+        Missing = false;
+        IsDirectory = known.IsDirectory;
+        // Yüksek DPI'da da keskin kalsın diye simge iki katı çözünürlükte istenir.
+        var native = NativePath(Path);
+        var pixels = (int)IconPx * 2;
+        var preview = config.ShowPreviews && !known.IsDirectory && ShellIcons.CanPreview(native, known.Attributes);
+        if (ShellIcons.TryCached(native, pixels, preview, known.IsDirectory, out var cached)) Icon = cached;
+        else
+        {
+            // Önizleme gelene kadar (varsa) türün simgesi görünsün.
+            if (preview && ShellIcons.TryCached(native, pixels, false, known.IsDirectory, out var typeIcon)) Icon = typeIcon;
+            ShellIcons.Request(native, pixels, preview, icon => Icon = icon ?? Icon);
+        }
     }
 
     /// <summary>Simge paneli: ızgara ya da liste; ızgarada satırlar sola, ortaya ya da sağa yaslanır.</summary>
@@ -122,21 +181,16 @@ public sealed class TileItem : INotifyPropertyChanged
         return new ItemsPanelTemplate(panel);
     }
 
-    /// <summary>Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesnesi ("::{CLSID}") kutucuğu.</summary>
+    /// <summary>Paneli belirleyen ayarlar (değişmedikçe panel yeniden kurulmaz: bütün kutucuklar yeniden üretilirdi).</summary>
+    public static string PanelKey(WidgetConfig config) => $"{config.View}|{config.Align}";
+
+    /// <summary>Bu Bilgisayar, Geri Dönüşüm Kutusu gibi kabuk nesnesi ("::{CLSID}") kutucuğu; simgesi arka planda yüklenir.</summary>
     public static TileItem CreateShell(Desktop.SystemIcon icon, WidgetConfig config)
     {
-        var template = Create("::" + icon.Clsid, config, icon.Name);
-        var item = new TileItem
-        {
-            Name = icon.Name,
-            Path = "::" + icon.Clsid,
-            Missing = false,
-            IconPx = template.IconPx, TileWidth = template.TileWidth, Orientation = template.Orientation,
-            IconAlign = template.IconAlign, TextAlign = template.TextAlign, Wrap = template.Wrap,
-            TextMargin = template.TextMargin, TextMaxHeight = template.TextMaxHeight, LabelFont = template.LabelFont,
-            LabelVisibility = template.LabelVisibility, Pad = template.Pad,
-        };
-        item.Icon = ShellIcons.ForShellObject("::" + icon.Clsid);
+        var path = "::" + icon.Clsid;
+        var item = Shell(path, config, icon.Name);
+        if (ShellIcons.TryCachedShellObject(path, out var cached)) item.Icon = cached;
+        else ShellIcons.Request(path, 0, false, loaded => item.Icon = loaded);
         return item;
     }
 
@@ -189,10 +243,14 @@ public sealed class TileItem : INotifyPropertyChanged
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool AllowSetForegroundWindow(int processId);
 
+    /// <summary>Öğeyi Gezgin'de seçili gösterir. Yolun varlığı arka planda denetlenir (ulaşılamayan ağ yolu beklenmez).</summary>
     public static void Reveal(string path)
     {
-        if (!File.Exists(path) && !Directory.Exists(path)) return;
         AllowSetForegroundWindow(-1);
-        Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
+        Task.Run(() =>
+        {
+            if (!File.Exists(path) && !Directory.Exists(path)) return;
+            Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
+        });
     }
 }

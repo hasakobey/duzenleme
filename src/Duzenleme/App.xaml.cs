@@ -71,8 +71,9 @@ public partial class App : Application
         // Store (MSIX) sürümü: başlangıç görevi exe'yi argümansız açar; --minimized gibi tepside sessizce başlasın.
         if (e.Args.Length == 0 && PackageInfo.LaunchedByStartupTask()) args = args with { Minimized = true };
 
-        // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir.
-        var id = AppInfo.InstanceIdPrefix + Environment.UserName + (args.Desktop is null ? "" : ".test");
+        // Tek örnek: ikinci açılış ilk örneğin penceresini öne getirir. Test örnekleri (--desktop) test masaüstü başına
+        // ayrıdır: aynı anda birden çok test klasörü denenebilir, "--desktop <aynı> --exit" doğru örneği kapatır.
+        var id = AppInfo.InstanceIdPrefix + Environment.UserName + (args.Desktop is null ? "" : ".test." + TestInstanceKey(args.Desktop));
 
         // Kurulum/kaldırma programı için: çalışan örneği düzgünce kapat (masaüstü simgeleri geri açılır) ve kapanmasını bekle.
         if (args.Exit)
@@ -126,7 +127,25 @@ public partial class App : Application
         ThreadPool.RegisterWaitForSingleObject(_exitSignal, (_, _) => Dispatcher.BeginInvoke(ExitApp), null, -1, true);
 
         DispatcherUnhandledException += OnUnhandledException;
-        SessionEnding += (_, _) => AppHost.RestoreDesktopOnExit();
+        // Başka iş parçacığındaki yakalanmamış hata süreci sonlandırır: simgeler gizli, ayarlar yazılmamış kalmasın.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            DebugLog.Write("CRASH " + e.ExceptionObject);
+            AppHost.OnCrash(e.IsTerminating);
+        };
+        // Gözlenmemiş görev hatası süreci sonlandırmaz (.NET): yalnızca günlüğe yazılır, ayarlar arayüz iş parçacığında diske indirilir.
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            DebugLog.Write("UNOBSERVED " + e.Exception);
+            e.SetObserved();
+            Dispatcher.BeginInvoke(() => AppHost.SaveSettingsNow());
+        };
+        // Oturum kapanırken süreç Exit'e varmadan sonlandırılabilir: simgeler ve bekleyen kayıtlar şimdi.
+        SessionEnding += (_, _) =>
+        {
+            AppHost.RestoreDesktopOnExit();
+            AppHost.FlushAll();
+        };
 
         try
         {
@@ -178,15 +197,12 @@ public partial class App : Application
             if (AppHost.Settings.SuggestFolderIcons && !quiet) AppHost.Tray?.SuggestFolderIcon(folder);
         }));
         AppHost.Watcher.Start();
-        if (!AppHost.Settings.Paused) AppHost.OrganizeNowInBackground();
-        // Eski sürümün mutlak yollu klasör simgelerini onar; arka planda, başlangıcı geciktirmeden ve düşürmeden.
-        var desktop = AppHost.DesktopDirectory;
-        Task.Run(() =>
-        {
-            try { Icons.FolderIconService.RepairDesktopFolders(desktop); }
-            catch (Exception ex) { DebugLog.Write($"klasör simgesi onarımı: {ex}"); }
-        });
+        // İlk masaüstü taraması (otomatik taşıma açıksa) ve klasör simgesi onarımı: widget'lar göründükten sonra, düşük
+        // disk önceliğiyle; Windows ile başlarken oturum açılışıyla yarışmasın diye daha geç.
+        AppHost.StartDeferredWork(autostart: args.Minimized);
         MigrateFromLegacyNameInBackground();
+        if (PerfLog.Enabled)
+            PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms");
 
         _started = true;
         if (args.Add) Dispatcher.BeginInvoke(ShowQuickAdd, DispatcherPriority.ApplicationIdle);
@@ -316,20 +332,42 @@ public partial class App : Application
         ExitApp();
     }
 
+    // Bazı sistemler/programlar WM_SETTINGCHANGE'i sık yayınlar: tema yarım saniyelik sessizlikten sonra ve yalnızca
+    // gerçekten değiştiyse yeniden uygulanır (her yayında bütün pencereler yeniden boyanmasın).
+    private DispatcherTimer? _themeDelay;
+    private static (ApplicationTheme Theme, bool HighContrast)? _appliedTheme;
+
     private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is UserPreferenceCategory.General or UserPreferenceCategory.Color
             or UserPreferenceCategory.VisualStyle or UserPreferenceCategory.Accessibility)
-            Dispatcher.BeginInvoke(() => ApplyTheme(AppHost.Settings.Theme));
+            Dispatcher.BeginInvoke(QueueThemeCheck);
     }
 
     private void OnSystemParameterChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SystemParameters.HighContrast))
-            Dispatcher.BeginInvoke(() => ApplyTheme(AppHost.Settings.Theme));
+            Dispatcher.BeginInvoke(QueueThemeCheck);
     }
 
-    public static void ApplyTheme(AppTheme theme)
+    private void QueueThemeCheck()
+    {
+        if (_themeDelay is null)
+        {
+            _themeDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _themeDelay.Tick += (_, _) =>
+            {
+                _themeDelay.Stop();
+                if (!_exiting) ApplyTheme(AppHost.Settings.Theme, onlyIfChanged: true);
+            };
+        }
+        _themeDelay.Stop();
+        _themeDelay.Start();
+    }
+
+    public static void ApplyTheme(AppTheme theme) => ApplyTheme(theme, onlyIfChanged: false);
+
+    private static void ApplyTheme(AppTheme theme, bool onlyIfChanged)
     {
         // WPF-UI temayı Application.MainWindow'a uygular; bu bir widget olursa saydam zemini opaklaşır.
         if (Current.MainWindow is Widgets.WidgetWindow) Current.MainWindow = null;
@@ -343,6 +381,8 @@ public partial class App : Application
             // Windows 11'in "Sunrise", "Flow" gibi açık temaları da açık sayılsın.
             _ => system is SystemTheme.Dark or SystemTheme.Glow or SystemTheme.CapturedMotion ? ApplicationTheme.Dark : ApplicationTheme.Light,
         };
+        if (onlyIfChanged && _appliedTheme == (resolved, highContrast)) return;
+        _appliedTheme = (resolved, highContrast);
         var backdrop = highContrast ? WindowBackdropType.None : WindowBackdropType.Mica;
         ApplicationThemeManager.Apply(resolved, backdrop, updateAccent: false);
         if (!highContrast) ApplicationAccentColorManager.Apply(Brand, resolved);
@@ -430,11 +470,14 @@ public partial class App : Application
             AppHost.Hotkeys?.Dispose();
             AppHost.Watcher?.Dispose();
             AppHost.Widgets?.CloseAll();
+            AppHost.Snapshots?.Dispose();
             AppHost.Tray?.Dispose();
             _mainWindow?.CloseForReal();
         }
         finally
         {
+            // Kapanan widget'ların son hâli (notun son yazılanları) ve bekleyen kayıtlar diske insin.
+            AppHost.FlushAll();
             // Temizlikte bir şey ters gitse de süreç kapanmalı (kurulum programı --exit ile bekliyor olabilir).
             Shutdown();
         }
@@ -442,6 +485,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Başka bir yoldan kapanıyorsa (ör. Shutdown) bekleyen kayıtlar kaybolmasın; temizse bir şey yazmaz.
+        AppHost.FlushAll();
         // --exit ile bekleyen kurulum programı hemen devam edebilsin.
         try { _instanceMutex?.ReleaseMutex(); }
         catch (ApplicationException) { }
@@ -455,8 +500,20 @@ public partial class App : Application
     {
         // Tek bir hata tüm uygulamayı (ve masaüstü izlemeyi) kapatmasın.
         DebugLog.Write("UNHANDLED " + e.Exception);
+        // Kullanıcı kutuyu kapatmadan süreci sonlandırabilir: o ana dek yapılanlar diske insin.
+        AppHost.SaveSettingsNow();
         System.Windows.MessageBox.Show(e.Exception.Message, $"{AppInfo.Name} — beklenmeyen hata", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         e.Handled = true;
+    }
+
+    /// <summary>Test masaüstü klasörünün kalıcı kısa anahtarı (string.GetHashCode süreçten sürece değişir).</summary>
+    private static string TestInstanceKey(string desktop)
+    {
+        string full;
+        try { full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(desktop)); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { full = desktop; }
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(full.ToUpperInvariant()));
+        return Convert.ToHexString(hash, 0, 6);
     }
 
     private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool RestoreDesktop,

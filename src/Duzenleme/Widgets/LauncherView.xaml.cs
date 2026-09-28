@@ -69,11 +69,19 @@ public partial class LauncherView : UserControl, IWidgetView
         RenderTabs();
         ApplyParts();
 
-        Items.ItemsPanel = TileItem.Panel(_config);
-        var items = Current.Items.Select(p => TileItem.Create(p, _config)).ToList();
+        if (TileItem.PanelKey(_config) != _panelKey)
+        {
+            _panelKey = TileItem.PanelKey(_config);
+            Items.ItemsPanel = TileItem.Panel(_config);
+        }
+        // Yollar arka planda denetlenir (ağ yolları süre sınırıyla): kapalı bir NAS'taki öğe açılışı ya da sekme
+        // değiştirmeyi bekletmez; sonuç gelince öğe soluklaşır ya da simgesini alır.
+        var items = Current.Items.Select(p => TileItem.CreateUnchecked(p, _config)).ToList();
         Items.ItemsSource = items;
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private string _panelKey = "";
 
     private void RenderTabs()
     {
@@ -99,7 +107,8 @@ public partial class LauncherView : UserControl, IWidgetView
             pill.Click += (_, _) =>
             {
                 _config.ActiveTab = index;
-                AppHost.SaveSettings();
+                // Seçili sekme önemsiz bir durum: her tıklamada diske yazdırmaz, bir sonraki kayıtla gider.
+                AppHost.SaveSettingsLater();
                 Render();
             };
             TabStrip.Items.Add(pill);
@@ -224,9 +233,10 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         DropOverlay.Visibility = Visibility.Collapsed;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+        // Bırakılan yollar Gezgin'den gelir ve vardır; diske burada bakılmaz (öğe arka planda denetlenir).
         Change(() =>
         {
-            foreach (var path in paths.Where(p => File.Exists(p) || Directory.Exists(p)))
+            foreach (var path in paths.Where(p => !string.IsNullOrWhiteSpace(p)))
                 if (!Current.Items.Contains(path, StringComparer.OrdinalIgnoreCase)) Current.Items.Add(path);
         });
     }

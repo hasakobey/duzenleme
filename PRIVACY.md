@@ -47,7 +47,7 @@ Bunların hiçbiri bilgisayarından dışarı gönderilmez.
 ### 3. Uygulamanın bilgisayarında yaptıkları
 
 - **Masaüstü dosyaları:** NestDesk masaüstü klasörünü izler ve senin kurallarına göre dosyaları masaüstündeki klasörlere taşır. Bölmeler masaüstündeki (ve Genel Masaüstü'ndeki) öğeleri listeler. Dosyaların içeriği incelenmez; simgeler ve önizlemeler Windows'un kendi küçük resim hizmetiyle bilgisayarında oluşturulur.
-- **Fare:** Boş masaüstüne çift tıklamayı algılamak için düşük seviyeli bir fare kancası kullanılır. Yalnızca son sol tıklamanın zamanı ve ekrandaki konumu bellekte tutulur; kaydedilmez, gönderilmez. Ayarlar'daki "Boş masaüstüne çift tıklayınca gizle/göster" kapatılınca kanca kaldırılır.
+- **Fare:** Boş masaüstüne çift tıklamayı algılamak için Windows'un ham fare girişi (Raw Input) dinlenir; fare kancası kullanılmaz, uygulama farenin hareketini hiçbir zaman geciktirmez. Yalnızca son sol tıklamanın zamanı ve ekrandaki konumu bellekte tutulur; kaydedilmez, gönderilmez. Ayarlar'daki "Boş masaüstüne çift tıklayınca gizle/göster" kapatılınca dinleme durur.
 - **Klavye:** Klavye kancası kullanılmaz. Kısayollar (ör. `Ctrl+Alt+H`) Windows'un genel kısayol kaydıyla çalışır; uygulama kendi pencereleri dışında klavyeni izlemez.
 
 ### 4. İsteğe bağlı: yapay zekâ ile klasör simgesi (Anthropic)
@@ -144,7 +144,7 @@ None of this ever leaves your PC.
 ### 3. What the app does on your PC
 
 - **Desktop files:** NestDesk watches your desktop folder and moves files into folders on your desktop according to your rules. Fences list the items on your desktop (and the Public Desktop). File contents are not inspected; icons and previews are generated on your PC by Windows' own thumbnail service.
-- **Mouse:** A low-level mouse hook is used to detect a double-click on an empty area of the desktop. Only the time and screen position of the last left click are kept in memory; they are never saved or sent. Turning off "Boş masaüstüne çift tıklayınca gizle/göster" (hide/show on double-click) in Settings removes the hook.
+- **Mouse:** Windows' raw mouse input (Raw Input) is read to detect a double-click on an empty area of the desktop; no mouse hook is used and the app never delays the mouse pointer. Only the time and screen position of the last left click are kept in memory; they are never saved or sent. Turning off "Boş masaüstüne çift tıklayınca gizle/göster" (hide/show on double-click) in Settings stops listening.
 - **Keyboard:** No keyboard hook is used. Shortcuts (e.g. `Ctrl+Alt+H`) are registered with Windows' global hotkey system; the app does not monitor your keyboard outside its own windows.
 
 ### 4. Optional: AI folder icons (Anthropic)

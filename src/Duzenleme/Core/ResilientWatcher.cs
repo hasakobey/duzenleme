@@ -13,7 +13,7 @@ public sealed class ResilientWatcher : IDisposable
 
     private readonly string _path;
     private readonly NotifyFilters _filter;
-    private readonly Action<string> _onChange;
+    private readonly Action<FileSystemEventArgs> _onChange;
     private readonly Action? _onOverflow;
     private readonly Action? _onRecovered;
     private readonly object _lock = new();
@@ -32,7 +32,19 @@ public sealed class ResilientWatcher : IDisposable
     }
 
     public ResilientWatcher(string path, NotifyFilters filter, Action<string> onChange, Action? onOverflow = null, Action? onRecovered = null)
+        : this(path, filter, (FileSystemEventArgs e) => onChange(e.FullPath), onOverflow, onRecovered, rich: true)
     {
+    }
+
+    /// <summary>Olayın türünü (oluşturma, silme, yeniden adlandırmada eski ad) de isteyenler için.</summary>
+    public static ResilientWatcher ForEvents(string path, NotifyFilters filter, Action<FileSystemEventArgs> onChange,
+        Action? onOverflow = null, Action? onRecovered = null) =>
+        new(path, filter, onChange, onOverflow, onRecovered, rich: true);
+
+    // "rich" yalnızca iki kurucuyu ayırır: ortak kurucu Action<string> alan genel kurucuyla karışmasın (lambda belirsizliği).
+    private ResilientWatcher(string path, NotifyFilters filter, Action<FileSystemEventArgs> onChange, Action? onOverflow, Action? onRecovered, bool rich)
+    {
+        _ = rich;
         _path = path;
         _filter = filter;
         _onChange = onChange;
@@ -53,10 +65,10 @@ public sealed class ResilientWatcher : IDisposable
             {
                 if (!Directory.Exists(_path)) throw new DirectoryNotFoundException(_path);
                 var w = new FileSystemWatcher(_path) { IncludeSubdirectories = false, NotifyFilter = _filter, InternalBufferSize = 64 * 1024 };
-                w.Created += (_, e) => Safe(() => _onChange(e.FullPath));
-                w.Changed += (_, e) => Safe(() => _onChange(e.FullPath));
-                w.Deleted += (_, e) => Safe(() => _onChange(e.FullPath));
-                w.Renamed += (_, e) => Safe(() => _onChange(e.FullPath));
+                w.Created += (_, e) => Safe(() => _onChange(e));
+                w.Changed += (_, e) => Safe(() => _onChange(e));
+                w.Deleted += (_, e) => Safe(() => _onChange(e));
+                w.Renamed += (_, e) => Safe(() => _onChange(e));
                 w.Error += (_, e) => OnError(w, e.GetException());
                 w.EnableRaisingEvents = true;
                 _watcher = w;

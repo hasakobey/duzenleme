@@ -43,6 +43,9 @@ public sealed class DesktopWatcher : IDisposable
     private void Schedule(string path)
     {
         if (_isPaused()) return;
+        // Adından asla taşınmayacağı belli olanlar (yarım indirmeler, kısayollar, desktop.ini, "~$" geçici dosyaları)
+        // için zamanlayıcı bile kurulmaz: indirme sürerken her yazma olayı ucuz kalır.
+        if (RuleEngine.IsIgnored(Path.GetFileName(path), FileAttributes.Normal)) return;
         var entry = _pending.GetOrAdd(path, p => (new Timer(Fire, p, Timeout.Infinite, Timeout.Infinite), DateTime.UtcNow));
         entry.Timer.Change(Debounce, Timeout.InfiniteTimeSpan);
     }
@@ -55,7 +58,8 @@ public sealed class DesktopWatcher : IDisposable
         {
             if (!_pending.TryGetValue(path, out var entry)) return;
 
-            if (!File.Exists(path) || _isPaused())
+            // Önce kural: kurala uymayan (ya da geri alınmış) dosya, yazılıyor mu diye özel kilitle hiç açılmaz.
+            if (_isPaused() || !_organizer.WouldMove(path))
             {
                 Forget(path);
                 return;

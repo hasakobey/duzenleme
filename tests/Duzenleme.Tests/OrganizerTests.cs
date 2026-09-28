@@ -127,6 +127,8 @@ public class OrganizerTests
         using var t = new TempDesktop();
         t.Folder("PDF");
         t.Organizer.Organize(t.File("a.pdf"));
+        // Yeni kayıtlar toplanıp kısa süre sonra yazılır; çıkışta olduğu gibi hemen diske indirilir.
+        Assert.True(t.Journal.Flush());
 
         var reloaded = new MoveJournal(Path.Combine(t.Root, "journal.json"));
 

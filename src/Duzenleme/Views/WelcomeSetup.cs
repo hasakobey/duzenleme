@@ -54,7 +54,11 @@ internal static class WelcomeSetup
                 var path = Path.Combine(AppHost.DesktopDirectory, name);
                 // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın.
                 AppHost.MarkQuietFolder(path);
-                try { Directory.CreateDirectory(path); }
+                try
+                {
+                    Directory.CreateDirectory(path);
+                    AppHost.NoteFolderCreated(path);
+                }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
                 {
                     AppHost.ConsumeQuietFolder(path);

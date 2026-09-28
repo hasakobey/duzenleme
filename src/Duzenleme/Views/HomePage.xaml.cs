@@ -33,8 +33,6 @@ public partial class HomePage : Page
         Tagline.Text = AppInfo.Tagline;
         Loaded += (_, _) =>
         {
-            AppHost.SettingsChanged += RefreshCard;
-            AppHost.Journal.Changed += OnJournalChanged;
             Hello.Text = Widgets.ClockView.Greeting(DateTime.Now.Hour);
             Refresh();
             if (_firstLoad.IsRunning)
@@ -43,11 +41,23 @@ public partial class HomePage : Page
                 DebugLog.Write($"ana sayfa hazır: {_firstLoad.ElapsedMilliseconds} ms");
             }
         };
-        Unloaded += (_, _) =>
-        {
-            AppHost.SettingsChanged -= RefreshCard;
-            AppHost.Journal.Changed -= OnJournalChanged;
-        };
+        // Ana pencere gizliyken (kapatınca tepsiye iner) sayfa kayıtlara ve taşımalara tepki vermez; açılınca bir kez yenilenir.
+        PageLife.WhileShown(this,
+            attach: () =>
+            {
+                AppHost.SettingsChanged += RefreshCard;
+                AppHost.Journal.Changed += OnJournalChanged;
+            },
+            detach: () =>
+            {
+                AppHost.SettingsChanged -= RefreshCard;
+                AppHost.Journal.Changed -= OnJournalChanged;
+            },
+            refresh: () =>
+            {
+                Hello.Text = Widgets.ClockView.Greeting(DateTime.Now.Hour);
+                Refresh();
+            });
     }
 
     private static Brush Frozen(Brush brush)

@@ -50,15 +50,53 @@ public sealed class WidgetManager
     private void OnDisplayChanged(object? sender, EventArgs e) =>
         Application.Current?.Dispatcher.BeginInvoke(() => { _displaySettle.Stop(); _displaySettle.Start(); });
 
+    private int _restoreGeneration;
+
+    /// <summary>Açılışta (ya da düzen uygulanınca) widget'lar sırayla açılıyor mu?</summary>
+    public bool Restoring { get; private set; }
+
+    /// <summary>
+    /// Kayıtlı widget'ları açar. Hepsi tek seferde değil, her biri ayrı bir iş dağıtıcı turunda (Background önceliğinde)
+    /// açılır: ilk widget hemen çizilir, tepsi ve fare arada yanıt verir; zayıf bilgisayarda açılış donmuş görünmez.
+    /// Öndeki widget önce açılır (her yeni pencere en alta indiği için sıra kendiliğinden doğru kurulur).
+    /// </summary>
     public void RestoreAll()
     {
-        foreach (var config in AppHost.Settings.Widgets.ToList()) TryOpen(config);
-        ApplyZOrder();
+        var generation = ++_restoreGeneration;
+        var queue = new Queue<WidgetConfig>(AppHost.Settings.Widgets.OrderByDescending(w => w.Z));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Restoring = queue.Count > 0;
+
+        void OpenNext()
+        {
+            // Arada yeni bir düzen uygulandıysa ya da kapanıyorsa eski sıra bırakılır.
+            if (generation != _restoreGeneration || _shuttingDown) return;
+            while (queue.Count > 0)
+            {
+                var config = queue.Dequeue();
+                // Arada kaldırılmış ya da zaten açılmış (ör. "geri getir") widget atlanır.
+                if (!AppHost.Settings.Widgets.Contains(config) || _open.ContainsKey(config.Id)) continue;
+                TryOpen(config);
+                break;
+            }
+            if (queue.Count > 0)
+            {
+                Application.Current.Dispatcher.BeginInvoke(OpenNext, DispatcherPriority.Background);
+                return;
+            }
+            Restoring = false;
+            ApplyZOrder();
+            PerfLog.Write($"widget'lar açıldı: {_open.Count} widget, {clock.ElapsedMilliseconds} ms");
+            Changed?.Invoke();
+        }
+
+        OpenNext();
     }
 
     /// <summary>
     /// Widget'ı diğer widget'ların önüne alır; yine masaüstü katmanında (açık pencerelerin arkasında) kalır.
-    /// Tıklanan, taşınan ya da yeni eklenen widget başka bir widget'ın altında kaybolmasın.
+    /// Tıklanan, taşınan ya da yeni eklenen widget başka bir widget'ın altında kaybolmasın. Her tıklamada çağrıldığı için
+    /// sıra diske hemen yazılmaz: bir sonraki kayıtla birlikte gider (<see cref="AppHost.SaveSettingsLater"/>).
     /// </summary>
     public void BringToFront(WidgetWindow window)
     {
@@ -66,9 +104,16 @@ public sealed class WidgetManager
         if (window.Config.Z <= top)
         {
             window.Config.Z = Math.Max(top + 1, DateTime.UtcNow.Ticks);
-            AppHost.SaveSettings();
+            AppHost.SaveSettingsLater();
         }
         ApplyZOrder();
+    }
+
+    /// <summary>Masaüstü sistem simgeleri (Bu Bilgisayar, Geri Dönüşüm Kutusu…) açılıp kapandı: bunları gösteren bölmeler güncellensin.</summary>
+    public void RefreshSystemIcons()
+    {
+        foreach (var window in _open.Values)
+            if (window.View is FenceView fence) fence.RefreshSystemIcons();
     }
 
     /// <summary>
@@ -103,7 +148,7 @@ public sealed class WidgetManager
     /// </summary>
     public List<(string Name, bool Exists)> FolderFenceChoices()
     {
-        var existing = AppHost.Organizer.ExistingFolders().ToList();
+        var existing = AppHost.DesktopFolders();
         var names = new List<string>();
         foreach (var rule in AppHost.Settings.Rules.Where(r => r.Enabled))
             if (!names.Any(n => FolderName.Equal(n, rule.TargetFolder)))
@@ -119,7 +164,7 @@ public sealed class WidgetManager
     /// </summary>
     public WidgetConfig? AddFolderFence(string name)
     {
-        if (!AppHost.Organizer.ExistingFolders().Any(f => FolderName.Equal(f, name)))
+        if (!AppHost.DesktopFolders().Any(f => FolderName.Equal(f, name)))
         {
             var path = System.IO.Path.Combine(AppHost.DesktopDirectory, name);
             // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın; otomatik taşıma kapalıysa dosya da taşınmasın.
@@ -131,6 +176,7 @@ public sealed class WidgetManager
                 MessageBox.Show(ex.Message, AppInfo.Name);
                 return null;
             }
+            AppHost.NoteFolderCreated(path);
             AppHost.OrganizeIfActive();
         }
         return Add(WidgetKind.Fence, name);
@@ -147,7 +193,7 @@ public sealed class WidgetManager
     /// </summary>
     internal int AddStarterFences(NativeMethods.POINT? near = null)
     {
-        var plan = StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, AppHost.Organizer.ExistingFolders());
+        var plan = StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, AppHost.DesktopFolders());
         foreach (var fence in plan)
         {
             if (near is { } point) PlacementHint = point;
