@@ -44,6 +44,12 @@ public partial class ClockView : UserControl, IWidgetView
 
     public bool Resizable => false;
 
+    /// <summary>
+    /// Kaldırma düğmesi (×) negatif kenar boşluğuyla kartın dolgusuna taşar. Yerleşim yuvarlaması (UseLayoutRounding)
+    /// görünüme istediğinden bir pikselden az dar yer verince WPF görünümü kendi sınırına kırpar ve × yarım görünürdü.
+    /// </summary>
+    protected override Geometry? GetLayoutClip(Size layoutSlotSize) => ClipToBounds ? base.GetLayoutClip(layoutSlotSize) : null;
+
     private void Update()
     {
         var now = DateTime.Now;

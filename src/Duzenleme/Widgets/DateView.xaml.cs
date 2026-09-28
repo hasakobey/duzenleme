@@ -30,6 +30,12 @@ public partial class DateView : UserControl, IWidgetView
 
     public bool Resizable => false;
 
+    /// <summary>
+    /// Kaldırma düğmesi (×) negatif kenar boşluğuyla kartın dolgusuna taşar. Yerleşim yuvarlaması (UseLayoutRounding)
+    /// görünüme istediğinden bir pikselden az dar yer verince WPF görünümü kendi sınırına kırpar ve × yarım görünürdü.
+    /// </summary>
+    protected override Geometry? GetLayoutClip(Size layoutSlotSize) => ClipToBounds ? base.GetLayoutClip(layoutSlotSize) : null;
+
     /// <summary>Örn. "26 Eylül 2026, Cumartesi".</summary>
     public static string LongDate(DateTime date) =>
         $"{date.Day} {date.ToString("MMMM", Culture)} {date.Year}, {date.ToString("dddd", Culture)}";
