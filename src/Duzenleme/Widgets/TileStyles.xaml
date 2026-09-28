@@ -123,6 +123,84 @@
     </Style>
 
     <!--
+        Başlık simgesi (bölme, kutu). Normalde tıklanmaz (IsHitTestVisible=False): başlıktan sürükleme bozulmasın. Başlık
+        yerinde düzenlenirken (yeni eklenen widget, F2) düğme olur ve simge seçiciyi açar; görünümü kodda verilir
+        (TitleEditor), fareyle belirip kaybolan bir şey yoktur. Negatif kenar boşluğu dolgu ve kenarlığı dengeler: simge
+        eski yerinde, başlığın yerleşimi aynı. UI Automation "Invoke" her zaman seçiciyi açar.
+    -->
+    <Style x:Key="HeaderIconButton" TargetType="Button">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="Margin" Value="-4,-4,6,-4" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="AutomationProperties.Name" Value="{l:T 'Simgeyi değiştir'}" />
+        <Setter Property="AutomationProperties.AutomationId" Value="Widget.IconButton" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border CornerRadius="6" BorderThickness="1" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Başlığın yerinde düzenlenmesi (F2, yeni eklenen widget): başlıkla aynı yazı, kenarlıklı kutunun içinde (kenarlık
+        kodda, vurgu renginde). Uzun başlıkta imleç görünür kalsın diye içerik yatay kayar (çubuk görünmez).
+    -->
+    <Style x:Key="TitleEditorBox" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SpellCheck.IsEnabled" Value="False" />
+        <Setter Property="AcceptsReturn" Value="False" />
+        <Setter Property="AcceptsTab" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Grid Background="Transparent">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Padding="0"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Kutucuğun adını yerinde düzenleme (F2): Gezgin'deki gibi kenarlıklı, opak kutu; simge görünümünde kutucuk genişliğinde
+        alt satıra geçer. Renkler kodda (TileRename) görünümün paletinden verilir.
+    -->
+    <Style x:Key="TileRenameBox" TargetType="TextBox">
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="2,1" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SpellCheck.IsEnabled" Value="False" />
+        <Setter Property="AcceptsReturn" Value="False" />
+        <Setter Property="AcceptsTab" Value="False" />
+        <Setter Property="AutomationProperties.AutomationId" Value="Tile.RenameBox" />
+        <Setter Property="AutomationProperties.Name" Value="{l:T 'Yeni ad'}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border CornerRadius="4" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Padding="0"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
         Yapılacaklar onay kutusu: 16×16, yuvarlatılmış köşe, 1,5 px kenar. Renkler kodda verilir:
         Foreground = kenar, Tag = işaretliyken zemin ve kenar (vurgu rengi), Background = işaretliyken ✓ rengi.
         Geçiş animasyonu yok: işaret tıklanınca anında görünür.

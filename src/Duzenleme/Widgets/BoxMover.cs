@@ -341,6 +341,7 @@ internal static class BoxMover
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (from, to) in changes) map[from] = to;
         foreach (var box in Launchers())
+        {
             foreach (var tab in box.Tabs)
             {
                 for (var i = 0; i < tab.Items.Count; i++)
@@ -349,6 +350,9 @@ internal static class BoxMover
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 tab.Items.RemoveAll(p => !seen.Add(p));
             }
+            // Öğenin kullanıcı adı ve simgesi yeni yolla gider.
+            foreach (var (from, to) in map) ItemLooks.Move(box, from, to);
+        }
     }
 
     /// <summary>Kuralların ve klasör bölmelerinin kullandığı masaüstü klasörleri: kutuya alınınca taşınmaz.</summary>

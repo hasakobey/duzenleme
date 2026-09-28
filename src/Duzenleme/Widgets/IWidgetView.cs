@@ -44,4 +44,12 @@ public interface IWidgetView
 
     /// <summary>Widget kapanırken zamanlayıcı/izleyici gibi kaynakları bırakır.</summary>
     void Detach();
+
+    /// <summary>
+    /// F2 / "Yeniden adlandır": seçili öğeyi (bölme: dosya ya da klasör, diskte; kutu: yalnızca görünen adı) ya da seçili öğe
+    /// yoksa başlığı yerinde düzenlemeye açar (<see cref="TitleEditor"/>; pencere klavye için etkinleşir). Yeni eklenen widget
+    /// da bununla adlandırılır (<c>WidgetManager.BeginRename</c>). Başladıysa ya da zaten düzenleniyorsa true; başlığı olmayan
+    /// widget (saat, tarih) false.
+    /// </summary>
+    bool TryBeginRename() => false;
 }

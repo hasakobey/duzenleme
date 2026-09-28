@@ -152,7 +152,8 @@ internal sealed class QuickAddWindow : FluentWindow
         var near = Center();
         _closing = true;
         Close();
-        if (WidgetCatalog.Invoke(choice, near, followSetting: true) is { } config &&
+        // Bölme ve kutu başlığı düzenlenir hâlde gelir (ad yazılabilir, simgesi tıklanınca seçici açılır).
+        if (WidgetCatalog.Invoke(choice, near, followSetting: true, renameAfterAdd: true) is { } config &&
             AppHost.Settings.Widgets.Any(w => w.Id == config.Id))
             AppHost.ShowNewWidgetHint(config);
     }

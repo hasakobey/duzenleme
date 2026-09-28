@@ -19,7 +19,15 @@ internal static class HeaderFitter
     /// <param name="title">Genişleyen (*) sütundaki başlık yazısı.</param>
     /// <param name="optional">Gizlenebilecek parçalar, ilk gizlenecek önce.</param>
     /// <param name="fixedParts">Hep yerinde kalan parçalar (kaldırma düğmesi ×).</param>
-    public static void Fit(FrameworkElement header, TextBlock title, IReadOnlyList<UIElement> optional, IReadOnlyList<UIElement> fixedParts)
+    public static void Fit(FrameworkElement header, TextBlock title, IReadOnlyList<UIElement> optional, IReadOnlyList<UIElement> fixedParts) =>
+        Fit(header, NaturalWidth(title), optional, fixedParts);
+
+    /// <summary>
+    /// Başlık yazısı yerine verilen genişlikle sığdırır (ör. başlık yerinde düzenlenirken: kutuya en az
+    /// <paramref name="titleMin"/> kalsın).
+    /// </summary>
+    public static void Fit(FrameworkElement header, double titleNatural, IReadOnlyList<UIElement> optional, IReadOnlyList<UIElement> fixedParts,
+        double titleMin = HeaderFit.TitleMin)
     {
         if (header.Visibility != Visibility.Visible || header.ActualWidth <= 0) return;
         var visible = optional.Where(e => e.Visibility == Visibility.Visible).ToList();
@@ -30,7 +38,7 @@ internal static class HeaderFitter
             part.Measure(Unbounded);
             fixedWidth += part.DesiredSize.Width;
         }
-        var hide = HeaderFit.PartsToHide(header.ActualWidth, fixedWidth, NaturalWidth(title), visible.Select(e => e.DesiredSize.Width).ToList());
+        var hide = HeaderFit.PartsToHide(header.ActualWidth, fixedWidth, titleNatural, visible.Select(e => e.DesiredSize.Width).ToList(), titleMin);
         for (var i = 0; i < hide; i++) visible[i].Visibility = Visibility.Collapsed;
     }
 

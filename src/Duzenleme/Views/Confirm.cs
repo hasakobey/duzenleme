@@ -11,8 +11,10 @@ namespace Duzenleme.Views;
 internal static class Confirm
 {
     /// <summary>Başlık, ileti ve iki düğme: [confirmText] (Appearance=Danger; danger=false ise Primary) ve [cancelText]
-    /// (IsDefault + IsCancel). Owner verilir, ortalanır. Enter ve Esc ikinci düğmedir. Onaylanırsa true.</summary>
-    public static bool Ask(Window? owner, string title, string message, string confirmText, bool danger = true, string cancelText = "Vazgeç")
+    /// (IsDefault + IsCancel). Owner verilir, ortalanır. Enter ve Esc ikinci düğmedir. Onaylanırsa true.
+    /// Sahip yoksa (ör. widget'tan sorulan) near verilirse o noktanın monitörünün ortasında açılır, yoksa birincil monitörde.</summary>
+    public static bool Ask(Window? owner, string title, string message, string confirmText, bool danger = true, string cancelText = "Vazgeç",
+        Widgets.NativeMethods.POINT? near = null)
     {
         var ok = new Button { Content = confirmText, Appearance = danger ? ControlAppearance.Danger : ControlAppearance.Primary, MinWidth = 100 };
         var cancel = new Button { Content = cancelText, IsDefault = true, IsCancel = true, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0) };
@@ -58,6 +60,7 @@ internal static class Confirm
             MinWidth = 0,
             MinHeight = 0,
         };
+        if (usableOwner is null && near is { } point) WindowFit.CenterOn(window, point);
         ok.Click += (_, _) => window.DialogResult = true;
         // Odak "Vazgeç"te başlar: Enter yanlışlıkla onaylamasın.
         window.Loaded += (_, _) => { cancel.Focus(); Keyboard.Focus(cancel); };

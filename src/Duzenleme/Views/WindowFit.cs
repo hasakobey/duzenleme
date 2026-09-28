@@ -63,6 +63,18 @@ public static class WindowFit
         window.Top = (area.Top + 8) / systemScale;
     }
 
+    /// <summary>
+    /// Küçük pencereyi (soru, ad kutusu) noktanın monitöründe açar ve o monitörün ortasına koyar: widget'tan açılan pencere
+    /// birincil monitörde, widget'tan uzakta açılmasın. Gösterilmeden çağrılır.
+    /// </summary>
+    internal static void CenterOn(Window window, NativeMethods.POINT point)
+    {
+        StartOn(window, point);
+        window.SourceInitialized += (_, _) => FitAt(window, point);
+        // Boyutu içerikten gelen pencere ilk yerleşimde büyüyebilir: ortalama bir kez daha, gerçek boyutla.
+        window.Loaded += (_, _) => FitAt(window, point);
+    }
+
     /// <summary>NESTDESK_WINDOW_AT (ya da DUZENLEME_WINDOW_AT) ="x,y" (fiziksel piksel); yoksa ya da okunamazsa null.</summary>
     private static NativeMethods.POINT? TestPoint() =>
         Core.AppEnvironment.Get("WINDOW_AT")?.Split(',') is [var x, var y] &&

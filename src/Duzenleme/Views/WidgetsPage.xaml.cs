@@ -16,23 +16,8 @@ public sealed class WidgetRow(WidgetConfig config)
     public string RevealName => $"Bul: {Name}";
     public string RemoveName => $"Kaldır: {Name}";
 
-    /// <summary>Ekleme kutucuklarındaki simgenin aynısı (bkz. <see cref="WidgetCatalog"/>).</summary>
-    public SymbolRegular Icon => Config.Kind switch
-    {
-        WidgetKind.Clock => SymbolRegular.Clock24,
-        WidgetKind.Date => SymbolRegular.CalendarLtr24,
-        WidgetKind.Note => Config.NoteChecklist ? SymbolRegular.TaskListLtr24 : SymbolRegular.Note24,
-        WidgetKind.Launcher => SymbolRegular.AppsAddIn24,
-        _ => Config.Filter switch
-        {
-            DesktopFilter.Folders => SymbolRegular.Folder24,
-            DesktopFilter.Shortcuts => SymbolRegular.Apps24,
-            DesktopFilter.Files => SymbolRegular.DocumentMultiple24,
-            DesktopFilter.All => SymbolRegular.Desktop24,
-            _ => string.Equals(Config.FolderName, "PDF", StringComparison.OrdinalIgnoreCase)
-                ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24,
-        },
-    };
+    /// <summary>Widget'ın başlığındaki simgenin aynısı (kullanıcının seçtiği ya da türün varsayılanı, bkz. <see cref="WidgetIcons"/>).</summary>
+    public SymbolRegular Icon { get; } = WidgetIcons.For(config);
 }
 
 /// <summary>Kayıtlı düzen satırı.</summary>
@@ -108,7 +93,7 @@ public partial class WidgetsPage : Page
 
     /// <summary>
     /// Ayarlar kaydedildi (widget sürüklemek de kaydeder): yalnızca anahtarlar ve görünüm kutuları güncellenir. Liste
-    /// yalnızca bir widget'ın adı değiştiyse (not başlığı, yapılacaklar ilerlemesi) yeniden kurulur.
+    /// yalnızca bir widget'ın adı ya da simgesi değiştiyse (başlık, not, yapılacaklar ilerlemesi) yeniden kurulur.
     /// </summary>
     private void OnSettingsChanged()
     {
@@ -119,7 +104,7 @@ public partial class WidgetsPage : Page
         }
         RefreshSettings();
         if (ActiveList.ItemsSource is IEnumerable<WidgetRow> rows &&
-            !rows.Select(r => r.Name).SequenceEqual(AppHost.Settings.Widgets.Select(WidgetText.DisplayName)))
+            !rows.Select(r => (r.Name, r.Icon)).SequenceEqual(AppHost.Settings.Widgets.Select(w => (WidgetText.DisplayName(w), WidgetIcons.For(w)))))
             RefreshWidgets();
     }
 
@@ -201,16 +186,22 @@ public partial class WidgetsPage : Page
         var folder = choice.Key.StartsWith(FolderKeyPrefix, StringComparison.Ordinal) ? choice.Key[FolderKeyPrefix.Length..] : null;
         // Klasör eklerken açılacak mı? Kutucuktaki rozete değil diske bakılır (kutucuk kurulduktan sonra değişmiş olabilir).
         var creates = folder is not null && !AppHost.DesktopFolders().Any(f => FolderName.Equal(f, folder));
-        if (WidgetCatalog.Invoke(choice, WindowCenter()) is not { } config) return; // klasör açılamadı; kullanıcı uyarıldı
+        // Bölme ve kutu başlığı düzenlenir hâlde gelir (ad yazılabilir, simgesi tıklanınca seçici açılır).
+        if (WidgetCatalog.Invoke(choice, WindowCenter(), renameAfterAdd: true) is not { } config) return; // klasör açılamadı ya da vazgeçildi
         // Pencere açılamadıysa WidgetManager widget'ı geri çıkarıp uyardı: "eklendi" denmesin.
         if (!AppHost.Settings.Widgets.Any(w => w.Id == config.Id)) return;
 
-        var text = choice.Group == WidgetGroup.Tool ? $"{choice.Label} masaüstüne eklendi."
+        var text = choice.Key == WidgetCatalog.NewFenceKey ? L.F("\"{0}\" bölmesi masaüstüne eklendi.", FenceTitle(config))
+            : choice.Group == WidgetGroup.Tool ? $"{choice.Label} masaüstüne eklendi."
             : creates ? $"\"{folder}\" bölmesi eklendi; masaüstünde \"{folder}\" klasörü de oluşturuldu."
             : $"\"{choice.Label}\" bölmesi masaüstüne eklendi.";
         Notice.Show(text, NoticeKind.Success, "Bul", () => AppHost.Widgets.Reveal(config.Id));
         if (creates) RefreshTile(choice.Key);
     }
+
+    /// <summary>Bölmenin görünen başlığı (kullanıcının verdiği ya da kaynağının adı).</summary>
+    private static string FenceTitle(WidgetConfig config) =>
+        config.Title ?? (config.Filter != DesktopFilter.None ? DesktopItems.Label(config.Filter) : config.FolderName ?? "");
 
     /// <summary>Klasör açıldı: kutucuğun "yeni klasör" rozeti kalksın. Yerinde değiştirilir ("Diğer klasörler" açık kalır).</summary>
     private void RefreshTile(string key)

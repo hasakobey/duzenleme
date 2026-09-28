@@ -17,7 +17,10 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <ui:SymbolIcon x:Name="HeaderIcon" Symbol="Folder24" Filled="True" FontSize="20" Margin="0,0,10,0" VerticalAlignment="Center" />
+            <!-- Simge başlık yerinde düzenlenirken tıklanır ve simge seçiciyi açar (TitleEditor); normalde sürüklemeyi bozmaz. -->
+            <Button x:Name="HeaderIconButton" Style="{StaticResource HeaderIconButton}">
+                <ui:SymbolIcon x:Name="HeaderIcon" Symbol="Folder24" Filled="True" FontSize="20" />
+            </Button>
             <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" FontFamily="Segoe UI Variable Text, Segoe UI" />
             <Border x:Name="CountBadge" Grid.Column="2" CornerRadius="9" Padding="8,1,8,2" Margin="8,0,4,0" VerticalAlignment="Center">

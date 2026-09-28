@@ -35,6 +35,7 @@ NestDesk'in çalışması için gereken her şey yerel olarak şu klasörde sakl
 | `journal.json` | Son 500 taşımanın kaydı: zaman, dosyanın eski ve yeni yolu (geri alabilmen için) |
 | `settings.json.bozuk-<zaman>`, `journal.json.bozuk-<zaman>` | Yalnızca bu dosyalardan biri okunamayacak kadar bozulursa, varsayılan ayarlarla değiştirilmeden önce alınan kopyası. Kendiliğinden silinmez (elle silebilirsin); notlarını ve şifreli API anahtarını içerebilir |
 | `ai-icons/` | Yapay zekâ ile ürettiğin simgeler (SVG); dosya adı, üretim zamanı ve açıklamanın (boşsa klasör adının) ilk 40 karakteridir |
+| `icons/` | Kısayol kutusu öğesine "Resim dosyasından…" ile seçtiğin resimlerin kopyaları (asıl dosya silinse de simge kalsın diye); dosya adı içeriğin özetidir. Yalnızca bu bilgisayarda saklanır |
 
 Ayrıca:
 
@@ -132,6 +133,7 @@ Everything NestDesk needs is stored locally in this folder:
 | `journal.json` | A record of the last 500 moves: time, the file's old and new path (so you can undo them) |
 | `settings.json.bozuk-<time>`, `journal.json.bozuk-<time>` | Only if one of these files becomes too damaged to read: a copy taken before it is replaced with defaults. Never deleted automatically (you can delete them manually); may contain your notes and the encrypted API key |
 | `ai-icons/` | Icons you generated with AI (SVG); the file name is the time of creation and the first 40 characters of your description (or of the folder name if the description is empty) |
+| `icons/` | Copies of images you chose for a shortcut box item with "Resim dosyasından…" (From an image file…), so the icon stays even if the original file is deleted; the file name is a hash of the content. Kept only on this PC |
 
 In addition:
 

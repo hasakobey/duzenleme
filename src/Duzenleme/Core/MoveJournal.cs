@@ -94,6 +94,45 @@ public sealed class MoveJournal : IDisposable
             return _entries.Where(e => e.Undone).Select(e => e.Source).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Uygulama bir öğeyi yeniden adlandırdı (bölmede F2): kayıtlar yeni adı izler. Geri alınmış dosyanın masaüstündeki yolu
+    /// (Source) değişir, yoksa izleyici yeni adı görüp dosyayı yeniden taşırdı ("geri alınan bir daha taşınmaz"). Etkin
+    /// taşımada taşındığı yer (Destination) ve dosya adı değişir: "Geri al" yeniden adlandırılmış dosyayı yeni adıyla geri
+    /// koyar. Klasörde altındaki yollar da taşınır. Geri alınma kararı hemen yazılır. Herhangi bir iş parçacığından çağrılabilir.
+    /// Değiştiyse true.
+    /// </summary>
+    public bool NoteRename(string oldPath, string newPath, bool isDirectory)
+    {
+        var changed = false;
+        var undoneChanged = false;
+        lock (_lock)
+        {
+            foreach (var entry in _entries)
+            {
+                if (entry.Undone)
+                {
+                    if (PathRenames.Map(entry.Source, oldPath, newPath, isDirectory) is { } source)
+                    {
+                        entry.Source = source;
+                        undoneChanged = changed = true;
+                    }
+                    continue;
+                }
+                if (PathRenames.Map(entry.Destination, oldPath, newPath, isDirectory) is not { } destination) continue;
+                // Dosyanın kendisi yeniden adlandırıldıysa geri konacağı ad da yenisidir; üst klasörü değiştiyse ad aynı kalır.
+                if (string.Equals(Path.TrimEndingDirectorySeparator(entry.Destination), Path.TrimEndingDirectorySeparator(oldPath),
+                        StringComparison.OrdinalIgnoreCase) && Path.GetDirectoryName(entry.Source) is { } sourceDir)
+                    entry.Source = Path.Combine(sourceDir, Path.GetFileName(destination));
+                entry.Destination = destination;
+                changed = true;
+            }
+            if (undoneChanged) WriteNowLocked();
+            else if (changed) ScheduleLocked();
+        }
+        if (changed) Changed?.Invoke();
+        return changed;
+    }
+
     public MoveEntry? LastActive()
     {
         lock (_lock) return _entries.LastOrDefault(e => !e.Undone);

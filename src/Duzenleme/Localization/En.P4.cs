@@ -65,7 +65,6 @@ internal static partial class En
 
         // Bölme (FenceView)
         new("Klasörü aç", "Open folder"),
-        new("Yeni klasör…", "New folder…"),
         new("Ne gösterilsin?", "What to show"),
         new("Masaüstünden", "From the desktop"),
         new("Bir klasörün içi", "Inside a folder"),

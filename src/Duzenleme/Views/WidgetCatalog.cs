@@ -37,15 +37,20 @@ internal static class WidgetCatalog
             () => AppHost.Widgets.Add(WidgetKind.Launcher), Matches: c => c.Kind == WidgetKind.Launcher),
     ];
 
+    /// <summary>"Yeni bölme…" kutucuğunun anahtarı (AutomationId "Add.NewFence"): ad, kaynak ve simge soran pencereyi açar.</summary>
+    public const string NewFenceKey = "NewFence";
+
     /// <summary>
-    /// Bölmeler: masaüstü türleri (Klasörler, Kısayollar, Dosyalar, Tüm masaüstü), sonra klasör bölmeleri
-    /// (<see cref="WidgetManager.FolderFenceChoices"/> sırasıyla; masaüstünde olmayan kural klasörü "yeni klasör" rozetli).
-    /// Her çağrıda yeniden kurulur: klasörler değişebilir.
+    /// Bölmeler: önce "Yeni bölme…" (adı, kaynağı ve simgesiyle), sonra masaüstü türleri (Klasörler, Kısayollar, Dosyalar,
+    /// Tüm masaüstü), sonra klasör bölmeleri (<see cref="WidgetManager.FolderFenceChoices"/> sırasıyla; masaüstünde olmayan
+    /// kural klasörü "yeni klasör" rozetli). Her çağrıda yeniden kurulur: klasörler değişebilir.
     /// </summary>
     public static List<WidgetChoice> Fences()
     {
         var list = new List<WidgetChoice>
         {
+            new(NewFenceKey, L.T("Yeni bölme…"), SymbolRegular.AddSquare24, L.T("Adını, ne göstereceğini ve simgesini seçerek bölme ekle"),
+                WidgetGroup.Fence, () => NewFenceDialog.Ask(null)),
             Filter("Folders", DesktopFilter.Folders, "Klasörler", SymbolRegular.Folder24, "Masaüstündeki klasörler"),
             Filter("Shortcuts", DesktopFilter.Shortcuts, "Kısayollar", SymbolRegular.Apps24, "Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu"),
             Filter("Files", DesktopFilter.Files, "Dosyalar", SymbolRegular.DocumentMultiple24, "Masaüstünde duran dosyalar"),
@@ -137,19 +142,26 @@ internal static class WidgetCatalog
     /// near verilirse widget o noktanın ekranına yerleşir: followSetting ise ayardaki kiple ("Widget ekle" penceresi kapanır,
     /// widget onun yerine gelir), değilse türüne göre köşeye (ana pencere ve karşılama açık kalır; imlecin yanına konan widget
     /// onların arkasında kaybolurdu). Add() çağrılır; FocusAfterAdd ise FocusNote. Klasör açılamazsa null.
+    /// renameAfterAdd: yeni bölme/kutu/not başlığı düzenlenir hâlde gelir (Gezgin'deki "Yeni klasör" gibi; bölme ve kutuda
+    /// simgesi tıklanınca seçici açılır, notta Enter ile yazı alanına geçilir). "Widget ekle" penceresi ve Widget'lar sayfası
+    /// ister; karşılama ve toplu eklemeler istemez.
+    /// "Yeni bölme…" adı ve simgeyi kendi penceresinde sorar (near'ın monitöründe).
     /// </summary>
-    public static WidgetConfig? Invoke(WidgetChoice choice, NativeMethods.POINT? near, bool followSetting = false)
+    public static WidgetConfig? Invoke(WidgetChoice choice, NativeMethods.POINT? near, bool followSetting = false, bool renameAfterAdd = false)
     {
         if (near is { } point)
             AppHost.Widgets.PlacementHint = followSetting ? WidgetPlacement.FromSettingsAt(point) : WidgetPlacement.CornerNear(point);
-        var config = choice.Add();
+        var named = choice.Key == NewFenceKey;
+        var config = named ? NewFenceDialog.Ask(near) : choice.Add();
         if (config is null)
         {
             // Eklenemedi: yer ipucu sonraki (başka yerden eklenen) widget'a kalmasın.
             AppHost.Widgets.PlacementHint = null;
             return null;
         }
-        if (choice.FocusAfterAdd) AppHost.Widgets.FocusNote(config.Id);
+        // Adlandırarak eklemede not da önce başlığını alır (sonra yazı alanına geçilir); diğer yüzeylerde not yazı alanıyla açılır.
+        if (renameAfterAdd && !named) AppHost.Widgets.BeginRename(config.Id);
+        else if (choice.FocusAfterAdd) AppHost.Widgets.FocusNote(config.Id);
         return config;
     }
 }
