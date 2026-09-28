@@ -150,7 +150,13 @@ public partial class HomePage : Page
 
     private void UndoLast_Click(object sender, RoutedEventArgs e) => MoveActions.Undo(AppHost.Journal.LastActive());
 
-    private void AutoMoveToggle_Click(object sender, RoutedEventArgs e) => AppHost.SetPaused(AutoMoveToggle.IsChecked != true);
+    // Checked/Unchecked (Click değil): ekran okuyucunun "Aç/Kapat"ı (UI Automation Toggle) da uygulasın. Koddan gösterilen
+    // durum ayarla zaten aynıdır: yalnızca kullanıcının değişikliği taşımayı açar/kapatır.
+    private void AutoMoveToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        var on = AutoMoveToggle.IsChecked == true;
+        if (on != !AppHost.Settings.Paused) AppHost.SetPaused(!on);
+    }
 
     private void SetUpFolders_Click(object sender, RoutedEventArgs e) => Go(typeof(AutoMovePage));
 

@@ -69,7 +69,7 @@
                                AutomationProperties.AutomationId="Settings.StartupState" />
                 </StackPanel>
                 <Grid Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center">
-                    <ui:ToggleSwitch x:Name="StartupToggle" Click="StartupToggle_Click"
+                    <ui:ToggleSwitch x:Name="StartupToggle" Checked="StartupToggle_Changed" Unchecked="StartupToggle_Changed"
                                      AutomationProperties.AutomationId="Settings.Startup" AutomationProperties.Name="Windows ile başlat" />
                     <!-- Store sürümü: kullanıcı görevi Windows'tan kapattıysa, ilke yönetiyorsa ya da durum okunamadıysa anahtarın yerine. -->
                     <ui:Button x:Name="StartupSettingsButton" Content="Başlangıç ayarlarını aç" Icon="{ui:SymbolIcon Open24}"
@@ -90,7 +90,7 @@
                     <TextBlock Style="{StaticResource RowTitle}" Text="Taşıma bildirimleri" />
                     <TextBlock Style="{StaticResource Muted}" Text="Bir dosya taşındığında kısa bir bildirim göster." />
                 </StackPanel>
-                <ui:ToggleSwitch x:Name="NotifyToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Click="NotifyToggle_Click"
+                <ui:ToggleSwitch x:Name="NotifyToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Checked="NotifyToggle_Changed" Unchecked="NotifyToggle_Changed"
                                  AutomationProperties.AutomationId="Settings.Notifications" AutomationProperties.Name="Taşıma bildirimleri" />
             </Grid>
         </Border>
@@ -166,7 +166,7 @@
                             <TextBlock Style="{StaticResource Muted}"
                                        Text="Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; izin yoksa kutuya yalnızca bağlantı olarak eklenir." />
                         </StackPanel>
-                        <ui:ToggleSwitch x:Name="PublicBoxToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Click="PublicBoxToggle_Click"
+                        <ui:ToggleSwitch x:Name="PublicBoxToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Checked="PublicBoxToggle_Changed" Unchecked="PublicBoxToggle_Changed"
                                          AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="Ortak masaüstündeki öğeler de taşınsın" />
                     </Grid>
                 </StackPanel>
@@ -198,7 +198,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="Göz atarken widget'ları gizle" />
                         <ui:ToggleSwitch x:Name="PeekHidesWidgetsToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
-                                         Click="PeekHidesWidgets_Click" AutomationProperties.AutomationId="Settings.PeekHidesWidgets"
+                                         Checked="PeekHidesWidgets_Changed" Unchecked="PeekHidesWidgets_Changed" AutomationProperties.AutomationId="Settings.PeekHidesWidgets"
                                          AutomationProperties.Name="Göz atarken widget'ları gizle" />
                     </Grid>
                     <Grid Margin="0,0,0,8">
@@ -211,7 +211,7 @@
                             <TextBlock Style="{StaticResource Muted}" Text="Win+D gibi; dönünce pencereler geri gelir. Çift tıklayınca masaüstü zaten öndedir." />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="PeekShowsDesktopToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
-                                         Click="PeekShowsDesktop_Click" AutomationProperties.AutomationId="Settings.PeekShowsDesktop"
+                                         Checked="PeekShowsDesktop_Changed" Unchecked="PeekShowsDesktop_Changed" AutomationProperties.AutomationId="Settings.PeekShowsDesktop"
                                          AutomationProperties.Name="Göz atarken açık pencereleri küçült" />
                     </Grid>
                     <Grid>
@@ -269,7 +269,7 @@
                     <TextBlock Style="{StaticResource RowTitle}" Text="Gizlerken widget'ları da gizle" />
                     <TextBlock Style="{StaticResource Muted}" Text="Kapalıyken yalnızca masaüstü simgeleri gizlenir; saat, not ve bölmeler kalır." />
                 </StackPanel>
-                <ui:ToggleSwitch x:Name="HideWidgetsToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Click="HideWidgetsToggle_Click"
+                <ui:ToggleSwitch x:Name="HideWidgetsToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Checked="HideWidgetsToggle_Changed" Unchecked="HideWidgetsToggle_Changed"
                                  AutomationProperties.AutomationId="Settings.HideWidgets" AutomationProperties.Name="Gizlerken widget'ları da gizle" />
             </Grid>
         </Border>
@@ -394,7 +394,7 @@
                     <TextBlock Style="{StaticResource RowTitle}" Text="Yeni klasöre simge öner" />
                     <TextBlock Style="{StaticResource Muted}" Text="Masaüstünde klasör açıp adını verdiğinde bildirim gelir; tıklayınca simge seçici açılır." />
                 </StackPanel>
-                <ui:ToggleSwitch x:Name="SuggestToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Click="SuggestToggle_Click"
+                <ui:ToggleSwitch x:Name="SuggestToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Checked="SuggestToggle_Changed" Unchecked="SuggestToggle_Changed"
                                  AutomationProperties.AutomationId="Settings.SuggestIcons" AutomationProperties.Name="Yeni klasöre simge öner" />
             </Grid>
         </Border>

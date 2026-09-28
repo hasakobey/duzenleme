@@ -99,7 +99,7 @@
                            Click="SetUpFolders_Click" />
                 <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"
                                  AutomationProperties.AutomationId="Home.AutoMoveToggle" AutomationProperties.Name="Otomatik taşıma"
-                                 Click="AutoMoveToggle_Click" />
+                                 Checked="AutoMoveToggle_Changed" Unchecked="AutoMoveToggle_Changed" />
             </Grid>
         </Border>
 

@@ -44,7 +44,7 @@
                            AutomationProperties.AutomationId="AutoMove.OrganizeNow" Click="OrganizeNow_Click" />
                 <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"
                                  AutomationProperties.AutomationId="AutoMove.Toggle" AutomationProperties.Name="Otomatik taşıma"
-                                 Click="AutoMoveToggle_Click" />
+                                 Checked="AutoMoveToggle_Changed" Unchecked="AutoMoveToggle_Changed" />
             </Grid>
         </Border>
 
@@ -200,7 +200,7 @@
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="CreateMissing" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
                                          AutomationProperties.AutomationId="AutoMove.CreateMissing" AutomationProperties.Name="Klasör yoksa oluştur"
-                                         Click="CreateMissing_Click" />
+                                         Checked="CreateMissing_Changed" Unchecked="CreateMissing_Changed" />
                     </Grid>
                     <Grid Margin="0,0,0,16">
                         <Grid.ColumnDefinitions>

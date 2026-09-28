@@ -17,10 +17,11 @@ namespace Duzenleme.Widgets;
 /// </summary>
 public partial class NoteView : UserControl, IWidgetView
 {
+    // Etiketler gösterilirken çevrilir (L.Dyn).
     private static readonly (NoteColor Color, string Label)[] Colors =
     [
-        (NoteColor.Yellow, "Sarı"), (NoteColor.Pink, "Pembe"), (NoteColor.Green, "Yeşil"),
-        (NoteColor.Blue, "Mavi"), (NoteColor.Purple, "Mor"), (NoteColor.Graphite, "Grafit"),
+        (NoteColor.Yellow, L.N("Sarı")), (NoteColor.Pink, L.N("Pembe")), (NoteColor.Green, L.N("Yeşil")),
+        (NoteColor.Blue, L.N("Mavi")), (NoteColor.Purple, L.N("Mor")), (NoteColor.Graphite, L.N("Grafit")),
     ];
 
     private readonly WidgetConfig _config;
@@ -169,7 +170,7 @@ public partial class NoteView : UserControl, IWidgetView
             var p = WidgetPalette.ForNote(color);
             var dot = new Ellipse
             {
-                Width = 12, Height = 12, Margin = new Thickness(3, 0, 0, 0), Cursor = Cursors.Hand, ToolTip = label,
+                Width = 12, Height = 12, Margin = new Thickness(3, 0, 0, 0), Cursor = Cursors.Hand, ToolTip = L.Dyn(label),
                 Fill = p.Background, Stroke = color == _config.NoteColor ? palette.Foreground : palette.BorderBrush,
                 StrokeThickness = color == _config.NoteColor ? 1.6 : 1,
             };
@@ -187,7 +188,10 @@ public partial class NoteView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        menu.Primary.Add(Menus.Choice("Renk", _config.NoteColor, Colors, SetColor));
+        // Renk ▸ açık kalır; fareyle üstüne gelinen renk kağıtta önizlenir (kaydedilmez).
+        var window = Window.GetWindow(this) as WidgetWindow;
+        menu.Primary.Add(Menus.Choice(L.T("Renk"), () => _config.NoteColor, Colors.Select(c => (c.Color, L.Dyn(c.Label))), SetColor,
+            color => window?.Preview(new LookOverride(Note: color)), () => window?.EndPreview()));
         if (_config.NoteChecklist)
         {
             var done = CurrentItems().Count(i => i.Done && i.Text.Trim().Length > 0);
@@ -199,7 +203,7 @@ public partial class NoteView : UserControl, IWidgetView
         menu.Primary.Add(Menus.Item("Başlığı değiştir…", RenameTitle));
         if (!_config.NoteChecklist) menu.Primary.Add(Menus.Item("Notu temizle", () => Editor.Clear()));
 
-        menu.Appearance.Add(Menus.Parts(_config, [("header", "Başlık ve renkler"), Menus.ClosePart], UpdateTitle));
+        menu.Appearance.Add(Menus.Parts(_config, [("header", L.N("Başlık ve renkler")), Menus.ClosePart], UpdateTitle));
         // Üst düzey not menüsü kısa kalsın (en çok 8 öğe): kopyalama seyrek kullanılır.
         menu.More.Add(Menus.Item("Panoya kopyala", CopyToClipboard));
     }

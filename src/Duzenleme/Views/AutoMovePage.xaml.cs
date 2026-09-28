@@ -254,7 +254,13 @@ public partial class AutoMovePage : Page
         StatusIcon.SetResourceReference(IconElement.ForegroundProperty, on ? "AccentTextFillColorPrimaryBrush" : "TextFillColorTertiaryBrush");
     }
 
-    private void AutoMoveToggle_Click(object sender, RoutedEventArgs e) => AppHost.SetPaused(AutoMoveToggle.IsChecked != true);
+    // Checked/Unchecked (Click değil): ekran okuyucunun "Aç/Kapat"ı (UI Automation Toggle) da uygulasın. Koddan gösterilen
+    // durum ayarla zaten aynıdır: yalnızca kullanıcının değişikliği taşımayı açar/kapatır.
+    private void AutoMoveToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        var on = AutoMoveToggle.IsChecked == true;
+        if (on != !AppHost.Settings.Paused) AppHost.SetPaused(!on);
+    }
 
     private async void OrganizeNow_Click(object sender, RoutedEventArgs e)
     {
@@ -466,8 +472,9 @@ public partial class AutoMovePage : Page
 
     // ---- Gelişmiş ----
 
-    private void CreateMissing_Click(object sender, RoutedEventArgs e)
+    private void CreateMissing_Changed(object sender, RoutedEventArgs e)
     {
+        if ((CreateMissing.IsChecked == true) == AppHost.Settings.CreateMissingFolders) return; // koddan gösterilen durum
         AppHost.Settings.CreateMissingFolders = CreateMissing.IsChecked == true;
         AppHost.SaveSettings();
         RefreshStatuses();

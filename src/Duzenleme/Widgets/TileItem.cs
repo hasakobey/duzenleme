@@ -66,6 +66,9 @@ public sealed class TileItem : INotifyPropertyChanged
     public double Dim => Missing ? 0.45 : 1;
     public string Tooltip => Missing ? $"{Name}\n{Path}\n(bulunamadı)" : $"{Name}\n{Path}";
 
+    /// <summary>Liste öğesinin erişilebilir adı (UI Automation, ekran okuyucu): tür adı değil, öğenin görünen adı.</summary>
+    public override string ToString() => Name;
+
     /// <summary>
     /// 32-bit sürüm 64-bit Windows'ta çalışırken System32 yolları SysWOW64'e yönlenir; kısayol kutusundaki
     /// 64-bit sistem araçları "bulunamadı" görünmesin diye gerçek System32'ye (Sysnative) çevrilir.

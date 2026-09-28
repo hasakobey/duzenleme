@@ -11,6 +11,13 @@ using Duzenleme.Core;
 namespace Duzenleme.Widgets;
 
 /// <summary>
+/// Menüde üstüne gelinen görünüş seçeneği (bkz. <see cref="WidgetWindow.Preview"/>): yalnızca bellekte, hiç kaydedilmez.
+/// Boş alanlar kayıtlı değerde kalır.
+/// </summary>
+internal readonly record struct LookOverride(
+    WidgetStyle? Style = null, WidgetAccent? Accent = null, CornerStyle? Corners = null, double? Opacity = null, NoteColor? Note = null);
+
+/// <summary>
 /// Masaüstüne yapışık, çerçevesiz ve yarı saydam widget penceresi.
 /// Pencereler hep en altta durur, görev çubuğunda/Alt+Tab'da görünmez ve "Masaüstünü göster" ile kaybolmaz.
 /// Pencerede hiçbir Effect yoktur: yazılımla çizilen katmanlı pencerede efekt, içerideki her küçük değişiklikte bütün
@@ -97,7 +104,11 @@ public sealed class WidgetWindow : Window
         {
             var menu = _card.ContextMenu;
             menu.PlacementTarget = _card;
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            // Klavyeyle seçildiyse (Shift+F10 → "Bölme ayarları…" → Enter) kartın ortasında, WPF'in klavyeyle açılan
+            // menüleri gibi; fareyle imlecin yanında (imleç başka ekranda olabilir).
+            menu.Placement = InputManager.Current.MostRecentInputDevice is KeyboardDevice
+                ? System.Windows.Controls.Primitives.PlacementMode.Center
+                : System.Windows.Controls.Primitives.PlacementMode.MousePoint;
             menu.IsOpen = true;
         }, DispatcherPriority.Input);
 
@@ -152,8 +163,8 @@ public sealed class WidgetWindow : Window
 
     public void ApplyStyle()
     {
-        var palette = View.AdjustPalette(WidgetPalette.For(Config.Style, Config.Accent));
-        var radius = Config.Corners switch { CornerStyle.Soft => 10, CornerStyle.Square => 3, _ => 20 };
+        var palette = CurrentPalette();
+        var radius = (_preview?.Corners ?? Config.Corners) switch { CornerStyle.Soft => 10, CornerStyle.Square => 3, _ => 20 };
         _card.Background = palette.Background;
         _card.BorderBrush = palette.BorderBrush;
         _card.CornerRadius = new CornerRadius(radius);
@@ -173,13 +184,88 @@ public sealed class WidgetWindow : Window
         // ClearType açılabilir. Cam yarı saydamdır: orada gri tonlama kalır. Kırpılan bir alanın (kaydırılan liste) içindeki
         // yazıda WPF ClearType'ı yeniden kapatır; görünümler oradaki yazılara aynı değeri görünümden alarak verir
         // (TileTemplate, tarih) — yalnızca yazının arkası opakken: yarı saydam katmanda ClearType renkli saçak bırakır.
-        var clearType = palette.IsOpaqueBackground && Config.Opacity >= 0.999 && !Config.FadeUntilHover;
+        var clearType = palette.IsOpaqueBackground && ShownOpacity >= 0.999 && !Config.FadeUntilHover;
         var hint = clearType ? ClearTypeHint.Enabled : ClearTypeHint.Auto;
         RenderOptions.SetClearTypeHint(_card, hint);
         RenderOptions.SetClearTypeHint((UIElement)View, hint);
 
         ApplyOpacity();
         View.ApplyPalette(palette);
+    }
+
+    /// <summary>Kartın paleti: seçili (ya da menüde önizlenen) arka plan ve vurgu rengi; not kendi kağıt rengini seçer.</summary>
+    private WidgetPalette CurrentPalette() =>
+        _preview?.Note is { } note
+            ? WidgetPalette.ForNote(note)
+            : View.AdjustPalette(WidgetPalette.For(_preview?.Style ?? Config.Style, _preview?.Accent ?? Config.Accent));
+
+    private double ShownOpacity => _preview?.Opacity ?? Config.Opacity;
+
+    // --- Menüde üstüne gelinen seçeneğin önizlemesi ---
+    // Arka plan, vurgu rengi, köşeler, saydamlık ve not rengi: fare (ya da klavye) seçeneğin üstündeyken widget onunla
+    // çizilir. Config'e hiç yazılmaz: araya giren başka bir kayıt (konum, günlük, çıkış) önizlenen değeri kalıcı yapmasın.
+    // Seçenekten çıkınca, alt menü ya da menü kapanınca biter; tıklanan seçenek Update ile kaydedilir.
+    private LookOverride? _preview, _wantedPreview;
+    private bool _previewQueued, _closed;
+
+    /// <summary>Görünüşü geçici olarak <paramref name="look"/> ile çizer (null: kayıtlı görünüşe döner).</summary>
+    internal void Preview(LookOverride? look)
+    {
+        _wantedPreview = look;
+        if (_previewQueued) return;
+        _previewQueued = true;
+        // Fare seçeneklerin üstünden hızla geçerken (ya da birinden çıkıp ötekine girerken) her biri ayrı çizilmesin:
+        // girdi bitince yalnızca sonuncusu uygulanır.
+        Dispatcher.BeginInvoke(() =>
+        {
+            _previewQueued = false;
+            if (_closed || _wantedPreview == _preview) return;
+            _preview = _wantedPreview;
+            ApplyStyle();
+        }, DispatcherPriority.Background);
+    }
+
+    internal void EndPreview() => Preview(null);
+
+    // --- Açık menüler ---
+    // Widget'ın herhangi bir sağ tık menüsü açıkken (kart, dosya, not satırı, sekme) widget fare üstündeymiş gibi davranır:
+    // soluklaşmaz ve başlığa katlanmaz; menüde değiştirilen her seçenek widget'ta tam haliyle görünür.
+    private int _openMenus;
+
+    /// <summary>Menünün sayıldığı widget: kapanınca aynı pencereye bildirilir (hedef bu arada değişse de).</summary>
+    private static readonly DependencyProperty MenuOwnerProperty =
+        DependencyProperty.RegisterAttached("MenuOwner", typeof(WidgetWindow), typeof(WidgetWindow));
+
+    static WidgetWindow()
+    {
+        EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler(OnAnyMenuOpened));
+        EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.ClosedEvent, new RoutedEventHandler(OnAnyMenuClosed));
+    }
+
+    private static void OnAnyMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu || !ReferenceEquals(e.OriginalSource, menu) || menu.GetValue(MenuOwnerProperty) is not null) return;
+        if (menu.PlacementTarget is not { } target || GetWindow(target) is not WidgetWindow window || window._closed) return;
+        menu.SetValue(MenuOwnerProperty, window);
+        window._openMenus++;
+        window._rollupTimer.Stop();
+        window.ApplyOpacity();
+    }
+
+    private static void OnAnyMenuClosed(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu || !ReferenceEquals(e.OriginalSource, menu) || menu.GetValue(MenuOwnerProperty) is not WidgetWindow window) return;
+        menu.ClearValue(MenuOwnerProperty);
+        window._openMenus = Math.Max(0, window._openMenus - 1);
+        if (window._openMenus == 0 && !window._closed) window.AfterMenus();
+    }
+
+    /// <summary>Son menü kapandı: önizleme biter, soluklaşma ve otomatik katlanma (fare üstünde değilse) yeniden işler.</summary>
+    private void AfterMenus()
+    {
+        EndPreview();
+        ApplyOpacity();
+        if (Config.AutoRollup && View.Collapsible && !Config.Collapsed && !_rolledUp && !IsMouseOver) _rollupTimer.Start();
     }
 
     /// <summary>
@@ -216,8 +302,8 @@ public sealed class WidgetWindow : Window
 
     private void ApplyOpacity()
     {
-        var opacity = Math.Clamp(Config.Opacity, 0.4, 1);
-        Opacity = Config.FadeUntilHover && !IsMouseOver && !_revealing ? Math.Min(opacity, 0.35) : opacity;
+        var opacity = Math.Clamp(ShownOpacity, 0.4, 1);
+        Opacity = Config.FadeUntilHover && !IsMouseOver && !_revealing && _openMenus == 0 ? Math.Min(opacity, 0.35) : opacity;
     }
 
     // --- Fare üstünde değilken soluk durma ve başlığa katlanma ---
@@ -246,8 +332,8 @@ public sealed class WidgetWindow : Window
     private void TryRollUp()
     {
         if (!Config.AutoRollup || _rolledUp || Config.Collapsed || !_positionReady) return;
-        // Fare üstündeyken, sürüklerken, menü açıkken ya da içinde yazılırken (arama) katlanma.
-        if (IsMouseOver || _dragging || _resizing || _card.ContextMenu?.IsOpen == true || IsKeyboardFocusWithin)
+        // Fare üstündeyken, sürüklerken, menülerinden biri açıkken ya da içinde yazılırken (arama) katlanma.
+        if (IsMouseOver || _dragging || _resizing || _openMenus > 0 || IsKeyboardFocusWithin)
         {
             _rollupTimer.Start();
             return;
@@ -275,18 +361,20 @@ public sealed class WidgetWindow : Window
     /// <summary>
     /// Sağ tık menüsünün iskeleti: üstte widget'ın asıl işleri, altta "Görünüm ▸" ve seyrek kullanılanlar için
     /// "Diğer ▸", en altta "Kaldır". Widget'a özel parçaları görünüm sınıfı <see cref="WidgetMenu"/> bölümlerine koyar.
+    /// Seçenekler (görünüş, parçalar, kilit, mıknatıs…) tıklanınca menü açık kalır ve widget hemen değişir; komutlar
+    /// (ekle, göz at, yerleştir, çoğalt, kaldır) menüyü kapatır. Arka plan, vurgu rengi, saydamlık ve köşeler fareyle
+    /// üstüne gelince önizlenir.
     /// </summary>
     private void FillMenu(ContextMenu menu)
     {
         var own = new WidgetMenu();
         View.AddMenuItems(own);
 
-        menu.Items.Add(Menus.Item("Yeni widget ekle…", () => (Application.Current as App)?.ShowQuickAdd()));
+        menu.Items.Add(Menus.Item(L.T("Yeni widget ekle…"), () => (Application.Current as App)?.ShowQuickAdd()));
         // Windows masaüstüne göz at: kısayolu menüde yazılır (Windows'un alışılmış yeri; kısayolu kaydetmez).
-        var peek = Menus.Item(AppHost.Peeking ? $"{AppInfo.Name}'e dön" : "Windows masaüstüne göz at",
-            () => AppHost.TogglePeek(AppHost.PeekOrigin.Menu));
-        peek.InputGestureText = AppHost.Settings.Hotkeys.PeekDesktop;
-        peek.ToolTip = "Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir";
+        var peek = Menus.Item(AppHost.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at"),
+            () => AppHost.TogglePeek(AppHost.PeekOrigin.Menu), AppHost.Settings.Hotkeys.PeekDesktop);
+        peek.ToolTip = L.T("Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir");
         menu.Items.Add(peek);
         menu.Items.Add(new Separator());
         if (own.Primary.Count > 0)
@@ -295,7 +383,7 @@ public sealed class WidgetWindow : Window
             menu.Items.Add(new Separator());
         }
 
-        var look = new MenuItem { Header = "Görünüm" };
+        var look = new MenuItem { Header = L.T("Görünüm") };
         if (own.Appearance.Count > 0)
         {
             foreach (var item in own.Appearance) look.Items.Add(item);
@@ -304,82 +392,89 @@ public sealed class WidgetWindow : Window
         // Not kendi kağıt rengini kullanır: arka plan ve vurgu rengi orada etkisizdir, gösterilmez.
         if (View.UsesThemeColors)
         {
-            look.Items.Add(Menus.Choice("Arka plan", Config.Style,
-                [(WidgetStyle.Glass, "Cam"), (WidgetStyle.Dark, "Koyu"), (WidgetStyle.Light, "Açık")],
-                v => Update(() => Config.Style = v)));
-            look.Items.Add(Menus.Choice("Vurgu rengi", Config.Accent,
-                [(WidgetAccent.Violet, "Mor"), (WidgetAccent.Blue, "Mavi"), (WidgetAccent.Green, "Yeşil"), (WidgetAccent.Orange, "Turuncu"), (WidgetAccent.Pink, "Pembe")],
-                v => Update(() => Config.Accent = v)));
+            look.Items.Add(Menus.Choice(L.T("Arka plan"), () => Config.Style,
+                [(WidgetStyle.Glass, L.T("Cam")), (WidgetStyle.Dark, L.T("Koyu")), (WidgetStyle.Light, L.T("Açık"))],
+                v => Update(() => Config.Style = v), v => Preview(new LookOverride(Style: v)), EndPreview));
+            look.Items.Add(Menus.Choice(L.T("Vurgu rengi"), () => Config.Accent,
+                [(WidgetAccent.Violet, L.T("Mor")), (WidgetAccent.Blue, L.T("Mavi")), (WidgetAccent.Green, L.T("Yeşil")),
+                 (WidgetAccent.Orange, L.T("Turuncu")), (WidgetAccent.Pink, L.T("Pembe"))],
+                v => Update(() => Config.Accent = v), v => Preview(new LookOverride(Accent: v)), EndPreview));
         }
-        look.Items.Add(Menus.Choice("Ölçek", Math.Round(Config.Scale, 2),
-            [(0.7, "%70"), (0.85, "%85"), (1.0, "Normal (%100)"), (1.25, "%125"), (1.5, "%150"), (2.0, "%200")],
+        // Ölçek önizlenmez: pencere boyutu ve komşuların yeri değişir.
+        look.Items.Add(Menus.Choice(L.T("Ölçek"), () => Math.Round(Config.Scale, 2),
+            [(0.7, L.Percent(0.7)), (0.85, L.Percent(0.85)), (1.0, L.F("Normal ({0})", L.Percent(1))), (1.25, L.Percent(1.25)),
+             (1.5, L.Percent(1.5)), (2.0, L.Percent(2))],
             v => Update(() => Config.Scale = v)));
-        look.Items.Add(Menus.Choice("Saydamlık", Math.Round(Config.Opacity, 2),
-            [(1.0, "Yok"), (0.85, "%15"), (0.7, "%30"), (0.55, "%45")],
-            v => Update(() => Config.Opacity = v)));
-        look.Items.Add(Menus.Choice("Köşeler", Config.Corners,
-            [(CornerStyle.Round, "Yuvarlak"), (CornerStyle.Soft, "Hafif yuvarlak"), (CornerStyle.Square, "Köşeli")],
-            v => Update(() => Config.Corners = v)));
-        look.Items.Add(Menus.Toggle("Gölge", Config.Shadow, () => Update(() => Config.Shadow = !Config.Shadow)));
-        look.Items.Add(Menus.Toggle("Fare üstünde değilken soluk dursun", Config.FadeUntilHover,
+        look.Items.Add(Menus.Choice(L.T("Saydamlık"), () => Math.Round(Config.Opacity, 2),
+            [(1.0, L.T("Yok")), (0.85, L.Percent(0.15)), (0.7, L.Percent(0.3)), (0.55, L.Percent(0.45))],
+            v => Update(() => Config.Opacity = v), v => Preview(new LookOverride(Opacity: v)), EndPreview));
+        look.Items.Add(Menus.Choice(L.T("Köşeler"), () => Config.Corners,
+            [(CornerStyle.Round, L.T("Yuvarlak")), (CornerStyle.Soft, L.T("Hafif yuvarlak")), (CornerStyle.Square, L.T("Köşeli"))],
+            v => Update(() => Config.Corners = v), v => Preview(new LookOverride(Corners: v)), EndPreview));
+        look.Items.Add(Menus.Toggle(L.T("Gölge"), () => Config.Shadow, () => Update(() => Config.Shadow = !Config.Shadow)));
+        look.Items.Add(Menus.Toggle(L.T("Fare üstünde değilken soluk dursun"), () => Config.FadeUntilHover,
             () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)));
         look.Items.Add(new Separator());
         look.Items.Add(Menus.Hint(View.Resizable
-            ? "Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift"
-            : "Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift"));
+            ? L.T("Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift")
+            : L.T("Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift")));
         menu.Items.Add(look);
 
-        var more = new MenuItem { Header = "Diğer" };
+        var more = new MenuItem { Header = L.T("Diğer") };
         if (own.More.Count > 0)
         {
             foreach (var item in own.More) more.Items.Add(item);
             more.Items.Add(new Separator());
         }
-        if (View.Collapsible)
-        {
-            more.Items.Add(Menus.Toggle("Başlığa katla", Config.Collapsed, () => SetCollapsed(!Config.Collapsed)));
-            more.Items.Add(Menus.Toggle("Fare üstünde değilken başlığa katla", Config.AutoRollup, () =>
-            {
-                Config.AutoRollup = !Config.AutoRollup;
-                AppHost.SaveSettings();
-                if (!Config.AutoRollup && _rolledUp)
-                {
-                    _rolledUp = false;
-                    ApplyLayoutMode();
-                }
-            }));
-        }
+        // Başlığa katlama yalnızca başlığı görünen bölme/kutuda: başlık menü açıkken Göster ▸'den gizlenirse bunlar da kaybolur.
+        more.Items.Add(Menus.Live(Menus.Toggle(L.T("Başlığa katla"), () => Config.Collapsed, () => SetCollapsed(!Config.Collapsed)),
+            visible: () => View.Collapsible));
+        more.Items.Add(Menus.Live(Menus.Toggle(L.T("Fare üstünde değilken başlığa katla"), () => Config.AutoRollup, ToggleAutoRollup),
+            visible: () => View.Collapsible));
         // Kilitli widget'ta kaldırma düğmesi de gizlenir (ApplyStyle görünümlere iletir).
-        more.Items.Add(Menus.Toggle("Konumu kilitle", Config.Locked, () =>
+        more.Items.Add(Menus.Toggle(L.T("Konumu kilitle"), () => Config.Locked, () =>
         {
             Config.Locked = !Config.Locked;
             AppHost.SaveSettings();
             ApplyStyle();
         }));
-        more.Items.Add(Menus.Toggle("Kenarlara yapışsın (mıknatıs)", AppHost.Settings.SnapWidgets, () =>
+        more.Items.Add(Menus.Toggle(L.T("Kenarlara yapışsın (mıknatıs)"), () => AppHost.Settings.SnapWidgets, () =>
         {
             AppHost.Settings.SnapWidgets = !AppHost.Settings.SnapWidgets;
             AppHost.SaveSettings();
         }));
-        more.Items.Add(Menus.Toggle("Widget'lar üst üste binmesin", AppHost.Settings.PreventOverlap, () =>
+        more.Items.Add(Menus.Toggle(L.T("Widget'lar üst üste binmesin"), () => AppHost.Settings.PreventOverlap, () =>
         {
             AppHost.Settings.PreventOverlap = !AppHost.Settings.PreventOverlap;
             AppHost.SaveSettings();
             if (AppHost.Settings.PreventOverlap) ResolveOverlap();
         }));
-        more.Items.Add(Menus.Item("Tüm widget'ları düzenli yerleştir", () => AppHost.Widgets.ArrangeAll()));
-        more.Items.Add(Menus.Item("Çoğalt", () => AppHost.Widgets.Duplicate(Config.Id)));
+        more.Items.Add(Menus.Item(L.T("Tüm widget'ları düzenli yerleştir"), () => AppHost.Widgets.ArrangeAll()));
+        more.Items.Add(Menus.Item(L.T("Çoğalt"), () => AppHost.Widgets.Duplicate(Config.Id)));
         more.Items.Add(new Separator());
-        more.Items.Add(Menus.Hint("Taşırken Alt: yapışmadan · Shift: ızgaraya"));
+        more.Items.Add(Menus.Hint(L.T("Taşırken Alt: yapışmadan · Shift: ızgaraya")));
         menu.Items.Add(more);
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item("Kaldır", () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
+        menu.Items.Add(Menus.Item(L.T("Kaldır"), () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
     }
 
+    private void ToggleAutoRollup()
+    {
+        Config.AutoRollup = !Config.AutoRollup;
+        AppHost.SaveSettings();
+        if (!Config.AutoRollup && _rolledUp)
+        {
+            _rolledUp = false;
+            ApplyLayoutMode();
+        }
+    }
+
+    /// <summary>Görünüş ayarını değiştirir, uygular ve kaydettirir; menüdeki önizleme (varsa) seçilen değerle biter.</summary>
     private void Update(Action change)
     {
         change();
+        _preview = _wantedPreview = null;
         ApplyStyle();
         AppHost.SaveSettings();
         ResolveOverlapAfterLayout(); // ölçek büyüdüyse komşusunun üstüne binmesin
@@ -1031,7 +1126,7 @@ public sealed class WidgetWindow : Window
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
         DebugLog.Write($"[{Config.Kind}] Reveal exstyle=0x{NativeMethods.GetWindowLongPtr(Handle, NativeMethods.GWL_EXSTYLE).ToInt64():X}");
         // Notun vurgusu kendi kağıt renginden gelir.
-        var palette = View.AdjustPalette(WidgetPalette.For(Config.Style, Config.Accent));
+        var palette = CurrentPalette();
         _card.BorderBrush = palette.Accent;
         _card.BorderThickness = new Thickness(3);
         if (highlight && _glow is null) _glow = RevealGlow.Show(_card, palette.Accent, _card.CornerRadius.TopLeft);
@@ -1107,6 +1202,7 @@ public sealed class WidgetWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
         UnhookResizeFrame();
         _saveTimer.Stop();
         _revealTimer?.Stop();

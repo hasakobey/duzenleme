@@ -98,7 +98,7 @@ public partial class DateView : UserControl, IWidgetView
     }
 
     public void AddMenuItems(WidgetMenu menu) =>
-        menu.Appearance.Add(Menus.Parts(_config, [("sub", "Yıl ve gün adı"), ("week", "Haftalık şerit"), Menus.ClosePart], Render));
+        menu.Appearance.Add(Menus.Parts(_config, [("sub", L.N("Yıl ve gün adı")), ("week", L.N("Haftalık şerit")), Menus.ClosePart], Render));
 
     private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 

@@ -560,10 +560,11 @@ public partial class FenceView : UserControl, IWidgetView
         ForceUpdate();
     }
 
+    // Etiketler Menus.Parts'ta çevrilir (L.Dyn).
     private static readonly (string Key, string Label)[] FenceParts =
     [
-        ("header", "Başlık satırı"), ("count", "Öğe sayısı"), ("search", "Arama düğmesi"),
-        ("open", "Klasörü aç düğmesi"), ("divider", "Ayraç çizgisi"), Menus.ClosePart,
+        ("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("search", L.N("Arama düğmesi")),
+        ("open", L.N("Klasörü aç düğmesi")), ("divider", L.N("Ayraç çizgisi")), Menus.ClosePart,
     ];
 
     /// <summary>
@@ -824,46 +825,47 @@ public partial class FenceView : UserControl, IWidgetView
     {
         var folder = DesktopMode ? null : _folderPath;
         if (folder is not null)
-            menu.Primary.Add(Menus.Item("Klasörü aç", () => TileItem.Launch(folder)));
+            menu.Primary.Add(Menus.Item(L.T("Klasörü aç"), () => TileItem.Launch(folder)));
         if (_config.Filter is DesktopFilter.None or DesktopFilter.Folders or DesktopFilter.All)
-            menu.Primary.Add(Menus.Item("Yeni klasör…", NewFolder));
+            menu.Primary.Add(Menus.Item(L.T("Yeni klasör…"), NewFolder));
 
-        var pick = new MenuItem { Header = "Ne gösterilsin?" };
-        pick.Items.Add(Menus.Hint("Masaüstünden"));
+        // Kaynak değişince başlık, simge ve menünün kendisi ("Klasörü aç", "Yeni klasör") değişir: seçim menüyü kapatır.
+        var pick = new MenuItem { Header = L.T("Ne gösterilsin?") };
+        pick.Items.Add(Menus.Hint(L.T("Masaüstünden")));
         foreach (var filter in DesktopItems.Filters)
-            pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), _config.Filter == filter,
-                () => Set(() => { _config.Filter = filter; _config.Title = null; })));
+            pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), () => _config.Filter == filter,
+                () => ShowSource(filter, null), staysOpen: false));
         var folders = AppHost.DesktopFolders().OrderBy(n => n, L.Sorter).ToList();
         if (folders.Count > 0)
         {
             pick.Items.Add(new Separator());
-            pick.Items.Add(Menus.Hint("Bir klasörün içi"));
+            pick.Items.Add(Menus.Hint(L.T("Bir klasörün içi")));
             foreach (var name in folders)
-                pick.Items.Add(Menus.Toggle(name, !DesktopMode && Core.FolderName.Equal(name, FolderName),
-                    () => Set(() => { _config.Filter = DesktopFilter.None; _config.FolderName = name; _config.Title = null; })));
+                pick.Items.Add(Menus.Toggle(Menus.Literal(name), () => !DesktopMode && Core.FolderName.Equal(name, FolderName),
+                    () => ShowSource(DesktopFilter.None, name), staysOpen: false));
         }
         menu.Primary.Add(pick);
 
-        menu.Primary.Add(Menus.Item("Başlığı değiştir…", () =>
+        menu.Primary.Add(Menus.Item(L.T("Başlığı değiştir…"), () =>
         {
             if (InputDialog.Ask("Bölme başlığı", "Başlık (boş bırakırsan varsayılan ad kullanılır)", TitleText.Text) is { } title)
                 Set(() => _config.Title = string.IsNullOrWhiteSpace(title) || title == DefaultTitle ? null : title);
         }));
-        var sort = Menus.Choice("Sırala", _config.Sort,
-            [(FenceSort.Newest, "En yeni üstte"), (FenceSort.Name, "Ada göre"), (FenceSort.Type, "Türe göre")],
+        var sort = Menus.Choice(L.T("Sırala"), () => _config.Sort,
+            [(FenceSort.Newest, L.T("En yeni üstte")), (FenceSort.Name, L.T("Ada göre")), (FenceSort.Type, L.T("Türe göre"))],
             v => Set(() => _config.Sort = v));
         menu.Primary.Add(Menus.TileOptions(_config, Set, singleClickOption: true, first: sort));
         if (_config.HiddenItems.Count > 0)
         {
-            var hidden = new MenuItem { Header = $"Gizlenen öğeler ({_config.HiddenItems.Count})" };
-            hidden.Items.Add(Menus.Item("Hepsini yeniden göster", () => UnhideItems(_config.HiddenItems)));
+            var hidden = new MenuItem { Header = L.F("Gizlenen öğeler ({0})", _config.HiddenItems.Count) };
+            hidden.Items.Add(Menus.Item(L.T("Hepsini yeniden göster"), () => UnhideItems(_config.HiddenItems)));
             hidden.Items.Add(new Separator());
             foreach (var path in _config.HiddenItems.ToList())
             {
                 var label = TileItem.IsShellObject(path)
                     ? Desktop.DesktopSystemIcons.All.FirstOrDefault(i => "::" + i.Clsid == path)?.Name ?? path
                     : TileItem.DisplayName(path);
-                hidden.Items.Add(Menus.Item(label + " — göster", () => UnhideItems([path])));
+                hidden.Items.Add(Menus.Item(L.F("{0} — göster", Menus.Literal(label)), () => UnhideItems([path])));
             }
             menu.Primary.Add(hidden);
         }
@@ -871,12 +873,30 @@ public partial class FenceView : UserControl, IWidgetView
         menu.Appearance.Add(Menus.Parts(_config, FenceParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
 
         if (folder is not null)
-            menu.More.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(folder)));
-        menu.More.Add(Menus.Item("Yenile", Refresh));
-        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes).
-        var fencesOnly = Views.DesktopModes.Current == Views.IconMode.FencesOnly;
-        menu.More.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", fencesOnly,
-            () => Views.DesktopModes.Set(fencesOnly ? Views.IconMode.ShowAll : Views.IconMode.FencesOnly, null, null)));
+            menu.More.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(folder)));
+        menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
+        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes). Kip değişimi soru ve bildirim
+        // gösterebilir, bölme ekleyebilir: menüyü kapatır.
+        menu.More.Add(Menus.Toggle(L.T("Masaüstü simgelerini yalnızca bölmelerde göster"),
+            () => Views.DesktopModes.Current == Views.IconMode.FencesOnly,
+            () => Views.DesktopModes.Set(Views.DesktopModes.Current == Views.IconMode.FencesOnly ? Views.IconMode.ShowAll : Views.IconMode.FencesOnly,
+                null, null),
+            staysOpen: false));
+    }
+
+    /// <summary>"Ne gösterilsin?": bölmenin kaynağını değiştirir (özel başlık kaynağa aitti, sıfırlanır). Zaten gösterilen seçilirse bir şey olmaz.</summary>
+    private void ShowSource(DesktopFilter filter, string? folderName)
+    {
+        var same = filter == DesktopFilter.None
+            ? !DesktopMode && folderName is not null && Core.FolderName.Equal(folderName, FolderName)
+            : _config.Filter == filter;
+        if (same) return;
+        Set(() =>
+        {
+            _config.Filter = filter;
+            if (folderName is not null) _config.FolderName = folderName;
+            _config.Title = null;
+        });
     }
 
     public void Detach()
