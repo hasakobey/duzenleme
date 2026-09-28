@@ -738,15 +738,26 @@ public partial class SettingsPage : Page
         try
         {
             var roots = AppHost.DesktopDirectories.ToList();
+            // Kutulara taşınan masaüstü klasörleri (NestDesk\<kutu>\<klasör>) simgeleriyle birlikte taşınmıştır.
+            var boxRoot = BoxMover.Root;
             // Klasör portalları masaüstü dışındaki klasörleri gösterir: onların (ve bir alt düzeyin) simgeleri de kaldırılır.
             var portals = AppHost.Settings.Widgets.Where(WidgetVariants.IsPortal).Select(w => w.FolderName!).ToList();
+            // Simge verilirken kaydedilen klasörler: derin aramayla bulunan alt klasör, kaldırılmış portalın klasörü…
+            var recorded = AppHost.Settings.IconFolders?.ToList() ?? [];
+            var recordedFailures = new List<string>();
             var (removed, failed) = await Task.Run(() =>
             {
-                var result = FolderIconService.RemoveAllOwnIcons(roots);
-                if (portals.Count == 0) return result;
-                var extra = FolderIconService.RemoveAllOwnIcons(portals, depth: 1, includeRoots: true);
-                return (result.Removed.Concat(extra.Removed).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), result.Failed + extra.Failed);
+                var parts = new List<(List<string> Removed, int Failed)> { FolderIconService.RemoveAllOwnIcons(roots) };
+                if (Directory.Exists(boxRoot)) parts.Add(FolderIconService.RemoveAllOwnIcons([boxRoot], depth: 3));
+                if (portals.Count > 0) parts.Add(FolderIconService.RemoveAllOwnIcons(portals, depth: 1, includeRoots: true));
+                // Artık olmayan kayıtlı klasörlere bakılmaz (listeden düşer).
+                var existing = recorded.Where(Directory.Exists).ToList();
+                if (existing.Count > 0)
+                    parts.Add(FolderIconService.RemoveAllOwnIcons(existing, depth: 0, includeRoots: true, failures: recordedFailures));
+                return (parts.SelectMany(p => p.Removed).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), parts.Sum(p => p.Failed));
             });
+            AppHost.Settings.IconFolders = FolderIconLog.AfterRemoveAll(AppHost.Settings.IconFolders, recorded, recordedFailures);
+            AppHost.SaveSettingsLater();
             removed.ForEach(ShellIcons.Forget);
             if (_folderIcons is not null) LoadFolderIcons();
             var text = removed.Count > 0

@@ -442,4 +442,13 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool AnimationsOff { get; set; }
+
+    // 2.1 inceleme — klasör simgeleri
+    /// <summary>
+    /// Uygulamanın simge verdiği klasörler (tam yol; en yenisi sonda, en çok <see cref="FolderIconLog.Max"/>).
+    /// "Klasör simgelerinin hepsini kaldır" masaüstü taramasının erişmediği klasörleri de (bölmede derin aramayla bulunan alt
+    /// klasör, kaldırılmış bir klasör portalının klasörü) bulsun. Simge kaldırılınca listeden çıkar.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? IconFolders { get; set; }
 }

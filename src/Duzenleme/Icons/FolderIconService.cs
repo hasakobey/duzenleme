@@ -54,6 +54,12 @@ public static class FolderIconService
 
     static FolderIconService() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+    /// <summary>
+    /// Bir klasöre simge verildi (true) ya da simgesi kaldırıldı (false). Çağıranın iş parçacığında tetiklenir (toplu
+    /// kaldırmada arka planda); AppHost verilen simgeleri kaydeder (<see cref="Core.AppSettings.IconFolders"/>).
+    /// </summary>
+    public static event Action<string, bool>? Changed;
+
     /// <summary>Dosya adı bu uygulamanın yazdığı bir klasör simgesi mi (yeni ya da eski önekli .ico)?</summary>
     public static bool IsOwnIconFile(string fileName)
     {
@@ -178,6 +184,7 @@ public static class FolderIconService
         var hr = SHGetSetFolderCustomSettings(ref settings, folder, FCS_FORCEWRITE);
         if (hr != 0) Marshal.ThrowExceptionForHR(hr);
         Refresh(folder);
+        Changed?.Invoke(folder, true);
     }
 
     /// <summary>Klasörü varsayılan Windows simgesine döndürür.</summary>
@@ -209,6 +216,7 @@ public static class FolderIconService
         }
         RemoveOwnIconFiles(folder);
         Refresh(folder, iconCache);
+        Changed?.Invoke(folder, false);
     }
 
     private static void RemoveOwnIconFiles(string folder)
@@ -232,8 +240,9 @@ public static class FolderIconService
     /// yalnızca bizim artık dosyalarımız silinir. Bağlantı (junction) klasörlere girilmez. Arka planda çağır.
     /// </summary>
     /// <param name="includeRoots">Köklerin kendisine de bakılır (klasör portalının gösterdiği klasör; 2.1 P6).</param>
+    /// <param name="failures">Verilirse erişilemediği için dokunulamayan klasörler buraya eklenir.</param>
     public static (List<string> Removed, int Failed) RemoveAllOwnIcons(IEnumerable<string> roots, int depth = 2, int maxFolders = 20000,
-        bool includeRoots = false)
+        bool includeRoots = false, List<string>? failures = null)
     {
         List<string> removed = [];
         int failed = 0, visited = 0;
@@ -249,7 +258,11 @@ public static class FolderIconService
                 {
                     if (RemoveOwnIcon(folder)) removed.Add(folder);
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed++; }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    failed++;
+                    failures?.Add(folder);
+                }
             }
             if (level >= depth) continue;
             try

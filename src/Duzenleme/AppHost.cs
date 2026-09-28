@@ -189,6 +189,7 @@ public static class AppHost
         Watcher = new DesktopWatcher(Organizer, () => Settings.Paused);
         BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
         Widgets = new WidgetManager();
+        Icons.FolderIconService.Changed += OnFolderIconChanged;
         BackgroundIo.Run($"{AppInfo.Name} ayar yedeği", BackupSettingsDaily); // l10n: çevrilmez (iş parçacığı adı)
         // Kutulardaki masaüstü öğeleri kurallarla taşınmasın; widget eklenince/kaldırılınca küme yenilenir, kaldırılan
         // kutunun taşınmış öğeleri masaüstüne döner (kutu "Geri al" ile gelirse yeniden taşınır).
@@ -651,6 +652,12 @@ public static class AppHost
     private static void ApplyRenameToWidgets(string oldPath, string newPath, bool isDirectory)
     {
         var changed = PathRenames.Apply(Settings.Widgets, oldPath, newPath, isDirectory, DesktopDirectory);
+        // Simge verilen klasör (ya da üstü) yeniden adlandırıldı: "hepsini kaldır" onu yeni adıyla bulsun.
+        if (FolderIconLog.Rename(Settings.IconFolders, oldPath, newPath, isDirectory) is var icons && !ReferenceEquals(icons, Settings.IconFolders))
+        {
+            Settings.IconFolders = icons;
+            changed = true;
+        }
         // Kutunun klasörü (NestDesk\<kutu>) yeniden adlandırıldıysa kutu yeni klasörü kullanır.
         if (isDirectory && BoxPlan.ParentOf(oldPath) is { } parent &&
             string.Equals(parent, Path.TrimEndingDirectorySeparator(BoxMover.Root), StringComparison.OrdinalIgnoreCase))
@@ -669,6 +676,19 @@ public static class AppHost
             RefreshPinnedPaths();
         }
         PathRenamed?.Invoke(oldPath, newPath, isDirectory);
+    }
+
+    /// <summary>
+    /// Klasöre simge verildi ya da kaldırıldı (herhangi bir iş parçacığından): "Klasör simgelerinin hepsini kaldır" onu
+    /// masaüstünün dışında da bulsun diye kaydedilir. Önemsiz, sık olabilir (toplu simge verme): bir sonraki kayıtla yazılır.
+    /// </summary>
+    private static void OnFolderIconChanged(string folder, bool given)
+    {
+        if (!OnUiThread(() => OnFolderIconChanged(folder, given))) return;
+        var next = FolderIconLog.Note(Settings.IconFolders, folder, given);
+        if (ReferenceEquals(next, Settings.IconFolders)) return;
+        Settings.IconFolders = next;
+        SaveSettingsLater();
     }
 
     /// <summary>Kullanıcının seçtiği simge resimlerinin kopyaları (bkz. <see cref="IconFiles"/>).</summary>
