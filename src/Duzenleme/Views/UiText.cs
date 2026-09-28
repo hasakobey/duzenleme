@@ -8,16 +8,18 @@ namespace Duzenleme.Views;
 
 public static class UiText
 {
-    public static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
+    /// <summary>Eski ad: arayüz diline göre biçim için <see cref="L.Culture"/>, sıralama için <see cref="L.Sorter"/>.</summary>
+    [Obsolete("L.Culture (biçim) ya da L.Sorter (sıralama) kullan: arayüz diline uyar.")]
+    public static CultureInfo Tr => L.Culture;
 
     public static string When(DateTime time)
     {
         var diff = DateTime.Now - time;
         if (diff < TimeSpan.FromMinutes(1)) return "az önce";
         if (diff < TimeSpan.FromHours(1)) return $"{(int)diff.TotalMinutes} dk önce";
-        if (time.Date == DateTime.Today) return "bugün " + time.ToString("HH:mm", Tr);
-        if (time.Date == DateTime.Today.AddDays(-1)) return "dün " + time.ToString("HH:mm", Tr);
-        return time.ToString("d MMM HH:mm", Tr);
+        if (time.Date == DateTime.Today) return "bugün " + time.ToString("HH:mm", L.Culture);
+        if (time.Date == DateTime.Today.AddDays(-1)) return "dün " + time.ToString("HH:mm", L.Culture);
+        return time.ToString("d MMM HH:mm", L.Culture);
     }
 }
 

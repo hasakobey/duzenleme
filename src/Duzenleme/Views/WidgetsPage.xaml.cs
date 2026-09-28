@@ -277,7 +277,7 @@ public partial class WidgetsPage : Page
             return;
         }
         var layouts = AppHost.Settings.Layouts;
-        var sameName = StringComparer.Create(UiText.Tr, ignoreCase: true);
+        var sameName = L.Sorter;
         var name = LayoutName.Text.Trim();
         if (name.Length == 0)
         {
@@ -298,7 +298,7 @@ public partial class WidgetsPage : Page
     {
         if ((sender as FrameworkElement)?.DataContext is not LayoutRow row) return;
         // Yedeğin kendisi uygulanırken yeni yedek alınmaz (WidgetManager.ApplyLayout).
-        var backedUp = row.Name != WidgetManager.ApplyBackupName;
+        var backedUp = !LayoutBackup.IsApply(row.Name);
         AppHost.Widgets.ApplyLayout(row.Layout);
         Notice.Show(backedUp
             ? $"\"{row.Name}\" düzeni uygulandı. Önceki yerleşim \"{WidgetManager.ApplyBackupName}\" adıyla kaydedildi."

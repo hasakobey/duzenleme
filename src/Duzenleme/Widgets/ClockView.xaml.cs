@@ -10,7 +10,8 @@ namespace Duzenleme.Widgets;
 
 public partial class ClockView : UserControl, IWidgetView
 {
-    private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
+    /// <summary>Ay/gün adları arayüz dilinde (Türkçede tr-TR).</summary>
+    private static CultureInfo Culture => L.Culture;
     private readonly WidgetConfig _config;
     private readonly DispatcherTimer _timer;
 
@@ -47,10 +48,10 @@ public partial class ClockView : UserControl, IWidgetView
     private void Update()
     {
         var now = DateTime.Now;
-        TimeText.Text = now.ToString("HH:mm", Tr);
-        SecondsText.Text = now.ToString("ss", Tr);
+        TimeText.Text = now.ToString("HH:mm", Culture);
+        SecondsText.Text = now.ToString("ss", Culture);
         SecondsText.Visibility = _config.ShowSeconds ? Visibility.Visible : Visibility.Collapsed;
-        GreetingText.Text = Greeting(now.Hour) + " · " + Tr.TextInfo.ToTitleCase(now.ToString("dddd", Tr));
+        GreetingText.Text = Greeting(now.Hour) + " · " + Culture.TextInfo.ToTitleCase(now.ToString("dddd", Culture));
         GreetingRow.Visibility = _config.Shows("greeting") ? Visibility.Visible : Visibility.Collapsed;
     }
 

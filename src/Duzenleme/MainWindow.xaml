@@ -2,6 +2,7 @@
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:l="clr-namespace:Duzenleme.Localization"
                  xmlns:pages="clr-namespace:Duzenleme.Views"
                  Width="980" Height="700" MinWidth="720" MinHeight="480"
                  WindowStartupLocation="CenterScreen"
@@ -27,15 +28,15 @@
                 <Border Height="8" />
             </ui:NavigationView.Header>
             <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem Content="Ana sayfa" ToolTip="Ana sayfa" Icon="{ui:SymbolIcon Home24}"
+                <ui:NavigationViewItem Content="{l:T 'Ana sayfa'}" ToolTip="{l:T 'Ana sayfa'}" Icon="{ui:SymbolIcon Home24}"
                                        TargetPageType="{x:Type pages:HomePage}" AutomationProperties.AutomationId="Nav.Home" />
-                <ui:NavigationViewItem Content="Widget'lar" ToolTip="Widget'lar" Icon="{ui:SymbolIcon Apps24}"
+                <ui:NavigationViewItem Content="{l:T 'Widget\'lar'}" ToolTip="{l:T 'Widget\'lar'}" Icon="{ui:SymbolIcon Apps24}"
                                        TargetPageType="{x:Type pages:WidgetsPage}" AutomationProperties.AutomationId="Nav.Widgets" />
-                <ui:NavigationViewItem Content="Otomatik taşıma" ToolTip="Otomatik taşıma" Icon="{ui:SymbolIcon FolderArrowRight24}"
+                <ui:NavigationViewItem Content="{l:T 'Otomatik taşıma'}" ToolTip="{l:T 'Otomatik taşıma'}" Icon="{ui:SymbolIcon FolderArrowRight24}"
                                        TargetPageType="{x:Type pages:AutoMovePage}" AutomationProperties.AutomationId="Nav.AutoMove" />
             </ui:NavigationView.MenuItems>
             <ui:NavigationView.FooterMenuItems>
-                <ui:NavigationViewItem Content="Ayarlar" ToolTip="Ayarlar" Icon="{ui:SymbolIcon Settings24}"
+                <ui:NavigationViewItem Content="{l:T 'Ayarlar'}" ToolTip="{l:T 'Ayarlar'}" Icon="{ui:SymbolIcon Settings24}"
                                        TargetPageType="{x:Type pages:SettingsPage}" AutomationProperties.AutomationId="Nav.Settings" />
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>
@@ -49,7 +50,7 @@
             <DockPanel>
                 <ui:SymbolIcon x:Name="NoticeIcon" DockPanel.Dock="Left" FontSize="18" Margin="0,0,10,0" VerticalAlignment="Center" />
                 <ui:Button x:Name="NoticeClose" DockPanel.Dock="Right" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
-                           ToolTip="Kapat" AutomationProperties.Name="Kapat" AutomationProperties.AutomationId="Notice.Close"
+                           ToolTip="{l:T 'Kapat'}" AutomationProperties.Name="{l:T 'Kapat'}" AutomationProperties.AutomationId="Notice.Close"
                            VerticalAlignment="Center" Click="NoticeClose_Click" />
                 <ui:Button x:Name="NoticeAction" DockPanel.Dock="Right" Margin="12,0,4,0" VerticalAlignment="Center"
                            AutomationProperties.AutomationId="Notice.Action" Click="NoticeAction_Click" />

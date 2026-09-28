@@ -35,7 +35,10 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // Dil: önce Windows'unki (başlangıç hataları ve yeni kullanıcının varsayılan ayarları için); ayarlar okununca yeniden.
+        L.Init(null);
         var args = ParseArgs(e.Args);
+        _args = args;
 
         // Geliştirme: simge kütüphanesinin önizlemesini üret ve çık.
         if (e.Args.Length == 2 && e.Args[0] == "--export-icon-sheet")
@@ -77,7 +80,10 @@ public partial class App : Application
             return;
         }
 
-        _instanceMutex = new Mutex(true, id, out var isFirst);
+        // "Şimdi yeniden başlat" (dil): eski örnek kapanıp tek örnek kilidini bırakınca kilit doğrudan bu örneğe geçer.
+        var takenOver = args.Restart ? TakeOverInstanceLock(id) : null;
+        var isFirst = takenOver is not null;
+        _instanceMutex = takenOver ?? new Mutex(true, id, out isFirst);
         _showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".show");
         _addSignal = new EventWaitHandle(false, EventResetMode.AutoReset, id + ".add");
         if (!isFirst)
@@ -123,8 +129,11 @@ public partial class App : Application
     private void StartServices(Args args)
     {
         AppHost.Initialize(args.Desktop, args.Data);
+        // Ayardaki dil (Windows ile aynı / Türkçe / English): ilk pencereden ve widget'tan önce.
+        L.Init(AppHost.Settings.Language);
         // Yeni kullanıcı: karşılamada onay verene dek hiçbir dosya taşınmaz. (SetPaused kullanılmaz: false'ta taşıma başlatır.)
-        if (Onboarding.PrepareNewUser(AppHost.Settings)) AppHost.SaveSettings();
+        // Hazır kurallar masaüstünde zaten olan klasörlere uyar (ör. İngilizce Windows'ta "Resimler" klasörü varsa o).
+        if (!AppHost.Settings.FirstRunDone && Onboarding.PrepareNewUser(AppHost.Settings, DesktopFoldersOrNone())) AppHost.SaveSettings();
         ApplyTheme(AppHost.Settings.Theme);
         // Windows teması, yüksek karşıtlık ya da vurgu rengi değişince uygulama da uyum sağlasın.
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
@@ -168,6 +177,7 @@ public partial class App : Application
                 AppHost.Tray?.Notify($"{AppInfo.Name} kuruluma hazır", "Masaüstünü birkaç adımda düzenlemek için buraya tıkla.", () => ShowWelcome());
             else ShowWelcome();
         }
+        else if (args.Restart) ShowPage(typeof(Views.SettingsPage));   // dilin değiştirildiği yere dönülür
         else if (!args.Minimized) ShowMainWindow();
 
         if (AppHost.Settings.FirstRunDone && !AppHost.Settings.RenameNoticeShown)
@@ -188,6 +198,57 @@ public partial class App : Application
             "Taşınabilir sürümü kullanıyorsan programı yazılabilir bir klasöre (ör. Belgeler) çıkar.",
         _ => $"Beklenmeyen bir hata oluştu:\n{ex.Message}",
     };
+
+    private static List<string> DesktopFoldersOrNone()
+    {
+        try { return AppHost.Organizer.ExistingFolders().ToList(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    /// <summary>
+    /// --restart: önceki örneğin tek örnek kilidini bırakmasını en çok 15 sn bekler ve kilidi alır (bu örnek ilk örnek
+    /// olur). Önceki örnek yoksa ya da kapanmadıysa null: olağan yol devam eder (kapanmadıysa onun penceresi öne gelir).
+    /// </summary>
+    private static Mutex? TakeOverInstanceLock(string id)
+    {
+        Mutex running;
+        try { running = Mutex.OpenExisting(id); }
+        catch (WaitHandleCannotBeOpenedException) { return null; }
+        try
+        {
+            if (running.WaitOne(TimeSpan.FromSeconds(15))) return running;
+        }
+        catch (AbandonedMutexException)
+        {
+            return running;   // önceki örnek kilidi bırakmadan sonlandı; kilit yine de bu örneğe geçti
+        }
+        running.Dispose();
+        return null;
+    }
+
+    /// <summary>
+    /// Uygulamayı yeniden başlatır (Ayarlar → Dil → "Şimdi yeniden başlat"): yeni süreç --restart ile açılır, bu örnek
+    /// kapanıp kilidi bırakınca onu devralır ve Ayarlar sayfasını açar. Test klasörleri (--desktop/--data) aynen geçer.
+    /// </summary>
+    public void Restart()
+    {
+        if (_exiting || Environment.ProcessPath is not { } exe) return;
+        var start = new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false };
+        start.ArgumentList.Add("--restart");
+        if (_args?.Desktop is { } desktop) { start.ArgumentList.Add("--desktop"); start.ArgumentList.Add(desktop); }
+        if (_args?.Data is { } data) { start.ArgumentList.Add("--data"); start.ArgumentList.Add(data); }
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(start);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            DebugLog.Write("yeniden başlatma: " + ex);
+            Views.Notice.Show(L.F("Yeniden başlatılamadı: {0}", ex.Message), Views.NoticeKind.Error);
+            return;
+        }
+        ExitApp();
+    }
 
     private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
@@ -332,16 +393,19 @@ public partial class App : Application
         e.Handled = true;
     }
 
-    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome);
+    private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool Restart);
+
+    private Args? _args;
 
     /// <summary>
     /// --desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır;
-    /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak).
+    /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak); --restart önceki örneğin kapanmasını
+    /// bekleyip onun yerine başlar (dil değişikliği).
     /// </summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        bool minimized = false, exit = false, add = false, welcome = false;
+        bool minimized = false, exit = false, add = false, welcome = false, restart = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -352,8 +416,9 @@ public partial class App : Application
                 case "--exit": exit = true; break;
                 case "--add": add = true; break;
                 case "--welcome": welcome = true; break;
+                case "--restart": restart = true; break;
             }
         }
-        return new Args(desktop, data, minimized, exit, add, welcome);
+        return new Args(desktop, data, minimized, exit, add, welcome, restart);
     }
 }

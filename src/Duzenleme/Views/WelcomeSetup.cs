@@ -93,7 +93,7 @@ internal static class WelcomeSetup
 
         // 6. Açılamayan klasörler.
         if (failed.Count > 0)
-            AppHost.Tray?.Notify("Bazı klasörler oluşturulamadı", $"{Onboarding.JoinTr(failed)}: {firstError}");
+            AppHost.Tray?.Notify("Bazı klasörler oluşturulamadı", $"{L.Join(failed)}: {firstError}");
 
         DebugLog.Write($"karşılama uygulandı: bölme {fencesAdded}, araç {toolsAdded}, taşıma {Describe(c.AutoMove)}, {watch.ElapsedMilliseconds} ms");
 

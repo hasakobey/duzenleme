@@ -151,6 +151,7 @@ public partial class SettingsPage : Page
     {
         _loading = true;
         var s = AppHost.Settings;
+        LoadLanguage();
         ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
         NotifyToggle.IsChecked = s.ShowNotifications;
         DoubleClickToggle.IsChecked = s.DoubleClickHidesDesktop;
@@ -171,6 +172,34 @@ public partial class SettingsPage : Page
     }
 
     // ---- Genel ----
+
+    /// <summary>Dil kutusunun seçenekleri: AppSettings.Language değerleri (null = Windows ile aynı).</summary>
+    private static readonly string?[] LanguageValues = [null, "tr", "en"];
+
+    private void LoadLanguage()
+    {
+        // Seçenek adları kendi dillerinde (çevrilmez): yanlış dilde kalan kullanıcı da kendi dilini bulsun.
+        if (LanguageBox.Items.Count == 0)
+            foreach (var name in new[] { L.SystemChoiceName, L.NativeName(Lang.Tr), L.NativeName(Lang.En) })
+                LanguageBox.Items.Add(new ComboBoxItem { Content = name });
+        var current = AppHost.Settings.Language?.Trim().ToLowerInvariant();
+        LanguageBox.SelectedIndex = Math.Max(0, Array.IndexOf(LanguageValues, current));
+        UpdateRestart();
+    }
+
+    private void LanguageBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || LanguageBox.SelectedIndex < 0) return;
+        AppHost.Settings.Language = LanguageValues[LanguageBox.SelectedIndex];
+        AppHost.SaveSettings();
+        UpdateRestart();
+    }
+
+    /// <summary>"Şimdi yeniden başlat" yalnızca seçilen dil çalışan dilden farklıysa görünür.</summary>
+    private void UpdateRestart() =>
+        RestartButton.Visibility = L.NeedsRestart(AppHost.Settings.Language) ? Visibility.Visible : Visibility.Collapsed;
+
+    private void Restart_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.Restart();
 
     private void LoadStartup()
     {
@@ -357,10 +386,10 @@ public partial class SettingsPage : Page
         if (_folderIcons is not null) LoadFolderIcons();
     }
 
-    /// <summary>Masaüstündeki klasörler, Türkçe alfabe sırasıyla (katlanır bölüm ilk açıldığında ve simgeler toplu verilince).</summary>
+    /// <summary>Masaüstündeki klasörler, arayüz dilinin alfabe sırasıyla (katlanır bölüm ilk açıldığında ve simgeler toplu verilince).</summary>
     private void LoadFolderIcons()
     {
-        var order = StringComparer.Create(UiText.Tr, ignoreCase: true);
+        var order = L.Sorter;
         _folderIcons = DesktopFolders().Order(order)
             .Select(name => new FolderIconRow(Path.Combine(AppHost.DesktopDirectory, name)))
             .ToList();

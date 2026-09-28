@@ -10,7 +10,8 @@ namespace Duzenleme.Widgets;
 
 public partial class DateView : UserControl, IWidgetView
 {
-    private static readonly CultureInfo Tr = CultureInfo.GetCultureInfo("tr-TR");
+    /// <summary>Ay/gün adları arayüz dilinde (Türkçede tr-TR).</summary>
+    private static CultureInfo Culture => L.Culture;
     private static readonly string[] ShortDays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     private readonly DispatcherTimer _timer;
     private WidgetPalette _palette = WidgetPalette.Glass;
@@ -32,15 +33,15 @@ public partial class DateView : UserControl, IWidgetView
 
     /// <summary>Örn. "26 Eylül 2026, Cumartesi".</summary>
     public static string LongDate(DateTime date) =>
-        $"{date.Day} {date.ToString("MMMM", Tr)} {date.Year}, {date.ToString("dddd", Tr)}";
+        $"{date.Day} {date.ToString("MMMM", Culture)} {date.Year}, {date.ToString("dddd", Culture)}";
 
     private void Render()
     {
         var today = DateTime.Today;
         _shownDate = today;
-        DayText.Text = today.Day.ToString(Tr);
-        MonthText.Text = today.ToString("MMMM", Tr);
-        SubText.Text = $"{today.Year} · {today.ToString("dddd", Tr)}";
+        DayText.Text = today.Day.ToString(Culture);
+        MonthText.Text = today.ToString("MMMM", Culture);
+        SubText.Text = $"{today.Year} · {today.ToString("dddd", Culture)}";
         SubText.Visibility = _config.Shows("sub") ? Visibility.Visible : Visibility.Collapsed;
         Week.Visibility = _config.Shows("week") ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Foreground = _palette.Foreground;
@@ -71,7 +72,7 @@ public partial class DateView : UserControl, IWidgetView
                         },
                         new TextBlock
                         {
-                            Text = day.Day.ToString(Tr), FontSize = 15, FontWeight = FontWeights.SemiBold,
+                            Text = day.Day.ToString(Culture), FontSize = 15, FontWeight = FontWeights.SemiBold,
                             HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 1, 0, 0),
                             Foreground = isToday ? _palette.AccentForeground : _palette.Foreground,
                         },

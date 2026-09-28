@@ -37,13 +37,18 @@ public static class Onboarding
     /// <summary>
     /// Açılışta, karşılama tamamlanmadıysa (yeni kullanıcı): otomatik taşıma kapatılır, karşılamada onay verilene dek hiçbir
     /// dosya taşınmaz; eski addan yeni ada geçiş balonu da gösterilmiş sayılır (yalnızca eski sürümden gelenler içindir).
-    /// Ayar değiştiyse true döner (çağıran kaydeder).
+    /// desktopFolders verilirse ve kurallar hâlâ hazır kurallarsa, arayüz dilindeki hazır kurallar masaüstünde zaten olan
+    /// klasörlere uyarlanır (<see cref="Rule.Defaults(Lang, IEnumerable{string})"/>: İngilizce Windows'ta "Resimler"
+    /// klasörü olan kullanıcıya "Pictures" açılmasın). Ayar değiştiyse true döner (çağıran kaydeder).
     /// </summary>
-    public static bool PrepareNewUser(AppSettings settings)
+    public static bool PrepareNewUser(AppSettings settings, IEnumerable<string>? desktopFolders = null)
     {
         if (settings.FirstRunDone) return false;
         settings.Paused = true;
         settings.RenameNoticeShown = true;
+        // İzleyici kuralları arka planda okur: liste yerinde değişmez, yenisi atanır.
+        if (desktopFolders is not null && Rule.AreDefaults(settings.Rules))
+            settings.Rules = Rule.Defaults(L.Current, desktopFolders);
         return true;
     }
 
@@ -153,14 +158,14 @@ public static class Onboarding
         if (kinds.Count == 0)
             return folders.Count == 1
                 ? $"{folders[0]} klasörü için bir bölme eklenir."
-                : $"{JoinTr(folders)} klasörleri için birer bölme eklenir.";
+                : $"{L.Join(folders)} klasörleri için birer bölme eklenir.";
 
-        var head = $"{JoinTr(kinds)} için {(kinds.Count == 1 ? "bir" : "birer")} bölme eklenir";
+        var head = $"{L.Join(kinds)} için {(kinds.Count == 1 ? "bir" : "birer")} bölme eklenir";
         return folders.Count switch
         {
             0 => head + ".",
             1 => $"{head}; {folders[0]} klasörü için de bir bölme.",
-            _ => $"{head}; {JoinTr(folders)} klasörleri için de birer bölme.",
+            _ => $"{head}; {L.Join(folders)} klasörleri için de birer bölme.",
         };
     }
 
@@ -180,13 +185,8 @@ public static class Onboarding
         return lines;
     }
 
-    /// <summary>Türkçe sıralama: "", "A", "A ve B", "A, B ve C".</summary>
-    public static string JoinTr(IReadOnlyList<string> items) => items.Count switch
-    {
-        0 => "",
-        1 => items[0],
-        _ => string.Join(", ", items.Take(items.Count - 1)) + " ve " + items[^1],
-    };
+    /// <summary>Sıralı birleştirme ("A, B ve C" / "A, B and C"): <see cref="L.Join"/> (eski ad; yeni kodda L.Join kullan).</summary>
+    public static string JoinTr(IReadOnlyList<string> items) => L.Join(items);
 
     /// <summary>Karşılamada seçenek olarak gösterilen kural: klasör adı ve en az bir uzantısı var.</summary>
     private static bool IsChoice(Rule rule) =>
