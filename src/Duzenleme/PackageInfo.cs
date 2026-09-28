@@ -16,12 +16,16 @@ public static class PackageInfo
     // Sonuç süreç boyunca değişmez: bir kez sorulur.
     private static readonly Lazy<string?> FullName = new(() => Query(GetCurrentPackageFullName));
     private static readonly Lazy<string?> Family = new(() => Query(GetCurrentPackageFamilyName));
+    private static readonly Lazy<string?> Aumid = new(() => Query(GetCurrentApplicationUserModelId));
 
     /// <summary>Paket kimliğiyle mi çalışıyor (Store/MSIX sürümü)?</summary>
     public static bool IsPackaged => FullName.Value is not null;
 
-    /// <summary>Paket aile adı (ör. "Yayinci.Duzenleme_1a2b3c4d5e6f7"); paketsizken null.</summary>
+    /// <summary>Paket aile adı (ör. "Yayinci.NestDesk_1a2b3c4d5e6f7"); paketsizken null.</summary>
     public static string? FamilyName => IsPackaged ? Family.Value : null;
+
+    /// <summary>Sürecin uygulama kimliği (ör. "Yayinci.NestDesk_1a2b3c4d5e6f7!AddWidget"); paketsizken null.</summary>
+    public static string? ApplicationUserModelId => IsPackaged ? Aumid.Value : null;
 
     private delegate int NameQuery(ref uint length, StringBuilder? name);
 
@@ -77,7 +81,46 @@ public static class PackageInfo
     private static extern int GetCurrentPackageFamilyName(ref uint length, StringBuilder? name);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetCurrentApplicationUserModelId(ref uint length, StringBuilder? id);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern int RegisterApplicationRestart(string commandLine, int flags);
+
+    /// <summary>
+    /// Aynı paketin başka bir uygulamasını (AUMID) verilen argümanlarla başlatır (IApplicationActivationManager). Olmazsa false.
+    /// </summary>
+    public static bool ActivateApplication(string aumid, string arguments)
+    {
+        try
+        {
+            var manager = (IApplicationActivationManager)new ApplicationActivationManager();
+            try
+            {
+                const int AO_NONE = 0;
+                var hr = manager.ActivateApplication(aumid, arguments, AO_NONE, out var processId);
+                DebugLog.Write($"{aumid} etkinleştirildi: 0x{hr:X8}, süreç {processId}");
+                return hr >= 0;
+            }
+            finally { Marshal.ReleaseComObject(manager); }
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException)
+        {
+            DebugLog.Write($"{aumid} etkinleştirilemedi: {ex.Message}");
+            return false;
+        }
+    }
+
+    [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+    private class ApplicationActivationManager { }
+
+    // shobjidl_core.h; yalnızca ilk yöntem kullanılır (sonrakiler sanal tabloda ondan sonra gelir).
+    [ComImport, Guid("2e941141-7f97-4756-ba1d-9decde894a3d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IApplicationActivationManager
+    {
+        [PreserveSig]
+        int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
+            [MarshalAs(UnmanagedType.LPWStr)] string? arguments, int options, out uint processId);
+    }
 
     // WinRT arayüzleri IInspectable'dan türer: ilk üç yuva (GetIids, GetRuntimeClassName, GetTrustLevel) hiç çağrılmaz,
     // yalnızca sanal tablo sırası tutsun diye yer tutar. GUID'ler ve yöntem sırası Windows.ApplicationModel.winmd'den.

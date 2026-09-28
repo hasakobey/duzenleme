@@ -1,17 +1,44 @@
 namespace Duzenleme.Core;
 
-/// <summary>Görünen ad ve ad değişikliğinde (Düzenleme → NestDesk, 2.0.0) BİLEREK eski adla bırakılan kimlikler.
-/// DEĞİŞMEZ değerler mevcut kurulumları bozar: Duzenleme.iss, AppxManifest.xml ve diskteki veriler bunlara bağlı (IdentityTests sabitler).</summary>
+/// <summary>
+/// Görünen ad ve kimlikler. 2.0.0'da görünen ad Düzenleme → NestDesk oldu; 2.1.0'da program dosyası, veri klasörü, Run
+/// değeri, klasör simgesi öneki ve Store uygulama kimlikleri de yeni ada geçti. Eski adlar Legacy* olarak tanınır ve açılışta
+/// taşınır (Core/DataFolderLocator, Core/RunValueMigration, kurulumdaki [Code]). DEĞİŞMEZ işaretliler mevcut kurulumları
+/// bozar (NestDesk.iss, AppxManifest.xml ve diskteki veriler bunlara bağlı; IdentityTests sabitler).
+/// </summary>
 public static class AppInfo
 {
     public const string Name = "NestDesk";
     public const string FormerName = "Düzenleme";
     public const string Tagline = "Masaüstün için derli toplu bir yuva.";
-    public const string ReleasesUrl = "https://github.com/hasakobey/duzenleme/releases";
+
+    /// <summary>Depo adresi (uygulamanın eski adını taşır). Depo yeniden adlandırılırsa yalnızca burası değişir:
+    /// GitHub eski adresleri yeni depoya yönlendirir, eski sürümlerdeki bağlantılar da çalışmaya devam eder.</summary>
+    public const string RepoUrl = "https://github.com/hasakobey/duzenleme";
+    public const string ReleasesUrl = RepoUrl + "/releases";
+    public const string IssuesUrl = RepoUrl + "/issues";
+    public const string PrivacyUrl = RepoUrl + "/blob/main/PRIVACY.md";
+
     public static string Version => typeof(AppInfo).Assembly.GetName().Version?.ToString(3) ?? "";
 
-    public const string InstanceIdPrefix = "Duzenleme.";      // DEĞİŞMEZ: mutex + .show/.add/.exit; Duzenleme.iss InstanceId
-    public const string DataFolderName = "Duzenleme";         // DEĞİŞMEZ: %AppData% altı
-    public const string RunValueName = "Duzenleme";           // DEĞİŞMEZ: HKCU\...\Run değer adı
-    public const string StartupTaskId = "DuzenlemeStartup";   // DEĞİŞMEZ: AppxManifest StartupTask TaskId
+    /// <summary>Program dosyası (csproj AssemblyName + ".exe"); 2.0 ve öncesi <see cref="LegacyExeName"/>.</summary>
+    public const string ExeName = "NestDesk.exe";
+    public const string LegacyExeName = "Duzenleme.exe";
+
+    /// <summary>DEĞİŞMEZ: mutex + .show/.add/.exit. 2.0 (Duzenleme.exe) ile 2.1 (NestDesk.exe) birbirini görür; kurulum
+    /// ikisini de aynı sinyalle kapatır (NestDesk.iss InstanceId).</summary>
+    public const string InstanceIdPrefix = "Duzenleme.";
+
+    /// <summary>%AppData% altındaki veri klasörü; 2.0 ve öncesininki açılışta yeniden adlandırılır.</summary>
+    public const string DataFolderName = "NestDesk";
+    public const string LegacyDataFolderName = "Duzenleme";
+
+    /// <summary>HKCU\...\Run değer adı; eskisi açılışta ve kurulumda yeni ada taşınır.</summary>
+    public const string RunValueName = "NestDesk";
+    public const string LegacyRunValueName = "Duzenleme";
+
+    /// <summary>Store (MSIX) kimlikleri: AppxManifest.xml'deki Application Id'ler ve StartupTask TaskId.</summary>
+    public const string PackageAppId = "NestDesk";
+    public const string PackageAddWidgetAppId = "AddWidget";
+    public const string StartupTaskId = "NestDeskStartup";
 }

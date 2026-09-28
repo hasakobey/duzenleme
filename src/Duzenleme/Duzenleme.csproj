@@ -9,14 +9,17 @@
     <!-- Yalnızca tepsi simgesi (NotifyIcon) için. -->
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <!-- Exe adı bilerek eski: Run kaydı, kurulum, MSIX Executable ve tepsi tercihleri buna bağlı (bkz. Core/AppInfo.cs). -->
-    <AssemblyName>Duzenleme</AssemblyName>
+    <!-- Program dosyası NestDesk.exe (2.1.0; 2.0 ve öncesi Duzenleme.exe). Proje, ad alanı ve çözüm adı bilerek eski kalır
+         (RootNamespace proje adından: Duzenleme). Kurulum eski exe'yi siler; Run değeri ve veri klasörü açılışta taşınır
+         (bkz. Core/AppInfo.cs). Değişirse: AppInfo.ExeName, NestDesk.iss AppExe ve AppxManifest Executable. -->
+    <AssemblyName>NestDesk</AssemblyName>
+    <RootNamespace>Duzenleme</RootNamespace>
     <Product>NestDesk</Product>
     <!-- Görev Yöneticisi, bildirim kaynağı ve Başlangıç uygulamaları bu adı gösterir. -->
     <AssemblyTitle>NestDesk</AssemblyTitle>
     <!-- Sürüm numarası sade kalsın (1.1.0+abcdef... değil). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <!-- Geliştirme makinesinde Smart App Control, tanımadığı imzasız DLL'i engelleyebiliyor; deterministik derleme
          her seferinde birebir aynı (yine engellenen) dosyayı üretir. Debug'da her derleme farklı olsun. -->
     <Deterministic Condition="'$(Configuration)' == 'Debug'">false</Deterministic>

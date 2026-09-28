@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MSIX bildirimindeki ms-resource: metinleri (Türkçe). Anahtarlar en-US ile aynı olmalı: package-msix.ps1 ve
+     IdentityTests denetler. -->
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AppDescription" xml:space="preserve">
+    <value>Masaüstüne düşen dosyaları klasörlerine taşır; bölme, saat, tarih, not, yapılacaklar ve kısayol kutusu widget'ları sunar.</value>
+  </data>
+  <data name="AddWidgetName" xml:space="preserve">
+    <value>NestDesk – Widget ekle</value>
+  </data>
+  <data name="AddWidgetDescription" xml:space="preserve">
+    <value>Masaüstüne yeni bir widget (saat, tarih, klasör bölmesi…) ekler.</value>
+  </data>
+</root>

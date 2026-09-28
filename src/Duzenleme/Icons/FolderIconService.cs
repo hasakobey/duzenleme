@@ -11,7 +11,13 @@ namespace Duzenleme.Icons;
 /// </summary>
 public static class FolderIconService
 {
-    internal const string IconPrefix = ".duzenleme-"; // DEĞİŞMEZ: eski simgeler bu önekle tanınır
+    /// <summary>Yeni yazılan simge dosyalarının öneki (gizli + sistem dosyası, klasörün içinde).</summary>
+    internal const string IconPrefix = ".nestdesk-";
+
+    /// <summary>DEĞİŞMEZ: 2.0 ve öncesinin simge dosyaları bu önekle tanınır (onarma, kaldırma, "hepsini kaldır").</summary>
+    internal const string LegacyIconPrefix = ".duzenleme-";
+
+    internal static readonly string[] OwnPrefixes = [IconPrefix, LegacyIconPrefix];
     private const uint FCSM_ICONFILE = 0x00000010;
     private const uint FCS_FORCEWRITE = 0x00000002;
     private const int SHCNE_UPDATEDIR = 0x00001000;
@@ -47,6 +53,14 @@ public static class FolderIconService
     private static extern void SHChangeNotify(int wEventId, uint uFlags, string? dwItem1, IntPtr dwItem2);
 
     static FolderIconService() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+    /// <summary>Dosya adı bu uygulamanın yazdığı bir klasör simgesi mi (yeni ya da eski önekli .ico)?</summary>
+    public static bool IsOwnIconFile(string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        return name.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)
+            && OwnPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>desktop.ini'yi kodlamasını algılayarak okur (UTF-16/UTF-8 BOM'lu ya da sistemin ANSI kod sayfası).</summary>
     private static (string[] Lines, Encoding Encoding) ReadIni(string ini)
@@ -116,7 +130,7 @@ public static class FolderIconService
                 var value = IconValue(lines);
                 if (value is null || !Path.IsPathRooted(value)) continue;
                 var name = Path.GetFileName(value);
-                if (!name.StartsWith(IconPrefix, StringComparison.OrdinalIgnoreCase)) continue; // başka programın simgesine dokunma
+                if (!IsOwnIconFile(name)) continue; // başka programın simgesine dokunma
 
                 if (File.Exists(Path.Combine(folder, name)))
                 {
@@ -167,7 +181,8 @@ public static class FolderIconService
     }
 
     /// <summary>Klasörü varsayılan Windows simgesine döndürür.</summary>
-    public static void Reset(string folder)
+    /// <param name="iconCache">false: Windows'un simge önbelleği tazelenmez (toplu kaldırmada en sonda bir kez yapılır).</param>
+    public static void Reset(string folder, bool iconCache = true)
     {
         var ini = Path.Combine(folder, "desktop.ini");
         if (File.Exists(ini))
@@ -193,12 +208,12 @@ public static class FolderIconService
             }
         }
         RemoveOwnIconFiles(folder);
-        Refresh(folder);
+        Refresh(folder, iconCache);
     }
 
     private static void RemoveOwnIconFiles(string folder)
     {
-        foreach (var old in Directory.EnumerateFiles(folder, IconPrefix + "*.ico"))
+        foreach (var old in OwnPrefixes.SelectMany(prefix => Directory.EnumerateFiles(folder, prefix + "*.ico")).ToList())
         {
             try
             {
@@ -210,10 +225,62 @@ public static class FolderIconService
         }
     }
 
-    private static void Refresh(string folder)
+    /// <summary>
+    /// "Klasör simgelerinin hepsini kaldır" (Ayarlar → Gelişmiş; Store sürümünde kaldırma programı olmadığı için): verilen
+    /// kökler altındaki klasörlerden (kökün kendisi değil; en çok <paramref name="depth"/> düzey) bu uygulamanın verdiği
+    /// simgeleri kaldırır. desktop.ini simgesi bizimse klasör varsayılan simgeye döner; başka programın simgesi olan klasörde
+    /// yalnızca bizim artık dosyalarımız silinir. Bağlantı (junction) klasörlere girilmez. Arka planda çağır.
+    /// </summary>
+    public static (List<string> Removed, int Failed) RemoveAllOwnIcons(IEnumerable<string> roots, int depth = 2, int maxFolders = 20000)
+    {
+        List<string> removed = [];
+        int failed = 0, visited = 0;
+        var queue = new Queue<(string Folder, int Level)>();
+        foreach (var root in roots.Distinct(StringComparer.OrdinalIgnoreCase)) queue.Enqueue((root, 0));
+        while (queue.Count > 0 && visited < maxFolders)
+        {
+            var (folder, level) = queue.Dequeue();
+            if (level > 0)
+            {
+                visited++;
+                try
+                {
+                    if (RemoveOwnIcon(folder)) removed.Add(folder);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed++; }
+            }
+            if (level >= depth) continue;
+            try
+            {
+                foreach (var child in new DirectoryInfo(folder).EnumerateDirectories())
+                    if (!child.Attributes.HasFlag(FileAttributes.ReparsePoint)) queue.Enqueue((child.FullName, level + 1));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+        }
+        // Simge önbelleği klasör başına değil, bir kez tazelenir.
+        if (removed.Count > 0) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
+        return (removed, failed);
+    }
+
+    /// <summary>Klasördeki bu uygulamaya ait simgeyi kaldırır; bir şey değiştiyse true.</summary>
+    internal static bool RemoveOwnIcon(string folder)
+    {
+        var ini = Path.Combine(folder, "desktop.ini");
+        if (File.Exists(ini) && IconValue(ReadIni(ini).Lines) is { } value && IsOwnIconFile(value))
+        {
+            Reset(folder, iconCache: false);
+            return true;
+        }
+        // desktop.ini başka bir simgeyi gösteriyor (ya da yok): yalnızca artık kalmış simge dosyalarımız silinir, görünüm değişmez.
+        if (!OwnPrefixes.Any(prefix => Directory.EnumerateFiles(folder, prefix + "*.ico").Any())) return false;
+        RemoveOwnIconFiles(folder);
+        return true;
+    }
+
+    private static void Refresh(string folder, bool iconCache = true)
     {
         SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, folder, IntPtr.Zero);
         SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATHW, Path.GetDirectoryName(folder), IntPtr.Zero);
-        SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
+        if (iconCache) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
     }
 }

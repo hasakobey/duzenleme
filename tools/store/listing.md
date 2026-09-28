@@ -1,4 +1,4 @@
-# Microsoft Store listesi — NestDesk 2.0.0
+# Microsoft Store listesi — NestDesk 2.1.0
 
 Partner Center'a kopyalanacak hazır metinler. Her alan ayrı bir kod bloğunda; GitHub'da bloğun sağ üstündeki kopyala düğmesiyle al. Açıklama alanları düz metindir: içine HTML ya da bağlantı koyma (Microsoft'un önerisi; bağlantılar kendi alanlarına girer).
 
@@ -10,7 +10,7 @@ Sınırlar Microsoft Learn'deki MSIX sayfalarından ("Add and edit Store listing
 | Short description | en fazla 1.000; bazı görünümlerde yalnızca ilk 270 karakter görünür | < 270 |
 | Product features | en fazla 20 madde, her biri en fazla 200 karakter; madde işareti koyma | 18 madde |
 | Keywords | en fazla 7 terim, tüm terimlerde toplam en fazla 21 kelime; terim başına en fazla 40 karakter (Partner Center daha kısa bir sınır gösterirse o geçerli) | 7 terim, en uzunu 20 karakter, 14–15 kelime |
-| What's new in this version | en fazla 1.500 karakter; **ilk gönderimde boş bırak** | 2.0.0 ilk gönderim: boş; sonraki sürümde doldurulur |
+| What's new in this version | en fazla 1.500 karakter; **ilk gönderimde boş bırak** | 2.1.0 ilk gönderim: boş; sonraki sürümde doldurulur |
 | Screenshot caption | en fazla 200 karakter | 6 açıklama (baştaki "1." numarasını yapıştırma) |
 
 ## Ortak değerler (iki dil için aynı)
@@ -26,7 +26,7 @@ Sınırlar Microsoft Learn'deki MSIX sayfalarından ("Add and edit Store listing
 | Category | **Productivity**; Secondary category: **Utilities + tools** |
 | Sistem gereksinimi | Windows 10 sürüm 2004 (19041) veya üstü, Windows 11 — paket bildirimindeki `MinVersion` |
 
-Depo adresi şimdilik `hasakobey/duzenleme` kalır (uygulamanın eski adı; depo yeniden adlandırılınca bu bağlantılar ve `Core/AppInfo.cs` → `ReleasesUrl` birlikte güncellenir).
+Depo adresi şimdilik `hasakobey/duzenleme` kalır (uygulamanın eski adı; depo yeniden adlandırılınca bu bağlantılar ve `Core/AppInfo.cs` → `RepoUrl` birlikte güncellenir).
 
 **Kategori gerekçesi:** Microsoft'un tablosunda *Productivity* "bir işi daha verimli bitirmeye yardım eden uygulamalar" (örnekler: not alma, verileri görüntüleme ve sıralama) olarak tanımlanıyor; NestDesk'in asıl işi masaüstünü düzenli tutmak ve dosyaları kendiliğinden yerine koymak, not ve yapılacaklar widget'ları da bu tanıma giriyor. *Utilities + tools* (örnek: dosya yöneticisi) ikincil kategori olarak dosya taşıma ve bölme tarafını kapsar. Productivity'nin alt kategorisi yok. *Personalization* (tema, duvar kâğıdı) widget'lara ve klasör simgelerine uyardı ama uygulamanın ana değerini anlatmıyor.
 
@@ -136,9 +136,9 @@ yapışkan not
 masaüstü saati
 ```
 
-### Bu sürümdeki yenilikler (What's new in this version) — 2.0.0
+### Bu sürümdeki yenilikler (What's new in this version) — 2.1.0
 
-NestDesk'in Store'daki ilk sürümü 2.0.0 olduğu için bu alan **boş bırakılır** (Microsoft ilk gönderimde boş bırakmanı istiyor). Sonraki her sürümde (ör. 2.0.1) buraya o sürümün yenilikleri kısa maddeler hâlinde (`• ` ile başlayan satırlar, en fazla 1.500 karakter) Türkçe ve İngilizce yazılır.
+NestDesk'in Store'daki ilk sürümü 2.1.0 olduğu için bu alan **boş bırakılır** (Microsoft ilk gönderimde boş bırakmanı istiyor). Sonraki her sürümde (ör. 2.1.1) buraya o sürümün yenilikleri kısa maddeler hâlinde (`• ` ile başlayan satırlar, en fazla 1.500 karakter) Türkçe ve İngilizce yazılır.
 
 ### Ekran görüntüsü açıklamaları (caption)
 
@@ -251,9 +251,9 @@ sticky notes
 desktop clock
 ```
 
-### What's new in this version — 2.0.0
+### What's new in this version — 2.1.0
 
-Leave blank: 2.0.0 is NestDesk's first Store submission (see the Turkish note above).
+Leave blank: 2.1.0 is NestDesk's first Store submission (see the Turkish note above).
 
 ### Screenshot captions
 
@@ -325,7 +325,7 @@ GETTING STARTED
 - Closing the main window keeps the app running in the tray. Left-click the tray icon to reopen it. To quit, right-click the tray icon > "Çıkış" (Exit).
 
 ADD WIDGETS
-- Press Ctrl+Alt+B, right-click the tray icon > "Widget ekle…" (Add widget…), or start "NestDesk – Widget ekle" from the Start menu. Click a tile, e.g. "Klasörler" (Folders), "Dosyalar" (Files), "Saat" (Clock), "Not" (Note), "Yapılacaklar" (To-do), "Kısayol kutusu" (Launcher).
+- Press Ctrl+Alt+B, right-click the tray icon > "Widget ekle…" (Add widget…), or start "NestDesk – Add a widget" ("NestDesk – Widget ekle" on Turkish Windows) from the Start menu. Click a tile, e.g. "Klasörler" (Folders), "Dosyalar" (Files), "Saat" (Clock), "Not" (Note), "Yapılacaklar" (To-do), "Kısayol kutusu" (Launcher).
 - To remove a widget, click the × in its top-right corner or right-click it > "Kaldır" (Remove).
 
 AUTOMATIC MOVING
@@ -340,7 +340,7 @@ DESKTOP ICONS MODE ("show desktop icons only in fences")
 - Quick hide: double-click an empty area of the desktop or press Ctrl+Alt+H to hide icons and widgets; repeat to show them again. This can be turned off in "Ayarlar" (Settings) > "Masaüstü" (Desktop).
 
 OPTIONAL AI FEATURE
-- AI-generated folder icons require the user's own Anthropic API key ("Ayarlar" (Settings) > "Gelişmiş" (Advanced) > "Yapay zekâ ile klasör simgesi" (AI folder icon)). Without a key, the "Üret" (Generate) button is disabled; all other features work offline and without a key. The app has no other network use.
+- AI-generated folder icons require the user's own Anthropic API key ("Ayarlar" (Settings) > "Gelişmiş" (Advanced) > "Yapay zekâ ile klasör simgesi" (AI folder icon)). Without a key, the "Üret" (Generate) button is disabled; all other features work offline and without a key. The app has no other network use. Inappropriate AI output can be reported with the "Uygunsuz içeriği bildir" (Report inappropriate content) link in the folder icon window; it opens a blank GitHub issue form in the browser and sends nothing by itself.
 ```
 
 ---
@@ -351,14 +351,14 @@ Menü adları Microsoft Learn'deki İngilizce adlardır; Partner Center Türkçe
 
 1. **Ürün adı (yapıldı).** Partner Center'daki ürün `NestDesk` adıyla ayrıldı. Paketteki görünen ad (`AppxManifest.xml` → `DisplayName`, uygulamada `Core/AppInfo.cs` → `Name`) ayrılan adla birebir aynı olmalı; her dilin Store listing'inde **Product name** olarak `NestDesk` seç. Ad bir gün değişirse: **Product management** → **Manage product names** → yeni ad → **Check availability** → **Reserve**; ad alınmışsa dur. Paket kimliği (`identity.json` → `Name`) ad değişince değişmez; `AppInfo.Name`, manifest ve bu dosya birlikte değişir.
 2. **Ürün kimliği (yapıldı).** `tools/store/identity.json` Partner Center'daki NestDesk ürününün kimliğiyle dolu (`Hasako.NestDesk`). Değerler şuradan gelir: uygulamanın sayfasında sol menü **Product management** → **Product identity** (Ürün yönetimi → Ürün kimliği); **Package/Identity/Name** → `Name`, **Package/Identity/Publisher** (`CN=…` biçiminde) → `Publisher`, **Package/Properties/PublisherDisplayName** → `PublisherDisplayName`. Aynı sayfadaki Package Family Name ve Store ID bilgi içindir; mağaza bağlantın `https://apps.microsoft.com/detail/<Store ID>` olur.
-3. **Paketi üret.** `tools/package-msix.ps1 -Strict` betiğini çalıştır (`-Strict`, yer tutucu kalmışsa durur); `dist-store\NestDesk-<sürüm>.msixbundle` üretilir (ör. `2.0.0.0`). Paketin içindeki program dosyası bilerek `Duzenleme.exe` adını taşır (eski ad; kimlik değil, görünmez). Store aynı sürümü ikinci kez kabul etmez: her yeni gönderimde `<Version>` artmalı.
+3. **Paketi üret.** `tools/package-msix.ps1 -Strict` betiğini çalıştır (`-Strict`, yer tutucu kalmışsa durur); `dist-store\NestDesk-<sürüm>.msixbundle` üretilir (paket sürümü ör. `2.1.0.0`; program dosyası `NestDesk.exe`). Betik bildirimdeki `ms-resource:` metinlerinin `tools/store/Strings/en-US` ve `tr-TR` altında bulunduğunu denetler. Store aynı sürümü ikinci kez kabul etmez: her yeni gönderimde `<Version>` artmalı.
 4. **Gizlilik politikasını yayımla.** `PRIVACY.md`'yi GitHub'a gönder ve `https://github.com/hasakobey/duzenleme/blob/main/PRIVACY.md` adresinin tarayıcıda açıldığını kontrol et.
 5. **Gönderimi başlat.** Uygulamanın genel bakış sayfasında **Start submission**.
 6. **Pricing and availability.** **Markets**: varsayılan (tüm pazarlar) kalabilir. **Base price**: **Free**. **Free trial** yok. **Discoverability** ve **Schedule** varsayılan.
-7. **Properties.** **Category**: Productivity, **Secondary category**: Utilities + tools. Gizlilik sorusuna **Yes** ve gizlilik URL'si. **Website** ve **Support contact info** yukarıdaki tablodan. **Product declarations**: yalnızca gerçekten geçerli olan kutuları işaretle.
+7. **Properties.** **Category**: Productivity, **Secondary category**: Utilities + tools. Gizlilik sorusuna **Yes** ve gizlilik URL'si. **Website** ve **Support contact info** yukarıdaki tablodan. **Product declarations**: yalnızca gerçekten geçerli olan kutuları işaretle. İsteğe bağlı yapay zekâ simgesi nedeniyle (Store 11.16) canlı üretken yapay zekâ içeriği bildirimi istenirse işaretle; uygulama içi bildirme yolu klasör simgesi penceresindeki **Uygunsuz içeriği bildir** bağlantısıdır.
 8. **Age ratings.** Anketi yukarıdaki önerilere göre doldur → **Save and generate**.
 9. **Packages.** `.msixbundle` dosyasını sürükle-bırak; doğrulama (validation) bitene kadar bekle. Hata çıkarsa çoğunlukla kimlik değerleri ya da görünen ad Product identity ile uyuşmuyordur. **Device family availability**: Windows 10/11 Desktop.
-10. **Store listings.** Paket iki dil bildirdiği için Türkçe ve İngilizce listeler hazır gelir; her dili ayrı aç ve bu dosyadaki metinleri yapıştır. **What's new in this version** ilk gönderimde (2.0.0) boş. **Store logos** bölümüne 300×300 PNG uygulama simgesi yüklemen önerilir (yüklemezsen paketteki simge kullanılır).
+10. **Store listings.** Paket iki dil bildirdiği için Türkçe ve İngilizce listeler hazır gelir; her dili ayrı aç ve bu dosyadaki metinleri yapıştır. **What's new in this version** ilk gönderimde (2.1.0) boş. **Store logos** bölümüne 300×300 PNG uygulama simgesi yüklemen önerilir (yüklemezsen paketteki simge kullanılır).
 11. **Ekran görüntüleri** (her dil için ayrı yüklenir; aynı görüntüler kullanılabilir, açıklamalar dile göre):
     - En az 1 zorunlu, en fazla 10 masaüstü görüntüsü; Microsoft 4 ve üstünü (SSS'de 5–8) öneriyor. **6 tane** öneriyorum, sırası yukarıdaki açıklamalarla aynı:
       1. Bölmelere ayrılmış masaüstü (Klasörler, Kısayollar, Dosyalar, PDF bölmeleri + saat + tarih + yapılacaklar) — vitrin görüntüsü.
@@ -369,7 +369,7 @@ Menü adları Microsoft Learn'deki İngilizce adlardır; Partner Center Türkçe
       6. Bir widget'a sağ tık → **Görünüm** menüsü açıkken, farklı arka planlarda (cam/koyu/açık) not, yapılacaklar ve kısayol kutusu.
     - Biçim: PNG, yatay, **en az 1366×768** (1920×1080 önerilir), en fazla 50 MB. Pencere kırpması 1366×768'den küçük kalacağı için tam ekran görüntüsü al.
     - Önemli içeriği üst üçte ikiye koy (alt üçte birin üstüne yazı binebilir); görüntülere ek logo ya da reklam yazısı ekleme.
-    - Gerçek masaüstünü değil test örneğini kullan: `Duzenleme.exe --desktop <geçici klasör> --data <geçici klasör>`, klasöre örnek dosyalar koy (PDF, Resimler…). Kişisel dosya adı, e-posta ya da API anahtarı görünmesin; sade bir duvar kâğıdı seç. İşin bitince örneği `--exit` ile kapat.
+    - Gerçek masaüstünü değil test örneğini kullan: `NestDesk.exe --desktop <geçici klasör> --data <geçici klasör>`, klasöre örnek dosyalar koy (PDF, Resimler…). Kişisel dosya adı, e-posta ya da API anahtarı görünmesin; sade bir duvar kâğıdı seç. İşin bitince örneği `--exit` ile kapat.
     - Test örneği gerçek masaüstü simgelerini gizlemez: 1. görüntüde Windows simgeleri arkada görünmesin diye çekimden önce masaüstüne sağ tık → **Görünüm** → **Masaüstü simgelerini göster** işaretini kaldır, sonra geri aç.
 12. **Submission options.** **Notes for certification** ve **Restricted capabilities** (runFullTrust) kutularına yukarıdaki İngilizce metinleri yapıştır. **Publishing hold options** varsayılan (sertifikasyondan geçince yayımlanır) ya da elle yayımlamak için **Don't publish this submission until I select Publish now**. **E-posta adresini doğrula:** Microsoft, kritik e-posta bildirimlerini alabilmen için adresin Action Center'da doğrulanmasını zorunlu tutuyor: Partner Center → **Action Center** → **My Preferences**. (Hesap sahibi bildirimleri her zaman alır; **Submission notification audience** ile başka kişi eklemek isteğe bağlı.)
 13. **Gönder.** Genel bakış sayfasında **Submit for certification**. Durum sertifikasyon aşamasında görünür; sonuç Partner Center'daki Action Center'a ve (12. adımda doğruladığın) e-posta adresine gelir. Reddedilirse sertifikasyon raporundaki madde düzeltilip yeni gönderim yapılır.

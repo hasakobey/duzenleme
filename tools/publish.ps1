@@ -4,15 +4,16 @@
 #   powershell -File tools/publish.ps1 -Arch x64    # yalnızca bir mimari (hızlı deneme; kurulum yalnızca x64 kabul eder)
 #
 # Çıktılar (dist/):
-#   NestDesk-Kurulum-<sürüm>.exe                   tek kurulum sihirbazı; bilgisayarın mimarisine uygun sürümü kurar
-#   NestDesk-<sürüm>-<mimari>-tasinabilir.zip      kurulumsuz kullanım (içinde portable.txt var)
-# Program dosyası bilerek Duzenleme.exe kalır (eski adı; Run kaydı ve kurulum güncellemesi buna bağlı, bkz. Core/AppInfo.cs).
+#   NestDesk-Setup-<sürüm>.exe                     tek kurulum sihirbazı (İngilizce/Türkçe); bilgisayarın mimarisine uygun sürümü kurar
+#   NestDesk-<sürüm>-<mimari>-portable.zip         kurulumsuz kullanım (içinde portable.txt var)
+# Program dosyası NestDesk.exe (2.0 ve öncesi Duzenleme.exe; kurulum eskisini siler, bkz. Core/AppInfo.cs).
 #
 # İsteğe bağlı kod imzalama (imzasız dosyalarda Windows SmartScreen "bilinmeyen yayımcı" uyarısı gösterir,
-# Smart App Control açık bilgisayarlar ise çalıştırmayı engelleyebilir). Şunlardan biri ayarlıysa imzalanır:
-#   DUZENLEME_SIGN_PFX (+ DUZENLEME_SIGN_PASSWORD)          .pfx dosyası
-#   DUZENLEME_SIGN_THUMBPRINT                               sertifika deposundaki/donanım anahtarındaki sertifika
-#   DUZENLEME_SIGN_DLIB + DUZENLEME_SIGN_DMDF               Microsoft Trusted (Artifact) Signing
+# Smart App Control açık bilgisayarlar ise çalıştırmayı engelleyebilir). Şunlardan biri ayarlıysa imzalanır
+# (her biri eski DUZENLEME_SIGN_* adıyla da okunur):
+#   NESTDESK_SIGN_PFX (+ NESTDESK_SIGN_PASSWORD)            .pfx dosyası
+#   NESTDESK_SIGN_THUMBPRINT                                sertifika deposundaki/donanım anahtarındaki sertifika
+#   NESTDESK_SIGN_DLIB + NESTDESK_SIGN_DMDF                 Microsoft Trusted (Artifact) Signing
 param(
     [ValidateSet('x64', 'arm64', 'x86')]
     [string[]]$Arch = @('x64', 'arm64', 'x86'),
@@ -36,14 +37,20 @@ New-Item -ItemType Directory -Force $stage | Out-Null
 
 # --- İmzalama (isteğe bağlı) ---
 $timestamp = @('/tr', 'http://timestamp.digicert.com', '/td', 'SHA256', '/fd', 'SHA256')
+# NESTDESK_<ad>, yoksa eski adı DUZENLEME_<ad> (uygulamadaki Core/AppEnvironment gibi).
+function Get-Setting([string]$name) {
+    $value = [Environment]::GetEnvironmentVariable("NESTDESK_$name")
+    if (-not $value) { $value = [Environment]::GetEnvironmentVariable("DUZENLEME_$name") }
+    return $value
+}
 $signIdentity = $null
-if ($env:DUZENLEME_SIGN_PFX) {
-    $signIdentity = @('/f', $env:DUZENLEME_SIGN_PFX)
-    if ($env:DUZENLEME_SIGN_PASSWORD) { $signIdentity += @('/p', $env:DUZENLEME_SIGN_PASSWORD) }
-} elseif ($env:DUZENLEME_SIGN_THUMBPRINT) {
-    $signIdentity = @('/sha1', $env:DUZENLEME_SIGN_THUMBPRINT)
-} elseif ($env:DUZENLEME_SIGN_DLIB -and $env:DUZENLEME_SIGN_DMDF) {
-    $signIdentity = @('/dlib', $env:DUZENLEME_SIGN_DLIB, '/dmdf', $env:DUZENLEME_SIGN_DMDF)
+if (Get-Setting 'SIGN_PFX') {
+    $signIdentity = @('/f', (Get-Setting 'SIGN_PFX'))
+    if (Get-Setting 'SIGN_PASSWORD') { $signIdentity += @('/p', (Get-Setting 'SIGN_PASSWORD')) }
+} elseif (Get-Setting 'SIGN_THUMBPRINT') {
+    $signIdentity = @('/sha1', (Get-Setting 'SIGN_THUMBPRINT'))
+} elseif ((Get-Setting 'SIGN_DLIB') -and (Get-Setting 'SIGN_DMDF')) {
+    $signIdentity = @('/dlib', (Get-Setting 'SIGN_DLIB'), '/dmdf', (Get-Setting 'SIGN_DMDF'))
 }
 $signtool = $null
 if ($signIdentity) {
@@ -74,20 +81,26 @@ foreach ($a in $Arch) {
         -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=none -p:GenerateDocumentationFile=false `
         -o $out -nologo -v q
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız: $a" }
+    # Kurulum ve Run değeri bu adı bekler (NestDesk.iss AppExe, Core/AppInfo.cs ExeName).
+    if (-not (Test-Path (Join-Path $out 'NestDesk.exe'))) { throw "Yayın çıktısında NestDesk.exe yok: $out" }
     Sign-Folder $out
 
     # Taşınabilir zip: portable.txt sayesinde ayarlar exe'nin yanındaki data klasöründe tutulur.
     $portable = Join-Path $stage "portable-$a"
     Copy-Item $out $portable -Recurse
-    Set-Content (Join-Path $portable 'portable.txt') 'Bu dosya varsa NestDesk ayarlarını bu klasördeki "data" klasöründe tutar.' -Encoding UTF8
-    Compress-Archive -Path (Join-Path $portable '*') -DestinationPath (Join-Path $dist "NestDesk-$version-$a-tasinabilir.zip") -CompressionLevel Optimal
+    $portableText = @(
+        'While this file exists, NestDesk keeps its settings in the "data" folder next to it (portable mode).',
+        'Bu dosya varsa NestDesk ayarlarını bu klasördeki "data" klasöründe tutar (taşınabilir kullanım).'
+    ) -join "`r`n"
+    [IO.File]::WriteAllText((Join-Path $portable 'portable.txt'), $portableText + "`r`n", (New-Object Text.UTF8Encoding $true))
+    Compress-Archive -Path (Join-Path $portable '*') -DestinationPath (Join-Path $dist "NestDesk-$version-$a-portable.zip") -CompressionLevel Optimal
 }
 
 # --- Kurulum programı ---
 if (-not $SkipInstaller) {
     $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") |
         Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $iscc) { throw 'Inno Setup 6 bulunamadı (https://jrsoftware.org/isdl.php).' }
+    if (-not $iscc) { throw 'Inno Setup 6 bulunamadı (https://jrsoftware.org/isdl.php; 6.6 veya üstü).' }
 
     $defines = @("/DAppVersion=$version", "/DStageDir=$stage", "/DOutputDir=$dist")
     foreach ($a in $Arch) { $defines += "/DHas_$a=1" }
@@ -96,10 +109,10 @@ if (-not $SkipInstaller) {
         $quote = { param($s) if ($s -match '\s') { "`$q$s`$q" } else { $s } }
         # Inno'da $ özel karakterdir: parolada vb. geçen $ işaretleri $$ olarak kaçırılır.
         $cmd = (@("`$q$signtool`$q", 'sign') + ($signIdentity | ForEach-Object { & $quote ($_ -replace '\$', '$$$$') }) + $timestamp + '$f') -join ' '
-        $defines += "/Sduzenlemesign=$cmd"
+        $defines += "/Snestdesksign=$cmd"
         $defines += '/DUseSignTool=1'
     }
-    & $iscc @defines /Q (Join-Path $PSScriptRoot 'installer\Duzenleme.iss')
+    & $iscc @defines /Q (Join-Path $PSScriptRoot 'installer\NestDesk.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Kurulum programı derlenemedi.' }
 }
 

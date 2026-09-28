@@ -1,6 +1,7 @@
-# Her gönderimde derler, testleri çalıştırır ve kurulum dosyasıyla taşınabilir zip'leri indirilebilir çıktı olarak ekler.
-# "v" ile başlayan bir etiket gönderilince (ör. git tag v1.4.1 && git push origin v1.4.1) aynı dosyalarla GitHub'da
-# sürüm (Release) açar. Etiket, Duzenleme.csproj'daki <Version> ile aynı olmalı.
+# Her gönderimde derler, testleri çalıştırır ve kurulum dosyasıyla taşınabilir zip'leri indirilebilir çıktı olarak ekler
+# (dist/: NestDesk-Setup-<sürüm>.exe, NestDesk-<sürüm>-<mimari>-portable.zip). "v" ile başlayan bir etiket gönderilince
+# (ör. git tag v2.1.0 && git push origin v2.1.0) aynı dosyalarla GitHub'da sürüm (Release) açar. Etiket, Duzenleme.csproj'daki
+# <Version> ile aynı olmalı.
 # Kod imzalama (SignPath Foundation, ücretsiz açık kaynak programı) onaylanınca imzalama adımı buraya eklenecek.
 name: Derleme
 
@@ -35,11 +36,11 @@ jobs:
       - name: Testler
         run: dotnet test Duzenleme.sln -c Release
 
+      # NestDesk.iss 6.6+ ister (WizardStyle=modern dynamic). ISCC.exe'nin sürüm bilgisi güvenilir değil (0.0.0.0 olabiliyor):
+      # "upgrade" yoksa kurar, eskiyse günceller, güncelse bir şey yapmaz. Eski sürümde derleme #error ile durur.
       - name: Inno Setup
         shell: pwsh
-        run: |
-          $found = @("$env:ProgramFiles\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ }
-          if (-not $found) { choco install innosetup -y --no-progress }
+        run: choco upgrade innosetup -y --no-progress
 
       - name: Paketle (kurulum + taşınabilir zip'ler)
         shell: powershell

@@ -63,9 +63,9 @@ public static class WindowFit
         window.Top = (area.Top + 8) / systemScale;
     }
 
-    /// <summary>DUZENLEME_WINDOW_AT="x,y" (fiziksel piksel); yoksa ya da okunamazsa null.</summary>
+    /// <summary>NESTDESK_WINDOW_AT (ya da DUZENLEME_WINDOW_AT) ="x,y" (fiziksel piksel); yoksa ya da okunamazsa null.</summary>
     private static NativeMethods.POINT? TestPoint() =>
-        Environment.GetEnvironmentVariable("DUZENLEME_WINDOW_AT")?.Split(',') is [var x, var y] &&
+        Core.AppEnvironment.Get("WINDOW_AT")?.Split(',') is [var x, var y] &&
         int.TryParse(x.Trim(), out var px) && int.TryParse(y.Trim(), out var py)
             ? new NativeMethods.POINT { X = px, Y = py }
             : null;

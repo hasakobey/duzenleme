@@ -7,19 +7,19 @@ public class PackagedAppTests
 {
     private const string Roaming = @"C:\Users\ali\AppData\Roaming";
     private const string Local = @"C:\Users\ali\AppData\Local";
-    private const string Family = "hasakobey.Duzenleme_abc123";
-    private const string Cache = @"C:\Users\ali\AppData\Local\Packages\hasakobey.Duzenleme_abc123\LocalCache\Roaming";
+    private const string Family = "Hasako.NestDesk_abc123";
+    private const string Cache = @"C:\Users\ali\AppData\Local\Packages\Hasako.NestDesk_abc123\LocalCache\Roaming";
 
     [Theory]
-    [InlineData(@"C:\Users\ali\AppData\Roaming\Duzenleme", Cache + @"\Duzenleme")]
-    [InlineData(@"c:\users\ALI\appdata\roaming\Duzenleme\yedekler\", Cache + @"\Duzenleme\yedekler")]
+    [InlineData(@"C:\Users\ali\AppData\Roaming\NestDesk", Cache + @"\NestDesk")]
+    [InlineData(@"c:\users\ALI\appdata\roaming\NestDesk\yedekler\", Cache + @"\NestDesk\yedekler")]
     [InlineData(@"C:\Users\ali\AppData\Roaming", Cache)]
     public void Roaming_paths_map_to_package_local_cache(string path, string expected) =>
         Assert.Equal(expected, PackagedApp.RedirectedRoamingPath(path, Roaming + @"\", Local, Family));
 
     [Theory]
-    [InlineData(@"C:\Users\ali\AppData\RoamingX\Duzenleme")]
-    [InlineData(@"C:\Users\ali\AppData\Local\Duzenleme")]
+    [InlineData(@"C:\Users\ali\AppData\RoamingX\NestDesk")]
+    [InlineData(@"C:\Users\ali\AppData\Local\NestDesk")]
     [InlineData(@"D:\test\data")]
     public void Paths_outside_roaming_are_not_redirected(string path) =>
         Assert.Null(PackagedApp.RedirectedRoamingPath(path, Roaming, Local, Family));
@@ -27,32 +27,32 @@ public class PackagedAppTests
     private static string Show(string? redirected, params string[] existing)
     {
         var set = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
-        return PackagedApp.DataFolderToShow(Roaming + @"\Duzenleme", redirected, set.Contains, set.Contains);
+        return PackagedApp.DataFolderToShow(Roaming + @"\NestDesk", redirected, set.Contains, set.Contains);
     }
 
     [Fact]
     public void Data_folder_prefers_redirected_copy_that_holds_settings()
     {
-        var cache = Cache + @"\Duzenleme";
+        var cache = Cache + @"\NestDesk";
         // Eski sürümün ayarları gerçek konumda dursa da uygulama yönlendirilen kopyayı okur.
-        Assert.Equal(cache, Show(cache, cache + @"\settings.json", Roaming + @"\Duzenleme\settings.json", cache));
+        Assert.Equal(cache, Show(cache, cache + @"\settings.json", Roaming + @"\NestDesk\settings.json", cache));
     }
 
     [Fact]
     public void Data_folder_falls_back_to_real_appdata_when_old_settings_are_read_from_there()
     {
-        var cache = Cache + @"\Duzenleme";
+        var cache = Cache + @"\NestDesk";
         // Yönlendirilen klasör (ör. yalnızca yedekler için) oluşmuş ama ayarlar hâlâ gerçek %AppData%'da.
-        Assert.Equal(Roaming + @"\Duzenleme", Show(cache, Roaming + @"\Duzenleme\settings.json", cache));
+        Assert.Equal(Roaming + @"\NestDesk", Show(cache, Roaming + @"\NestDesk\settings.json", cache));
     }
 
     [Fact]
     public void Data_folder_uses_whichever_folder_exists_before_first_save()
     {
-        var cache = Cache + @"\Duzenleme";
+        var cache = Cache + @"\NestDesk";
         Assert.Equal(cache, Show(cache, cache));
-        Assert.Equal(Roaming + @"\Duzenleme", Show(cache));
-        Assert.Equal(Roaming + @"\Duzenleme", Show(null, cache + @"\settings.json"));
+        Assert.Equal(Roaming + @"\NestDesk", Show(cache));
+        Assert.Equal(Roaming + @"\NestDesk", Show(null, cache + @"\settings.json"));
     }
 
     [Theory]
@@ -124,7 +124,7 @@ public class PackagedAppTests
     {
         // Paketsiz süreçte de çalışan bir IAsyncOperation<nesne> (StorageFolder.GetFolderFromPathAsync) ile bekleme ve
         // GetResults sanal tablo yuvası doğrulanır; StartupTask aynı yolu kullanır.
-        var dir = Directory.CreateTempSubdirectory("duzenleme-winrt-");
+        var dir = Directory.CreateTempSubdirectory("nestdesk-winrt-");
         try
         {
             var statics = WinRt.Factory<IStorageFolderStatics>("Windows.Storage.StorageFolder");
@@ -148,7 +148,7 @@ public class PackagedAppTests
     {
         var statics = WinRt.Factory<IStorageFolderStatics>("Windows.Storage.StorageFolder");
         Assert.NotNull(statics);
-        using var path = new WinRt.HString(Path.Combine(Path.GetTempPath(), "duzenleme-yok-" + Guid.NewGuid()));
+        using var path = new WinRt.HString(Path.Combine(Path.GetTempPath(), "nestdesk-yok-" + Guid.NewGuid()));
         Assert.Throws<FileNotFoundException>(() =>
             WinRt.AwaitObject((out IntPtr operation) => statics.GetFolderFromPathAsync(path.Handle, out operation), TimeSpan.FromSeconds(10)));
     }
