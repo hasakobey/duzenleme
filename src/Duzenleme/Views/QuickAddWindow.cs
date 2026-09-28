@@ -172,8 +172,10 @@ internal sealed class QuickAddWindow : FluentWindow
         var near = Center();
         _closing = true;
         Close();
-        // Mod zaten açıksa "Geri al" onu kapatmaz; yalnızca eklenen bölmeleri kaldırır.
-        DesktopFences.TurnOnWithNotice(allStarters: true, near, trayHint: L.T("Geri almak için buraya tıkla."));
+        // Ayarlar, Widget'lar sayfası ve tepsiyle aynı yol: kutu kipi kapanır (bölmeler sonra kapanınca dosya taşıma sessizce
+        // geri gelmesin) ve kutulara taşınmış öğeler varsa masaüstüne geri konmaları sorulur. Mod zaten açıksa "Geri al"
+        // onu kapatmaz; yalnızca eklenen bölmeleri kaldırır.
+        DesktopModes.Set(IconMode.FencesOnly, near, owner: null, allStarters: true, trayHint: L.T("Geri almak için buraya tıkla."));
     }
 
     /// <summary>Pencereyi imlecin üstünde ortalar; ekrandan taşmasın. Boyut pencere imlecin monitöründeyken okunur.</summary>

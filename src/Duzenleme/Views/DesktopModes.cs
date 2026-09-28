@@ -67,11 +67,19 @@ internal static class DesktopModes
     /// girilirken kutularda duran masaüstü öğelerinin de taşınması önerilir (ikisi de sorulur, dosyaya sorulmadan dokunulmaz).
     /// near: bölmeler eklenecekse hangi ekrana. owner: soru penceresinin sahibi (yoksa ekranın ortasında, en üstte).
     /// announce: sonucu bildirimle söyle ("Geri al"lı); karşılama kendi özetini verir, false geçer (sorular yine sorulur).
+    /// allStarters: bölmeler açılırken bütün başlangıç bölmeleri kurulsun ("Masaüstümü bölmelere ayır"; bölmeler zaten
+    /// açıksa da eksikleri eklenir). trayHint: pencere gizliyken tepsi balonundaki "Geri al" ipucu.
     /// </summary>
-    public static void Set(IconMode mode, NativeMethods.POINT? near, Window? owner, bool announce = true)
+    public static void Set(IconMode mode, NativeMethods.POINT? near, Window? owner, bool announce = true, bool allStarters = false,
+        string? trayHint = null)
     {
         var current = Current;
-        if (mode == current) return;
+        if (mode == current)
+        {
+            // "Masaüstümü bölmelere ayır" bölmeler zaten açıkken: kip değişmez, eksik başlangıç bölmeleri eklenir.
+            if (mode == IconMode.FencesOnly && allStarters) DesktopFences.TurnOnWithNotice(allStarters: true, near, trayHint);
+            return;
+        }
 
         if (current == IconMode.BoxItemsLeave && BoxMover.MovedCount is var moved and > 0 &&
             Confirm.Ask(owner, L.T("Kutulardaki öğeler masaüstüne geri konsun mu?"),
@@ -85,8 +93,8 @@ internal static class DesktopModes
             case IconMode.FencesOnly:
                 // Kutu kipi bilerek kapanır: bölmeler sonradan kapanınca dosya taşıma sessizce geri gelmesin.
                 AppHost.Settings.BoxItemsLeaveDesktop = false;
-                if (announce) DesktopFences.TurnOnWithNotice(allStarters: false, near);
-                else DesktopFences.TurnOn(allStarters: false, near);
+                if (announce) DesktopFences.TurnOnWithNotice(allStarters, near, trayHint);
+                else DesktopFences.TurnOn(allStarters, near);
                 break;
 
             case IconMode.BoxItemsLeave:
