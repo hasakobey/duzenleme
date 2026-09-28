@@ -124,6 +124,8 @@ english.LaunchApp=Launch NestDesk now
 turkish.LaunchApp=NestDesk'i şimdi başlat
 english.DeleteDataPrompt=Also delete your settings, notes, widget layout and move history?%n%nChoose No to keep them for a future reinstall. (Folder icons live inside the folders and keep working.)
 turkish.DeleteDataPrompt=Ayarların, notların, widget düzenin ve taşıma geçmişin de silinsin mi?%n%nHayır dersen yeniden kurduğunda kaldığın yerden devam edersin. (Klasörlere verdiğin simgeler klasörlerin içinde durur ve çalışmaya devam eder.)
+english.BoxFilesKept=Files you put into shortcut boxes ("Items I add to boxes leave the desktop") are in this folder:%n%n%1%n%nNestDesk does not delete them. You can move them back to the desktop yourself.
+turkish.BoxFilesKept=Kısayol kutularına koyduğun dosyalar ("Kutulara eklediklerim masaüstünden kalksın") şu klasörde duruyor:%n%n%1%n%nNestDesk onları silmez; istersen masaüstüne kendin geri taşıyabilirsin.
 english.Tagline=A tidy home for your desktop.
 turkish.Tagline=Masaüstün için derli toplu bir yuva.
 english.OtherCopyRunning=Another copy of NestDesk (an older or portable version) is running.%n%nRight-click its tray icon next to the clock, choose "Exit" ("Çıkış" in the Turkish version), then press Retry.
@@ -318,6 +320,39 @@ begin
     Result := ExpandConstant('{userappdata}\{#LegacyDataFolder}\settings.json');
 end;
 
+{ "Kutulara eklediklerim masaüstünden kalksın" kipinde kutulara taşınan dosyaların klasörü: masaüstü klasörünün üst
+  klasöründeki NestDesk (OneDrive'a yönlendirilmiş masaüstünde OneDrive'ın içinde); masaüstü bir sürücünün köküyse kullanıcı
+  klasörü (Core/BoxPlan.RootFor ile aynı kural). }
+function BoxFolder(): String;
+var
+  Desktop, Parent: String;
+begin
+  Desktop := RemoveBackslash(ExpandConstant('{userdesktop}'));
+  Parent := ExtractFileDir(Desktop);
+  if (Length(Desktop) <= 3) or (Parent = '') or (CompareText(Parent, Desktop) = 0) then
+    Parent := GetEnv('USERPROFILE');
+  Result := AddBackslash(Parent) + '{#AppName}';
+end;
+
+{ Klasör var ve içinde en az bir öğe var mı? }
+function FolderHasEntries(const Dir: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if not DirExists(Dir) then Exit;
+  if FindFirst(AddBackslash(Dir) + '*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then Result := True;
+      until Result or (not FindNext(FindRec));
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
 { Uygulama zorla kapatıldıysa ve masaüstü simgelerini gizlemişse geri aç. }
 procedure RestoreDesktopIconsIfHidden();
 var
@@ -497,7 +532,7 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  DataDir, LegacyDataDir: String;
+  DataDir, LegacyDataDir, BoxDir: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -511,6 +546,11 @@ begin
   end;
   if CurUninstallStep = usPostUninstall then
   begin
+    { Kutulara taşınan dosyalar masaüstüne kendiliğinden dönmez ve silinmez: nerede oldukları söylenir (veri klasörü
+      silinirse "Hepsini masaüstüne geri koy" kaydı da gider). }
+    BoxDir := BoxFolder();
+    if FolderHasEntries(BoxDir) and (not UninstallSilent) then
+      MsgBox(FmtMessage(CustomMessage('BoxFilesKept'), [BoxDir]), mbInformation, MB_OK);
     { Uygulama eski klasörü taşıyamadıysa veriler hâlâ orada olabilir: soru ikisini birlikte kapsar. }
     DataDir := ExpandConstant('{userappdata}\{#DataFolder}');
     LegacyDataDir := ExpandConstant('{userappdata}\{#LegacyDataFolder}');
