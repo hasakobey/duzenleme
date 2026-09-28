@@ -493,6 +493,11 @@ public static class AppHost
     /// <summary>Göz atma açık pencereleri küçülterek başladıysa (Win+D gibi); bitince yeniden açılır.</summary>
     private static bool _peekMinimized;
 
+    /// <summary>
+    /// Ayarlar'daki "Göz at" NestDesk'in kendi penceresini küçülttüyse onun önceki hâli (bitince geri gelir); yoksa null.
+    /// </summary>
+    private static System.Windows.WindowState? _peekMainWindowState;
+
     public static void TogglePeek(PeekOrigin origin)
     {
         if (Peeking) EndPeek();
@@ -514,6 +519,9 @@ public static class AppHost
         _peekMinimized = Settings.PeekShowsDesktop && origin != PeekOrigin.DoubleClick && !IsTestDesktop &&
                          !DesktopIcons.IsDesktopSurface(NativeMethods.GetForegroundWindow());
         if (_peekMinimized) ShellDesktop.ToggleInBackground();
+        // Ayarlar'daki "Göz at": ana pencere masaüstünü kapatmasın (yoksa düğme bir şey yapmamış gibi görünür ve süre
+        // kullanıcı masaüstünü görmeden işler). Yalnızca NestDesk'in kendi penceresi küçülür; başka pencerelere dokunulmaz.
+        else if (origin == PeekOrigin.Settings) MinimizeMainWindowForPeek();
         ApplyDesktopState();
         Views.PeekBar.Open(DesktopState.NormalizePeekMinutes(Settings.PeekMinutes), barAnchor);
         DebugLog.Write($"göz atma başladı ({origin})");
@@ -536,7 +544,27 @@ public static class AppHost
         // Küçültülen pencereler geri gelsin; kullanıcı bu arada masaüstünden bir şey açtıysa (masaüstü artık önde değil) dokunulmaz.
         if (_peekMinimized && DesktopIcons.IsDesktopSurface(NativeMethods.GetForegroundWindow())) ShellDesktop.ToggleInBackground();
         _peekMinimized = false;
+        RestoreMainWindowAfterPeek();
         DebugLog.Write("göz atma bitti");
+    }
+
+    private static MainWindow? OpenMainWindow() =>
+        System.Windows.Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault(w => w.IsVisible);
+
+    private static void MinimizeMainWindowForPeek()
+    {
+        _peekMainWindowState = null;
+        if (OpenMainWindow() is not { } window || window.WindowState == System.Windows.WindowState.Minimized) return;
+        _peekMainWindowState = window.WindowState;
+        window.WindowState = System.Windows.WindowState.Minimized;
+    }
+
+    /// <summary>Göz atma bitince ana pencere (göz atma onu küçülttüyse ve hâlâ küçükse) önceki hâline döner.</summary>
+    private static void RestoreMainWindowAfterPeek()
+    {
+        if (_peekMainWindowState is not { } state) return;
+        _peekMainWindowState = null;
+        if (OpenMainWindow() is { WindowState: System.Windows.WindowState.Minimized } window) window.WindowState = state;
     }
 
     // --- Yeni widget ---
