@@ -10,12 +10,12 @@ namespace Duzenleme.Views;
 /// <summary>Geri alınamayan işlemler için küçük onay penceresi (InputDialog kalıbında; eşzamanlı, animasyonsuz).</summary>
 internal static class Confirm
 {
-    /// <summary>Başlık, ileti ve iki düğme: [confirmText] (Appearance=Danger) ve [Vazgeç] (IsDefault + IsCancel).
-    /// Owner verilir, ortalanır. Enter ve Esc "Vazgeç"tir. Onaylanırsa true.</summary>
-    public static bool Ask(Window? owner, string title, string message, string confirmText)
+    /// <summary>Başlık, ileti ve iki düğme: [confirmText] (Appearance=Danger; danger=false ise Primary) ve [cancelText]
+    /// (IsDefault + IsCancel). Owner verilir, ortalanır. Enter ve Esc ikinci düğmedir. Onaylanırsa true.</summary>
+    public static bool Ask(Window? owner, string title, string message, string confirmText, bool danger = true, string cancelText = "Vazgeç")
     {
-        var ok = new Button { Content = confirmText, Appearance = ControlAppearance.Danger, MinWidth = 100 };
-        var cancel = new Button { Content = "Vazgeç", IsDefault = true, IsCancel = true, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0) };
+        var ok = new Button { Content = confirmText, Appearance = danger ? ControlAppearance.Danger : ControlAppearance.Primary, MinWidth = 100 };
+        var cancel = new Button { Content = cancelText, IsDefault = true, IsCancel = true, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0) };
         System.Windows.Automation.AutomationProperties.SetAutomationId(ok, "Confirm.Ok");
         System.Windows.Automation.AutomationProperties.SetAutomationId(cancel, "Confirm.Cancel");
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };

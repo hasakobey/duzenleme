@@ -40,23 +40,32 @@ public sealed class TrayIcon : IDisposable
         menu.Items.Add("Son taşımayı geri al", null, (_, _) => UndoLast());
         _hideItem = new Forms.ToolStripMenuItem("Masaüstünü gizle", null, (_, _) => AppHost.ToggleDesktop());
         menu.Items.Add(_hideItem);
+        _peekItem = new Forms.ToolStripMenuItem("Windows masaüstüne göz at", null, (_, _) => AppHost.TogglePeek(AppHost.PeekOrigin.Tray));
+        menu.Items.Add(_peekItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         _undoRemoveItem = new Forms.ToolStripMenuItem("Son kaldırılan widget'ı geri getir", null, (_, _) => AppHost.Widgets.UndoRemove());
         menu.Items.Add(_undoRemoveItem);
-        _manageItem = new Forms.ToolStripMenuItem("Masaüstü simgeleri yalnızca bölmelerde", null,
-            (_, _) => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons));
-        menu.Items.Add(_manageItem);
+        // Windows masaüstü simgeleri: Ayarlar ve Widget'lar sayfasıyla aynı üç seçenek (Views.DesktopModes).
+        _iconModeItem = new Forms.ToolStripMenuItem("Windows masaüstü simgeleri");
+        foreach (var mode in Views.DesktopModes.Choices)
+            _iconModeItem.DropDownItems.Add(new Forms.ToolStripMenuItem(Views.DesktopModes.Label(mode), null,
+                (_, _) => Views.DesktopModes.Set(mode, null, null)) { Tag = mode });
+        menu.Items.Add(_iconModeItem);
         menu.Items.Add("Widget'ları öne getir (5 sn)", null, (_, _) => AppHost.Widgets.RevealAll());
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Çıkış", null, (_, _) => exit());
         menu.Opening += (_, _) =>
         {
             _autoMoveItem.Checked = !AppHost.Settings.Paused;
-            _manageItem.Checked = AppHost.Settings.FencesReplaceIcons;
+            var current = Views.DesktopModes.Current;
+            foreach (Forms.ToolStripMenuItem item in _iconModeItem.DropDownItems)
+                item.Checked = item.Tag is Views.IconMode mode && mode == current;
             var removed = AppHost.Widgets.LastRemovedName;
             _undoRemoveItem.Visible = removed is not null;
             _undoRemoveItem.Text = $"Geri getir: {removed}";
             _hideItem.Text = AppHost.DesktopHidden ? "Masaüstünü göster" : "Masaüstünü gizle";
+            _peekItem.Text = AppHost.Peeking ? $"{AppInfo.Name}'e dön" : "Windows masaüstüne göz at";
+            _peekItem.ShortcutKeyDisplayString = AppHost.Settings.Hotkeys.PeekDesktop;
         };
         _icon.ContextMenuStrip = menu;
         _icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) openMainWindow(); };
@@ -69,6 +78,7 @@ public sealed class TrayIcon : IDisposable
         _noticeTimer.Tick += (_, _) => FlushNotices();
         AppHost.Organizer.FileMoved += OnFileMoved;
         AppHost.SettingsChanged += UpdateTooltip;
+        AppHost.DesktopVisibilityChanged += UpdateTooltip;
         UpdateTooltip();
     }
 
@@ -95,7 +105,8 @@ public sealed class TrayIcon : IDisposable
         ShowBalloon(3000, title, text, Forms.ToolTipIcon.None, null);
     }
 
-    private Forms.ToolStripMenuItem _manageItem = null!;
+    private Forms.ToolStripMenuItem _iconModeItem = null!;
+    private Forms.ToolStripMenuItem _peekItem = null!;
     private Forms.ToolStripMenuItem _undoRemoveItem = null!;
 
     /// <summary>Tüm balonlar buradan geçer: tıklanınca çalışacak eylem yalnızca bu balona aittir.</summary>
@@ -140,12 +151,15 @@ public sealed class TrayIcon : IDisposable
     }
 
     private void UpdateTooltip() =>
-        _icon.Text = $"{AppInfo.Name} — otomatik taşıma {(AppHost.Settings.Paused ? "kapalı" : "açık")}";
+        _icon.Text = AppHost.Peeking
+            ? $"{AppInfo.Name} — Windows masaüstüne göz atılıyor"
+            : $"{AppInfo.Name} — otomatik taşıma {(AppHost.Settings.Paused ? "kapalı" : "açık")}";
 
     public void Dispose()
     {
         AppHost.Organizer.FileMoved -= OnFileMoved;
         AppHost.SettingsChanged -= UpdateTooltip;
+        AppHost.DesktopVisibilityChanged -= UpdateTooltip;
         _icon.Visible = false;
         _icon.Dispose();
     }

@@ -96,6 +96,119 @@
 
         <!-- ================= Masaüstü ================= -->
         <TextBlock Style="{StaticResource SectionHeader}" Text="Masaüstü" />
+        <!-- Windows masaüstü simgeleri: Widget'lar sayfası, tepsi ve widget menüleriyle aynı üç seçenek (DesktopModes). -->
+        <Border Style="{StaticResource Row}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource RowTitle}" Text="Windows masaüstü simgeleri" />
+                        <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.IconModeText" />
+                    </StackPanel>
+                    <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" Margin="16,0,0,0" VerticalAlignment="Center"
+                              SelectionChanged="IconModeBox_SelectionChanged"
+                              AutomationProperties.AutomationId="Settings.IconMode" AutomationProperties.Name="Windows masaüstü simgeleri" />
+                </Grid>
+                <!-- Kutulara taşınanlar: sayı, klasör, hepsini geri koy; ortak masaüstü izni (yalnızca bu kipte). -->
+                <StackPanel x:Name="BoxPanel" Margin="36,12,0,0" Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="BoxCountText" Style="{StaticResource Muted}" VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="Settings.BoxCount" />
+                        <ui:Button x:Name="OpenBoxFolderButton" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="Klasörü aç"
+                                   Icon="{ui:SymbolIcon FolderOpen24}" AutomationProperties.AutomationId="Settings.OpenBoxFolder"
+                                   Click="OpenBoxFolder_Click" />
+                        <ui:Button x:Name="ReturnAllButton" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center" Content="Hepsini masaüstüne geri koy"
+                                   Icon="{ui:SymbolIcon ArrowUndo24}" AutomationProperties.AutomationId="Settings.ReturnAll"
+                                   Click="ReturnAll_Click" />
+                    </Grid>
+                    <Grid x:Name="PublicBoxRow" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="Ortak masaüstündeki öğeler de taşınsın" />
+                            <TextBlock Style="{StaticResource Muted}"
+                                       Text="Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; izin yoksa kutuya yalnızca bağlantı olarak eklenir." />
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="PublicBoxToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Click="PublicBoxToggle_Click"
+                                         AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="Ortak masaüstündeki öğeler de taşınsın" />
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        <!-- Windows masaüstüne göz at (Ctrl+Alt+G): simgeler görünür, widget'lar kısa süre çekilir. -->
+        <Border Style="{StaticResource Row}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="Glance24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="PeekTitle" Style="{StaticResource RowTitle}" Text="Windows masaüstüne göz at" />
+                        <TextBlock x:Name="PeekText" Style="{StaticResource Muted}" />
+                    </StackPanel>
+                    <ui:Button x:Name="PeekButton" Grid.Column="2" MinWidth="80" Margin="16,0,0,0" VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="Settings.Peek" Click="Peek_Click" />
+                </Grid>
+                <StackPanel Margin="36,12,0,0">
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="Göz atarken widget'ları gizle" />
+                        <ui:ToggleSwitch x:Name="PeekHidesWidgetsToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         Click="PeekHidesWidgets_Click" AutomationProperties.AutomationId="Settings.PeekHidesWidgets"
+                                         AutomationProperties.Name="Göz atarken widget'ları gizle" />
+                    </Grid>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="Göz atarken açık pencereleri küçült" />
+                            <TextBlock Style="{StaticResource Muted}" Text="Win+D gibi; dönünce pencereler geri gelir. Çift tıklayınca masaüstü zaten öndedir." />
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="PeekShowsDesktopToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         Click="PeekShowsDesktop_Click" AutomationProperties.AutomationId="Settings.PeekShowsDesktop"
+                                         AutomationProperties.Name="Göz atarken açık pencereleri küçült" />
+                    </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" VerticalAlignment="Center" Text="Kendiliğinden geri dön" />
+                        <ComboBox x:Name="PeekMinutesBox" Grid.Column="1" Width="170" Margin="16,0,0,0" VerticalAlignment="Center"
+                                  SelectionChanged="PeekMinutesBox_SelectionChanged"
+                                  AutomationProperties.AutomationId="Settings.PeekMinutes" AutomationProperties.Name="Kendiliğinden geri dön">
+                            <ComboBoxItem Content="1 dakika sonra" />
+                            <ComboBoxItem Content="2 dakika sonra" />
+                            <ComboBoxItem Content="5 dakika sonra" />
+                            <ComboBoxItem Content="10 dakika sonra" />
+                            <ComboBoxItem Content="Ben dönene dek" />
+                        </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Border>
         <Border Style="{StaticResource Row}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -106,11 +219,17 @@
                 <ui:SymbolIcon Symbol="CursorClick24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="Boş masaüstüne çift tıklayınca gizle/göster" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Simgeye çift tıklamak yine dosyayı açar; yalnızca boş alana çift tıklama gizler." />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="Boş masaüstüne çift tıklayınca" />
+                    <TextBlock x:Name="DoubleClickText" Style="{StaticResource Muted}" />
                 </StackPanel>
-                <ui:ToggleSwitch x:Name="DoubleClickToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Click="DoubleClickToggle_Click"
-                                 AutomationProperties.AutomationId="Settings.DoubleClick" AutomationProperties.Name="Boş masaüstüne çift tıklayınca gizle/göster" />
+                <ComboBox x:Name="DoubleClickBox" Grid.Column="2" Width="250" Margin="16,0,0,0" VerticalAlignment="Center"
+                          SelectionChanged="DoubleClickBox_SelectionChanged"
+                          AutomationProperties.AutomationId="Settings.DoubleClick" AutomationProperties.Name="Boş masaüstüne çift tıklayınca">
+                    <ComboBoxItem Content="Otomatik (önerilen)" />
+                    <ComboBoxItem Content="Masaüstünü gizle / göster" />
+                    <ComboBoxItem Content="Windows masaüstüne göz at" />
+                    <ComboBoxItem Content="Hiçbir şey yapma" />
+                </ComboBox>
             </Grid>
         </Border>
         <Border Style="{StaticResource Row}">
@@ -147,6 +266,26 @@
                            AutomationProperties.AutomationId="Settings.HideNow" Click="HideNow_Click" />
             </Grid>
         </Border>
+        <!-- Yeni widget'ların yeri: Widget'lar sayfasındakiyle aynı ayar. -->
+        <Border Style="{StaticResource Row}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="Target24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource RowTitle}" Text="Yeni widget'ların yeri" />
+                    <TextBlock Style="{StaticResource Muted}"
+                               Text="Kısayolla (ör. yeni not) ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Yeni widget birkaç saniye vurgulu olarak öne gelir." />
+                </StackPanel>
+                <ComboBox x:Name="PlacementBox" Grid.Column="2" Width="250" Margin="16,0,0,0" VerticalAlignment="Center"
+                          SelectionChanged="PlacementBox_SelectionChanged"
+                          AutomationProperties.AutomationId="Settings.NewWidgetPlacement" AutomationProperties.Name="Yeni widget'ların yeri" />
+            </Grid>
+        </Border>
         <Border Style="{StaticResource Row}">
             <StackPanel>
                 <Grid>
@@ -155,14 +294,14 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                    <ui:SymbolIcon Symbol="DesktopToolbox24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="Windows masaüstü simgeleri" />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="Sistem simgeleri" />
                         <TextBlock Style="{StaticResource Muted}" Text="Bu Bilgisayar, Geri Dönüşüm Kutusu, Ağ…" />
                     </StackPanel>
                     <ui:Button x:Name="SystemIconsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                               AutomationProperties.AutomationId="Settings.SystemIcons" AutomationProperties.HelpText="Windows masaüstü simgeleri" />
+                               AutomationProperties.AutomationId="Settings.SystemIcons" AutomationProperties.HelpText="Sistem simgeleri" />
                 </Grid>
                 <StackPanel x:Name="SystemIconsContent" Margin="36,12,0,0">
                     <ItemsControl x:Name="SystemIconList" IsTabStop="False">

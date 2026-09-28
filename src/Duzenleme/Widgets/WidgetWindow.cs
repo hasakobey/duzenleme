@@ -236,6 +236,12 @@ public sealed class WidgetWindow : Window
         View.AddMenuItems(own);
 
         menu.Items.Add(Menus.Item("Yeni widget ekle…", () => (Application.Current as App)?.ShowQuickAdd()));
+        // Windows masaüstüne göz at: kısayolu menüde yazılır (Windows'un alışılmış yeri; kısayolu kaydetmez).
+        var peek = Menus.Item(AppHost.Peeking ? $"{AppInfo.Name}'e dön" : "Windows masaüstüne göz at",
+            () => AppHost.TogglePeek(AppHost.PeekOrigin.Menu));
+        peek.InputGestureText = AppHost.Settings.Hotkeys.PeekDesktop;
+        peek.ToolTip = "Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir";
+        menu.Items.Add(peek);
         menu.Items.Add(new Separator());
         if (own.Primary.Count > 0)
         {
@@ -377,15 +383,21 @@ public sealed class WidgetWindow : Window
     /// Widget'ı kullanıcının çalıştığı monitörde (imlecin olduğu; ör. "ekle"ye basılan ana pencere) boş bir yere taşır.
     /// Hesap fiziksel pikselle yapılır: ölçeği farklı monitörlerde de doğru yere oturur.
     /// </summary>
-    public void MoveToFreeSpot()
+    internal void MoveToFreeSpot(WidgetPlacement? place = null)
     {
         if (Handle == IntPtr.Zero) return;
         UpdateLayout();
-        var p = AppHost.Widgets.FreeSpot(Config.Kind, new Size(ActualWidth, ActualHeight), this);
+        // Yeni widget eklenirken belirlenen yer (bir kez); yoksa ayardaki kip imlecin yerinde.
+        var where = place ?? PendingPlacement ?? WidgetPlacement.FromSettings();
+        PendingPlacement = null;
+        var p = AppHost.Widgets.FreeSpot(Config.Kind, new Size(ActualWidth, ActualHeight), ShadowMargin, this, where);
         NativeMethods.SetWindowPos(Handle, IntPtr.Zero, p.X, p.Y, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
         QueueSave();
     }
+
+    /// <summary>Yeni eklenen widget'ın yerleşeceği yer (<see cref="WidgetManager"/> verir; ilk yerleşmede tüketilir).</summary>
+    internal WidgetPlacement? PendingPlacement { get; set; }
 
     /// <summary>
     /// Monitör düzeni değişip (monitör takıldı, uykudan uyandı, çözünürlük değişti) kayıtlı konum yeniden
@@ -785,8 +797,10 @@ public sealed class WidgetWindow : Window
     // birkaç saniye vurgulu olarak en öne gelir; kullanıcı nereye eklendiğini görür.
     private bool _revealing;
     private DispatcherTimer? _revealTimer;
+    private RevealGlow? _glow;
 
-    public void Reveal(TimeSpan duration)
+    /// <param name="highlight">Yeni eklenen widget: vurgu çerçevesine ek olarak kartın çevresinde durağan ışıma (nereye geldiği görülsün).</param>
+    public void Reveal(TimeSpan duration, bool highlight = false)
     {
         if (!IsVisible) return;
         _revealing = true;
@@ -796,9 +810,11 @@ public sealed class WidgetWindow : Window
         NativeMethods.SetWindowPos(Handle, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
         DebugLog.Write($"[{Config.Kind}] Reveal exstyle=0x{NativeMethods.GetWindowLongPtr(Handle, NativeMethods.GWL_EXSTYLE).ToInt64():X}");
-        var palette = WidgetPalette.For(Config.Style, Config.Accent);
+        // Notun vurgusu kendi kağıt renginden gelir.
+        var palette = View.AdjustPalette(WidgetPalette.For(Config.Style, Config.Accent));
         _card.BorderBrush = palette.Accent;
         _card.BorderThickness = new Thickness(3);
+        if (highlight && _glow is null) _glow = RevealGlow.Show(_card, palette.Accent, _card.CornerRadius.TopLeft);
 
         _revealTimer?.Stop();
         Deactivated -= DemoteWhenDeactivated;
@@ -819,6 +835,8 @@ public sealed class WidgetWindow : Window
             return;
         }
         _revealing = false;
+        _glow?.Remove();
+        _glow = null;
         _card.BorderThickness = new Thickness(1);
         ApplyStyle();
         NativeMethods.SetWindowPos(Handle, NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0,

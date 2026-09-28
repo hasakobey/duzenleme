@@ -666,8 +666,10 @@ public partial class FenceView : UserControl, IWidgetView
         if (folder is not null)
             menu.More.Add(Menus.Item("Klasör simgesi…", () => Icons.FolderIconWindow.ShowFor(folder)));
         menu.More.Add(Menus.Item("Yenile", Refresh));
-        menu.More.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", AppHost.Settings.FencesReplaceIcons,
-            () => AppHost.SetFencesManageDesktop(!AppHost.Settings.FencesReplaceIcons)));
+        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes).
+        var fencesOnly = Views.DesktopModes.Current == Views.IconMode.FencesOnly;
+        menu.More.Add(Menus.Toggle("Masaüstü simgelerini yalnızca bölmelerde göster", fencesOnly,
+            () => Views.DesktopModes.Set(fencesOnly ? Views.IconMode.ShowAll : Views.IconMode.FencesOnly, null, null)));
     }
 
     public void Detach()

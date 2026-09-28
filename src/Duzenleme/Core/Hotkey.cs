@@ -54,7 +54,11 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, string Key)
     }
 }
 
-public enum HotkeyAction { ToggleDesktop, OrganizeNow, OpenApp, NewNote, PeekWidgets, QuickAdd }
+/// <summary>
+/// Kısayolun işi. Kalıcı değildir (ayarlarda her iş kendi metin özelliğinde durur); kayıt kimliği (int)eylem + 1 olduğundan
+/// yeni üye yalnızca SONA eklenir ve <see cref="HotkeySettings.Get"/>/<see cref="HotkeySettings.Set"/>'e kendi satırı yazılır.
+/// </summary>
+public enum HotkeyAction { ToggleDesktop, OrganizeNow, OpenApp, NewNote, PeekWidgets, QuickAdd, PeekDesktop }
 
 public sealed class HotkeySettings
 {
@@ -69,14 +73,24 @@ public sealed class HotkeySettings
     /// <summary>"Widget ekle" penceresini açar.</summary>
     public string QuickAdd { get; set; } = "Ctrl+Alt+B";
 
+    // 2.1 P3
+    /// <summary>
+    /// Windows masaüstüne göz at: simgeler görünür, widget'lar kısa süre çekilir. G: "Göz at"; Türkçe Q ve ABD düzeninde
+    /// AltGr ile karakter yazmaz. Eski ayar dosyasında yoksa bu varsayılan gelir; 2.0 bu özelliği yok sayar.
+    /// </summary>
+    public string PeekDesktop { get; set; } = "Ctrl+Alt+G";
+
     public string Get(HotkeyAction action) => action switch
     {
         HotkeyAction.ToggleDesktop => ToggleDesktop,
         HotkeyAction.OrganizeNow => OrganizeNow,
         HotkeyAction.OpenApp => OpenApp,
         HotkeyAction.PeekWidgets => PeekWidgets,
+        HotkeyAction.NewNote => NewNote,
         HotkeyAction.QuickAdd => QuickAdd,
-        _ => NewNote,
+        HotkeyAction.PeekDesktop => PeekDesktop,
+        // Bilinmeyen eylem başka bir eylemin kısayolunu paylaşmasın (ikinci kayıt "başka uygulama kullanıyor" diye düşerdi).
+        _ => "",
     };
 
     public void Set(HotkeyAction action, string value)
@@ -87,8 +101,10 @@ public sealed class HotkeySettings
             case HotkeyAction.OrganizeNow: OrganizeNow = value; break;
             case HotkeyAction.OpenApp: OpenApp = value; break;
             case HotkeyAction.PeekWidgets: PeekWidgets = value; break;
+            case HotkeyAction.NewNote: NewNote = value; break;
             case HotkeyAction.QuickAdd: QuickAdd = value; break;
-            default: NewNote = value; break;
+            case HotkeyAction.PeekDesktop: PeekDesktop = value; break;
+            // Bilinmeyen eylem hiçbir kısayolun üzerine yazmaz.
         }
     }
 }

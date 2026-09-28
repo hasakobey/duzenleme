@@ -3,8 +3,11 @@ using System.IO;
 
 namespace Duzenleme.Core;
 
-/// <summary>Masaüstündeki bir dosyanın önizleme için anlık görüntüsü (dosyanın kendisine dokunulmaz).</summary>
-public sealed record DesktopFile(string Name, FileAttributes Attributes, bool WasUndone);
+/// <summary>
+/// Masaüstündeki bir dosyanın önizleme için anlık görüntüsü (dosyanın kendisine dokunulmaz). Pinned: bir kısayol kutusunda
+/// duruyor; taşıyıcı dokunmaz (<see cref="DesktopOrganizer.Pinned"/>).
+/// </summary>
+public sealed record DesktopFile(string Name, FileAttributes Attributes, bool WasUndone, bool Pinned = false);
 
 /// <summary>Şimdi taşınsaydı dosyanın gideceği klasör. FolderExists false ise klasör masaüstünde henüz yok.</summary>
 public sealed record PlannedMove(string FileName, string Folder, bool FolderExists);
@@ -15,7 +18,7 @@ public static class MovePlan
     private static readonly StringComparer TrOrder = StringComparer.Create(CultureInfo.GetCultureInfo("tr-TR"), ignoreCase: true);
 
     /// <summary>Bu dosyalar şimdi taşınsaydı nereye giderdi? Dosya sistemine dokunmaz. RuleEngine.Decide kullanılır
-    /// (.lnk/.url/desktop.ini/gizli/sistem/yarım indirme hariç); WasUndone olanlar hariç. assumeFolders: masaüstünde yok ama
+    /// (.lnk/.url/desktop.ini/gizli/sistem/yarım indirme hariç); WasUndone ve Pinned (kısayol kutusunda) olanlar hariç. assumeFolders: masaüstünde yok ama
     /// varmış sayılacak klasörler (karşılamada oluşturulacaklar; "bekleyen" sayımında tüm kural klasörleri).
     /// createMissing: "Klasör yoksa oluştur" ayarı (AppSettings.CreateMissingFolders); açıkken etkin her kural, klasörü
     /// olmasa da taşır (taşıyıcı klasörü açar). Folder: masaüstündeki gerçek ad (ör. "arsivler"), yoksa kuraldaki ad.</summary>
@@ -34,7 +37,7 @@ public static class MovePlan
         var moves = new List<PlannedMove>();
         foreach (var file in files)
         {
-            if (file.WasUndone) continue;
+            if (file.WasUndone || file.Pinned) continue;
             var decision = engine.Decide("", file.Name, file.Attributes, known);
             if (!decision.ShouldMove || decision.Rule is not { } rule) continue;
             var real = existing.FirstOrDefault(f => FolderName.Equal(f, rule.TargetFolder));

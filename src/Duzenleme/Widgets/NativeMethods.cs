@@ -157,4 +157,44 @@ internal static class NativeMethods
         GetMonitorInfo(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST), ref info);
         return info.rcWork;
     }
+
+    // 2.1 P3
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int key);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+
+    /// <summary>Kullanıcının son klavye/fare girişinden bu yana geçen süre.</summary>
+    public static TimeSpan IdleTime()
+    {
+        var info = new LASTINPUTINFO { cbSize = (uint)Marshal.SizeOf<LASTINPUTINFO>() };
+        if (!GetLastInputInfo(ref info)) return TimeSpan.MaxValue;
+        return TimeSpan.FromMilliseconds(unchecked((uint)Environment.TickCount - info.dwTime));
+    }
+
+    /// <summary>Monitörün çalışma alanı (görev çubuğu hariç), fiziksel piksel.</summary>
+    public static RECT WorkAreaOfMonitor(IntPtr monitor)
+    {
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        GetMonitorInfo(monitor, ref info);
+        return info.rcWork;
+    }
+
+    /// <summary>Test için "x,y" (fiziksel piksel) biçimindeki ortam değişkeni; yoksa ya da okunamazsa null.</summary>
+    public static POINT? PointFromEnvironment(string variable) =>
+        Environment.GetEnvironmentVariable(variable)?.Split(',') is [var x, var y] &&
+        int.TryParse(x.Trim(), out var px) && int.TryParse(y.Trim(), out var py)
+            ? new POINT { X = px, Y = py }
+            : null;
 }

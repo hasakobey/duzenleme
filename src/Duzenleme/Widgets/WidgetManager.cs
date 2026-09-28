@@ -9,6 +9,9 @@ public sealed class WidgetManager
 {
     private static readonly TimeSpan RevealTime = TimeSpan.FromSeconds(5);
 
+    /// <summary>Yeni widget vurgulu olarak bu kadar öne gelir (yazılan not odak kalkana dek önde kalır).</summary>
+    private static readonly TimeSpan NewWidgetRevealTime = TimeSpan.FromSeconds(6);
+
     private readonly Dictionary<string, WidgetWindow> _open = [];
     private readonly HashSet<string> _closingOnPurpose = [];
     private readonly DispatcherTimer _shellWatch;
@@ -18,7 +21,7 @@ public sealed class WidgetManager
 
     public IReadOnlyList<WidgetConfig> Configs => AppHost.Settings.Widgets;
 
-    /// <summary>Widget'lar "çift tıkla gizle" ile gizlenmiş mi?</summary>
+    /// <summary>Widget'lar gizli mi (masaüstü gizlendi ya da Windows masaüstüne göz atılıyor)? Durumu AppHost belirler.</summary>
     public bool Hidden { get; private set; }
 
     public WidgetManager()
@@ -150,7 +153,8 @@ public sealed class WidgetManager
         var plan = StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, AppHost.Organizer.ExistingFolders());
         foreach (var fence in plan)
         {
-            if (near is { } point) PlacementHint = point;
+            // Birden çok bölme: türüne göre köşeden dizilir (imlecin yanında üst üste yığılmasın).
+            PlacementHint = WidgetPlacement.CornerNear(near);
             if (fence.Folder is { } folder) Add(WidgetKind.Fence, folder);
             else AddFence(fence.Filter);
         }
@@ -171,14 +175,18 @@ public sealed class WidgetManager
 
     private WidgetConfig AddConfig(WidgetConfig config)
     {
+        // Yer bu eklemeye aittir: ipucu hemen tüketilir (pencere yerleşene dek pencerede durur).
+        var place = PlacementHint ?? WidgetPlacement.FromSettings();
+        PlacementHint = null;
         AppHost.Settings.Widgets.Add(config);
         AppHost.SaveSettings();
-        if (Hidden) SetHidden(false);
-        if (TryOpen(config) is { } window)
+        // Masaüstü gizliyse ya da göz atılıyorsa widget'lar geri gelir (durumu AppHost değiştirir; tepsi ve Ayarlar da güncellenir).
+        AppHost.EnsureWidgetsShown();
+        if (TryOpen(config, place) is { } window)
         {
-            // Yeni widget pencerelerin arkasında kalıp "eklenmedi" sanılmasın: birkaç saniye öne gelsin.
+            // Yeni widget pencerelerin arkasında kalıp "eklenmedi" sanılmasın: birkaç saniye vurgulu olarak öne gelsin.
             // (Loaded, Show() sırasında tetiklenebildiği için ona bağlanılmaz; yerleşim bitince çalıştırılır.)
-            window.Dispatcher.BeginInvoke(() => window.Reveal(RevealTime), DispatcherPriority.ContextIdle);
+            window.Dispatcher.BeginInvoke(() => window.Reveal(NewWidgetRevealTime, highlight: true), DispatcherPriority.ContextIdle);
         }
         else
         {
@@ -224,10 +232,13 @@ public sealed class WidgetManager
         if (index < 0) return false;
         if (_open.TryGetValue(id, out var window)) window.FlushState(); // son taşıma/yazılanlar da geri gelsin
         var copy = AppHost.Settings.Widgets[index].Clone();
+        // Kutunun masaüstünden taşınmış öğeleri (başka kutuda yoksa) masaüstüne döner; "Geri al" onları yeniden taşır.
+        var returning = BoxMover.MovedOnlyIn(AppHost.Settings.Widgets[index]);
         var modeOff = Remove(id, notify: false);
         _removed.Add(new RemovedWidget(copy, index, modeOff));
         if (notify)
             AppHost.Tray?.Notify("Widget kaldırıldı",
+                (returning > 0 ? $"Kutudaki {returning} öğe masaüstüne geri konuyor. " : "") +
                 (modeOff ? "Masaüstü simgeleri yeniden gösteriliyor. " : "") + "Geri getirmek için buraya ya da tepsi menüsüne tıkla.",
                 () => UndoRemove(id));
         return modeOff;
@@ -249,6 +260,7 @@ public sealed class WidgetManager
         if (AppHost.Settings.Widgets.Any(w => w.Id == last.Copy.Id)) return;
         AppHost.Settings.Widgets.Insert(Math.Min(last.Index, AppHost.Settings.Widgets.Count), last.Copy);
         AppHost.SaveSettings();
+        AppHost.EnsureWidgetsShown();
         if (TryOpen(last.Copy) is not null) ApplyZOrder();
         if (last.ModeTurnedOff && !AppHost.Settings.FencesReplaceIcons) AppHost.SetFencesManageDesktop(true);
         Changed?.Invoke();
@@ -273,7 +285,7 @@ public sealed class WidgetManager
         foreach (var filter in new[] { DesktopFilter.Folders, DesktopFilter.Shortcuts, DesktopFilter.Files })
         {
             if (filters.Contains(filter)) continue;
-            if (near is { } point) PlacementHint = point;
+            PlacementHint = WidgetPlacement.CornerNear(near);
             AddFence(filter);
         }
     }
@@ -300,7 +312,7 @@ public sealed class WidgetManager
         _open.Clear();
         AppHost.Settings.Widgets = layout.Restore();
         AppHost.SaveSettings();
-        if (Hidden) SetHidden(false);
+        AppHost.EnsureWidgetsShown();
         RestoreAll();
         AppHost.EnsureNothingInvisible();
         Changed?.Invoke();
@@ -320,7 +332,7 @@ public sealed class WidgetManager
     /// <summary>Tüm widget'ları birkaç saniyeliğine pencerelerin önüne getirir.</summary>
     public void RevealAll()
     {
-        if (Hidden) SetHidden(false);
+        AppHost.EnsureWidgetsShown();
         foreach (var window in _open.Values) window.Reveal(RevealTime);
     }
 
@@ -328,9 +340,9 @@ public sealed class WidgetManager
     public void Reveal(string id)
     {
         if (!_open.TryGetValue(id, out var window)) return;
-        if (Hidden) SetHidden(false);
+        AppHost.EnsureWidgetsShown();
         // Ekran dışı kontrolü fiziksel pikselle yapılır: DIP konumları ölçeği farklı monitörlerde kayar.
-        if (!window.IsOnScreen()) window.MoveToFreeSpot();
+        if (!window.IsOnScreen()) window.MoveToFreeSpot(WidgetPlacement.CornerNear(null));
         window.Reveal(RevealTime);
     }
 
@@ -342,7 +354,7 @@ public sealed class WidgetManager
     /// </summary>
     public int ArrangeAll()
     {
-        if (Hidden) SetHidden(false);
+        AppHost.EnsureWidgetsShown();
         var placed = _open.Values.Select(w => (Window: w, Bounds: w.PixelBounds)).Where(t => t.Bounds is not null).ToList();
         if (placed.Count == 0) return 0;
 
@@ -404,8 +416,13 @@ public sealed class WidgetManager
         Changed?.Invoke();
     }
 
-    public void SetHidden(bool hidden)
+    /// <summary>
+    /// Pencereleri gizler/gösterir. Yalnızca <see cref="AppHost.ApplyDesktopState"/> çağırır: başka yerden gizlemek/göstermek
+    /// tepsiyi, Ayarlar'ı ve Windows simgelerini durumla çelişik bırakır (bunun yerine <see cref="AppHost.EnsureWidgetsShown"/>).
+    /// </summary>
+    internal void SetHidden(bool hidden)
     {
+        if (Hidden == hidden) return;
         Hidden = hidden;
         foreach (var window in _open.Values)
         {
@@ -425,73 +442,43 @@ public sealed class WidgetManager
     }
 
     /// <summary>
-    /// Yeni widget için imlecin bulunduğu monitörün çalışma alanında boş bir yer bulur (fiziksel piksel):
-    /// türüne göre tercih edilen köşeden başlar, mevcut widget'lara çarpmadan aşağı, sonra sola kayar.
-    /// Hiç yer yoksa tercih edilen noktayı döner. <paramref name="dipSize"/> widget'ın DIP boyutudur.
+    /// Bir sonraki yeni widget'ın yeri (ör. "Widget ekle" penceresinin ya da ana pencerenin ekranı); eklenirken tüketilir.
+    /// Yoksa ayardaki kip imlecin yerinde kullanılır (<see cref="WidgetPlacement.FromSettings"/>).
     /// </summary>
-    /// <summary>Bir sonraki yeni widget'ın yerleşeceği ekrandaki nokta (ör. "Widget ekle" penceresinin yeri); bir kez kullanılır.</summary>
-    internal NativeMethods.POINT? PlacementHint { get; set; }
+    internal WidgetPlacement? PlacementHint { get; set; }
 
     /// <summary>Diğer görünür widget'ların kart dikdörtgenleri (gölge payı hariç, fiziksel piksel).</summary>
-    internal List<Box> OtherCards(WidgetWindow self) =>
+    internal List<Box> OtherCards(WidgetWindow? self) =>
         _open.Values.Where(w => w != self).Select(w => w.CardBox).OfType<Box>().ToList();
 
-    internal NativeMethods.POINT FreeSpot(WidgetKind kind, Size dipSize, WidgetWindow? self = null)
+    /// <summary>
+    /// Yeni widget için boş bir yer (pencerenin sol üstü, fiziksel piksel): kipe göre istenen noktaya
+    /// (<see cref="WidgetLayout.DesiredSpot"/>) en yakın, diğer widget'lara değmeyen yer (<see cref="WidgetLayout.FindSpot"/>).
+    /// Hesap kartla yapılır (gölge payı hariç), aralık bırakılan widget'lar arasındakiyle aynıdır.
+    /// </summary>
+    /// <param name="dipSize">Pencerenin DIP boyutu (gölge payı dahil).</param>
+    /// <param name="marginDip">Kartın çevresindeki gölge payı (DIP).</param>
+    internal NativeMethods.POINT FreeSpot(WidgetKind kind, Size dipSize, double marginDip, WidgetWindow? self, WidgetPlacement place)
     {
-        NativeMethods.GetCursorPos(out var cursor);
-        if (PlacementHint is { } hint)
-        {
-            cursor = hint;
-            PlacementHint = null;
-        }
-        var area = NativeMethods.WorkAreaAt(cursor);
-        var scale = NativeMethods.ScaleAt(cursor);
-        var gap = (int)Math.Round(16 * scale);
-        var w = (int)Math.Ceiling(Math.Max(dipSize.Width, 120) * scale);
-        var h = (int)Math.Ceiling(Math.Max(dipSize.Height, 80) * scale);
-        var taken = _open.Values.Where(x => x != self).Select(x => x.PixelBounds).OfType<NativeMethods.RECT>().ToList();
-
-        bool Free(int x, int y) =>
-            x >= area.Left && y >= area.Top && x + w <= area.Right && y + h <= area.Bottom &&
-            taken.All(t => x >= t.Right || x + w <= t.Left || y >= t.Bottom || y + h <= t.Top);
-
-        // Saat/tarih/not sağ üstten, bölme ve kutu üst ortadan başlar.
-        var rightSide = kind is WidgetKind.Clock or WidgetKind.Date or WidgetKind.Note;
-        var startX = rightSide ? area.Right - w - gap : area.Left + (area.Right - area.Left - w) / 2;
-        var preferred = new NativeMethods.POINT { X = Math.Max(area.Left, startX), Y = area.Top + gap };
-
-        var stepX = Math.Max(w / 2, (int)(60 * scale));
-        var stepY = (int)Math.Round(24 * scale);
-        // Tercih edilen sütundan başlayıp sırayla bir sola, bir sağa bakılır; ekranın her yeri taranır.
-        var columns = new List<int> { startX };
-        for (var d = stepX; startX - d >= area.Left || startX + d + w <= area.Right; d += stepX)
-        {
-            if (startX - d >= area.Left) columns.Add(startX - d);
-            if (startX + d + w <= area.Right) columns.Add(startX + d);
-        }
-        // Boş yer yoksa en az çakışan yer seçilir (bir widget'ın tam üstüne binmesin).
-        var best = preferred;
-        var bestOverlap = long.MaxValue;
-        foreach (var x in columns)
-            for (var y = area.Top + gap; y + h <= area.Bottom; y += stepY)
-            {
-                if (Free(x, y)) return new NativeMethods.POINT { X = x, Y = y };
-                var overlap = taken.Sum(t =>
-                    (long)Math.Max(0, Math.Min(x + w, t.Right) - Math.Max(x, t.Left)) *
-                    Math.Max(0, Math.Min(y + h, t.Bottom) - Math.Max(y, t.Top)));
-                if (overlap < bestOverlap)
-                {
-                    bestOverlap = overlap;
-                    best = new NativeMethods.POINT { X = x, Y = y };
-                }
-            }
-        return best;
+        var work = place.WorkArea(out var scale);
+        var area = new Box(work.Left, work.Top, work.Right, work.Bottom);
+        var m = (int)Math.Round(marginDip * scale);
+        var w = Math.Max(1, (int)Math.Ceiling(Math.Max(dipSize.Width, 120) * scale) - 2 * m);
+        var h = Math.Max(1, (int)Math.Ceiling(Math.Max(dipSize.Height, 80) * scale) - 2 * m);
+        var gap = (int)Math.Round(18 * scale);
+        // Saat/tarih/not köşe kipinde sağ üstten, bölme ve kutu üst ortadan başlar (2.0'daki gibi).
+        var cornerRight = kind is WidgetKind.Clock or WidgetKind.Date or WidgetKind.Note;
+        var (dx, dy) = WidgetLayout.DesiredSpot(place.Mode, area, w, h, place.Anchor.X, place.Anchor.Y, cornerRight,
+            offset: (int)Math.Round(16 * scale), gap);
+        var (x, y) = WidgetLayout.FindSpot(area, w, h, dx, dy, OtherCards(self), gap,
+            step: Math.Max(8, (int)Math.Round(16 * scale)), horizontalWeight: place.Mode == PlaceMode.Corner ? 4 : 1);
+        return new NativeMethods.POINT { X = x - m, Y = y - m };
     }
 
-    private WidgetWindow? TryOpen(WidgetConfig config)
+    private WidgetWindow? TryOpen(WidgetConfig config, WidgetPlacement? place = null)
     {
         // Bir widget'ın açılamaması başlangıcı (izleyici, tepsi, ana pencere) durdurmasın.
-        try { return Open(config); }
+        try { return Open(config, place); }
         catch (Exception ex)
         {
             DebugLog.Write($"widget açılamadı {config.Kind}: {ex}");
@@ -504,7 +491,7 @@ public sealed class WidgetManager
         }
     }
 
-    private WidgetWindow Open(WidgetConfig config)
+    private WidgetWindow Open(WidgetConfig config, WidgetPlacement? place = null)
     {
         IWidgetView view = config.Kind switch
         {
@@ -514,7 +501,7 @@ public sealed class WidgetManager
             WidgetKind.Launcher => new LauncherView(config),
             _ => new FenceView(config),
         };
-        var window = new WidgetWindow(config, view);
+        var window = new WidgetWindow(config, view) { PendingPlacement = place };
         window.Closed += (_, _) => OnWindowClosed(config);
         _open[config.Id] = window;
         if (!Hidden) window.Show();

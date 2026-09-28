@@ -133,10 +133,15 @@ internal static class WidgetCatalog
         panel.Children.Insert(panel.Children.IndexOf(hidden[0]), more);
     }
 
-    /// <summary>near verilirse PlacementHint = near. Add() çağrılır; FocusAfterAdd ise FocusNote. Klasör açılamazsa null.</summary>
-    public static WidgetConfig? Invoke(WidgetChoice choice, NativeMethods.POINT? near)
+    /// <summary>
+    /// near verilirse widget o noktanın ekranına yerleşir: followSetting ise ayardaki kiple ("Widget ekle" penceresi kapanır,
+    /// widget onun yerine gelir), değilse türüne göre köşeye (ana pencere ve karşılama açık kalır; imlecin yanına konan widget
+    /// onların arkasında kaybolurdu). Add() çağrılır; FocusAfterAdd ise FocusNote. Klasör açılamazsa null.
+    /// </summary>
+    public static WidgetConfig? Invoke(WidgetChoice choice, NativeMethods.POINT? near, bool followSetting = false)
     {
-        if (near is { } point) AppHost.Widgets.PlacementHint = point;
+        if (near is { } point)
+            AppHost.Widgets.PlacementHint = followSetting ? WidgetPlacement.FromSettingsAt(point) : WidgetPlacement.CornerNear(point);
         var config = choice.Add();
         if (config is null)
         {

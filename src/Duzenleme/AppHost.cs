@@ -29,10 +29,20 @@ public static class AppHost
     /// <summary>Ayarlar kaydedildiğinde (UI iş parçacığında) tetiklenir.</summary>
     public static event Action? SettingsChanged;
 
-    /// <summary>Masaüstü simgeleri gizlenip gösterildiğinde tetiklenir.</summary>
+    /// <summary>Windows simgeleri, widget'lar ya da göz atma değiştiğinde tetiklenir (UI iş parçacığında).</summary>
     public static event Action? DesktopVisibilityChanged;
 
+    /// <summary>Masaüstü gizlendi mi (Ctrl+Alt+H, çift tık, "Masaüstünü şimdi gizle")? Yalnızca bu oturumda tutulur.</summary>
     public static bool DesktopHidden { get; private set; }
+
+    /// <summary>
+    /// Windows masaüstüne göz atılıyor mu? Yalnızca bu oturumda tutulur: çökerse simgeler görünür kalır (IconsHiddenByApp
+    /// göz atarken false'tur).
+    /// </summary>
+    public static bool Peeking { get; private set; }
+
+    /// <summary>Kutulara taşınan masaüstü öğelerinin kaydı (box-moves.json).</summary>
+    public static BoxMoveLog BoxMoves { get; private set; } = null!;
 
     private static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
@@ -112,7 +122,16 @@ public static class AppHost
         Journal = new MoveJournal(Path.Combine(DataDirectory, "journal.json"));
         Organizer = new DesktopOrganizer(DesktopDirectory, () => Settings, Journal);
         Watcher = new DesktopWatcher(Organizer, () => Settings.Paused);
+        BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
         Widgets = new WidgetManager();
+        // Kutulardaki masaüstü öğeleri kurallarla taşınmasın; widget eklenince/kaldırılınca küme yenilenir, kaldırılan
+        // kutunun taşınmış öğeleri masaüstüne döner (kutu "Geri al" ile gelirse yeniden taşınır).
+        Widgets.Changed += () =>
+        {
+            RefreshPinnedPaths();
+            BoxMover.Reconcile();
+        };
+        RefreshPinnedPaths();
 
         // Önceki oturum simgeleri gizli bırakarak kapandıysa (ör. çökme) geri aç.
         // Bölmeler masaüstünü yönetiyorsa gizli kalır; widget'lar açılınca yeniden uygulanır.
@@ -167,48 +186,182 @@ public static class AppHost
     // İzleyicinin verdiği yolla (FileSystemWatcher.FullPath) aynı biçim: tam yol, sonda ayraç yok. Diske dokunmaz.
     private static string QuietKey(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
-    /// <summary>Masaüstü simgelerini (ve ayara göre widget'ları) gizler ya da gösterir.</summary>
-    public static void ToggleDesktop() => SetDesktopHidden(!DesktopHidden);
+    // ------------------------------------------------------------------------------------------------------------------
+    // Masaüstünün görünürlüğü: tek yerde hesaplanır (DesktopState.Compute) ve tek yerde uygulanır (ApplyDesktopState).
+    // Widget'ları ya da simgeleri başka yerden gizleyip göstermek tepsiyi, Ayarlar'ı ve kısayolu durumla çelişik bırakır.
+
+    /// <summary>Şu anki durumdan Windows simgeleri ve widget'lar gizli mi olmalı?</summary>
+    public static DesktopView CurrentView => DesktopState.Compute(Settings.FencesReplaceIcons, DesktopHidden, Peeking,
+        Settings.PeekHidesWidgets, Settings.HideWidgetsWithIcons);
 
     /// <summary>
-    /// Boş masaüstüne çift tıklama. İlk birkaç seferde nasıl geri getirileceği söylenir: bilmeden çift tıklayan
-    /// kullanıcı widget'larının kaybolduğunu sanmasın.
+    /// Durumu uygular: Windows simgeleri (test örneğinde dokunulmaz), widget'lar ve çökme bayrağı; sonra
+    /// <see cref="DesktopVisibilityChanged"/>.
     /// </summary>
-    public static void ToggleDesktopByDoubleClick()
+    public static void ApplyDesktopState()
     {
-        ToggleDesktop();
-        if (!DesktopHidden || Settings.DoubleClickHintsShown >= 3) return;
-        Settings.DoubleClickHintsShown++;
-        SaveSettings();
-        Tray?.Notify(Widgets.Hidden ? "Widget'lar ve simgeler gizlendi" : "Masaüstü simgeleri gizlendi",
-            "Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir.",
-            () => SetDesktopHidden(false));
-    }
-
-    public static void SetDesktopHidden(bool hidden)
-    {
-        DesktopHidden = hidden;
-        ApplyIconVisibility();
-        // Bölmeler masaüstünü yönetirken Windows simgeleri zaten gizli: "gizle" bölmeleri (tüm widget'ları) gizler.
-        Widgets.SetHidden(hidden && (Settings.HideWidgetsWithIcons || Settings.FencesReplaceIcons));
-        SaveSettings();
+        var view = CurrentView;
+        // Test klasörüyle (--desktop) çalışan örnek kullanıcının gerçek masaüstü simgelerine dokunmaz.
+        if (IsTestDesktop) DebugLog.Write($"simgeler {(view.IconsHidden ? "gizlenecekti" : "gösterilecekti")} (test masaüstü)");
+        else DesktopIcons.SetVisible(!view.IconsHidden);
+        Widgets.SetHidden(view.WidgetsHidden);
+        // Hemen diske yazılır: uygulama zorla kapatılırsa kurulum/kaldırma ve sonraki açılış simgeleri geri açabilsin.
+        if (Settings.IconsHiddenByApp != view.IconsHidden)
+        {
+            Settings.IconsHiddenByApp = view.IconsHidden;
+            SaveSettings();
+        }
         DesktopVisibilityChanged?.Invoke();
     }
 
-    /// <summary>Windows'un masaüstü simgeleri şu an bizim tarafımızdan gizli olmalı mı?</summary>
-    private static bool IconsShouldBeHidden => DesktopHidden || Settings.FencesReplaceIcons;
-
-    /// <summary>Simge görünürlüğünü duruma uygular (çökme sonrası geri açılabilsin diye ayara da yazılır).</summary>
-    public static void ApplyIconVisibility()
+    /// <summary>
+    /// Widget'lar gizliyse (masaüstü gizlendi ya da göz atılıyor) geri getirir: yeni widget, "Bul", "öne getir", düzen
+    /// uygulama… Gizleyen durum kapanır, simgeler de ona göre döner. Widget'lar zaten görünürse bir şey yapmaz.
+    /// </summary>
+    public static void EnsureWidgetsShown()
     {
-        // Test klasörüyle (--desktop) çalışan örnek kullanıcının gerçek masaüstü simgelerine dokunmaz.
-        if (IsTestDesktop) DebugLog.Write($"simgeler {(IconsShouldBeHidden ? "gizlenecekti" : "gösterilecekti")} (test masaüstü)");
-        else DesktopIcons.SetVisible(!IconsShouldBeHidden);
-        // Hemen diske yazılır: uygulama zorla kapatılırsa kurulum/kaldırma ve sonraki açılış simgeleri geri açabilsin.
-        if (Settings.IconsHiddenByApp == IconsShouldBeHidden) return;
-        Settings.IconsHiddenByApp = IconsShouldBeHidden;
-        SaveSettings();
+        if (!CurrentView.WidgetsHidden) return;
+        StopPeek();
+        DesktopHidden = false;
+        ApplyDesktopState();
     }
+
+    /// <summary>Masaüstü simgelerini (ve ayara göre widget'ları) gizler ya da gösterir. Göz atılıyorsa göz atma biter.</summary>
+    public static void ToggleDesktop() => SetDesktopHidden(Peeking || !DesktopHidden);
+
+    public static void SetDesktopHidden(bool hidden)
+    {
+        StopPeek();
+        DesktopHidden = hidden;
+        ApplyDesktopState();
+    }
+
+    /// <summary>
+    /// Boş masaüstüne çift tıklama (ayara göre gizle/göster ya da göz at; göz atılıyorsa NestDesk'e döner). İlk birkaç seferde
+    /// nasıl geri getirileceği söylenir: bilmeden çift tıklayan kullanıcı widget'larının kaybolduğunu sanmasın.
+    /// </summary>
+    public static void OnDesktopDoubleClick()
+    {
+        if (Peeking)
+        {
+            EndPeek();
+            return;
+        }
+        switch (DesktopState.ResolveDoubleClick(Settings.DoubleClickAction, Settings.DoubleClickHidesDesktop, Settings.FencesReplaceIcons))
+        {
+            case DoubleClickEffect.Peek:
+                StartPeek(PeekOrigin.DoubleClick);
+                if (!Peeking || Settings.PeekHintsShown >= 3) return;
+                Settings.PeekHintsShown++;
+                SaveSettings();
+                Tray?.Notify("Windows masaüstü açıldı",
+                    $"Geri dönmek için yeniden çift tıkla ya da üstteki \"{AppInfo.Name}'e dön\"e bas. Çift tıklamanın ne yapacağını Ayarlar > Masaüstü'nden seçebilirsin.",
+                    () => EndPeek());
+                break;
+            case DoubleClickEffect.ToggleDesktop:
+                ToggleDesktop();
+                if (!DesktopHidden || Settings.DoubleClickHintsShown >= 3) return;
+                Settings.DoubleClickHintsShown++;
+                SaveSettings();
+                Tray?.Notify(Widgets.Hidden ? "Widget'lar ve simgeler gizlendi" : "Masaüstü simgeleri gizlendi",
+                    "Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir.",
+                    () => SetDesktopHidden(false));
+                break;
+        }
+    }
+
+    // --- Windows masaüstüne göz at ---
+
+    /// <summary>Göz atmayı neyin başlattığı: çift tıklamada pencereler küçültülmez (masaüstü zaten öndedir).</summary>
+    public enum PeekOrigin { Hotkey, Tray, Menu, Command, DoubleClick, Settings }
+
+    /// <summary>Göz atma açık pencereleri küçülterek başladıysa (Win+D gibi); bitince yeniden açılır.</summary>
+    private static bool _peekMinimized;
+
+    public static void TogglePeek(PeekOrigin origin)
+    {
+        if (Peeking) EndPeek();
+        else StartPeek(origin);
+    }
+
+    /// <summary>
+    /// Windows masaüstüne göz at: simgeler görünür, widget'lar (ayar açıksa) çekilir, üstte "NestDesk'e dön" çubuğu çıkar ve
+    /// ayardaki süre dolunca kendiliğinden dönülür. Gizli masaüstü de açılır (dönünce normal NestDesk masaüstü gelir).
+    /// </summary>
+    public static void StartPeek(PeekOrigin origin)
+    {
+        if (Peeking) return;
+        Peeking = true;
+        DesktopHidden = false;
+        // "Açık pencereleri küçült": masaüstü zaten öndeyse (çift tıklama) yapılmaz. Test örneği gerçek pencereleri küçültmez.
+        _peekMinimized = Settings.PeekShowsDesktop && origin != PeekOrigin.DoubleClick && !IsTestDesktop &&
+                         !DesktopIcons.IsDesktopSurface(NativeMethods.GetForegroundWindow());
+        if (_peekMinimized) ShellDesktop.ToggleInBackground();
+        ApplyDesktopState();
+        Views.PeekBar.Open(DesktopState.NormalizePeekMinutes(Settings.PeekMinutes));
+        DebugLog.Write($"göz atma başladı ({origin})");
+    }
+
+    /// <summary>NestDesk'e dön: göz atma biter, widget'lar ve (bölmeler yönetiyorsa) gizli simgeler geri gelir.</summary>
+    public static void EndPeek()
+    {
+        if (!Peeking) return;
+        StopPeek();
+        ApplyDesktopState();
+    }
+
+    /// <summary>Göz atmayı durumu uygulamadan bitirir (çağıran hemen ardından uygular).</summary>
+    private static void StopPeek()
+    {
+        if (!Peeking) return;
+        Peeking = false;
+        Views.PeekBar.CloseBar();
+        // Küçültülen pencereler geri gelsin; kullanıcı bu arada masaüstünden bir şey açtıysa (masaüstü artık önde değil) dokunulmaz.
+        if (_peekMinimized && DesktopIcons.IsDesktopSurface(NativeMethods.GetForegroundWindow())) ShellDesktop.ToggleInBackground();
+        _peekMinimized = false;
+        DebugLog.Write("göz atma bitti");
+    }
+
+    // --- Yeni widget ---
+
+    /// <summary>
+    /// Kısayolla ya da "Widget ekle" penceresiyle eklenen widget'ın nereye geldiğini ilk üç seferde söyler (ana pencere
+    /// açık değilken görülmesi zor): ayar nerede, widget'lar nasıl öne getirilir.
+    /// </summary>
+    public static void ShowNewWidgetHint(WidgetConfig config)
+    {
+        if (Settings.NewWidgetHintsShown >= 3) return;
+        Settings.NewWidgetHintsShown++;
+        SaveSettings();
+        var name = config.Kind switch
+        {
+            WidgetKind.Note => config.NoteChecklist ? "Yapılacaklar listesi" : "Yeni not",
+            WidgetKind.Clock => "Saat",
+            WidgetKind.Date => "Tarih",
+            WidgetKind.Launcher => "Kısayol kutusu",
+            _ => "Bölme",
+        };
+        var where = PlaceModes.Parse(Settings.NewWidgetPlacement) switch
+        {
+            PlaceMode.Center => "ekranın ortasına",
+            PlaceMode.Corner => config.Kind is WidgetKind.Clock or WidgetKind.Date or WidgetKind.Note ? "ekranın sağ üstüne" : "ekranın üst ortasına",
+            _ => "imlecin yanına",
+        };
+        var reveal = Settings.Hotkeys.PeekWidgets;
+        Tray?.Notify($"{name} {where} eklendi",
+            "Yerini Widget'lar sayfasındaki \"Yeni widget'ların yeri\"nden değiştirebilirsin." +
+            (string.IsNullOrWhiteSpace(reveal) ? "" : $" Widget'ları pencerelerin önüne getirmek için {reveal}."),
+            () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
+    }
+
+    // --- Kutular ---
+
+    /// <summary>
+    /// Kısayol kutularındaki masaüstü dosyalarını taşıyıcıya bildirir: kurallar onları taşımaz (kutu "bulunamadı"
+    /// göstermesin). Yeni küme atanır; izleyici arka planda okur. Kutu değişince çağrılır (ucuz, diske bakmaz).
+    /// </summary>
+    public static void RefreshPinnedPaths() =>
+        Organizer.Pinned = BoxPlan.PinnedDesktopPaths(Settings.Widgets, DesktopDirectories);
 
     /// <summary>
     /// "Masaüstünü bölmeler yönetsin": açılınca eksik Klasörler/Kısayollar/Dosyalar bölmeleri eklenir (hiçbir öğe
@@ -218,14 +371,10 @@ public static class AppHost
     {
         if (on) Widgets.EnsureDesktopCoverage();
         Settings.FencesReplaceIcons = on;
-        if (DesktopHidden)
-        {
-            DesktopHidden = false;
-            Widgets.SetHidden(false);
-        }
-        ApplyIconVisibility();
+        StopPeek();
+        DesktopHidden = false;
         SaveSettings();
-        DesktopVisibilityChanged?.Invoke();
+        ApplyDesktopState();
     }
 
     /// <summary>Mod açıkken bir türü gösteren son bölme kaldırılırsa o öğeler hiçbir yerde görünmez: mod kapatılır.</summary>
@@ -240,30 +389,45 @@ public static class AppHost
         return true;
     }
 
+    /// <summary>
+    /// Çift tıklama algılayıcısı yalnızca bir işe yarayacaksa çalışır. Test örneği (--desktop) kullanıcının gerçek
+    /// masaüstündeki çift tıklamalara tepki vermez (DUZENLEME_TEST_DOUBLECLICK=1 ile açılır).
+    /// </summary>
     public static void ApplyDoubleClickSetting()
     {
-        if (Settings.DoubleClickHidesDesktop) DoubleClick?.Enable();
+        var wanted = DesktopState.DoubleClickChoice(Settings.DoubleClickAction, Settings.DoubleClickHidesDesktop) != DesktopState.DoubleClickNone
+                     && (!IsTestDesktop || Environment.GetEnvironmentVariable("DUZENLEME_TEST_DOUBLECLICK") == "1");
+        if (wanted) DoubleClick?.Enable();
         else DoubleClick?.Disable();
     }
 
     /// <summary>
-    /// Explorer yeniden başlarsa simgeler kendiliğinden yeniden görünür; uygulama hâlâ "gizli" sanmasın.
+    /// "Boş masaüstüne çift tıklayınca" seçimi (DesktopState.DoubleClick*). Eski anahtar da yazılır: 2.0'a dönülürse
+    /// "hiçbir şey" kapalı, diğerleri açık kalsın.
+    /// </summary>
+    public static void SetDoubleClickAction(string choice)
+    {
+        Settings.DoubleClickAction = DesktopState.DoubleClickChoice(choice, Settings.DoubleClickHidesDesktop);
+        Settings.DoubleClickHidesDesktop = Settings.DoubleClickAction != DesktopState.DoubleClickNone;
+        SaveSettings();
+        ApplyDoubleClickSetting();
+    }
+
+    /// <summary>
+    /// Masaüstü nöbetçisi (3 sn): Explorer yeniden başlarsa simgeler kendiliğinden yeniden görünür. Bölmeler yönetirken
+    /// yeniden gizlenir; masaüstü yalnızca gizlendiyse (kullanıcı ya da Explorer simgeleri açmış) uygulama da "gösteriliyor"a
+    /// döner. Göz atarken simgeler zaten görünür olmalıdır. Test örneği gerçek simgelere bakmaz.
     /// </summary>
     public static void ReconcileDesktopState()
     {
-        if (DesktopIcons.ChangePending) return;
-        if (Settings.FencesReplaceIcons)
+        if (IsTestDesktop || DesktopIcons.ChangePending) return;
+        if (!CurrentView.IconsHidden || !DesktopIcons.AreVisible) return;
+        if (Settings.FencesReplaceIcons) DesktopIcons.SetVisible(false);
+        else if (DesktopHidden)
         {
-            // Explorer yeniden başlayınca simgeler kendiliğinden geri gelir: bölmeler yönetirken yeniden gizle.
-            if (!IsTestDesktop && DesktopIcons.AreVisible) DesktopIcons.SetVisible(false);
-            return;
+            DesktopHidden = false;
+            ApplyDesktopState();
         }
-        if (!DesktopHidden || !DesktopIcons.AreVisible) return;
-        DesktopHidden = false;
-        Widgets.SetHidden(false);
-        Settings.IconsHiddenByApp = false;
-        SaveSettings();
-        DesktopVisibilityChanged?.Invoke();
     }
 
     /// <summary>
@@ -289,8 +453,9 @@ public static class AppHost
     /// <summary>Uygulama kapanırken masaüstünü kullanıcıya gizli bırakma.</summary>
     public static void RestoreDesktopOnExit()
     {
-        // Mod ayarı kalır (sonraki açılışta yeniden gizlenir); uygulama kapalıyken simgeler görünür olmalı.
-        if (!IconsShouldBeHidden) return;
+        // Mod ayarı kalır (sonraki açılışta yeniden gizlenir); uygulama kapalıyken simgeler görünür olmalı. Göz atarken
+        // simgeler zaten görünür (küçültülen pencereler kullanıcıya kalır: masaüstü önde, bir şey kaybolmaz).
+        if (!CurrentView.IconsHidden) return;
         if (!IsTestDesktop) DesktopIcons.SetVisible(true);
         Settings.IconsHiddenByApp = false;
         try { JsonFile.Save(SettingsPath, Settings); }
