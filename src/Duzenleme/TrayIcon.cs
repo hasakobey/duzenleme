@@ -174,9 +174,9 @@ public sealed class TrayIcon : IDisposable
     public void SuggestFolderIcon(string folder)
     {
         var (glyph, _) = Core.FolderIconCatalog.Suggest(Path.GetFileName(folder));
-        // Simge adları katalogda Türkçe saklanır (L.N): gösterirken çevrilir.
+        // glyph.Label kendisi çevirir (katalogda L.N anahtarı + bağlam): ikinci kez L.Dyn'e verme.
         ShowBalloon(6000, L.F("“{0}” klasörüne simge ver", Path.GetFileName(folder)),
-            L.F("Önerilen: {0}. Seçmek için tıkla.", L.Dyn(glyph.Label)), Forms.ToolTipIcon.None, () => Icons.FolderIconWindow.ShowFor(folder));
+            L.F("Önerilen: {0}. Seçmek için tıkla.", glyph.Label), Forms.ToolTipIcon.None, () => Icons.FolderIconWindow.ShowFor(folder));
     }
 
     private void UndoLast()
