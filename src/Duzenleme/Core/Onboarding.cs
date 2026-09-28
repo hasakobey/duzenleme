@@ -154,24 +154,25 @@ public static class Onboarding
     /// <summary>
     /// 1. adımdaki "Evet, bölmelere ayır" kartının açıklaması: hangi bölmeler eklenecek?
     /// Ör. "Klasörler, Kısayollar ve Dosyalar için birer bölme eklenir; PDF klasörü için de bir bölme."
+    /// Her durum ayrı, tam bir cümle (çeviride parça birleştirilmez).
     /// </summary>
     public static string FencePlanText(IReadOnlyList<StarterFence> plan)
     {
         var kinds = plan.Where(p => p.Folder is null).Select(p => p.Label).ToList();
         var folders = plan.Where(p => p.Folder is not null).Select(p => p.Label).ToList();
-        if (kinds.Count == 0 && folders.Count == 0) return "Bölmelerin zaten hazır; yeni bölme eklenmez.";
-
-        if (kinds.Count == 0)
-            return folders.Count == 1
-                ? $"{folders[0]} klasörü için bir bölme eklenir."
-                : $"{L.Join(folders)} klasörleri için birer bölme eklenir.";
-
-        var head = $"{L.Join(kinds)} için {(kinds.Count == 1 ? "bir" : "birer")} bölme eklenir";
-        return folders.Count switch
+        var k = L.Join(kinds);
+        var f = L.Join(folders);
+        return (kinds.Count, folders.Count) switch
         {
-            0 => head + ".",
-            1 => $"{head}; {folders[0]} klasörü için de bir bölme.",
-            _ => $"{head}; {L.Join(folders)} klasörleri için de birer bölme.",
+            (0, 0) => L.T("Bölmelerin zaten hazır; yeni bölme eklenmez."),
+            (0, 1) => L.F("{0} klasörü için bir bölme eklenir.", f),
+            (0, _) => L.F("{0} klasörleri için birer bölme eklenir.", f),
+            (1, 0) => L.F("{0} için bir bölme eklenir.", k),
+            (1, 1) => L.F("{0} için bir bölme eklenir; {1} klasörü için de bir bölme.", k, f),
+            (1, _) => L.F("{0} için bir bölme eklenir; {1} klasörleri için de birer bölme.", k, f),
+            (_, 0) => L.F("{0} için birer bölme eklenir.", k),
+            (_, 1) => L.F("{0} için birer bölme eklenir; {1} klasörü için de bir bölme.", k, f),
+            _ => L.F("{0} için birer bölme eklenir; {1} klasörleri için de birer bölme.", k, f),
         };
     }
 
@@ -182,11 +183,12 @@ public static class Onboarding
     public static List<string> MovePreviewLines(IReadOnlyList<PlannedMove> moves)
     {
         var groups = MovePlan.ByFolder(moves);
-        var lines = groups.Take(PreviewLineLimit).Select(g => $"{g.Count} dosya → {g.Folder}").ToList();
+        var lines = groups.Take(PreviewLineLimit).Select(g => L.P(g.Count, "{0} dosya → {1}", g.Folder)).ToList();
         if (groups.Count > PreviewLineLimit)
         {
             var rest = groups.Skip(PreviewLineLimit).ToList();
-            lines.Add($"+ {rest.Sum(g => g.Count)} dosya daha, {rest.Count} klasöre");
+            // İki sayı, iki tekil/çoğul: klasör kısmı ayrı çevrilir ("in 1 folder" / "in 2 folders").
+            lines.Add(L.P(rest.Sum(g => g.Count), "+ {0} dosya daha, {1}", L.P(rest.Count, "{0} klasöre")));
         }
         return lines;
     }

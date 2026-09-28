@@ -95,7 +95,7 @@ internal static class WelcomeSetup
 
         // 6. Açılamayan klasörler.
         if (failed.Count > 0)
-            AppHost.Tray?.Notify("Bazı klasörler oluşturulamadı", $"{L.Join(failed)}: {firstError}");
+            AppHost.Tray?.Notify(L.T("Bazı klasörler oluşturulamadı"), $"{L.Join(failed)}: {firstError}");
 
         DebugLog.Write($"karşılama uygulandı: bölme {fencesAdded}, araç {toolsAdded}, taşıma {Describe(c.AutoMove)}, {watch.ElapsedMilliseconds} ms");
 
@@ -103,11 +103,12 @@ internal static class WelcomeSetup
         if (fencesAdded + toolsAdded == 0) (Application.Current as App)?.ShowMainWindow();
     }
 
+    /// <summary>Yalnızca günlük için (DebugLog).</summary>
     private static string Describe(bool? autoMove) => autoMove switch
     {
-        true => "açık",
-        false => "kapalı",
-        null => "değişmedi",
+        true => "açık", // l10n: çevrilmez
+        false => "kapalı", // l10n: çevrilmez
+        null => "değişmedi", // l10n: çevrilmez
     };
 
     private static List<string> ExistingFolders()
@@ -145,8 +146,8 @@ internal static class WelcomeSetup
     }
 
     private static void NotifyStartupFailed(string? note) =>
-        AppHost.Tray?.Notify("Windows ile başlatma değiştirilemedi",
-            note ?? "Ayarı Windows'un Başlangıç uygulamaları sayfasından değiştirebilirsin.",
+        AppHost.Tray?.Notify(L.T("Windows ile başlatma değiştirilemedi"),
+            note ?? L.T("Ayarı Windows'un Başlangıç uygulamaları sayfasından değiştirebilirsin."),
             OpenStartupSettings);
 
     /// <summary>Windows'un Başlangıç uygulamaları ayar sayfasını açar (balon ve karşılamadaki düğme).</summary>

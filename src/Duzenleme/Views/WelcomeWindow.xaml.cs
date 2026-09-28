@@ -76,7 +76,7 @@ public partial class WelcomeWindow : FluentWindow
         _rerun = rerun;
         _moveWasOn = !AppHost.Settings.Paused;
         InitializeComponent();
-        Title = rerun ? $"{AppInfo.Name} kurulumu" : $"{AppInfo.Name}'e hoş geldin";
+        Title = rerun ? L.F("{0} kurulumu", AppInfo.Name) : L.F("{0}'e hoş geldin", AppInfo.Name);
         TitleBar.Title = Title;
         // İmlecin monitöründe (testte DUZENLEME_WINDOW_AT noktasında) açılır ve oraya sığdırılır.
         WindowFit.Attach(this, onCursorMonitor: true);
@@ -87,7 +87,7 @@ public partial class WelcomeWindow : FluentWindow
         SetupTools();
         SetupStartup();
 
-        SkipButton.Content = rerun ? "Vazgeç" : "Şimdilik atla";
+        SkipButton.Content = rerun ? L.T("Vazgeç") : L.T("Şimdilik atla");
         SkipButton.Click += (_, _) => Close();
         BackButton.Click += (_, _) => ShowStep(_step - 1);
         NextButton.Click += (_, _) =>
@@ -125,14 +125,14 @@ public partial class WelcomeWindow : FluentWindow
         Step3.Visibility = step == 3 ? Visibility.Visible : Visibility.Collapsed;
         StepTitle.Text = step switch
         {
-            1 => _rerun ? "Masaüstünü yeniden kuralım" : $"{AppInfo.Name}'e hoş geldin",
-            2 => "Dosyalar kendiliğinden yerine gitsin mi?",
-            _ => "Masaüstüne küçük araçlar ekleyelim mi?",
+            1 => _rerun ? L.T("Masaüstünü yeniden kuralım") : L.F("{0}'e hoş geldin", AppInfo.Name),
+            2 => L.T("Dosyalar kendiliğinden yerine gitsin mi?"),
+            _ => L.T("Masaüstüne küçük araçlar ekleyelim mi?"),
         };
-        StepCounter.Text = $"Adım {step} / 3";
+        StepCounter.Text = L.F("Adım {0} / 3", step);
         // Geri 1. adımda yalnızca görünmez olur (yeri korunur): düğmeler kaymasın.
         BackButton.Visibility = step == 1 ? Visibility.Hidden : Visibility.Visible;
-        NextButton.Content = step == 3 ? "Bitti" : "İleri";
+        NextButton.Content = step == 3 ? L.T("Bitti") : L.T("İleri");
         Dot1.SetResourceReference(Shape.FillProperty, DotBrush(1));
         Dot2.SetResourceReference(Shape.FillProperty, DotBrush(2));
         Dot3.SetResourceReference(Shape.FillProperty, DotBrush(3));
@@ -255,8 +255,8 @@ public partial class WelcomeWindow : FluentWindow
     private void SetupFences()
     {
         Step1Text.Text = _rerun
-            ? "Var olan bölmelerin, widget'ların ve dosyaların silinmez; yalnızca eksikler eklenir."
-            : $"{AppInfo.Name} masaüstünü derli toplu tutar: simgeleri bölmelerde toplar, gelen dosyaları klasörlerine taşır, saat ve not gibi küçük araçlar ekler.";
+            ? L.T("Var olan bölmelerin, widget'ların ve dosyaların silinmez; yalnızca eksikler eklenir.")
+            : L.F("{0} masaüstünü derli toplu tutar: simgeleri bölmelerde toplar, gelen dosyaları klasörlerine taşır, saat ve not gibi küçük araçlar ekler.", AppInfo.Name);
         FencePlan.Text = Onboarding.FencePlanText(StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, _existingFolders));
         // Windows simgeleri: Ayarlar'daki üç seçenek. Varsayılan ilk açılışta "Yalnızca bölmelerde", yeniden kurulumda şu anki seçim.
         foreach (var mode in DesktopModes.Choices)
@@ -282,11 +282,11 @@ public partial class WelcomeWindow : FluentWindow
 
     private void SetupMove()
     {
-        PreviewNote.Text = $"Her taşıma {AppInfo.Name}'teki \"Otomatik taşıma\" sayfasından geri alınabilir; geri aldığın dosya bir daha " +
-                           "taşınmaz. Kısayollar, klasörler ve inmekte olan dosyalar hiçbir zaman taşınmaz.";
+        PreviewNote.Text = L.F("Her taşıma {0}'teki \"Otomatik taşıma\" sayfasından geri alınabilir; geri aldığın dosya bir daha taşınmaz. Kısayollar, klasörler ve inmekte olan dosyalar hiçbir zaman taşınmaz.",
+            AppInfo.Name);
         MoveNoText.Text = _moveWasOn
-            ? "Otomatik taşıma kapatılır; hiçbir dosyaya dokunulmaz."
-            : $"Hiçbir dosyaya dokunulmaz. İstediğin zaman {AppInfo.Name}'teki \"Otomatik taşıma\" sayfasından açabilirsin.";
+            ? L.T("Otomatik taşıma kapatılır; hiçbir dosyaya dokunulmaz.")
+            : L.F("Hiçbir dosyaya dokunulmaz. İstediğin zaman {0}'teki \"Otomatik taşıma\" sayfasından açabilirsin.", AppInfo.Name);
         // Klasör seçenekleri masaüstü okununca kurulur; o zamana dek taşıma seçilemez (seçimsiz "Evet" kuralları kapatırdı).
         MoveYes.IsEnabled = MoveNo.IsEnabled = false;
         MoveYes.Checked += (_, _) => UpdateNext();
@@ -345,7 +345,7 @@ public partial class WelcomeWindow : FluentWindow
             state.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
             content.Children.Add(state);
 
-            var tip = choice.Extensions.Length > 0 ? $"Uzantılar: {choice.Extensions}" : null;
+            var tip = choice.Extensions.Length > 0 ? L.F("Uzantılar: {0}", choice.Extensions) : null;
             var chip = new ToggleButton { Style = style, Content = content, IsChecked = choice.DefaultOn, ToolTip = tip };
             AutomationProperties.SetAutomationId(chip, "Welcome.Folder_" + choice.Folder);
             AutomationProperties.SetName(chip, choice.Folder);
@@ -357,9 +357,9 @@ public partial class WelcomeWindow : FluentWindow
             FolderChips.Children.Add(chip);
         }
         if (choices.Count == 0)
-            FolderHint.Text = $"Henüz taşıma kuralı yok; kuralları {AppInfo.Name}'teki \"Otomatik taşıma\" sayfasından ekleyebilirsin.";
+            FolderHint.Text = L.F("Henüz taşıma kuralı yok; kuralları {0}'teki \"Otomatik taşıma\" sayfasından ekleyebilirsin.", AppInfo.Name);
         else if (createMissing)
-            FolderHint.Text = "\"Klasör yoksa oluştur\" açık: işaretlediğin klasörler, oraya gidecek ilk dosya gelince oluşturulur.";
+            FolderHint.Text = L.T("\"Klasör yoksa oluştur\" açık: işaretlediğin klasörler, oraya gidecek ilk dosya gelince oluşturulur.");
         UpdateChipStates();
     }
 
@@ -372,7 +372,7 @@ public partial class WelcomeWindow : FluentWindow
     private void UpdateChipStates()
     {
         foreach (var (choice, chip, state) in _chips)
-            state.Text = chip.IsChecked != true ? "kullanılmayacak" : choice.Exists ? "masaüstünde var" : "oluşturulacak";
+            state.Text = chip.IsChecked != true ? L.T("kullanılmayacak") : choice.Exists ? L.T("masaüstünde var") : L.T("oluşturulacak");
     }
 
     private List<string> SelectedFolders() => _chips.Where(c => c.Chip.IsChecked == true).Select(c => c.Choice.Folder).ToList();
@@ -384,17 +384,17 @@ public partial class WelcomeWindow : FluentWindow
         if (!_filesReady)
         {
             _pending = null;
-            ShowPreview(warning: false, "Masaüstü inceleniyor…");
+            ShowPreview(warning: false, L.T("Masaüstü inceleniyor…"));
         }
         else if (selected.Count == 0)
         {
             _pending = 0;
-            ShowPreview(warning: false, "Hiç klasör seçmedin; hiçbir dosya taşınmaz.");
+            ShowPreview(warning: false, L.T("Hiç klasör seçmedin; hiçbir dosya taşınmaz."));
         }
         else if (_filesFailed)
         {
             _pending = null;
-            ShowPreview(warning: true, "Masaüstü okunamadı; taşınacak dosyalar şimdi gösterilemiyor.");
+            ShowPreview(warning: true, L.T("Masaüstü okunamadı; taşınacak dosyalar şimdi gösterilemiyor."));
         }
         else
         {
@@ -404,21 +404,21 @@ public partial class WelcomeWindow : FluentWindow
                 AppHost.Settings.CreateMissingFolders);
             _pending = moves.Count;
             if (moves.Count == 0)
-                ShowPreview(warning: false, "Şu an masaüstünde taşınacak dosya yok. Bundan sonra gelen dosyalar taşınır.");
+                ShowPreview(warning: false, L.T("Şu an masaüstünde taşınacak dosya yok. Bundan sonra gelen dosyalar taşınır."));
             else
-                ShowPreview(warning: true, $"Şu an masaüstünde duran {moves.Count} dosya da taşınacak:" +
+                ShowPreview(warning: true, L.P(moves.Count, "Şu an masaüstünde duran {0} dosya da taşınacak:") +
                     string.Concat(Onboarding.MovePreviewLines(moves).Select(line => "\n    " + line)));
             if (DebugLog.Enabled)
                 DebugLog.Write($"karşılama önizlemesi: {_files.Count} dosyadan {moves.Count} taşınacak, {watch.Elapsed.TotalMilliseconds:0.0} ms");
         }
 
         MoveYesText.Text = !_filesReady ? ""
-            : selected.Count == 0 ? "Yukarıdan klasör seçersen uygun dosyalar oraya taşınır."
+            : selected.Count == 0 ? L.T("Yukarıdan klasör seçersen uygun dosyalar oraya taşınır.")
             : _pending switch
             {
-                null => "Masaüstündeki ve bundan sonra gelen uygun dosyalar seçtiğin klasörlere taşınır.",
-                0 => "Bundan sonra gelen dosyalar taşınır.",
-                var n => $"{n} dosya taşınacak.",
+                null => L.T("Masaüstündeki ve bundan sonra gelen uygun dosyalar seçtiğin klasörlere taşınır."),
+                0 => L.T("Bundan sonra gelen dosyalar taşınır."),
+                int n => L.P(n, "{0} dosya taşınacak."),
             };
     }
 
@@ -478,7 +478,7 @@ public partial class WelcomeWindow : FluentWindow
             {
                 var badge = new TextBlock
                 {
-                    Text = "Masaüstünde var", FontSize = 11, Margin = new Thickness(0, 2, 0, 0),
+                    Text = L.T("Masaüstünde var"), FontSize = 11, Margin = new Thickness(0, 2, 0, 0),
                     TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
                 };
                 badge.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
@@ -504,20 +504,24 @@ public partial class WelcomeWindow : FluentWindow
     private void UpdateToolPreviews()
     {
         var now = DateTime.Now;
-        if (_clockPreview is not null) _clockPreview.Text = now.ToString("HH:mm", L.Culture);
-        if (_datePreview is not null) _datePreview.Text = now.ToString("d MMM", L.Culture);
+        var culture = L.Culture;
+        // Saat widget'ının varsayılanıyla aynı: Windows'un bölge ayarına göre 24 ya da 12 saatlik (12'de ÖÖ/ÖS'siz, sığsın).
+        if (_clockPreview is not null) _clockPreview.Text = WorldClock.Time(now, WorldClock.Uses24Hour(null), culture);
+        // Gün ve ay, dilin sırasıyla: "28 Eyl" / "Sep 28" (en-GB: "28 Sep").
+        var monthFirst = culture.DateTimeFormat.MonthDayPattern.TrimStart().StartsWith('M');
+        if (_datePreview is not null) _datePreview.Text = now.ToString(monthFirst ? "MMM d" : "d MMM", culture);
     }
 
     /// <summary>"Windows ile başlat" kartı gerçek durumu gösterir (paketsizde Run kaydı, Store'da başlangıç görevi).</summary>
     private void SetupStartup()
     {
-        StartupTitle.Text = $"Windows açılınca {AppInfo.Name} de başlasın";
+        StartupTitle.Text = L.F("Windows açılınca {0} de başlasın", AppInfo.Name);
         AutomationProperties.SetName(StartupToggle, StartupTitle.Text);
         PortableNote.Visibility = AppHost.IsPortable ? Visibility.Visible : Visibility.Collapsed;
         StartupToggle.Checked += (_, _) => UpdateStartupTip();
         StartupToggle.Unchecked += (_, _) => UpdateStartupTip();
         StartupSettingsButton.Click += (_, _) => WelcomeSetup.OpenStartupSettings();
-        StartupTip.Text = $"İpucu: {AppInfo.Name} Windows ile başlamazsa masaüstü simgelerin, sen {AppInfo.Name}'i açana dek her zamanki gibi görünür.";
+        StartupTip.Text = L.F("İpucu: {0} Windows ile başlamazsa masaüstü simgelerin, sen {0}'i açana dek her zamanki gibi görünür.", AppInfo.Name);
         TrayInfo.Text = TrayInfoText();
 
         if (AppHost.IsTestDesktop)
@@ -525,7 +529,7 @@ public partial class WelcomeWindow : FluentWindow
             // Test örneği gerçek başlangıç kaydını değiştirmez.
             StartupToggle.IsChecked = StartupRegistration.IsEnabled;
             StartupToggle.IsEnabled = false;
-            ShowStartupNote("Test örneğinde değiştirilmez.");
+            ShowStartupNote(L.T("Test örneğinde değiştirilmez."));
         }
         else if (!PackageInfo.IsPackaged)
         {
@@ -583,11 +587,11 @@ public partial class WelcomeWindow : FluentWindow
 
     private static string TrayInfoText()
     {
-        var start = $"{AppInfo.Name} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için ";
         var works = Hotkey.TryParse(AppHost.Settings.Hotkeys.QuickAdd, out var hotkey) &&
                     AppHost.Hotkeys?.Failures.ContainsKey(HotkeyAction.QuickAdd) != true;
         return works
-            ? start + $"{hotkey} tuşlarına bas ya da o simgeye sağ tıkla → Widget ekle."
-            : start + "o simgeye sağ tıkla → Widget ekle.";
+            ? L.F("{0} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için {1} tuşlarına bas ya da o simgeye sağ tıkla → Widget ekle.",
+                AppInfo.Name, hotkey)
+            : L.F("{0} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için o simgeye sağ tıkla → Widget ekle.", AppInfo.Name);
     }
 }
