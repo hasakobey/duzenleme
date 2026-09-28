@@ -29,6 +29,27 @@ public class RenameTests
     }
 
     [Fact]
+    public void Manual_order_and_folder_portals_follow_a_rename()
+    {
+        const string desktop = @"C:\Users\ali\Desktop";
+        var sorted = new WidgetConfig
+        {
+            Kind = WidgetKind.Fence, Filter = DesktopFilter.Files, SortBy = FenceOrder.Manual,
+            ItemOrder = [desktop + @"\b.txt", desktop + @"\eski.txt", desktop + @"\c.txt"],
+        };
+        var portal = WidgetSeeds.Portal(@"D:\Arşiv\Faturalar", null, "Faturalar");
+        var other = WidgetSeeds.Portal(@"D:\Arşivler", null, "Arşivler");
+
+        Assert.True(PathRenames.Apply([sorted], desktop + @"\eski.txt", desktop + @"\yeni.txt", false, desktop));
+        Assert.Equal([desktop + @"\b.txt", desktop + @"\yeni.txt", desktop + @"\c.txt"], sorted.ItemOrder);
+
+        Assert.True(PathRenames.Apply([portal, other], @"D:\Arşiv", @"D:\Eski arşiv", true, desktop));
+        Assert.Equal(@"D:\Eski arşiv\Faturalar", portal.FolderName);
+        Assert.Equal(@"D:\Arşivler", other.FolderName);
+        Assert.True(WidgetVariants.IsPortal(portal));
+    }
+
+    [Fact]
     public void Widget_settings_follow_a_renamed_file()
     {
         const string desktop = @"C:\Users\ali\Desktop";

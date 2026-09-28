@@ -77,6 +77,15 @@ public static class PathRenames
             changed |= Rewrite(widget.HiddenItems, from, to, isDirectory);
             foreach (var tab in widget.Tabs) changed |= Rewrite(tab.Items, from, to, isDirectory);
             changed |= ItemLooks.Move(widget, from, to, isDirectory);
+            // Elle sıralı bölmede öğe yerini korur (listede olmayan yol sona düşerdi).
+            if (widget.ItemOrder is { } order) changed |= Rewrite(order, from, to, isDirectory);
+            // Klasör portalı tam yolu tutar: klasörü ya da üstlerinden biri yeniden adlandırılınca yeni yolu izler.
+            if (WidgetVariants.IsPortal(widget) && Map(widget.FolderName!, from, to, isDirectory) is { } portal &&
+                !string.Equals(portal, widget.FolderName, StringComparison.Ordinal))
+            {
+                widget.FolderName = portal;
+                changed = true;
+            }
             if (onDesktop && widget.Kind == WidgetKind.Fence && widget.Filter == DesktopFilter.None &&
                 widget.FolderName is { } folder && FolderName.Equal(folder, fromName) && !string.Equals(folder, toName, StringComparison.Ordinal))
             {
