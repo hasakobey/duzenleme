@@ -252,3 +252,16 @@ public class PeekClockTests
     public void Formats_minutes_and_seconds(double seconds, string expected) =>
         Assert.Equal(expected, PeekClock.Format(TimeSpan.FromSeconds(seconds)));
 }
+
+public class PrimaryMouseButtonTests
+{
+    [Fact]
+    public void Swapped_buttons_make_the_physical_right_button_primary()
+    {
+        // Solak ayarı: ham giriş ve GetAsyncKeyState fiziksel düğmeyi bildirir, birincil düğme sağdadır.
+        Assert.Equal(0x0001, PrimaryMouseButton.RawInputDownFlag(swapped: false));
+        Assert.Equal(0x0004, PrimaryMouseButton.RawInputDownFlag(swapped: true));
+        Assert.Equal(0x01, PrimaryMouseButton.VirtualKey(swapped: false));
+        Assert.Equal(0x02, PrimaryMouseButton.VirtualKey(swapped: true));
+    }
+}

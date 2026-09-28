@@ -181,6 +181,12 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int key);
 
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int index);
+
+    /// <summary>Birincil ve ikincil fare düğmeleri değiştirilmiş mi (solak ayarı)? Bkz. <see cref="Core.PrimaryMouseButton"/>.</summary>
+    public static bool MouseButtonsSwapped => GetSystemMetrics(Core.PrimaryMouseButton.SM_SWAPBUTTON) != 0;
+
     [StructLayout(LayoutKind.Sequential)]
     private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 

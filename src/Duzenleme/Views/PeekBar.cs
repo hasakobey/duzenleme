@@ -175,13 +175,13 @@ internal sealed class PeekBar : Window
     }
 
     /// <summary>
-    /// Kullanıcı masaüstünde çalışıyor mu: sol tuş basılı (sürükleme) ya da masaüstü önde ve son 10 saniyede giriş var
-    /// (yeniden adlandırma, seçim). Öyleyse dönüş ertelenir; simgeler elinin altından kaybolmasın.
+    /// Kullanıcı masaüstünde çalışıyor mu: birincil fare tuşu basılı (sürükleme) ya da masaüstü önde ve son 10 saniyede
+    /// giriş var (yeniden adlandırma, seçim). Öyleyse dönüş ertelenir; simgeler elinin altından kaybolmasın.
+    /// GetAsyncKeyState fiziksel tuşa bakar: solak ayarında birincil tuş sağdadır.
     /// </summary>
     private static bool UserBusyOnDesktop()
     {
-        const int VK_LBUTTON = 0x01;
-        if (NativeMethods.GetAsyncKeyState(VK_LBUTTON) < 0) return true;
+        if (NativeMethods.GetAsyncKeyState(PrimaryMouseButton.VirtualKey(NativeMethods.MouseButtonsSwapped)) < 0) return true;
         return DesktopIcons.IsDesktopSurface(NativeMethods.GetForegroundWindow()) && NativeMethods.IdleTime() < TimeSpan.FromSeconds(10);
     }
 

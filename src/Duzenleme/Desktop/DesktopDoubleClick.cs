@@ -8,7 +8,7 @@ namespace Duzenleme.Desktop;
 /// <para>Fare kancası (WH_MOUSE_LL) kullanılmaz: kanca varken sistemdeki her fare olayı uygulamanın yanıtını bekler; uygulama
 /// o an meşgulse imleç herkes için takılır ve Windows yavaş kancayı sessizce kaldırır. Bunun yerine "ham giriş" (Raw Input,
 /// RIDEV_INPUTSINK) kendi iş parçacığındaki yalnızca-ileti penceresine gelir: Windows olayı kuyruğa bırakır, hiçbir şeyi
-/// beklemez. Yalnızca sol tuşa basışların zamanı ve yeri bellekte tutulur.</para>
+/// beklemez. Yalnızca birincil (solak ayarında sağ) tuşa basışların zamanı ve yeri bellekte tutulur.</para>
 /// Çift tıklama olunca karar (masaüstüne mi tıklandı, bir simge mi seçili) arayüz iş parçacığının dışında verilir;
 /// Gezgin meşgul olsa da widget'lar beklemez. Sonuç geri çağrı olarak arayüz iş parçacığına iletilir.
 /// </summary>
@@ -23,7 +23,6 @@ public sealed class DesktopDoubleClick : IDisposable
     private const uint RIM_TYPEMOUSE = 0;
     private const uint RIDEV_REMOVE = 0x00000001;
     private const uint RIDEV_INPUTSINK = 0x00000100;
-    private const ushort RI_MOUSE_LEFT_BUTTON_DOWN = 0x0001;
     private static readonly IntPtr HWND_MESSAGE = new(-3);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -268,7 +267,10 @@ public sealed class DesktopDoubleClick : IDisposable
         if (GetRawInputData(rawInput, RID_INPUT, session.Buffer, ref size, (uint)HeaderSize) != size) return;
         if ((uint)Marshal.ReadInt32(session.Buffer) != RIM_TYPEMOUSE || size < ButtonFlagsOffset + 2) return;
         var buttons = (ushort)Marshal.ReadInt16(session.Buffer, ButtonFlagsOffset);
-        if ((buttons & RI_MOUSE_LEFT_BUTTON_DOWN) == 0) return;
+        // Ham giriş fiziksel düğmeyi bildirir: solak ayarında birincil düğme sağdadır (2.0'ın kancası WM_LBUTTONDOWN'a,
+        // yani değişimi uygulanmış düğmeye bakıyordu). Ayar her basışta okunur (ucuz); değiştirilince hemen geçerli.
+        var primary = Core.PrimaryMouseButton.RawInputDownFlag(GetSystemMetrics(Core.PrimaryMouseButton.SM_SWAPBUTTON) != 0);
+        if ((buttons & primary) == 0) return;
 
         // Olayın ekrandaki yeri ve zamanı (fiziksel piksel; sol monitörde eksi olabilir).
         var pos = GetMessagePos();
