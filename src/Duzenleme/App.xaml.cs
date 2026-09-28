@@ -281,11 +281,8 @@ public partial class App : Application
         _ => $"Beklenmeyen bir hata oluştu:\n{ex.Message}",
     };
 
-    private static List<string> DesktopFoldersOrNone()
-    {
-        try { return AppHost.Organizer.ExistingFolders().ToList(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
-    }
+    /// <summary>Masaüstündeki klasörler (anlık görüntüden; ilk okuma bitmediyse bir kez diskten, hata olursa boş).</summary>
+    private static List<string> DesktopFoldersOrNone() => AppHost.DesktopFolders();
 
     /// <summary>
     /// --restart: önceki örneğin tek örnek kilidini bırakmasını en çok 15 sn bekler ve kilidi alır (bu örnek ilk örnek

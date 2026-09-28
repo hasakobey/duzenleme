@@ -4,12 +4,12 @@ using System.IO;
 namespace Duzenleme;
 
 /// <summary>
-/// Başarım günlüğü (tools/perf betiği için): yalnızca DUZENLEME_PERF_LOG ortam değişkeni bir dosya yolu gösteriyorsa
+/// Başarım günlüğü (tools/perf betiği için): yalnızca NESTDESK_PERF_LOG (ya da eski DUZENLEME_PERF_LOG) ortam değişkeni bir dosya yolu gösteriyorsa
 /// yazar. Ayar kayıtları, bölme güncellemeleri ve açılış adımları sayılır/süreleri yazılır. Kapalıyken maliyeti yoktur.
 /// </summary>
 public static class PerfLog
 {
-    private static readonly string? Path = Environment.GetEnvironmentVariable("DUZENLEME_PERF_LOG");
+    private static readonly string? Path = Core.AppEnvironment.Get("PERF_LOG");
     private static readonly object Lock = new();
     private static readonly ConcurrentDictionary<string, long> Counters = new();
 

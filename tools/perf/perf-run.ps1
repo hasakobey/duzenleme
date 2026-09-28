@@ -20,7 +20,7 @@
   600 dosyalık masaüstünde ilk boşa düşüş < 3 sn ve 250 ms'yi aşan tek takılma yok.
 
 .EXAMPLE
-  powershell -File tools\perf\perf-run.ps1 -Exe src\Duzenleme\bin\Debug\net10.0-windows\Duzenleme.exe -Scenario clicks
+  powershell -File tools\perf\perf-run.ps1 -Exe src\Duzenleme\bin\Debug\net10.0-windows\NestDesk.exe -Scenario clicks
 #>
 param(
     [Parameter(Mandatory)] [string] $Exe,
