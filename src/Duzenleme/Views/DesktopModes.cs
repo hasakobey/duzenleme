@@ -32,29 +32,27 @@ internal static class DesktopModes
 
     public static string Label(IconMode mode) => mode switch
     {
-        IconMode.BoxItemsLeave => "Kutulara eklediklerim masaüstünden kalksın",
-        IconMode.FencesOnly => "Yalnızca bölmelerde göster",
-        _ => "Hepsi masaüstünde görünsün",
+        IconMode.BoxItemsLeave => L.T("Kutulara eklediklerim masaüstünden kalksın"),
+        IconMode.FencesOnly => L.T("Yalnızca bölmelerde göster"),
+        _ => L.T("Hepsi masaüstünde görünsün"),
     };
 
     public static string Description(IconMode mode) => mode switch
     {
-        IconMode.BoxItemsLeave =>
-            "Windows simgeleri görünür. Kısayol kutusuna eklediğin masaüstü öğesi masaüstünden kalkar: masaüstünün yanındaki " +
-            $"{Core.BoxPlan.RootFolderName} klasörüne taşınır ve kutuda durur. Masaüstüne sonradan gelenler görünür kalır; " +
-            "kutudan çıkarınca masaüstüne geri döner.",
-        IconMode.FencesOnly =>
-            "Masaüstündeki her şey bölmelerde toplanır; Windows'un kendi simgeleri gizlenir. Dosyalarına dokunulmaz; " +
-            "kapatınca simgeler geri gelir.",
-        _ => "Windows'un masaüstü simgeleri her zamanki gibi görünür; kutular ve bölmeler dosyalara dokunmadan kısayol gösterir.",
+        IconMode.BoxItemsLeave => L.F(
+            "Windows simgeleri görünür. Kısayol kutusuna eklediğin masaüstü öğesi masaüstünden kalkar: masaüstünün yanındaki {0} klasörüne taşınır ve kutuda durur. Masaüstüne sonradan gelenler görünür kalır; kutudan çıkarınca masaüstüne geri döner.",
+            Core.BoxPlan.RootFolderName),
+        IconMode.FencesOnly => L.T(
+            "Masaüstündeki her şey bölmelerde toplanır; Windows'un kendi simgeleri gizlenir. Dosyalarına dokunulmaz; kapatınca simgeler geri gelir."),
+        _ => L.T("Windows'un masaüstü simgeleri her zamanki gibi görünür; kutular ve bölmeler dosyalara dokunmadan kısayol gösterir."),
     };
 
     /// <summary>"Yeni widget'ların yeri" seçenekleri (Ayarlar ve Widget'lar sayfası).</summary>
     public static string PlaceLabel(Core.PlaceMode mode) => mode switch
     {
-        Core.PlaceMode.Center => "Etkin ekranın ortasına",
-        Core.PlaceMode.Corner => "Köşeye (türüne göre)",
-        _ => "İmlecin yanına",
+        Core.PlaceMode.Center => L.T("Etkin ekranın ortasına"),
+        Core.PlaceMode.Corner => L.T("Köşeye (türüne göre)"),
+        _ => L.T("İmlecin yanına"),
     };
 
     /// <summary>Ayarı yazar; açık sayfalar SettingsChanged ile güncellenir.</summary>
@@ -76,10 +74,10 @@ internal static class DesktopModes
         if (mode == current) return;
 
         if (current == IconMode.BoxItemsLeave && BoxMover.MovedCount is var moved and > 0 &&
-            Confirm.Ask(owner, "Kutulardaki öğeler masaüstüne geri konsun mu?",
-                $"{moved} öğe kutuya eklendiği için {BoxMover.Root} klasöründe duruyor. Geri konunca masaüstünde yine görünür " +
-                "ve kutularda kalır. \"Klasörde kalsın\" dersen kutular onları oradan açmaya devam eder.",
-                "Masaüstüne geri koy", danger: false, cancelText: "Klasörde kalsın"))
+            Confirm.Ask(owner, L.T("Kutulardaki öğeler masaüstüne geri konsun mu?"),
+                L.P(moved, "{0} öğe kutuya eklendiği için {1} klasöründe duruyor. Geri konunca masaüstünde yine görünür ve kutularda kalır. \"Klasörde kalsın\" dersen kutular onları oradan açmaya devam eder.",
+                    BoxMover.Root),
+                L.T("Masaüstüne geri koy"), danger: false, cancelText: L.T("Klasörde kalsın")))
             BoxMover.ReturnAll();
 
         switch (mode)
@@ -97,13 +95,13 @@ internal static class DesktopModes
                 else AppHost.SaveSettings();
                 var existing = BoxMover.DesktopItemsInBoxes();
                 var count = existing.Sum(e => e.Paths.Count);
-                if (count > 0 && Confirm.Ask(owner, "Kutulardaki masaüstü öğeleri de taşınsın mı?",
-                        $"Kutularında masaüstünde duran {count} öğe var. Taşınırsa masaüstünden kalkar, {BoxMover.Root} klasöründe " +
-                        "durur ve kutularda görünmeye devam eder.",
-                        "Taşı", danger: false, cancelText: "Şimdi değil"))
+                if (count > 0 && Confirm.Ask(owner, L.T("Kutulardaki masaüstü öğeleri de taşınsın mı?"),
+                        L.P(count, "Kutularında masaüstünde duran {0} öğe var. Taşınırsa masaüstünden kalkar, {1} klasöründe durur ve kutularda görünmeye devam eder.",
+                            BoxMover.Root),
+                        L.T("Taşı"), danger: false, cancelText: L.T("Şimdi değil")))
                     BoxMover.ClaimMany(existing);
                 else if (announce)
-                    Notice.Show("Bundan sonra kısayol kutusuna eklediğin masaüstü öğeleri masaüstünden kalkar ve kutuda durur.", NoticeKind.Info);
+                    Notice.Show(L.T("Bundan sonra kısayol kutusuna eklediğin masaüstü öğeleri masaüstünden kalkar ve kutuda durur."), NoticeKind.Info);
                 break;
 
             default:
@@ -111,7 +109,7 @@ internal static class DesktopModes
                 if (AppHost.Settings.FencesReplaceIcons)
                 {
                     DesktopFences.TurnOff();
-                    if (announce) Notice.Show("Masaüstü simgeleri yeniden gösteriliyor. Bölmelerin yerinde duruyor.", NoticeKind.Info);
+                    if (announce) Notice.Show(L.T("Masaüstü simgeleri yeniden gösteriliyor. Bölmelerin yerinde duruyor."), NoticeKind.Info);
                 }
                 else AppHost.SaveSettings();
                 break;

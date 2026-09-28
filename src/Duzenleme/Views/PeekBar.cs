@@ -73,7 +73,7 @@ internal sealed class PeekBar : Window
         _clock = clock;
         // WPF ilk açılan pencereyi Application.MainWindow yapar; tema değişikliği (WPF-UI) bu çubuğa uygulanmasın.
         if (Application.Current?.MainWindow == this) Application.Current.MainWindow = null;
-        Title = $"{AppInfo.Name} · Windows masaüstü";
+        Title = L.F("{0} · Windows masaüstü", AppInfo.Name);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = false;
@@ -84,13 +84,13 @@ internal sealed class PeekBar : Window
         UseLayoutRounding = true;
         SetResourceReference(BackgroundProperty, "SolidBackgroundFillColorTertiaryBrush");
         AutomationProperties.SetAutomationId(this, "Peek.Bar");
-        AutomationProperties.SetName(this, "Windows masaüstü");
+        AutomationProperties.SetName(this, L.T("Windows masaüstü"));
         // Pencere en baştan çubuğun ekranında oluşur: ölçeği farklı bir ekrana sonradan taşınıp yeniden boyutlanmasın.
         WindowFit.StartOn(this, anchor);
 
         var icon = new SymbolIcon { Symbol = SymbolRegular.Glance24, FontSize = 18, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         icon.SetResourceReference(ForegroundProperty, "AccentTextFillColorPrimaryBrush");
-        var label = new TextBlock { Text = "Windows masaüstü", FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock { Text = L.T("Windows masaüstü"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         _time = new TextBlock { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, MinWidth = 48 };
         _time.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
@@ -98,11 +98,11 @@ internal sealed class PeekBar : Window
 
         _more = new Button
         {
-            Content = "+5 dk", Appearance = ControlAppearance.Transparent, Margin = new Thickness(8, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center, ToolTip = "Beş dakika daha göz at",
+            Content = L.T("+5 dk"), Appearance = ControlAppearance.Transparent, Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center, ToolTip = L.T("Beş dakika daha göz at"),
         };
         AutomationProperties.SetAutomationId(_more, "Peek.More");
-        AutomationProperties.SetName(_more, "Beş dakika daha göz at");
+        AutomationProperties.SetName(_more, L.T("Beş dakika daha göz at"));
         _more.Click += (_, _) =>
         {
             _clock.Extend(DateTime.UtcNow, PeekClock.Extension);
@@ -111,15 +111,15 @@ internal sealed class PeekBar : Window
 
         _return = new Button
         {
-            Content = $"{AppInfo.Name}'e dön", Appearance = ControlAppearance.Primary, Margin = new Thickness(8, 0, 0, 0),
+            Content = L.F("{0}'e dön", AppInfo.Name), Appearance = ControlAppearance.Primary, Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center, Icon = new SymbolIcon { Symbol = SymbolRegular.ArrowHookUpLeft24 },
         };
         AutomationProperties.SetAutomationId(_return, "Peek.Return");
-        AutomationProperties.SetName(_return, $"{AppInfo.Name}'e dön");
+        AutomationProperties.SetName(_return, L.F("{0}'e dön", AppInfo.Name));
         var hotkey = AppHost.Settings.Hotkeys.PeekDesktop;
         _return.ToolTip = string.IsNullOrWhiteSpace(hotkey)
-            ? "Widget'lar geri gelir"
-            : $"Widget'lar geri gelir. Kısayol: {hotkey}";
+            ? L.T("Widget'lar geri gelir")
+            : L.F("Widget'lar geri gelir. Kısayol: {0}", hotkey);
         _return.Click += (_, _) => AppHost.EndPeek();
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -193,11 +193,11 @@ internal sealed class PeekBar : Window
         {
             _time.Text = "";
             _time.Visibility = Visibility.Collapsed;
-            AutomationProperties.SetHelpText(_return, "Kendiliğinden dönülmez");
+            AutomationProperties.SetHelpText(_return, L.T("Kendiliğinden dönülmez"));
             return;
         }
         _time.Text = "· " + PeekClock.Format(left);
-        AutomationProperties.SetHelpText(_return, $"{PeekClock.Format(left)} sonra kendiliğinden döner");
+        AutomationProperties.SetHelpText(_return, L.F("{0} sonra kendiliğinden döner", PeekClock.Format(left)));
     }
 
     /// <summary>Başlangıç ekranının çalışma alanında, üst ortada (12 DIP aşağıda); fiziksel pikselle.</summary>

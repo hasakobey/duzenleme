@@ -89,7 +89,7 @@ public sealed class WidgetManager
             }
             Restoring = false;
             ApplyZOrder();
-            PerfLog.Write($"widget'lar açıldı: {_open.Count} widget, {clock.ElapsedMilliseconds} ms");
+            PerfLog.Write($"widget'lar açıldı: {_open.Count} widget, {clock.ElapsedMilliseconds} ms"); // l10n: çevrilmez
             Changed?.Invoke();
         }
 
@@ -252,7 +252,7 @@ public sealed class WidgetManager
             // Açılamayan widget listede "eklendi" görünüp masaüstünde hiç çıkmasın.
             AppHost.Settings.Widgets.Remove(config);
             AppHost.SaveSettings();
-            MessageBox.Show($"Widget açılamadı. {AppInfo.Name}'ten çıkıp yeniden açtıktan sonra tekrar dene.", AppInfo.Name,
+            MessageBox.Show(L.F("Widget açılamadı. {0}'ten çıkıp yeniden açtıktan sonra tekrar dene.", AppInfo.Name), AppInfo.Name,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Changed?.Invoke();
@@ -296,11 +296,24 @@ public sealed class WidgetManager
         var modeOff = Remove(id, notify: false);
         _removed.Add(new RemovedWidget(copy, index, modeOff));
         if (notify)
-            AppHost.Tray?.Notify("Widget kaldırıldı",
-                (returning > 0 ? $"Kutudaki {returning} öğe masaüstüne geri konuyor. " : "") +
-                (modeOff ? "Masaüstü simgeleri yeniden gösteriliyor. " : "") + "Geri getirmek için buraya ya da tepsi menüsüne tıkla.",
+            AppHost.Tray?.Notify(L.T("Widget kaldırıldı"),
+                RemovedText(null, returning, modeOff, L.T("Geri getirmek için buraya ya da tepsi menüsüne tıkla.")),
                 () => UndoRemove(id));
         return modeOff;
+    }
+
+    /// <summary>
+    /// Kaldırma bildiriminin metni (tepsi balonu ve Widget'lar sayfası): her cümle ayrı çevrilir, aralarına boşluk konur.
+    /// lead/tail: baştaki ("Saat kaldırıldı.") ve sondaki cümle; null ise yok.
+    /// </summary>
+    internal static string RemovedText(string? lead, int returning, bool modeOff, string? tail = null)
+    {
+        var sentences = new List<string>(4);
+        if (lead is not null) sentences.Add(lead);
+        if (returning > 0) sentences.Add(L.P(returning, "Kutudaki {0} öğe masaüstüne geri konuyor."));
+        if (modeOff) sentences.Add(L.T("Masaüstü simgeleri yeniden gösteriliyor."));
+        if (tail is not null) sentences.Add(tail);
+        return string.Join(" ", sentences);
     }
 
     /// <summary>En son kaldırılan widget'ı geri getirir (tepsi menüsü).</summary>

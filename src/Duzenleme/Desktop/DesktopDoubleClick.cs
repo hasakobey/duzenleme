@@ -165,7 +165,7 @@ public sealed class DesktopDoubleClick : IDisposable
         var thread = new Thread(() => Run(session))
         {
             IsBackground = true,
-            Name = $"{Core.AppInfo.Name} çift tık (ham giriş)",
+            Name = $"{Core.AppInfo.Name} çift tık (ham giriş)", // l10n: çevrilmez (iş parçacığı adı)
             Priority = ThreadPriority.AboveNormal,
         };
         thread.Start();

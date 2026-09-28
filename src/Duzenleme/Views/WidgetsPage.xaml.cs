@@ -13,20 +13,26 @@ public sealed class WidgetRow(WidgetConfig config)
 {
     public WidgetConfig Config { get; } = config;
     public string Name { get; } = WidgetText.DisplayName(config);
-    public string RevealName => $"Bul: {Name}";
-    public string RemoveName => $"Kaldır: {Name}";
+    public string RevealName => L.F("Bul: {0}", Name);
+    public string RemoveName => L.F("Kaldır: {0}", Name);
 
     /// <summary>Widget'ın başlığındaki simgenin aynısı (kullanıcının seçtiği ya da türün varsayılanı, bkz. <see cref="WidgetIcons"/>).</summary>
     public SymbolRegular Icon { get; } = WidgetIcons.For(config);
+
+    /// <summary>Liste öğesinin ekran okuyucudaki adı (yoksa sınıfın adı okunur).</summary>
+    public override string ToString() => Name;
 }
 
 /// <summary>Kayıtlı düzen satırı.</summary>
 public sealed record LayoutRow(LayoutSnapshot Layout)
 {
     public string Name => Layout.Name;
-    public string Detail => $"{Layout.Widgets.Count} widget · {UiText.When(Layout.Created)}";
-    public string ApplyName => $"Uygula: {Name}";
-    public string DeleteName => $"Düzeni sil: {Name}";
+    public string Detail => L.P(Layout.Widgets.Count, "{0} widget · {1}", UiText.When(Layout.Created));
+    public string ApplyName => L.F("Uygula: {0}", Name);
+    public string DeleteName => L.F("Düzeni sil: {0}", Name);
+
+    /// <summary>Liste öğesinin ekran okuyucudaki adı (kaydın varsayılan ToString'i bütün alanları okurdu).</summary>
+    public override string ToString() => Name;
 }
 
 /// <summary>
@@ -145,7 +151,7 @@ public partial class WidgetsPage : Page
     {
         var rows = AppHost.Widgets.Configs.Select(c => new WidgetRow(c)).ToList();
         ActiveList.ItemsSource = rows;
-        ActiveHeader.Text = $"Masaüstündekiler ({rows.Count})";
+        ActiveHeader.Text = L.F("Masaüstündekiler ({0})", rows.Count);
         ActiveEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         RevealAllButton.IsEnabled = ArrangeButton.IsEnabled = rows.Count > 0;
     }
@@ -154,7 +160,7 @@ public partial class WidgetsPage : Page
     {
         var rows = AppHost.Settings.Layouts.OrderByDescending(l => l.Created).Select(l => new LayoutRow(l)).ToList();
         LayoutList.ItemsSource = rows;
-        LayoutsTitle.Text = $"Kayıtlı düzenler ({rows.Count})";
+        LayoutsTitle.Text = L.F("Kayıtlı düzenler ({0})", rows.Count);
         LayoutEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -226,9 +232,9 @@ public partial class WidgetsPage : Page
 
         var text = choice.Key == WidgetCatalog.NewFenceKey ? L.F("\"{0}\" bölmesi masaüstüne eklendi.", FenceTitle(config))
             : choice.Group != WidgetGroup.Fence ? L.F("{0} masaüstüne eklendi.", choice.Label)
-            : creates ? $"\"{folder}\" bölmesi eklendi; masaüstünde \"{folder}\" klasörü de oluşturuldu."
-            : $"\"{choice.Label}\" bölmesi masaüstüne eklendi.";
-        Notice.Show(text, NoticeKind.Success, "Bul", () => AppHost.Widgets.Reveal(config.Id));
+            : creates ? L.F("\"{0}\" bölmesi eklendi; masaüstünde \"{0}\" klasörü de oluşturuldu.", folder)
+            : L.F("\"{0}\" bölmesi masaüstüne eklendi.", choice.Label);
+        Notice.Show(text, NoticeKind.Success, L.T("Bul"), () => AppHost.Widgets.Reveal(config.Id));
         if (creates) RefreshTile(choice.Key);
     }
 
@@ -256,8 +262,9 @@ public partial class WidgetsPage : Page
     {
         var count = AppHost.Widgets.ArrangeAll();
         // Geri al yok: bildirim açık kalırken eklenen widget yedekle değiştirilince sessizce silinirdi. Yedek Kayıtlı düzenler'de.
-        if (count == 0) Notice.Show("Yerleştirilecek widget yok.", NoticeKind.Info);
-        else Notice.Show($"{count} widget düzenli yerleştirildi. Önceki yerleşim Kayıtlı düzenler'de \"{WidgetManager.ArrangeBackupName}\" adıyla duruyor.");
+        if (count == 0) Notice.Show(L.T("Yerleştirilecek widget yok."), NoticeKind.Info);
+        else Notice.Show(L.P(count, "{0} widget düzenli yerleştirildi. Önceki yerleşim Kayıtlı düzenler'de \"{1}\" adıyla duruyor.",
+            WidgetManager.ArrangeBackupName));
     }
 
     private void Reveal_Click(object sender, RoutedEventArgs e)
@@ -274,10 +281,8 @@ public partial class WidgetsPage : Page
         var returning = BoxMover.MovedOnlyIn(row.Config);
         var modeOff = AppHost.Widgets.RemoveWithUndo(id, notify: false);
         // "Geri al" bu widget'ı getirir: bildirim açıkken masaüstünden başka bir widget kaldırılsa da.
-        Notice.Show($"{name} kaldırıldı." +
-                    (returning > 0 ? $" Kutudaki {returning} öğe masaüstüne geri konuyor." : "") +
-                    (modeOff ? " Masaüstü simgeleri yeniden gösteriliyor." : ""),
-            NoticeKind.Info, "Geri al", () => AppHost.Widgets.UndoRemove(id));
+        Notice.Show(WidgetManager.RemovedText(L.F("{0} kaldırıldı.", name), returning, modeOff),
+            NoticeKind.Info, L.T("Geri al"), () => AppHost.Widgets.UndoRemove(id));
     }
 
     private void StyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -322,7 +327,7 @@ public partial class WidgetsPage : Page
         // Boş düzen uygulanınca bütün widget'lar kalkardı.
         if (AppHost.Settings.Widgets.Count == 0)
         {
-            Notice.Show("Kaydedilecek widget yok. Önce masaüstüne bir widget ekle.", NoticeKind.Info);
+            Notice.Show(L.T("Kaydedilecek widget yok. Önce masaüstüne bir widget ekle."), NoticeKind.Info);
             return;
         }
         var layouts = AppHost.Settings.Layouts;
@@ -330,9 +335,10 @@ public partial class WidgetsPage : Page
         var name = LayoutName.Text.Trim();
         if (name.Length == 0)
         {
+            // Varsayılan ad kayıtta arayüz dilinde kalır (sekme adları gibi, dil değişince yeniden adlandırılmaz).
             var n = layouts.Count + 1;
-            while (layouts.Any(l => sameName.Equals(l.Name, $"Düzen {n}"))) n++;
-            name = $"Düzen {n}";
+            while (layouts.Any(l => sameName.Equals(l.Name, L.F("Düzen {0}", n)))) n++;
+            name = L.F("Düzen {0}", n);
         }
         // Aynı adlı düzen varsa üzerine yazılır.
         layouts.RemoveAll(l => sameName.Equals(l.Name, name));
@@ -340,7 +346,7 @@ public partial class WidgetsPage : Page
         AppHost.SaveSettings();
         LayoutName.Text = "";
         RefreshLayouts();
-        Notice.Show($"\"{name}\" düzeni kaydedildi.");
+        Notice.Show(L.F("\"{0}\" düzeni kaydedildi.", name));
     }
 
     private void ApplyLayout_Click(object sender, RoutedEventArgs e)
@@ -350,8 +356,8 @@ public partial class WidgetsPage : Page
         var backedUp = !LayoutBackup.IsApply(row.Name);
         AppHost.Widgets.ApplyLayout(row.Layout);
         Notice.Show(backedUp
-            ? $"\"{row.Name}\" düzeni uygulandı. Önceki yerleşim \"{WidgetManager.ApplyBackupName}\" adıyla kaydedildi."
-            : $"\"{row.Name}\" düzeni uygulandı.");
+            ? L.F("\"{0}\" düzeni uygulandı. Önceki yerleşim \"{1}\" adıyla kaydedildi.", row.Name, WidgetManager.ApplyBackupName)
+            : L.F("\"{0}\" düzeni uygulandı.", row.Name));
     }
 
     private void DeleteLayout_Click(object sender, RoutedEventArgs e)
@@ -363,7 +369,7 @@ public partial class WidgetsPage : Page
         AppHost.Settings.Layouts.RemoveAt(index);
         AppHost.SaveSettings();
         RefreshLayouts();
-        Notice.Show($"\"{layout.Name}\" düzeni silindi.", NoticeKind.Info, "Geri al", () =>
+        Notice.Show(L.F("\"{0}\" düzeni silindi.", layout.Name), NoticeKind.Info, L.T("Geri al"), () =>
         {
             if (AppHost.Settings.Layouts.Contains(layout)) return;
             AppHost.Settings.Layouts.Insert(Math.Min(index, AppHost.Settings.Layouts.Count), layout);
