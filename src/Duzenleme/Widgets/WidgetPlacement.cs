@@ -13,7 +13,7 @@ internal readonly record struct WidgetPlacement(NativeMethods.POINT Anchor, Plac
     /// <summary>İmlecin yeri; testte DUZENLEME_NEWWIDGET_AT="x,y" (test örneğinin widget'ı kullanıcının ekranına düşmesin).</summary>
     public static NativeMethods.POINT Pointer(out bool fromTest)
     {
-        if (NativeMethods.PointFromEnvironment("DUZENLEME_NEWWIDGET_AT") is { } test)
+        if (NativeMethods.PointFromEnvironment("NEWWIDGET_AT") is { } test)
         {
             fromTest = true;
             return test;

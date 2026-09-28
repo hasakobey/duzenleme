@@ -35,7 +35,7 @@ internal sealed class PeekBar : Window
     public static void Open(int minutes)
     {
         CloseBar();
-        var anchor = NativeMethods.PointFromEnvironment("DUZENLEME_PEEK_AT") ?? CursorPoint();
+        var anchor = NativeMethods.PointFromEnvironment("PEEK_AT") ?? CursorPoint();
         Show(anchor, new PeekClock(DateTime.UtcNow, minutes));
     }
 

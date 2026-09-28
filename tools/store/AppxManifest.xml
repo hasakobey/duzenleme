@@ -94,7 +94,7 @@
 
   <!-- unvirtualizedResources bilerek YOK. Paketli uygulamanın HKCU yazmaları pakete özel gizli bir kovana gider
        (Microsoft Learn: "All writes under HKCU are copied on write to a private per-user, per-app location"); uygulama
-       yazdığını okur ama Gezgin görmez. Bu, Ayarlar > Masaüstü'ndeki Windows masaüstü simgeleri anahtarlarını
+       yazdığını okur ama Gezgin görmez. Bu, Ayarlar > Masaüstü'ndeki "Sistem simgeleri" anahtarlarını
        (Explorer\HideDesktopIcons\NewStartPanel) etkiler. Bildirimle aşmanın tek yolu desktop6/virtualization
        RegistryWriteVirtualization + unvirtualizedResources; Microsoft bu kısıtlı yeteneği "belirli PC oyunları ve dış konumlu
        paketler için, başka senaryolar için değil" diye tanımlıyor (onaylanmazsa gönderim sertifikasyondan kalır) ve eski

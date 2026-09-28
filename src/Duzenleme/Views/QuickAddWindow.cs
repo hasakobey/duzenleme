@@ -29,7 +29,7 @@ internal sealed class QuickAddWindow : FluentWindow
             return;
         }
         NativeMethods.GetCursorPos(out var anchor);
-        if (NativeMethods.PointFromEnvironment("DUZENLEME_QUICKADD_AT") is { } test) anchor = test;
+        if (NativeMethods.PointFromEnvironment("QUICKADD_AT") is { } test) anchor = test;
         _current = new QuickAddWindow(anchor);
         _current.Closed += (_, _) => _current = null;
         _current.Show();

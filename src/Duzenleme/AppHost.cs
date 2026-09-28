@@ -591,12 +591,12 @@ public static class AppHost
 
     /// <summary>
     /// Çift tıklama algılayıcısı yalnızca bir işe yarayacaksa çalışır. Test örneği (--desktop) kullanıcının gerçek
-    /// masaüstündeki çift tıklamalara tepki vermez (DUZENLEME_TEST_DOUBLECLICK=1 ile açılır).
+    /// masaüstündeki çift tıklamalara tepki vermez (NESTDESK_TEST_DOUBLECLICK=1 ya da eski DUZENLEME_ adıyla açılır).
     /// </summary>
     public static void ApplyDoubleClickSetting()
     {
         var wanted = DesktopState.DoubleClickChoice(Settings.DoubleClickAction, Settings.DoubleClickHidesDesktop) != DesktopState.DoubleClickNone
-                     && (!IsTestDesktop || Environment.GetEnvironmentVariable("DUZENLEME_TEST_DOUBLECLICK") == "1");
+                     && (!IsTestDesktop || AppEnvironment.Get("TEST_DOUBLECLICK") == "1");
         if (wanted) DoubleClick?.Enable();
         else DoubleClick?.Disable();
     }

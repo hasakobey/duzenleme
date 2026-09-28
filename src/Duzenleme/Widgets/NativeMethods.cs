@@ -204,9 +204,12 @@ internal static class NativeMethods
         return info.rcWork;
     }
 
-    /// <summary>Test için "x,y" (fiziksel piksel) biçimindeki ortam değişkeni; yoksa ya da okunamazsa null.</summary>
-    public static POINT? PointFromEnvironment(string variable) =>
-        Environment.GetEnvironmentVariable(variable)?.Split(',') is [var x, var y] &&
+    /// <summary>
+    /// Test için "x,y" (fiziksel piksel) biçimindeki ortam değişkeni; <paramref name="name"/> öneksiz verilir (ör. "PEEK_AT":
+    /// NESTDESK_PEEK_AT, yoksa DUZENLEME_PEEK_AT; bkz. <see cref="Core.AppEnvironment"/>). Yoksa ya da okunamazsa null.
+    /// </summary>
+    public static POINT? PointFromEnvironment(string name) =>
+        Core.AppEnvironment.Get(name)?.Split(',') is [var x, var y] &&
         int.TryParse(x.Trim(), out var px) && int.TryParse(y.Trim(), out var py)
             ? new POINT { X = px, Y = py }
             : null;
