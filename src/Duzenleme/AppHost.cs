@@ -234,11 +234,15 @@ public static class AppHost
     /// Bekleyen değişiklikleri hemen, eşzamanlı yazar: çıkış, oturum kapanışı, çökme ve çökmede kaybolmaması gereken
     /// bayraklar (<see cref="AppSettings.IconsHiddenByApp"/>). Yazıldıysa true; hata fırlatmaz.
     /// </summary>
-    public static bool SaveSettingsNow(TimeSpan? timeout = null)
+    /// <param name="changed">
+    /// Çağıran bir ayarı az önce değiştirdi ve o değer şimdi diskte olmalı. Verilmezse yalnızca daha önce
+    /// <see cref="SaveSettings"/> ile bildirilmiş değişiklikler yazılır: kirli bir şey yoksa dosyaya hiç dokunulmaz.
+    /// </param>
+    public static bool SaveSettingsNow(TimeSpan? timeout = null, bool changed = false)
     {
         if (_store is null) return false;
         var sw = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
-        var ok = _store.FlushNow(timeout ?? TimeSpan.FromSeconds(2));
+        var ok = _store.FlushNow(timeout ?? TimeSpan.FromSeconds(2), changed);
         if (sw is not null) PerfLog.Write($"SaveSettingsNow {sw.Elapsed.TotalMilliseconds:0.0} ms ok={ok}");
         return ok;
     }
@@ -398,22 +402,31 @@ public static class AppHost
     public static void ApplyDesktopState()
     {
         var view = CurrentView;
-        if (view.IconsHidden && !Settings.IconsHiddenByApp)
-        {
-            Settings.IconsHiddenByApp = true;
-            SaveSettingsNow();
-        }
+        if (view.IconsHidden) ArmIconsHiddenFlag();
         // Test klasörüyle (--desktop) çalışan örnek kullanıcının gerçek masaüstü simgelerine dokunmaz.
         if (IsTestDesktop) DebugLog.Write($"simgeler {(view.IconsHidden ? "gizlenecekti" : "gösterilecekti")} (test masaüstü)");
         else DesktopIcons.SetVisible(!view.IconsHidden);
         Widgets.SetHidden(view.WidgetsHidden);
         if (!view.IconsHidden && Settings.IconsHiddenByApp)
         {
-            // Gösterirken bayrak sonra düşer: arada kapanırsa sonraki açılış simgeleri (zaten görünür) bir kez daha açar.
+            // Gösterirken bayrak sonra ve beklemeden değil, olağan kayıtla düşer: arada kapanırsa sonraki açılış simgeleri
+            // (zaten görünür) bir kez daha açar; zararsızdır. Her göz atmada/göstermede eşzamanlı yazma olmasın.
             Settings.IconsHiddenByApp = false;
-            SaveSettingsNow();
+            _store?.MarkDirty();
         }
         DesktopVisibilityChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Windows simgeleri gizlenmeden hemen önce: <see cref="AppSettings.IconsHiddenByApp"/> diske eşzamanlı yazılır (başka
+    /// bir değişiklik beklemeden). Uygulama sonra zorla kapatılsa da (Görev Yöneticisi, kurulum programı) sonraki açılış ve
+    /// kaldırma programı (--restore-desktop) simgeleri geri açabilir. Bayrak zaten diskteyse bir şey yapmaz.
+    /// </summary>
+    private static void ArmIconsHiddenFlag()
+    {
+        if (Settings.IconsHiddenByApp) return;
+        Settings.IconsHiddenByApp = true;
+        SaveSettingsNow(changed: true);
     }
 
     /// <summary>
@@ -687,7 +700,12 @@ public static class AppHost
     {
         if (IsTestDesktop || DesktopIcons.ChangePending) return;
         if (!CurrentView.IconsHidden || !DesktopIcons.AreVisible) return;
-        if (Settings.FencesReplaceIcons) DesktopIcons.SetVisible(false);
+        if (Settings.FencesReplaceIcons)
+        {
+            // Bayrak yeniden kurulur: iptal edilen bir oturum kapanışı (RestoreDesktopOnExit) onu düşürmüş olabilir.
+            ArmIconsHiddenFlag();
+            DesktopIcons.SetVisible(false);
+        }
         else if (DesktopHidden)
         {
             DesktopHidden = false;
@@ -752,8 +770,7 @@ public static class AppHost
         if (!CurrentView.IconsHidden) return;
         if (!IsTestDesktop) DesktopIcons.SetVisible(true);
         Settings.IconsHiddenByApp = false;
-        _store?.MarkDirty();
-        SaveSettingsNow(TimeSpan.FromSeconds(3));
+        SaveSettingsNow(TimeSpan.FromSeconds(3), changed: true);
     }
 
     /// <summary>DispatcherTimer tabanlı tek atımlık zamanlayıcı (kayıt zamanlaması; Normal öncelik: yoğun girişte de gecikmez).</summary>

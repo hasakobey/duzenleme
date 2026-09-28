@@ -106,10 +106,15 @@ public sealed class SettingsStore : IDisposable
     /// Bekleyen değişiklikleri hemen, çağıran iş parçacığında diske yazar (çıkış, oturum kapanışı, çökme ve çökmede
     /// kaybolmaması gereken bayraklar). Süre içinde yazıldıysa true; yazılamadıysa içerik arka planda denenmeye devam eder.
     /// </summary>
-    public bool FlushNow(TimeSpan timeout)
+    /// <param name="changed">
+    /// Çağıran durumu az önce değiştirdi (ör. <c>IconsHiddenByApp</c>) ve <see cref="MarkDirty"/> demedi: yine de anlık görüntü
+    /// alınıp yazılır. false iken kirli bir şey yoksa hiçbir şey yazılmaz (yalnızca sıradaki yazmalar beklenir).
+    /// </param>
+    public bool FlushNow(TimeSpan timeout, bool changed = false)
     {
         _timer.Cancel();
         _dueAt = long.MaxValue;
+        if (changed) _dirty = true;
         if (!IsDirty) return File.Flush(timeout);
         if (TakeSnapshot() is { } bytes) return File.WriteNow(bytes, timeout);
         // Anlık görüntü alınamadı: en azından daha önce sıraya girenler insin; değişiklik bekliyor sayılır.

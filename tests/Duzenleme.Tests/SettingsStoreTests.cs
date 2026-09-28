@@ -136,6 +136,24 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void FlushNow_with_changed_writes_a_flag_that_was_never_marked_dirty()
+    {
+        // IconsHiddenByApp: bayrak değişir, MarkDirty çağrılmaz, hemen diskte olmalı (simgeler ardından gizlenir).
+        _state = 1;
+        _store.MarkDirty();
+        _timer.Fire();
+        Assert.Equal("durum 1", OnDisk());
+
+        _state = 2;
+        Assert.True(_store.FlushNow(TimeSpan.FromSeconds(1)));
+        Assert.Equal("durum 1", File.ReadAllText(Path.Combine(_dir, "settings.json"))); // kirli değilse yazılmaz
+
+        Assert.True(_store.FlushNow(TimeSpan.FromSeconds(2), changed: true));
+        Assert.Equal("durum 2", File.ReadAllText(Path.Combine(_dir, "settings.json")));
+        Assert.False(_store.IsDirty);
+    }
+
+    [Fact]
     public void A_failing_snapshot_keeps_the_change_pending()
     {
         var fail = true;
