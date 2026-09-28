@@ -75,7 +75,7 @@ public sealed class PathProbe
         if (root is null) return Remember(path, _stat(path));
 
         if (!await Reachable(root).ConfigureAwait(false)) return null;
-        var stat = Task.Run(() => _stat(path));
+        var stat = Blocking(() => _stat(path));
         if (await Task.WhenAny(stat, Task.Delay(NetworkTimeout)).ConfigureAwait(false) != stat)
         {
             // Sunucu yanıt veriyordu ama bu yol takıldı: bir süre bu kökteki öğeler yeniden sorulmasın.
@@ -103,13 +103,20 @@ public sealed class PathProbe
 
     private async Task<bool> ProbeRoot(string root)
     {
-        var check = Task.Run(() =>
+        var check = Blocking(() =>
         {
             try { return _rootExists(root); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
         });
         return await Task.WhenAny(check, Task.Delay(NetworkTimeout)).ConfigureAwait(false) == check && check.Result;
     }
+
+    /// <summary>
+    /// Ağda saniyelerce takılabilen çağrı kendi iş parçacığında çalışır: iş parçacığı havuzunu tıkamaz, böylece süre
+    /// dolduğunu bildiren devam (Task.Delay) havuz meşgulken de zamanında çalışır.
+    /// </summary>
+    private static Task<T> Blocking<T>(Func<T> work) =>
+        Task.Factory.StartNew(work, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
     /// <summary>
     /// Yol ağdaysa kökü (\\sunucu\paylaşım ya da "Z:\"), değilse null. UNC yolları yalnızca metinden anlaşılır; sürücü harfi
