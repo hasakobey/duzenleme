@@ -8,6 +8,14 @@ public class PathProbeTests
     private int _stats;
     private int _rootChecks;
 
+    // Süre ölçen testler: 2 çekirdekli CI makinesinde paralel çalışan diğer testler iş parçacığı havuzunu doldurunca
+    // Task.Delay'in devamı saniyelerce kuyrukta bekliyordu. Havuzun alt sınırı yükseltilir (yalnızca bu test süreci).
+    static PathProbeTests()
+    {
+        ThreadPool.GetMinThreads(out var workers, out var io);
+        if (workers < 32) ThreadPool.SetMinThreads(32, io);
+    }
+
     private PathProbe Probe(Func<string, bool>? rootExists = null, Func<string, PathState>? stat = null, Func<string, bool>? networkDrive = null) =>
         new(p =>
             {
