@@ -83,7 +83,9 @@ internal static class WidgetCatalog
     /// Bölmeler: önce "Yeni bölme…" (adı, kaynağı ve simgesiyle), masaüstü türleri (Klasörler, Kısayollar, Dosyalar, Tüm
     /// masaüstü), klasör portalları (İndirilenler, Belgeler, Resimler, başka bir klasör), sonra klasör bölmeleri
     /// (<see cref="WidgetManager.FolderFenceChoices"/> sırasıyla; masaüstünde olmayan kural klasörü "yeni klasör" rozetli).
-    /// Her çağrıda yeniden kurulur: klasörler değişebilir.
+    /// Windows klasörüyle aynı adlı kural klasörü ("Resimler", "Belgeler") iki anlamlı iki kutucuk olmasın: masaüstünde yoksa
+    /// gösterilmez (yanlışlıkla masaüstünde yeni klasör açılmasın; kural klasörü Otomatik taşıma sayfasından açılabilir),
+    /// varsa "masaüstü klasörü" rozetiyle ayrılır. Her çağrıda yeniden kurulur: klasörler değişebilir.
     /// </summary>
     public static List<WidgetChoice> Fences()
     {
@@ -97,18 +99,25 @@ internal static class WidgetCatalog
             Filter("Files", DesktopFilter.Files, L.T("Dosyalar"), SymbolRegular.DocumentMultiple24, L.T("Masaüstünde duran dosyalar")),
             Filter("All", DesktopFilter.All, L.T("Tüm masaüstü"), SymbolRegular.Desktop24, L.T("Masaüstündeki her şey tek bölmede")),
         };
+        var portalNames = new List<string>();
         foreach (var id in new[] { FolderPortal.Downloads, FolderPortal.Documents, FolderPortal.Pictures })
-            if (KnownFolders.PathOf(id) is { } path) list.Add(KnownPortal(id, path));
+        {
+            if (KnownFolders.PathOf(id) is not { } path) continue;
+            list.Add(KnownPortal(id, path));
+            portalNames.Add(FolderPortal.KnownName(id));
+        }
         list.Add(new WidgetChoice("Portal:Pick", L.T("Başka klasör…"), SymbolRegular.FolderLink24,
             L.T("Bilgisayardaki herhangi bir klasörü bölmede göster (masaüstünde olması gerekmez)"), WidgetGroup.Fence, AddPickedFolder));
         foreach (var (name, exists) in AppHost.Widgets.FolderFenceChoices())
         {
+            var sameAsPortal = portalNames.Any(p => FolderName.Equal(p, name));
+            if (sameAsPortal && !exists) continue;
             var icon = name.Equals("PDF", StringComparison.OrdinalIgnoreCase) ? SymbolRegular.DocumentPdf24 : SymbolRegular.FolderOpen24;
             var tip = exists
                 ? L.F("\"{0}\" klasörünün içi", name)
                 : L.F("Masaüstünde \"{0}\" klasörü açılır; otomatik taşıma açıksa uygun dosyalar oraya taşınır", name);
             list.Add(new WidgetChoice("Folder:" + name, name, icon, tip, WidgetGroup.Fence, () => AppHost.Widgets.AddFolderFence(name),
-                Badge: exists ? null : L.T("yeni klasör"),
+                Badge: !exists ? L.T("yeni klasör") : sameAsPortal ? L.T("masaüstü klasörü") : null,
                 Matches: c => c.Kind == WidgetKind.Fence && c.Filter == DesktopFilter.None && FolderName.Equal(c.FolderName ?? "", name)));
         }
         return list;
