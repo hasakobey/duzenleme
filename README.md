@@ -34,7 +34,7 @@ NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen do
 - Windows 10 (1607+) ve Windows 11; **x64, ARM64 ve 32-bit** — bilgisayara uygun sürümü kendisi seçer.
 - .NET kurulumu gerekmez (çalışma zamanı pakete dahil), **yönetici izni istemez** (kullanıcı başına `%LOCALAPPDATA%\Programs\NestDesk`'e kurulur).
 - İngilizce/Türkçe sihirbaz: dil başta sorulur. Başlat menüsü kısayolu, isteğe bağlı masaüstü kısayolu ve "Windows ile başlat".
-- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur. 2.0'dan güncellerken program dosyasının adı değiştiği için görev çubuğuna sabitlenmiş kısayolu ve tepsi simgesinin görünürlüğünü yeniden ayarlaman gerekebilir. 2.1'den 2.0'a dönmek desteklenmez.
+- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur. 2.0'dan güncellerken program dosyasının adı değiştiği için görev çubuğuna sabitlenmiş kısayolu ve tepsi simgesinin görünürlüğünü yeniden ayarlaman gerekebilir. 2.1'den 2.0'a dönmek desteklenmez: 2.0 ayarlarını eski `%AppData%\Duzenleme` klasöründe arar ve yeni kullanıcı gibi açılır; 2.1'in ayarları `%AppData%\NestDesk`'te durur ve 2.1 yeniden kurulunca kaldığı yerden devam eder.
 - "Uygulamalar ve özellikler"den kaldırılır; kaldırırken gizli kalmış masaüstü simgelerini geri açar ve ayarların silinip silinmeyeceğini sorar (bkz. [Kaldırma](#kaldırma)).
 
 **Microsoft Store (MSIX):** Store sürümünü Microsoft imzalar ve günceller; uyarı çıkmaz. Aynı programdır; farklar: "Windows ile başlat" Windows'un başlangıç görevidir (Ayarlar → Uygulamalar → Başlangıç'ta da görünür), ayarlar paketin kendi klasöründe tutulur ve masaüstünün "Bu Bilgisayar, Geri Dönüşüm Kutusu…" simgeleri Windows'un Temalar → Masaüstü simgesi ayarlarından açılıp kapatılır. Windows 10 2004 ve üstü gerekir.
@@ -174,7 +174,7 @@ powershell -File tools/perf/perf-run.ps1      # başarım ölçümü (test örne
 
 Komut satırı: `--minimized` (tepside başla), `--add` ("Widget ekle"; uygulama çalışıyorsa ona iletilir), `--peek` (Windows masaüstüne göz at ya da NestDesk'e dön), `--welcome` (karşılamayı aç; uygulama kapalıyken), `--exit` (çalışan örneği düzgünce kapat), `--restore-desktop` (gizli kalmış Windows masaüstü simgelerini geri açıp çık; kaldırma programı kullanır), `--desktop <klasör> --data <klasör>` (test örneği: gerçek masaüstüne, "Windows ile başlat" kaydına ve Windows simgelerine dokunmaz).
 
-Ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_LANG=tr|en|pseudo` (arayüz dili; ekran görüntüleri ve testler için), `NESTDESK_DEBUGLOG=<dosya>` (tanılama günlüğü), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT="x,y"` (fiziksel piksel; pencereleri o noktanın monitöründe açar), `NESTDESK_APPDATA_ROOT` (veri klasörü taşıma denemesi için; yalnızca `--desktop` ile ve `--data` olmadan), `NESTDESK_GPU=1` (widget'larda donanım çizimi). Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. Geliştirme yardımcıları: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
+Ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_LANG=tr|en|pseudo` (arayüz dili; ekran görüntüleri ve testler için), `NESTDESK_DEBUGLOG=<dosya>` (tanılama günlüğü), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT="x,y"` (fiziksel piksel; pencereleri o noktanın monitöründe açar), `NESTDESK_APPDATA_ROOT` (veri klasörü taşıma denemesi için; yalnızca `--desktop` ile ve `--data` olmadan), `NESTDESK_GPU=1` (widget'larda donanım çizimi). `--desktop` ile `--data` verilmezse veriler `%TEMP%\NestDesk-test-data\<anahtar>` klasöründe tutulur (gerçek ayarlara dokunulmaz). Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. Geliştirme yardımcıları: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
 
 ### Yeni sürüm yayınlama
 
@@ -210,7 +210,7 @@ NestDesk splits your desktop into **panels**, can move files that land on the de
 - Windows 10 (1607+) and Windows 11; **x64, ARM64 and 32-bit** — it picks the right build automatically.
 - No .NET installation needed (the runtime is included) and **no administrator rights** (per-user install to `%LOCALAPPDATA%\Programs\NestDesk`).
 - English/Turkish setup wizard: the language is asked first. Start menu shortcut, optional desktop shortcut and "Start with Windows".
-- Updating closes the running app cleanly and keeps your settings, notes and widget layout. When updating from 2.0, the program file has a new name, so you may need to pin it to the taskbar again and set the tray icon to always show again. Going back from 2.1 to 2.0 is not supported.
+- Updating closes the running app cleanly and keeps your settings, notes and widget layout. When updating from 2.0, the program file has a new name, so you may need to pin it to the taskbar again and set the tray icon to always show again. Going back from 2.1 to 2.0 is not supported: 2.0 looks for its settings in the old `%AppData%\Duzenleme` folder and starts like a new user; the 2.1 settings stay in `%AppData%\NestDesk` and are used again when 2.1 is reinstalled.
 - Uninstall from "Apps & features"; the uninstaller shows any desktop icons left hidden and asks whether to delete your settings (see [Uninstalling](#uninstalling)).
 
 **Microsoft Store (MSIX):** the Store edition is signed and updated by Microsoft, so there are no warnings. It is the same app, with these differences: "Start with Windows" is a Windows startup task (also listed in Settings → Apps → Startup), settings are kept in the package's own folder, and the "This PC, Recycle Bin…" desktop icons are turned on and off in Windows' Themes → Desktop icon settings. Requires Windows 10 version 2004 or later.
@@ -247,14 +247,14 @@ Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Tid
 The same choice is in **Settings → Desktop**, on the **Widgets** page and in the tray menu:
 
 1. **Show everything on the desktop** (default): the Windows icons look as usual; boxes and panels show shortcuts without touching your files.
-2. **Items I add to boxes leave the desktop:** the Windows icons stay visible; a desktop item you add to a shortcut box (by dragging or with **Add item**) is moved into a visible `NestDesk\<box name>` folder next to your Desktop folder (for a box named "Games", e.g. `C:\Users\<name>\NestDesk\Games`; inside OneDrive if your desktop is in OneDrive) and stays in the box. Items that land on the desktop later stay visible. Right-click the item → **Put back on the desktop**, removing it from the box, or removing the box returns it to the desktop; Settings offers **Open folder** and **Put everything back on the desktop**. Items on the Public Desktop (seen by all accounts) are not moved unless you give separate permission. Your files are never hidden and their attributes never change.
-3. **Show only in panels:** Windows' own icons are hidden and everything appears in panels. Your files are not touched; the icons come back when you pick another choice or quit the app. **"Split my desktop into panels"** (in the Add widget window) creates the panels you need and switches to this choice; **Undo** in the notice reverts everything.
+2. **Items I add to boxes leave the desktop:** the Windows icons stay visible; a desktop item you add to a shortcut box (by dragging or with **Add item**) is moved into a visible `NestDesk\<box name>` folder next to your Desktop folder (for a box named "Games", e.g. `C:\Users\<name>\NestDesk\Games`; inside OneDrive if your desktop is in OneDrive) and stays in the box. Items that land on the desktop later stay visible. Right-click the item → **Put back on the desktop**, removing it from the box, or removing the box returns it to the desktop; Settings offers **Open folder** and **Put all back on the desktop**. Items on the Public Desktop (seen by all accounts) are not moved unless you give separate permission. Your files are never hidden and their attributes never change.
+3. **Show only in panels:** Windows' own icons are hidden and everything appears in panels. Your files are not touched; the icons come back when you pick another choice or quit the app. **"Sort my desktop into panels"** (in the Add widget window) creates the panels you need and switches to this choice; **Undo** in the notice reverts everything.
 
 #### Peek at the Windows desktop
 
 `Ctrl+Alt+G`, the tray menu, right-click a widget, or **Settings → Desktop**: Windows' own desktop icons appear and your widgets step aside (configurable). A small bar at the top center of the screen shows the time left, with **+5 min** and **Back to NestDesk**. By default NestDesk comes back after 2 minutes (1/2/5/10 minutes or "until I return"), and it waits while you are working on the desktop. Optionally, open windows are minimized while peeking (like Win+D; off by default). No file is changed.
 
-**When you double-click the empty desktop:** Automatic (recommended; peeks while panels manage the desktop, otherwise hides/shows icons and widgets), hide/show, peek, or do nothing. Only double-clicks on the desktop itself count; File Explorer windows and file dialogs are not affected.
+**Double-click on the empty desktop:** Automatic (recommended; peeks while panels manage the desktop, otherwise hides/shows icons and widgets), hide/show, peek, or do nothing. Only double-clicks on the desktop itself count; File Explorer windows and file dialogs are not affected.
 
 #### Widgets
 
@@ -274,9 +274,9 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 | **System status** | Processor, memory, disk and battery, plus uptime; every 2–10 seconds, only while visible; opens Task Manager |
 | **Recycle Bin** | How many items and how much space; double-click opens it, files dropped on it are recycled, **Empty…** asks first |
 
-**Adding widgets:** `Ctrl+Alt+B`, right-click the tray icon → **Add widget…**, right-click a widget → **Add a new widget…**, **NestDesk – Add a widget** in the Start menu, or the **Widgets** page in the main window. The tiles come in three groups: **Panels**, **Tools**, **Clocks and info**.
+**Adding widgets:** `Ctrl+Alt+B`, right-click the tray icon → **Add widget…**, right-click a widget → **Add widget…**, **NestDesk – Add widget** in the Start menu, or the **Widgets** page in the main window. The tiles come in three groups: **Panels**, **Tools**, **Clocks and info**.
 
-**Removing:** the dimmed **×** in each widget's top-right corner is always there; **Undo** in the notice or "Bring back" in the tray menu restores it. You can hide the × with right-click → **Appearance ▸ Show ▸ Remove button (×)**. To remove an item from a panel or box, right-click it → **Remove from widget** (in a panel this never touches the file).
+**Removing:** the dimmed **×** in each widget's top-right corner is always there; **Undo** in the notice or "Bring back" in the tray menu restores it. You can hide the × with right-click → **Appearance ▸ Show ▸ Remove button (×)**. To remove an item from a panel or box, right-click it → **Hide in this panel** / **Remove from box** (in a panel this never touches the file).
 
 #### Name, icon and F2
 
@@ -331,7 +331,7 @@ No account, no ads, no telemetry; everything stays on your PC. Files are moved o
 ### Uninstalling
 
 - **Store:** Windows removes your settings together with the app. **Installer edition:** the uninstaller shows any desktop icons left hidden and asks whether to delete your settings. **Portable:** delete the folder.
-- What stays as your own content: the `NestDesk` box folder (first use **Settings → Desktop → Put everything back on the desktop**), folder icons (first use **Settings → Advanced → Remove all folder icons**) and files moved by auto-move (in the folders they were moved to).
+- What stays as your own content: the `NestDesk` box folder (first use **Settings → Desktop → Put all back on the desktop**), folder icons (first use **Settings → Advanced → Remove all folder icons**) and files moved by auto-move (in the folders they were moved to).
 
 ### Building
 
@@ -350,7 +350,7 @@ powershell -File tools/perf/perf-run.ps1      # performance measurement (test in
 
 Command line: `--minimized` (start in the tray), `--add` ("Add widget"; forwarded to the running app), `--peek` (peek at the Windows desktop, or return to NestDesk), `--welcome` (open the welcome; while the app is closed), `--exit` (close the running instance cleanly), `--restore-desktop` (show Windows desktop icons that were left hidden and exit; used by the uninstaller), `--desktop <folder> --data <folder>` (test instance: never touches your real desktop, the "Start with Windows" entry or the Windows icons).
 
-Environment variables (the older `DUZENLEME_*` names work too): `NESTDESK_LANG=tr|en|pseudo` (interface language, for screenshots and tests), `NESTDESK_DEBUGLOG=<file>` (diagnostic log), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT="x,y"` (physical pixels; open windows on that point's monitor), `NESTDESK_APPDATA_ROOT` (for testing the data folder migration; only with `--desktop` and without `--data`), `NESTDESK_GPU=1` (hardware rendering for widgets). An empty `--data` folder opens the welcome; to skip it, put a `settings.json` containing `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` in the folder. Developer helpers: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
+Environment variables (the older `DUZENLEME_*` names work too): `NESTDESK_LANG=tr|en|pseudo` (interface language, for screenshots and tests), `NESTDESK_DEBUGLOG=<file>` (diagnostic log), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT="x,y"` (physical pixels; open windows on that point's monitor), `NESTDESK_APPDATA_ROOT` (for testing the data folder migration; only with `--desktop` and without `--data`), `NESTDESK_GPU=1` (hardware rendering for widgets). Without `--data`, a `--desktop` test instance keeps its data in `%TEMP%\NestDesk-test-data\<key>` (your real settings are never touched). An empty `--data` folder opens the welcome; to skip it, put a `settings.json` containing `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` in the folder. Developer helpers: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
 
 ---
 

@@ -214,7 +214,7 @@ PANELS
 • Gather the folders, shortcuts and files on your desktop into separate panels, or show any folder in a panel: Downloads, Documents, Pictures or another folder you pick (it doesn't have to be on the desktop).
 • Search a panel as you type (including subfolders), drag files between panels, preview pictures, videos and PDFs, and sort by name, type, date, size or by hand.
 • Use the keyboard: Enter opens, F2 renames, Delete sends to the Recycle Bin, Ctrl+F searches.
-• Three choices for the Windows desktop icons: show everything on the desktop, let items you add to boxes leave the desktop, or show everything only in panels. "Split my desktop into panels" sets it all up with one click and can be undone.
+• Three choices for the Windows desktop icons: show everything on the desktop, let items you add to boxes leave the desktop, or show everything only in panels. "Sort my desktop into panels" sets it all up with one click and can be undone.
 
 PEEK AT THE WINDOWS DESKTOP
 • Press Ctrl+Alt+G: the Windows desktop icons appear and your widgets step aside. A small bar at the top of the screen shows the time left; select "Back to NestDesk" or wait a few minutes to return automatically. No file is changed.
@@ -359,7 +359,7 @@ NestDesk is a Win32 desktop application (WPF, .NET 10) packaged as MSIX with the
    c. Panels list the Desktop, the Public Desktop and any folder the user picks (e.g. Downloads, Documents). On explicit user request they open, rename (F2), create folders and send items to the Recycle Bin using Windows' own shell file operations (SHFileOperation, IFileOperation; UAC only for Public Desktop items).
 6. Shell integration: folder icons with SHGetSetFolderCustomSettings (desktop.ini plus a hidden .ico inside the folder); icons and thumbnails from SHGetFileInfo and IShellItemImageFactory (no thumbnails for online-only cloud files, so nothing is downloaded); the Windows "Change Icon" dialog (PickIconDlg); items are opened with ShellExecute, including "Run as administrator" for shortcut-box items the user added. The Recycle Bin widget reads the item count and size with SHQueryRecycleBin, watches changes with SHChangeNotifyRegister, and empties it with SHEmptyRecycleBin only after the user confirms.
 7. System status widget: reads processor, memory, disk and battery values with GetSystemTimes, GlobalMemoryStatusEx, GetDiskFreeSpaceEx and GetSystemPowerStatus while the widget is visible. The values are only displayed; they are not stored or sent.
-8. A notification area (tray) icon is the app's main entry point and shows move and timer notifications. The "Add a widget" Start menu entry hands its request to the main app identity with IApplicationActivationManager.
+8. A notification area (tray) icon is the app's main entry point and shows move and timer notifications. The "NestDesk – Add widget" Start menu entry hands its request to the main app identity with IApplicationActivationManager.
 
 The app does not install drivers or services and does not require administrator rights. Its only network use is optional and goes only to the Anthropic API: when the user saves their own Anthropic API key, the key is verified with one request, and when the user requests an AI-generated folder icon, the folder name and the user's description are sent.
 ```
@@ -377,7 +377,7 @@ Win32 WPF (.NET 10) desktop app packaged with the Windows.FullTrustApplication e
 Partner Center gönderiminde canlı üretken yapay zekâ içeriği bildirimi istenirse işaretle ve aşağıdaki metni kullan (açıklamada ayrıca yazıyor; sertifikasyon notlarında da var).
 
 ```text
-NestDesk has one optional generative AI feature: folder icons drawn by Anthropic's Claude model. It works only after the user enters their own Anthropic API key (Settings > Advanced > AI folder icon) and presses Generate; without a key the feature is disabled and the app makes no network requests. The request contains the folder name, the user's short description and a fixed drawing instruction that asks for simple shapes without text. The result is an SVG drawing that is sanitized (scripts and external links removed) before it is shown, and it is kept only on the user's PC. Users can report inappropriate output with the "Report inappropriate content" link in the folder icon window; it opens a pre-filled GitHub issue form in the browser (containing only the app version) and sends nothing by itself.
+NestDesk has one optional generative AI feature: folder icons drawn by Anthropic's Claude model. It works only after the user enters their own Anthropic API key (Settings > Advanced > "AI folder icons (optional)") and presses Generate; without a key the feature is disabled and the app makes no network requests. The request contains the folder name, the user's short description and a fixed drawing instruction that asks for simple shapes without text. The result is an SVG drawing that is sanitized (scripts and external links removed) before it is shown, and it is kept only on the user's PC. Users can report inappropriate output with the "Report inappropriate content" link in the folder icon window; it opens a pre-filled GitHub issue form in the browser (containing only the app version) and sends nothing by itself.
 ```
 
 ```text
@@ -425,11 +425,11 @@ Thank you for testing NestDesk. No account or sign-in is needed, and the app doe
 
 GETTING STARTED
 1. On first launch the app adds an icon to the notification area (system tray) and opens a short welcome with 3 steps (panels, moving files, tools). Go through it with "Next" and "Done", or press "Skip for now": skipping changes nothing on the desktop and opens the main window.
-2. No file is moved before the user agrees. Auto-move stays OFF unless the user picks "Yes, move my files" in step 2 of the welcome or turns it on later on the "Auto-move" page. Files are only moved into matching folders that already exist on the desktop (default rule folders: PDF, Pictures, Documents, Archives, Videos, Music). On a clean test machine nothing is moved.
+2. No file is moved before the user agrees. Auto-move stays OFF unless the user picks "Yes, move my files into place" in step 2 of the welcome or turns it on later on the "Auto-move" page. Files are only moved into matching folders that already exist on the desktop (default rule folders: PDF, Pictures, Documents, Archives, Videos, Music). On a clean test machine nothing is moved.
 3. Closing the main window keeps the app running in the tray. Left-click the tray icon to reopen it. To quit, right-click the tray icon > "Exit".
 
 ADD WIDGETS, NAME AND ICON
-4. Press Ctrl+Alt+B, right-click the tray icon > "Add widget…", or start "NestDesk – Add a widget" from the Start menu. Click a tile, e.g. "Folders", "Files", "Clock", "Calendar", "Note", "To-do", "Shortcut box", "Timer". The new widget appears next to the mouse pointer and is highlighted for a few seconds ("Where new widgets appear" in Settings > Desktop can change this to the screen center or a corner).
+4. Press Ctrl+Alt+B, right-click the tray icon > "Add widget…", or start "NestDesk – Add widget" from the Start menu. Click a tile, e.g. "Folders", "Files", "Clock", "Calendar", "Note", "To-do", "Shortcut box", "Timer". The new widget appears next to the mouse pointer and is highlighted for a few seconds ("Where new widgets appear" in Settings > Desktop can change this to the screen center or a corner).
 5. A panel, shortcut box or note added from this window starts with its title in edit mode: type a name and press Enter. Click the icon in its title bar to choose an icon. The "New panel…" tile asks for the name, what to show and the icon in one window.
 6. F2 renames: click a widget's title and press F2. In a panel, select a file you created for the test and press F2 to rename it on disk; in a shortcut box, F2 changes only the displayed name.
 7. To remove a widget, click the × in its top-right corner or right-click it > "Remove". The notice's "Undo" or the tray menu's "Bring back" item restores it.
@@ -441,13 +441,13 @@ PEEK AT THE WINDOWS DESKTOP
 9. Press Ctrl+Alt+G (or tray > "Peek at the Windows desktop", or right-click a widget > "Peek at the Windows desktop"). The Windows desktop icons become visible, widgets step aside, and a small bar at the top center shows the time left with "+5 min" and "Back to NestDesk". It returns automatically after 2 minutes. Nothing on disk is changed.
 
 PANELS AND DESKTOP ICONS
-10. Settings > Desktop > "Windows desktop icons" has three choices: "Show everything on the desktop" (default), "Items I add to boxes leave the desktop", "Show only in panels". The same choice is in the tray menu and on the "Widgets" page. "Split my desktop into panels" in the Add widget window adds panels for folders, shortcuts and files and switches to "Show only in panels"; the notice's "Undo" reverts it.
+10. Settings > Desktop > "Windows desktop icons" has three choices: "Show everything on the desktop" (default), "Items I add to boxes leave the desktop", "Show only in panels". The same choice is in the tray menu and on the "Widgets" page. "Sort my desktop into panels" in the Add widget window adds panels for folders, shortcuts and files and switches to "Show only in panels"; the notice's "Undo" reverts it.
 11. With "Show only in panels" the Windows desktop icons are hidden and shown in the panels instead; no files are moved or changed. The icons come back immediately when another choice is selected, when the app exits (tray > "Exit") and when the user signs out.
-12. Double-clicking an empty area of the desktop (or pressing Ctrl+Alt+H) hides and shows icons and widgets; while panels manage the desktop, a double-click peeks instead. This can be changed or turned off in Settings > Desktop > "When you double-click the empty desktop".
+12. Double-clicking an empty area of the desktop (or pressing Ctrl+Alt+H) hides and shows icons and widgets; while panels manage the desktop, a double-click peeks instead. This can be changed or turned off in Settings > Desktop > "Double-click on the empty desktop".
 
 SHORTCUT BOX OPTION (moves files only after the user picks it)
 13. By default a shortcut box only stores links; nothing is moved. To test the option: Settings > Desktop > "Windows desktop icons" > "Items I add to boxes leave the desktop". Add a "Shortcut box" widget, create a test file on the desktop and drag it onto the box (or right-click the box > "Add item" > "App or file…"). The file is moved to %USERPROFILE%\NestDesk\<box name> (a normal visible folder next to the Desktop folder), stays in the box, and a notice offers "Undo".
-14. Right-click the item > "Put back on the desktop" returns it. Settings > Desktop shows how many items are in the NestDesk folder with "Open folder" and "Put everything back on the desktop"; switching to another choice asks whether to put the items back.
+14. Right-click the item > "Put back on the desktop" returns it. Settings > Desktop shows how many items are in the NestDesk folder with "Open folder" and "Put all back on the desktop"; switching to another choice asks whether to put the items back.
 
 AUTO-MOVE
 15. Turn it on: main window > "Auto-move" > the switch at the top, or tray > "Auto-move" (checked = on). Create a folder named "PDF" on the desktop, then copy a .pdf file to the desktop. After about 2 seconds it is moved into the PDF folder and a notification appears. Undo it on the "Auto-move" page with "Undo", or tray > "Undo last move".
@@ -461,8 +461,8 @@ NEW WIDGETS (Add widget window)
 
 OTHER
 21. Language: Settings > General > "Language / Dil" > choose, then "Restart now".
-22. Optional AI feature: AI-generated folder icons require the user's own Anthropic API key (Settings > Advanced > "AI folder icon"). Without a key the "Generate" button is disabled; all other features work offline and without a key. The app has no other network use. Inappropriate AI output can be reported with the "Report inappropriate content" link in the folder icon window; it opens a pre-filled GitHub issue form in the browser and sends nothing by itself.
-23. Uninstalling: the Store package removes the app's settings. Desktop icons hidden by the app are shown again when it exits. Files the user put into the NestDesk box folder and folder icons the user applied stay as the user's own content; they can be returned/removed beforehand with "Put everything back on the desktop" (Settings > Desktop) and "Remove all folder icons" (Settings > Advanced).
+22. Optional AI feature: AI-generated folder icons require the user's own Anthropic API key (Settings > Advanced > "AI folder icons (optional)"). Without a key the "Generate" button is disabled; all other features work offline and without a key. The app has no other network use. Inappropriate AI output can be reported with the "Report inappropriate content" link in the folder icon window; it opens a pre-filled GitHub issue form in the browser and sends nothing by itself.
+23. Uninstalling: the Store package removes the app's settings. Desktop icons hidden by the app are shown again when it exits. Files the user put into the NestDesk box folder and folder icons the user applied stay as the user's own content; they can be returned/removed beforehand with "Put all back on the desktop" (Settings > Desktop) and "Remove all folder icons" (Settings > Advanced). The desktop installer tells the user where the box folder is when it is uninstalled.
 ```
 
 ---
