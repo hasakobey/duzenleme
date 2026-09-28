@@ -20,7 +20,9 @@ public sealed class HotkeyRow(HotkeyAction action, string label, SymbolRegular i
     public string Label { get; } = label;
     public SymbolRegular Icon { get; } = icon;
     public string Text { get; } = string.IsNullOrEmpty(text) ? L.T("Yok") : text;
-    public string Status => failure ?? L.T("Etkin");
+
+    /// <summary>Kısayol boşsa "Kapalı" ("Yok"un altında "Etkin" yazıp hâlâ çalışıyormuş gibi göstermesin).</summary>
+    public string Status => failure ?? (string.IsNullOrEmpty(text) ? L.T("Kapalı") : L.T("Etkin"));
     public Brush StatusBrush => (Brush)Application.Current.FindResource(failure is null ? "TextFillColorTertiaryBrush" : "SystemFillColorCriticalBrush");
 }
 
