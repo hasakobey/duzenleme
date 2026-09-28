@@ -16,13 +16,6 @@ namespace Duzenleme.Tests;
 /// </summary>
 public class LocalizationTests
 {
-    /// <summary>
-    /// Yerelleştirme taraması (2.1, dalga 3) bitene dek: ham Türkçe metin denetimi atlanır ve En.Common.cs'teki henüz
-    /// kullanılmayan ortak anahtarlar serbesttir. Tarama bitince null yap: iki denetim de tam çalışır.
-    /// </summary>
-    private const string? SweepPending =
-        "Yerelleştirme taraması (2.1 dalga 3) bitene dek: arayüz metinlerinin çoğu henüz L.T/{l:T} ile sarılmadı.";
-
     /// <summary>Tabloya bakılan L yöntemleri (ilk metin argümanı anahtardır; P'de ikinci).</summary>
     private static readonly HashSet<string> KeyedMethods = ["T", "F", "P", "N", "Variants"];
 
@@ -48,8 +41,6 @@ public class LocalizationTests
         var unused = En.Tables
             .SelectMany(t => t.Entries.Select(e => (Table: t, Entry: e)))
             .Where(x => !used.Contains((x.Entry.Tr, x.Entry.Context)))
-            // Ortak tablo taramadan önce doldurulur: tarama bitene dek kullanılmayan ortak anahtar serbest.
-            .Where(x => string.IsNullOrEmpty(SweepPending) || Path.GetFileName(x.Table.File) != "En.Common.cs")
             .Select(x => $"{Path.GetFileName(x.Table.File)}: \"{x.Entry.Tr}\"")
             .ToList();
         Assert.True(unused.Count == 0, "Kodda kullanılmayan çeviriler (metin değiştiyse tabloyu da güncelle):\n" + string.Join("\n", unused));
@@ -123,7 +114,7 @@ public class LocalizationTests
             string.Join("\n", Scan.Value.CultureProblems));
     }
 
-    [Fact(Skip = SweepPending)]
+    [Fact]
     public void No_raw_turkish_ui_text()
     {
         Assert.True(Scan.Value.RawTexts.Count == 0,
