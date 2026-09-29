@@ -178,7 +178,7 @@ klasör simgesi
 3. Sağ tık menüsü açık kalır: arka planı, vurgu rengini ve saydamlığı üzerine gelerek önizle
 4. Eklerken ad ve simge seç; F2 ile istediğin an yeniden adlandır
 5. Zamanlayıcı, Pomodoro, dünya saati, geri sayım, sistem durumu ve Geri Dönüşüm Kutusu widget'ları
-6. Ctrl+Alt+G ile Windows masaüstüne göz at: simgeler görünür, widget'lar çekilir, sonra kendiliğinden dönülür
+6. Notlar, yapılacaklar ve her widget için Cam, Koyu ya da Açık görünüm; renkleri ve saydamlığı sen seç
 7. Kısayol kutusu: istersen kutuya eklediğin masaüstü öğeleri masaüstünden kalkar ve NestDesk klasöründe durur
 8. İsteğe bağlı otomatik taşıma: hangi dosyanın nereye gideceğini sen seçersin; her taşıma tek tıkla geri alınır
 ```
@@ -320,7 +320,7 @@ Leave blank if 2.1.0 is NestDesk's first Store submission (see the Turkish note 
 3. Menus stay open while you try options: hover to preview the background, accent color and transparency
 4. Choose a name and an icon as you add a panel; press F2 to rename it anytime
 5. Timer, Pomodoro, world clock, countdown, system status and Recycle Bin widgets
-6. Ctrl+Alt+G peeks at the Windows desktop: icons appear, widgets step aside, and NestDesk comes back on its own
+6. Notes, to-do lists and a Glass, Dark or Light look for every widget; you choose the colors and transparency
 7. Shortcut box: optionally, desktop items you add leave the desktop and wait in a NestDesk folder
 8. Optional auto-move: you choose which files go to which folder, and every move can be undone with one click
 ```
@@ -336,7 +336,7 @@ Her görüntü iki kez çekilir: Türkçe liste için `NESTDESK_LANG=tr`, İngil
 3. **Canlı menü.** Bir bölmeye ya da nota sağ tık → Görünüm ▸ Arka plan açık, fare "Açık"ın üzerinde; widget önizlemeyi (açık zemin) gösteriyor. Menü ve widget yan yana görünsün.
 4. **Ad ve simge.** "Widget ekle"den yeni eklenen bir bölmenin başlığı düzenleme hâlinde (ör. "Projeler" yazılmış) ve başlıktaki simgeye tıklanınca açılan simge seçici görünür.
 5. **Yeni widget'lar.** Zamanlayıcı (çalışıyor, ör. 12:34), Pomodoro (Odak · 2/4), dünya saati (3 şehir), geri sayım ("Tatil: 12 gün kaldı"), sistem durumu ve Geri Dönüşüm Kutusu widget'ları düzenli yerleştirilmiş.
-6. **Windows masaüstüne göz at.** Ctrl+Alt+G sonrası: widget'lar çekilmiş, Windows'un masaüstü simgeleri görünür, ekranın üst ortasında "Windows masaüstü · 1:42 · +5 dk · NestDesk'e dön" çubuğu. Bu görüntüde Windows'un **gerçek** masaüstü simgeleri görünür (test örneği onlara dokunmaz, yalnızca widget'ları çeker): kişisel dosya adları görünmesin diye masaüstünde yalnızca örnek dosyaların bulunduğu ayrı bir Windows hesabında ya da sanal makinede çek.
+6. **Notlar ve görünüm.** Koyu zeminli resim önizlemeli Fotoğraflar bölmesi, Açık zeminli Dosyalar bölmesi, pembe/yeşil/mavi/mor notlar (biri yapılacaklar listesi), Açık saat ve Koyu tarih. (Göz atma sahnesi gerçek masaüstü simgelerini gösterdiği için çekilmez.)
 7. **Kısayol kutusu ve kutu seçeneği.** Solda birkaç uygulama ve dosya taşıyan sekmeli bir kısayol kutusu (bir öğe kendi adı ve simgesiyle), sağda ana pencerede Ayarlar → Masaüstü → "Windows masaüstü simgeleri" = "Kutulara eklediklerim masaüstünden kalksın", altında "N öğe NestDesk klasöründe · Klasörü aç · Hepsini masaüstüne geri koy".
 8. **Otomatik taşıma** sayfası: kurallar ("Hangi dosya nereye gitsin?") ve birkaç taşıma, "Geri al" düğmeleriyle; üstte anahtar açık.
 
