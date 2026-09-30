@@ -26,6 +26,15 @@ internal static partial class En
         new("Windows'ta masaüstü simgeleri zaten kapalı. Açmak için masaüstüne sağ tıkla → Görünüm → Masaüstü simgelerini göster.",
             "Desktop icons are already turned off in Windows. To turn them on, right-click the desktop → View → Show desktop icons."),
 
+        // Kutulara eklediklerim masaüstünden kalksın: ortak masaüstü (Widgets/BoxMover)
+        new("\"{0}\" bu bilgisayardaki tüm hesapların ortak masaüstünde, bu yüzden masaüstünde kaldı. Kaldırmak için yönetici izni gerekir.",
+            "\"{0}\" is on the Public Desktop shared by every account on this PC, so it stayed on the desktop. Removing it needs administrator permission."),
+        new("{0} öğe bu bilgisayardaki tüm hesapların ortak masaüstünde, bu yüzden masaüstünde kaldı. Kaldırmak için yönetici izni gerekir.",
+            "{0} item is on the Public Desktop shared by every account on this PC, so it stayed on the desktop. Removing it needs administrator permission.",
+            "{0} items are on the Public Desktop shared by every account on this PC, so they stayed on the desktop. Removing them needs administrator permission."),
+        new("Masaüstünden kaldır", "Remove from desktop"),
+        new("izin verilmedi", "permission not given"),
+
         // Sürükle-bırak
         new("Bırak, masaüstüne taşınsın", "Drop to move to the desktop"),
         new("Bırak, kutudan çıkarılsın", "Drop to take it out of the box"),

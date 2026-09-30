@@ -98,8 +98,6 @@ internal static partial class En
             "Couldn't move {0} items (in use or access denied), so they were added to the box as links."),
         new("\"{0}\" klasörünü bir kural ya da bölme kullandığı için masaüstünde kaldı.",
             "\"{0}\" stayed on the desktop because a rule or panel uses this folder."),
-        new("Ortak masaüstündeki öğeler bu bilgisayardaki tüm hesaplarda görünür; kutuya yalnızca bağlantı olarak eklendi (Ayarlar > Masaüstü'nden değiştirilebilir).",
-            "Items on the Public Desktop appear in every account on this PC, so they were added to the box only as links (you can change this in Settings > Desktop)."),
         new("\"{0}\" masaüstüne geri kondu.", "\"{0}\" was put back on the desktop."),
         new("{0} öğe masaüstüne geri kondu.", "{0} item was put back on the desktop.", "{0} items were put back on the desktop."),
         new("{0} öğe geri konamadı ({1}); {2} klasöründe duruyor.",

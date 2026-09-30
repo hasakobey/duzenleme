@@ -34,8 +34,8 @@ internal static partial class En
             "{0} item goes back to the desktop and stays in its box.",
             "{0} items go back to the desktop and stay in their boxes."),
         new("Ortak masaüstündeki öğeler de taşınsın", "Also move items from the Public Desktop"),
-        new("Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; izin yoksa kutuya yalnızca bağlantı olarak eklenir.",
-            "Shortcuts on the Public Desktop (where most apps put theirs) appear for every account on this PC. If you turn this on, an item like that you add to a box leaves every account's desktop; without permission, it's only added to the box as a link."),
+        new("Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; Windows bunun için yönetici onayı ister.",
+            "Shortcuts on the Public Desktop (where most apps put theirs) appear for every account on this PC. If you turn this on, an item like that you add to a box leaves every account's desktop; Windows asks for administrator approval."),
 
         // ---- Masaüstü: göz atma ----
         new("Windows masaüstüne göz atılıyor", "Peeking at the Windows desktop"),

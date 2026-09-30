@@ -30,10 +30,13 @@ internal static class BoxMover
     /// <summary>Bu kutu öğesi masaüstünden taşınmış mı (NestDesk klasöründe mi)?</summary>
     public static bool IsMoved(string path) => AppHost.BoxMoves.IsMoved(path);
 
-    /// <summary>Kutulardaki masaüstü öğeleri (kip açılınca taşınabilecekler; diske bakılmaz).</summary>
+    /// <summary>
+    /// Kutulardaki masaüstü öğeleri (kip açılınca taşınabilecekler; diske bakılmaz). Ortak masaüstündekiler de: ayar kapalıysa
+    /// taşınmazlar ama bildirim onları "Masaüstünden kaldır" ile sunar (çoğu uygulamanın kısayolu oradadır).
+    /// </summary>
     public static List<(WidgetConfig Box, List<string> Paths)> DesktopItemsInBoxes()
     {
-        var dirs = AppHost.Settings.BoxIncludesPublicDesktop ? AppHost.DesktopDirectories : [AppHost.DesktopDirectory];
+        var dirs = AppHost.DesktopDirectories;
         var result = new List<(WidgetConfig, List<string>)>();
         foreach (var box in Launchers())
         {
@@ -78,7 +81,8 @@ internal static class BoxMover
 
     private sealed record ClaimRequest(WidgetConfig Box, string Folder, List<string> Paths);
 
-    private sealed record ClaimResult(string Original, string? Current, BoxLinkReason Reason, string? Error);
+    /// <param name="Pending">Ortak masaüstündeki öğe izin yüzünden taşınamadı: yönetici onayıyla toplu taşınacak.</param>
+    private sealed record ClaimResult(string Original, string? Current, BoxLinkReason Reason, string? Error, BoxMove? Pending = null);
 
     /// <summary>
     /// Kutudaki öğelerden masaüstünde olanları kutunun klasörüne taşır (kip açıksa). notify: sonucu bildir ("Geri al" ile).
@@ -136,6 +140,11 @@ internal static class BoxMover
                     }
                     return new ClaimResult(path, record.Current, BoxLinkReason.None, null);
                 }
+                catch (UnauthorizedAccessException) when (record.Current.Length > 0 && IsOnAny(path, publics))
+                {
+                    // Ortak masaüstü yalnızca yöneticiyle değişir: aşağıda Windows'un onayıyla, hepsi birlikte taşınır.
+                    return new ClaimResult(path, null, BoxLinkReason.None, null, record);
+                }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
                 {
                     DebugLog.Write($"kutuya taşınamadı {path}: {ex.Message}");
@@ -145,6 +154,19 @@ internal static class BoxMover
 
             var results = await Task.Run(() =>
                 requests.SelectMany(request => request.Paths.Select(path => (Request: request, Result: MoveOne(request, path)))).ToList());
+
+            if (results.Any(x => x.Result.Pending is not null))
+            {
+                var pending = results.Select(x => x.Result.Pending).OfType<BoxMove>().ToList();
+                // Önce kayıt, sonra taşıma (yukarıdaki gibi); taşınmayanların kaydı silinir.
+                var done = await MoveWithPermission(pending.Select(r => (r.Original, r.Current)).ToList(),
+                    before: () => pending.ForEach(log.Add),
+                    failed: moves => pending.Where(r => moves.Contains(r.Original)).ToList().ForEach(r => log.Remove(r.Id)));
+                results = results.Select(x => x.Result.Pending is not { } record ? x
+                    : (x.Request, done.Contains(record.Original)
+                        ? new ClaimResult(record.Original, record.Current, BoxLinkReason.None, null)
+                        : new ClaimResult(record.Original, null, BoxLinkReason.None, L.T("izin verilmedi")))).ToList();
+            }
 
             var moved = results.Where(x => x.Result.Current is not null).ToList();
             if (moved.Count > 0)
@@ -163,7 +185,7 @@ internal static class BoxMover
         var moved = results.Where(x => x.Result.Current is not null).ToList();
         var failed = results.Where(x => x.Result.Error is not null).ToList();
         var used = results.Where(x => x.Result.Reason == BoxLinkReason.UsedFolder).ToList();
-        var publicSkipped = results.Any(x => x.Result.Reason == BoxLinkReason.PublicDesktop);
+        var publicSkipped = results.Where(x => x.Result.Reason == BoxLinkReason.PublicDesktop).ToList();
 
         var parts = new List<string>();
         if (moved.Count > 0)
@@ -181,16 +203,28 @@ internal static class BoxMover
                 : L.P(failed.Count, "{0} öğe taşınamadı (kullanımda ya da izin yok); kutuya bağlantı olarak eklendi."));
         foreach (var x in used)
             parts.Add(L.F("\"{0}\" klasörünü bir kural ya da bölme kullandığı için masaüstünde kaldı.", TileItem.DisplayName(x.Result.Original)));
-        if (publicSkipped && !AppHost.Settings.PublicBoxNoticeShown)
+        if (publicSkipped.Count > 0)
         {
-            AppHost.Settings.PublicBoxNoticeShown = true;
-            AppHost.SaveSettings();
-            parts.Add(L.T("Ortak masaüstündeki öğeler bu bilgisayardaki tüm hesaplarda görünür; kutuya yalnızca bağlantı olarak eklendi (Ayarlar > Masaüstü'nden değiştirilebilir)."));
+            parts.Add(publicSkipped.Count == 1
+                ? L.F("\"{0}\" bu bilgisayardaki tüm hesapların ortak masaüstünde, bu yüzden masaüstünde kaldı. Kaldırmak için yönetici izni gerekir.",
+                    TileItem.DisplayName(publicSkipped[0].Result.Original))
+                : L.P(publicSkipped.Count, "{0} öğe bu bilgisayardaki tüm hesapların ortak masaüstünde, bu yüzden masaüstünde kaldı. Kaldırmak için yönetici izni gerekir."));
         }
         if (parts.Count == 0) return;
 
         var text = string.Join(" ", parts);
-        if (moved.Count > 0)
+        if (publicSkipped.Count > 0 && moved.Count == 0)
+        {
+            // "Masaüstünden kaldır": bundan sonra ortak masaüstündekiler de taşınır (Windows her seferinde onay ister).
+            var items = publicSkipped.GroupBy(x => x.Request.Box).Select(g => (g.Key, g.Select(x => x.Result.Original).ToList())).ToList();
+            Notice.Show(text, NoticeKind.Info, L.T("Masaüstünden kaldır"), () =>
+            {
+                AppHost.Settings.BoxIncludesPublicDesktop = true;
+                AppHost.SaveSettings();
+                ClaimMany(items, notify: true, justAdded);
+            });
+        }
+        else if (moved.Count > 0)
         {
             var undo = moved.Select(x => (x.Request.Box, x.Result.Current!)).ToList();
             // Az önce eklenenler kutudan da çıkar; zaten kutuda olanlar (kip açılırken taşınanlar) yalnızca masaüstüne döner.
@@ -215,7 +249,8 @@ internal static class BoxMover
 
     // ---------------------------------------------------------------- geri koyma
 
-    private sealed record ReturnResult(BoxMove Record, string? Restored, string? Error);
+    /// <param name="PendingTarget">Ortak masaüstüne dönüş izin yüzünden olmadı: yönetici onayıyla bu yola taşınacak.</param>
+    private sealed record ReturnResult(BoxMove Record, string? Restored, string? Error, string? PendingTarget = null);
 
     /// <summary>"Masaüstüne geri koy": öğeler masaüstüne döner, kutuda kalır (kutu masaüstündeki yolu gösterir).</summary>
     public static void Return(IReadOnlyCollection<string> currentPaths, bool notify = true) =>
@@ -269,21 +304,38 @@ internal static class BoxMover
         });
     }
 
-    private static Task<List<ReturnResult>> ReturnInBackground(List<BoxMove> records, bool reclaim)
+    private static async Task<List<ReturnResult>> ReturnInBackground(List<BoxMove> records, bool reclaim)
     {
         var desktop = AppHost.DesktopDirectory;
+        var publics = AppHost.DesktopDirectories.Skip(1).ToList();
         var root = Root;
         var log = AppHost.BoxMoves;
         var organizer = AppHost.Organizer;
-        return Task.Run(() =>
+        var results = await Task.Run(() => records.Select(record => ReturnOne(record)).ToList());
+
+        // Ortak masaüstüne dönecekler (yalnızca yönetici yazabilir): Windows'un onayıyla, hepsi birlikte.
+        if (results.Any(r => r.PendingTarget is not null))
         {
-            var results = records.Select(record => ReturnOne(record)).ToList();
+            var pending = results.Where(r => r.PendingTarget is not null).ToList();
+            var done = await MoveWithPermission(pending.Select(r => (r.Record.Current, r.PendingTarget!)).ToList());
+            results = await Task.Run(() => results.Select(r =>
+            {
+                if (r.PendingTarget is not { } target) return r;
+                if (!done.Contains(r.Record.Current)) return r with { Error = L.T("izin verilmedi"), PendingTarget = null };
+                log.MarkReturned(r.Record.Id, target, reclaim);
+                if (reclaim) KeepOnDesktop(organizer, target, r.Record.Current);
+                return new ReturnResult(r.Record, target, null);
+            }).ToList());
+        }
+
+        await Task.Run(() =>
+        {
             // Boşalan kutu klasörleri (ve NestDesk klasörü) kalmasın; içinde kullanıcının koyduğu bir şey varsa dokunulmaz.
             foreach (var folder in results.Where(r => r.Restored is not null).Select(r => BoxPlan.ParentOf(r.Record.Current))
                          .OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
                 BoxFiles.RemoveIfEmpty(folder, root);
-            return results;
         });
+        return results;
 
         ReturnResult ReturnOne(BoxMove record)
         {
@@ -300,6 +352,12 @@ internal static class BoxMover
                 log.MarkReturned(record.Id, restored, reclaim);
                 if (reclaim) KeepOnDesktop(organizer, restored, record.Current);
                 return new ReturnResult(record, restored, null);
+            }
+            catch (UnauthorizedAccessException) when (IsOnAny(record.Original, publics))
+            {
+                var directory = BoxPlan.ParentOf(record.Original)!;
+                return new ReturnResult(record, null, null,
+                    FileMover.UniquePath(directory, Path.GetFileName(Path.TrimEndingDirectorySeparator(record.Original))));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
@@ -360,6 +418,42 @@ internal static class BoxMover
     }
 
     // ---------------------------------------------------------------- yardımcılar
+
+    /// <summary>
+    /// İzin isteyen taşımalar (ortak masaüstü): Windows'un onay penceresiyle tek işlemde. Kaynak yolları gerçekten taşınanlar
+    /// döner (onay verilmezse boş). <paramref name="before"/> taşımadan önce, <paramref name="failed"/> taşınmayan kaynaklarla
+    /// arka planda çağrılır.
+    /// </summary>
+    private static async Task<HashSet<string>> MoveWithPermission(List<(string From, string To)> moves, Action? before = null,
+        Action<HashSet<string>>? failed = null)
+    {
+        await Task.Run(() =>
+        {
+            foreach (var folder in moves.Select(m => Path.GetDirectoryName(m.To)).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase))
+                Directory.CreateDirectory(folder);
+            before?.Invoke();
+        });
+        try
+        {
+            await Desktop.ShellFileOperations.RunSta(() => Desktop.ShellFileOperations.MoveManyWithShell(moves, IntPtr.Zero));
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or UnauthorizedAccessException)
+        {
+            DebugLog.Write($"izinli taşıma: {ex.Message}");
+        }
+        return await Task.Run(() =>
+        {
+            var done = moves.Where(m => BoxFiles.Exists(m.To) && !BoxFiles.Exists(m.From)).Select(m => m.From)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var notDone = moves.Select(m => m.From).Where(f => !done.Contains(f)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (notDone.Count > 0) failed?.Invoke(notDone);
+            return done;
+        });
+    }
+
+    private static bool IsOnAny(string path, IEnumerable<string> directories) =>
+        BoxPlan.ParentOf(path) is { } parent && directories.Any(d =>
+            string.Equals(Path.TrimEndingDirectorySeparator(d), parent, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Kutulardaki yolları değiştirir (bütün kutular, bütün sekmeler).</summary>
     private static void Replace(IEnumerable<(string From, string To)> changes)

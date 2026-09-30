@@ -186,7 +186,7 @@
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Ortak masaüstündeki öğeler de taşınsın'}" />
                             <TextBlock Style="{StaticResource Muted}"
-                                       Text="{l:T 'Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; izin yoksa kutuya yalnızca bağlantı olarak eklenir.'}" />
+                                       Text="{l:T 'Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; Windows bunun için yönetici onayı ister.'}" />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="PublicBoxToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Checked="PublicBoxToggle_Changed" Unchecked="PublicBoxToggle_Changed"
                                          AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="{l:T 'Ortak masaüstündeki öğeler de taşınsın'}" />

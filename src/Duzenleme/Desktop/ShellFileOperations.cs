@@ -139,6 +139,48 @@ public static class ShellFileOperations
         Perform(path, owner, flags, (op, item) => op.DeleteItem(item, IntPtr.Zero));
     }
 
+    /// <summary>
+    /// Öğeleri tek işlemde verilen tam yollara taşır (Gezgin'in yolu): Ortak Masaüstü gibi yönetici izni isteyen yerlerde
+    /// Windows'un onay penceresi bir kez çıkar. Hedef klasörler var olmalı, hedef adlar boş olmalı. Hangi öğenin taşındığını
+    /// çağıran diske bakarak öğrenir (onay kısmen verilebilir). Kullanıcı vazgeçerse <see cref="OperationCanceledException"/>.
+    /// Arka plandaki STA iş parçacığından (<see cref="RunSta"/>) çağrılır.
+    /// </summary>
+    public static void MoveManyWithShell(IReadOnlyList<(string From, string To)> moves, IntPtr owner)
+    {
+        if (moves.Count == 0) return;
+        var type = Type.GetTypeFromCLSID(new Guid("3ad05575-8857-4850-9277-11b85bdb8e09"), throwOnError: true)!;
+        var op = (IFileOperation)Activator.CreateInstance(type)!;
+        var items = new List<IShellItem>();
+        try
+        {
+            op.SetOperationFlags((uint)(FOF_NOCONFIRMATION | FOF_NOCONFIRMMKDIR) | FOFX_SHOWELEVATIONPROMPT);
+            if (owner != IntPtr.Zero) op.SetOwnerWindow(owner);
+            foreach (var (from, to) in moves)
+            {
+                SHCreateItemFromParsingName(from, IntPtr.Zero, typeof(IShellItem).GUID, out var source);
+                items.Add(source);
+                SHCreateItemFromParsingName(Path.GetDirectoryName(to)!, IntPtr.Zero, typeof(IShellItem).GUID, out var folder);
+                items.Add(folder);
+                op.MoveItem(source, folder, Path.GetFileName(to), IntPtr.Zero);
+            }
+            try { op.PerformOperations(); }
+            catch (COMException ex) when (ex.HResult is unchecked((int)0x800704C7) or unchecked((int)0x80270000))
+            {
+                throw new OperationCanceledException();
+            }
+            if (op.GetAnyOperationsAborted()) throw new OperationCanceledException();
+        }
+        catch (COMException ex)
+        {
+            throw new IOException(ex.Message, ex);
+        }
+        finally
+        {
+            foreach (var item in items) Marshal.ReleaseComObject(item);
+            Marshal.ReleaseComObject(op);
+        }
+    }
+
     /// <summary>Windows Geri Dönüşüm Kutusu'na göndermeden önce soruyor mu? (Geri Dönüşüm Kutusu özellikleri; varsayılan hayır.)</summary>
     public static bool AsksBeforeRecycling()
     {
