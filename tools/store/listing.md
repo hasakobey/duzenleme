@@ -1,4 +1,4 @@
-# Microsoft Store listesi — NestDesk 2.1.0
+# Microsoft Store listesi — NestDesk 2.1.1
 
 Partner Center'a kopyalanacak hazır metinler. Her alan ayrı bir kod bloğunda; GitHub'da bloğun sağ üstündeki kopyala düğmesiyle al. Açıklama alanları düz metindir: içine HTML ya da bağlantı koyma (Microsoft'un önerisi; bağlantılar kendi alanlarına girer).
 
@@ -153,6 +153,15 @@ pomodoro zamanlayıcı
 klasör simgesi
 ```
 
+### Bu sürümdeki yenilikler (What's new in this version) — 2.1.1
+
+```text
+• Bir öğeyi bir widget'tan ötekine sürükleyebilirsin: bölmeden Dosyalar/Kısayollar/Klasörler bölmesine (masaüstüne taşınır), kutudan kutuya (Ctrl ile kopyalanır), kutudan bölmeye (kutudan çıkar). Kutudaki öğeleri sürükleyerek sırala; klasörler de bölmelere taşınabilir.
+• Klasör açılamazsa nedeni söylenir: Windows Güvenliği'nin Denetimli klasör erişimi engelliyorsa izin vermek için tek tıkla ilgili sayfa açılır.
+• Masaüstü simgelerini gizle/göster daha güvenilir: Windows simgeleri kendiliğinden geri getirirse yeniden gizlenir, gizlenemezse söylenir.
+• Bölmeden masaüstüne sürüklenen dosya kurallarla hemen geri taşınmaz; sürüklenip bırakılan öğe yanlışlıkla açılmaz.
+```
+
 ### Bu sürümdeki yenilikler (What's new in this version) — 2.1.0
 
 2.1.0 NestDesk'in Store'daki **ilk** gönderimiyse bu alan **boş bırakılır** (Microsoft ilk gönderimde boş bırakmanı istiyor); aşağıdaki metin GitHub sürüm notu olarak kullanılır. Store'da daha önce yayımlanmış bir sürüm varsa metni olduğu gibi yapıştır. Sonraki sürümlerde (ör. 2.1.1) buraya o sürümün yenilikleri aynı biçimde (`• ` ile başlayan satırlar, en fazla 1.500 karakter) yazılır.
@@ -293,6 +302,15 @@ desktop widgets
 sticky notes
 pomodoro timer
 folder icons
+```
+
+### What's new in this version — 2.1.1
+
+```text
+• Drag items from one widget to another: from a panel to the Files/Shortcuts/Folders panel (moves it to the desktop), from box to box (hold Ctrl to copy), from a box to a panel (takes it out of the box). Drag items in a box to reorder them; folders can be moved into panels too.
+• When a folder can't be created, NestDesk tells you why. If Controlled folder access in Windows Security is blocking it, one click opens the page to allow the app.
+• Hiding and showing desktop icons is more reliable: if Windows brings the icons back on its own, they're hidden again, and you're told if they can't be hidden.
+• A file dragged from a panel to the desktop isn't moved back by rules right away, and dragging an item no longer opens it by accident.
 ```
 
 ### What's new in this version — 2.1.0
