@@ -434,20 +434,17 @@ public partial class AutoMovePage : Page
         if (name.Length == 0) return;
         var waiting = row.Pending;
         var path = Path.Combine(AppHost.DesktopDirectory, name);
-        try
-        {
-            // Uygulamanın açtığı klasör için "simge ver" balonu çıkmaz.
-            AppHost.MarkQuietFolder(path);
-            Directory.CreateDirectory(path);
-            AppHost.NoteFolderCreated(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        // Uygulamanın açtığı klasör için "simge ver" balonu çıkmaz.
+        try { AppHost.MarkQuietFolder(path); }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
+        if (FolderCreation.TryCreate(path) is { Ok: false } failed)
         {
             try { AppHost.ConsumeQuietFolder(path); }
-            catch (ArgumentException) { }
-            Notice.Show(L.F("\"{0}\" klasörü oluşturulamadı: {1}", name, ex.Message), NoticeKind.Error);
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
+            Notice.FolderFailed(failed);
             return;
         }
+        AppHost.NoteFolderCreated(path);
         RefreshCard();
         RefreshStatuses();
         ScheduleRecount();

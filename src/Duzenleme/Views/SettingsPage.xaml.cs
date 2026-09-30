@@ -187,28 +187,32 @@ public partial class SettingsPage : Page
     private void Load()
     {
         _loading = true;
-        var s = AppHost.Settings;
-        LoadLanguage();
-        ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
-        AnimationsToggle.IsChecked = !s.AnimationsOff;
-        UpdateAnimationsNote();
-        NotifyToggle.IsChecked = s.ShowNotifications;
-        HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
-        SuggestToggle.IsChecked = s.SuggestFolderIcons;
-        DesktopPath.Text = AppHost.DesktopDirectory;
-        LoadDataFolder();
-        LoadHotkeys();
-        UpdateKeyStatus();
-        UpdateHideNow();
-        UpdatePeek();
-        UpdateFencesNote();
-        LoadDesktopChoices();
-        SystemIconsStoreNote.Visibility = DesktopSystemIcons.CanChange ? Visibility.Collapsed : Visibility.Visible;
-        SystemIconsTestNote.Visibility = DesktopSystemIcons.CanChange && AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
-        // Kullanıcı Windows ayarlarından ya da Görev Yöneticisi'nden dönünce durumlar yenilensin.
-        WatchHostActivation(true);
-        LoadStartup();
-        _loading = false;
+        // Bir adım hata verse de bayrak kalmasın: kalırsa sayfadaki anahtarlar sessizce hiçbir şey yapmaz.
+        try
+        {
+            var s = AppHost.Settings;
+            LoadLanguage();
+            ThemeBox.SelectedIndex = s.Theme switch { AppTheme.Dark => 1, AppTheme.Light => 2, _ => 0 };
+            AnimationsToggle.IsChecked = !s.AnimationsOff;
+            UpdateAnimationsNote();
+            NotifyToggle.IsChecked = s.ShowNotifications;
+            HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
+            SuggestToggle.IsChecked = s.SuggestFolderIcons;
+            DesktopPath.Text = AppHost.DesktopDirectory;
+            LoadDataFolder();
+            LoadHotkeys();
+            UpdateKeyStatus();
+            UpdateHideNow();
+            UpdatePeek();
+            UpdateFencesNote();
+            LoadDesktopChoices();
+            SystemIconsStoreNote.Visibility = DesktopSystemIcons.CanChange ? Visibility.Collapsed : Visibility.Visible;
+            SystemIconsTestNote.Visibility = DesktopSystemIcons.CanChange && AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
+            // Kullanıcı Windows ayarlarından ya da Görev Yöneticisi'nden dönünce durumlar yenilensin.
+            WatchHostActivation(true);
+            LoadStartup();
+        }
+        finally { _loading = false; }
     }
 
     // ---- Genel ----

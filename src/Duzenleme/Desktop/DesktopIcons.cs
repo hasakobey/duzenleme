@@ -97,6 +97,38 @@ public static class DesktopIcons
 
     private static long _lastRequest;
 
+    /// <summary>
+    /// Windows'un kendi "Masaüstü simgelerini göster" seçeneği kapalı mı (masaüstüne sağ tık → Görünüm)? Kapalıyken simgeler
+    /// Gezgin tarafından gizlenir; uygulamanın gösterme/gizleme isteği görünürde bir şey değiştirmez.
+    /// </summary>
+    public static bool HiddenByWindows
+    {
+        get
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced");
+                return key?.GetValue("HideIcons") is int v && v != 0;
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or System.IO.IOException)
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>Tanı için masaüstü pencerelerinin durumu (günlüğe yazılır; başka bilgisayardaki hatayı anlamak için).</summary>
+    public static string Describe()
+    {
+        var progman = FindWindow("Progman", null);
+        var defView = FindDefView();
+        var host = defView == IntPtr.Zero ? IntPtr.Zero : GetParent(defView);
+        var lv = defView == IntPtr.Zero ? IntPtr.Zero : FindWindowEx(defView, IntPtr.Zero, "SysListView32", null);
+        return $"Progman={progman:X} DefView={defView:X} parent={host:X}({(host == IntPtr.Zero ? "-" : ClassOf(host))}) " +
+               $"liste={lv:X} visible={(lv != IntPtr.Zero && IsWindowVisible(lv))} hiddenByWindows={HiddenByWindows} " +
+               $"Windows={Environment.OSVersion.Version}"; // l10n: çevrilmez
+    }
+
     /// <summary>Az önce gösterme/gizleme istendi mi? (Explorer isteği henüz işlememiş olabilir; durum yanlış okunmasın.)</summary>
     public static bool ChangePending => Environment.TickCount64 - _lastRequest < 5000;
 

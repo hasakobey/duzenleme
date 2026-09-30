@@ -186,6 +186,7 @@ public static class AppHost
         Journal = new MoveJournal(Path.Combine(DataDirectory, "journal.json"));
         Journal.WriteFailed += ex => DebugLog.Write($"geçmiş yazılamadı: {ex.Message}");
         Organizer = new DesktopOrganizer(DesktopDirectory, () => Settings, Journal);
+        Organizer.MoveFailed += OnMoveFailed;
         Watcher = new DesktopWatcher(Organizer, () => Settings.Paused);
         BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
         Widgets = new WidgetManager();
@@ -278,6 +279,25 @@ public static class AppHost
         if (_dispatcher is null || _dispatcher.CheckAccess()) return true;
         _dispatcher.BeginInvoke(action);
         return false;
+    }
+
+    private static int _moveBlockedWarned;
+
+    /// <summary>
+    /// Otomatik taşıma bir dosyayı taşıyamadı (izleyici iş parçacığından gelir). Kilitli dosya olağandır, sonra yeniden
+    /// denenir; yalnızca Windows yazmayı engellediyse (Denetimli klasör erişimi vb.) oturumda bir kez söylenir: yoksa
+    /// dosyalar sessizce taşınmaz ve kullanıcı nedenini bilemez.
+    /// </summary>
+    private static void OnMoveFailed(string path, Exception ex)
+    {
+        DebugLog.Write($"taşınamadı: {path}: {ex.GetType().Name} {ex.Message}");
+        if (ex is not UnauthorizedAccessException) return;
+        if (Interlocked.Exchange(ref _moveBlockedWarned, 1) == 1) return;
+        var result = FolderCreation.Explain(ex, path);
+        _dispatcher?.BeginInvoke(() => Views.Notice.FolderFailed(result with
+        {
+            Error = L.F("\"{0}\" taşınamadı. {1}", Path.GetFileName(path), result.Error),
+        }));
     }
 
     private static int _writeWarnings;
@@ -420,7 +440,9 @@ public static class AppHost
         if (view.IconsHidden) ArmIconsHiddenFlag();
         // Test klasörüyle (--desktop) çalışan örnek kullanıcının gerçek masaüstü simgelerine dokunmaz.
         if (IsTestDesktop) DebugLog.Write($"simgeler {(view.IconsHidden ? "gizlenecekti" : "gösterilecekti")} (test masaüstü)");
-        else DesktopIcons.SetVisible(!view.IconsHidden);
+        else if (!DesktopIcons.SetVisible(!view.IconsHidden) && view.IconsHidden && IconsUnreachable())
+            view = CurrentView;
+        else if (view.IconsHidden && DesktopIcons.HiddenByWindows) WarnIconsOffInWindows();
         Widgets.SetHidden(view.WidgetsHidden);
         if (!view.IconsHidden && Settings.IconsHiddenByApp)
         {
@@ -430,6 +452,39 @@ public static class AppHost
             _store?.MarkDirty();
         }
         DesktopVisibilityChanged?.Invoke();
+    }
+
+    private static bool _iconsUnreachableWarned, _iconsOffWarned;
+
+    /// <summary>
+    /// Simgeler gizlenecekti ama Windows'un simge listesi bulunamadı (Gezgin yeniden başlıyor ya da masaüstünü başka bir
+    /// program yönetiyor). Kullanıcının "gizle"si geri alınır ve bir kez söylenir: arayüz "gizli" deyip hiçbir şey olmamış
+    /// gibi durmasın. Bölmeler masaüstünü yönetiyorsa kip kalır; nöbetçi birkaç saniyede bir yeniden dener. Durum değiştiyse true.
+    /// </summary>
+    private static bool IconsUnreachable()
+    {
+        DebugLog.Write("simge listesi bulunamadı: " + DesktopIcons.Describe());
+        if (!DesktopHidden || Settings.FencesReplaceIcons) return false;
+        DesktopHidden = false;
+        if (!_iconsUnreachableWarned)
+        {
+            _iconsUnreachableWarned = true;
+            _dispatcher?.BeginInvoke(() => Views.Notice.Show(
+                L.T("Windows masaüstü simgelerine şu an ulaşılamıyor, bu yüzden gizlenemediler. Gezgin yeniden başlıyorsa birkaç saniye sonra yeniden dene."),
+                Views.NoticeKind.Warning));
+        }
+        return true;
+    }
+
+    /// <summary>Windows'un kendi "Masaüstü simgelerini göster" seçeneği kapalı: gizleme görünürde bir şey değiştirmez; bir kez söylenir.</summary>
+    private static void WarnIconsOffInWindows()
+    {
+        DebugLog.Write("masaüstü simgeleri Windows'ta kapalı: " + DesktopIcons.Describe());
+        if (_iconsOffWarned || !DesktopHidden) return;
+        _iconsOffWarned = true;
+        _dispatcher?.BeginInvoke(() => Views.Notice.Show(
+            L.T("Windows'ta masaüstü simgeleri zaten kapalı. Açmak için masaüstüne sağ tıkla → Görünüm → Masaüstü simgelerini göster."),
+            Views.NoticeKind.Info));
     }
 
     /// <summary>
@@ -770,10 +825,25 @@ public static class AppHost
         }
         else if (DesktopHidden)
         {
+            // Gezgin listeyi kendisi yeniden gösterdi (F5, ekran çözünürlüğü, masaüstündeki bir değişiklik; OneDrive'daki
+            // masaüstünde sık olur). Kullanıcı gizlemişti: yeniden gizlenir. Kısa sürede üst üste olursa (başka bir program
+            // hep açıyor) vazgeçilir ve "gösteriliyor"a dönülür, yoksa simgeler her birkaç saniyede bir yanıp söner.
+            var now = Environment.TickCount64;
+            _rehideCount = now - _lastRehide < 15000 ? _rehideCount + 1 : 1;
+            _lastRehide = now;
+            DebugLog.Write($"simgeler Gezgin tarafından yeniden gösterildi ({_rehideCount}): {DesktopIcons.Describe()}");
+            if (_rehideCount <= 3)
+            {
+                DesktopIcons.SetVisible(false);
+                return;
+            }
             DesktopHidden = false;
             ApplyDesktopState();
         }
     }
+
+    private static long _lastRehide;
+    private static int _rehideCount;
 
     /// <summary>
     /// Günde bir kez ayarların (widget düzeni, notlar, kurallar) kopyası "yedekler" klasörüne alınır; son 7 gün tutulur.

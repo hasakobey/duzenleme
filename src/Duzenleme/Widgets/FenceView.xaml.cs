@@ -88,7 +88,8 @@ public partial class FenceView : UserControl, IWidgetView
         Menus.AttachItemMenu(Items, FillItemMenu);
 
         // Öğeyi başka bir bölmeye, Gezgin'e ya da bir uygulamaya sürükleyebilmek için.
-        Menus.EnableDragOut(Items, DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link);
+        Menus.EnableDragOut(Items, DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link,
+            item => new WidgetDragSource(_config.Id, item.Path, FromBox: false), OnDragOutCompleted);
         Items.PreviewMouseLeftButtonUp += OnItemClick;
         DragEnter += OnDragEnter;
         DragOver += OnDragOver;
@@ -856,7 +857,7 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
-        if (_config.SingleClick && Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
+        if (_config.SingleClick && Menus.IsClick(Items, e) && Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
         {
             TileItem.Launch(item.Path);
             Items.SelectedItem = null;
@@ -875,11 +876,10 @@ public partial class FenceView : UserControl, IWidgetView
         var path = System.IO.Path.Combine(AppHost.DesktopDirectory, FolderName);
         // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın; otomatik taşıma kapalıysa dosya da taşınmasın.
         AppHost.MarkQuietFolder(path);
-        try { Directory.CreateDirectory(path); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        if (FolderCreation.TryCreate(path) is { Ok: false } failed)
         {
             AppHost.ConsumeQuietFolder(path);
-            MessageBox.Show(ex.Message, AppInfo.Name);
+            Views.Notice.FolderFailed(failed);
             return;
         }
         AppHost.NoteFolderCreated(path);
@@ -1089,21 +1089,16 @@ public partial class FenceView : UserControl, IWidgetView
         var parent = DesktopMode ? AppHost.DesktopDirectory : _folderPath;
         if (parent is null) return;
         var baseName = L.T("Yeni klasör");
-        string path;
-        try
+        var (path, result) = await Task.Run(() =>
         {
-            path = await Task.Run(() =>
-            {
-                var name = FileNames.UniqueName(baseName, isDirectory: true,
-                    n => Directory.Exists(System.IO.Path.Combine(parent, n)) || File.Exists(System.IO.Path.Combine(parent, n)));
-                var created = System.IO.Path.Combine(parent, name);
-                Directory.CreateDirectory(created);
-                return created;
-            });
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            var name = FileNames.UniqueName(baseName, isDirectory: true,
+                n => Directory.Exists(System.IO.Path.Combine(parent, n)) || File.Exists(System.IO.Path.Combine(parent, n)));
+            var created = System.IO.Path.Combine(parent, name);
+            return (created, FolderCreation.TryCreate(created));
+        });
+        if (!result.Ok)
         {
-            Views.Notice.Show(L.F("Klasör oluşturulamadı: {0}", ex.Message), Views.NoticeKind.Warning);
+            Views.Notice.FolderFailed(result);
             return;
         }
         if (_detached) return;
@@ -1126,45 +1121,97 @@ public partial class FenceView : UserControl, IWidgetView
     }
 
     // --- Sürükle-bırak ---
-    // Sürükleme boyunca yollar değişmez: dosya mı diye diske bir kez, arka planda bakılır; DragOver yalnızca metin karşılaştırır.
+    // Sürükleme boyunca yollar değişmez; DragOver diske dokunmaz, yalnızca metin karşılaştırır.
     private string[]? _dragPaths;
-    private bool? _dragHasFiles;
+
+    /// <summary>Bırakılınca ne olur.</summary>
+    private enum DropKind { None, Reorder, IntoFolder, ToDesktop, OutOfBox }
 
     private void OnDragEnter(object sender, DragEventArgs e)
     {
         _dragPaths = e.Data.GetData(DataFormats.FileDrop) as string[];
-        _dragHasFiles = null;
-        if (_dragPaths is { Length: > 0 } paths && !DesktopMode)
-        {
-            Task.Run(() => paths.Any(File.Exists)).ContinueWith(t =>
-            {
-                if (ReferenceEquals(_dragPaths, paths)) _dragHasFiles = t.IsCompletedSuccessfully && t.Result;
-            }, TaskScheduler.FromCurrentSynchronizationContext());
-        }
         OnDragOver(sender, e);
     }
 
-    /// <summary>Bırakılırsa klasöre taşınacak yollar (zaten o klasördekiler hariç); diske dokunmaz.</summary>
-    private List<string> DropCandidates(string folder) =>
-        (_dragPaths ?? []).Where(p => !string.Equals(System.IO.Path.GetDirectoryName(p), folder, StringComparison.OrdinalIgnoreCase)).ToList();
+    private static bool OnDesktop(string path)
+    {
+        var parent = System.IO.Path.GetDirectoryName(System.IO.Path.TrimEndingDirectorySeparator(path));
+        return parent is not null && AppHost.DesktopDirectories.Any(d =>
+            string.Equals(System.IO.Path.TrimEndingDirectorySeparator(d), parent, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Bırakılırsa klasöre taşınacak yollar: zaten o klasörde olanlar, klasörün kendisi ve üst klasörleri hariç (klasör
+    /// kendi içine taşınamaz). Diske dokunmaz.
+    /// </summary>
+    private static List<string> DropCandidates(string folder, IEnumerable<string> paths)
+    {
+        var target = System.IO.Path.TrimEndingDirectorySeparator(folder);
+        return paths.Where(p =>
+        {
+            var path = System.IO.Path.TrimEndingDirectorySeparator(p);
+            return !string.Equals(System.IO.Path.GetDirectoryName(path), target, StringComparison.OrdinalIgnoreCase)
+                   && !string.Equals(path, target, StringComparison.OrdinalIgnoreCase)
+                   && !target.StartsWith(path + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Bırakmanın planı. Kendi öğesi: elle sıralamada yer değiştirir, yoksa bir şey olmaz (arama sonucundaki alt klasör
+    /// dosyası yukarı taşınmasın). Kısayol kutusundan gelen öğe kutudan çıkar: klasör bölmesine bırakılan dosya o klasöre de
+    /// taşınır, masaüstü bölmesine bırakılan masaüstündeyse (ya da kutunun klasörüne taşınmışsa, masaüstüne döner) yalnızca
+    /// kutudan çıkar. Başka bölmeden ya da Gezgin'den gelen: klasör bölmesinde o klasöre, masaüstü bölmesinde masaüstüne taşınır.
+    /// </summary>
+    private (DropKind Kind, List<string> Paths, WidgetDragSource? Source) PlanDrop(DragEventArgs e)
+    {
+        var paths = _dragPaths ?? [];
+        var source = WidgetDrag.For(e.Data);
+        if (paths.Length == 0) return (DropKind.None, [], source);
+        if (source is not null && source.WidgetId == _config.Id)
+            return (IsReorder(e) ? DropKind.Reorder : DropKind.None, [], source);
+        var folder = DesktopMode ? null : _folderPath;
+        if (source is { FromBox: true })
+        {
+            if (DesktopMode)
+                return BoxMover.IsMoved(source.Path) || OnDesktop(paths[0])
+                    ? (DropKind.OutOfBox, [], source) : (DropKind.None, [], source);
+            // Kutunun klasörüne taşınmış öğe önce masaüstüne dönmeli (kutunun kaydı onu izler).
+            if (folder is null || BoxMover.IsMoved(source.Path)) return (DropKind.None, [], source);
+            var one = DropCandidates(folder, paths);
+            return one.Count > 0 ? (DropKind.IntoFolder, one, source) : (DropKind.None, [], source);
+        }
+        // Taşımaya izin vermeyen kaynak (ör. salt okunur yer): dosyalar yerinden oynatılamaz.
+        if (!e.AllowedEffects.HasFlag(DragDropEffects.Move)) return (DropKind.None, [], source);
+        if (DesktopMode)
+        {
+            var away = paths.Where(p => !OnDesktop(p)).ToList();
+            return away.Count > 0 ? (DropKind.ToDesktop, away, source) : (DropKind.None, [], source);
+        }
+        if (folder is null) return (DropKind.None, [], source);
+        var candidates = DropCandidates(folder, paths);
+        return candidates.Count > 0 ? (DropKind.IntoFolder, candidates, source) : (DropKind.None, [], source);
+    }
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
-        // Elle sıralı bölmede kendi öğesini sürüklemek yerini değiştirir (dosyaya dokunulmaz, kaplama gösterilmez).
-        if (IsReorder(e))
+        var (kind, _, _) = PlanDrop(e);
+        e.Effects = kind switch
         {
-            e.Effects = DragDropEffects.Move;
-            DropOverlay.Visibility = Visibility.Collapsed;
-            e.Handled = true;
-            return;
-        }
-        // Masaüstü türü bölmesi bir klasör değildir; üstüne bırakılan dosyanın gideceği yer yok.
-        // Kısayol kutusundan gelen öğeler yalnızca bağlantıdır (taşımaya izin vermez): asıl dosyalar yerinden oynamasın.
-        var folder = DesktopMode ? null : _folderPath;
-        var ok = folder is not null && e.AllowedEffects.HasFlag(DragDropEffects.Move)
-                 && _dragHasFiles != false && DropCandidates(folder).Count > 0;
-        e.Effects = ok ? DragDropEffects.Move : DragDropEffects.None;
-        DropOverlay.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
+            DropKind.None => DragDropEffects.None,
+            _ when e.AllowedEffects.HasFlag(DragDropEffects.Move) => DragDropEffects.Move,
+            _ when e.AllowedEffects.HasFlag(DragDropEffects.Link) => DragDropEffects.Link,
+            _ => e.AllowedEffects & DragDropEffects.Copy,
+        };
+        // Elle sıralamada kaplama gösterilmez (yer değiştirme; dosyaya dokunulmaz).
+        var text = kind switch
+        {
+            DropKind.IntoFolder => L.T("Bırak, klasöre taşınsın"),
+            DropKind.ToDesktop => L.T("Bırak, masaüstüne taşınsın"),
+            DropKind.OutOfBox => L.T("Bırak, kutudan çıkarılsın"),
+            _ => null,
+        };
+        if (text is not null) DropText.Text = text;
+        DropOverlay.Visibility = text is not null ? Visibility.Visible : Visibility.Collapsed;
         e.Handled = true;
     }
 
@@ -1172,36 +1219,99 @@ public partial class FenceView : UserControl, IWidgetView
     {
         DropOverlay.Visibility = Visibility.Collapsed;
         _dragPaths ??= e.Data.GetData(DataFormats.FileDrop) as string[];
-        if (IsReorder(e))
+        var (kind, paths, source) = PlanDrop(e);
+        if (kind == DropKind.None)
         {
-            e.Handled = true;
-            Reorder(e);
             _dragPaths = null;
             return;
         }
-        if (DesktopMode || !e.AllowedEffects.HasFlag(DragDropEffects.Move) || _folderPath is not { } folder) return;
-        var paths = DropCandidates(folder);
+        e.Handled = true;
+        // Dosyayı biz taşırız: kaynağa (Gezgin) "sen bir şey yapma" denir; kendi widget'larımız bunu MarkDropped'dan bilir.
+        e.Effects = DragDropEffects.None;
+        WidgetDrag.MarkDropped();
+        switch (kind)
+        {
+            case DropKind.Reorder:
+                Reorder(e);
+                break;
+            case DropKind.OutOfBox:
+                source?.RemoveFromSource?.Invoke();
+                break;
+            case DropKind.IntoFolder when _folderPath is { } folder:
+                MoveDropped(paths, folder, toDesktop: false, source?.FromBox == true ? source.RemoveFromSource : null);
+                break;
+            case DropKind.ToDesktop:
+                MoveDropped(paths, AppHost.DesktopDirectory, toDesktop: true, null);
+                break;
+        }
         _dragPaths = null;
-        if (paths.Count == 0) return;
+    }
 
-        // Taşıma arka planda: başka sürücüden gelen büyük dosyada Windows ilerleme gösterir, widget'lar donmaz.
+    /// <summary>
+    /// Bırakılan dosya ve klasörleri arka planda taşır (başka sürücüden gelen büyük dosyada Windows ilerleme gösterir,
+    /// widget'lar donmaz). Klasöre taşınan dosya geçmişe yazılır (geri alınabilir); masaüstüne çıkarılan dosya "geri alındı"
+    /// yazılır: kullanıcı bilerek çıkardı, kurallar onu yeniden taşımasın. En az biri taşınınca <paramref name="moved"/>.
+    /// </summary>
+    private void MoveDropped(List<string> paths, string folder, bool toDesktop, Action? moved)
+    {
+        var dispatcher = Dispatcher;
         RunFileOperation(() =>
         {
             var errors = new List<string>();
+            var any = false;
             foreach (var path in paths)
             {
-                if (!File.Exists(path)) continue; // klasörler ve kaybolanlar taşınmaz
                 try
                 {
-                    AppHost.Organizer.MoveManually(path, folder, FileMover.SameVolume(path, folder) ? null : ShellFileOperations.Move);
+                    Action<string, string>? shell = FileMover.SameVolume(path, folder) ? null : ShellFileOperations.Move;
+                    if (File.Exists(path))
+                    {
+                        if (toDesktop)
+                        {
+                            var target = FileMover.UniquePath(folder, System.IO.Path.GetFileName(path));
+                            (shell ?? File.Move)(path, target);
+                            AppHost.Journal.Add(new MoveEntry { Source = target, Destination = path, Undone = true });
+                        }
+                        else AppHost.Organizer.MoveManually(path, folder, shell);
+                    }
+                    else if (Directory.Exists(path))
+                    {
+                        var name = System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(path));
+                        (shell ?? Directory.Move)(path, FileMover.UniquePath(folder, name));
+                    }
+                    else continue; // bu arada kaybolmuş
+                    any = true;
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    errors.Add(ex.Message);
+                    errors.Add(ex is UnauthorizedAccessException ? FolderCreation.Explain(ex, path).Error! : ex.Message);
                 }
             }
+            if (any && moved is not null) dispatcher.BeginInvoke(moved);
             if (errors.Count > 0) throw new IOException(string.Join("\n", errors.Distinct()));
+        });
+    }
+
+    /// <summary>
+    /// Bölmeden widget dışına sürükleme bitti. Gezgin dosyayı masaüstüne taşıdıysa (bölmeden masaüstüne çıkarmak) günlüğe
+    /// "geri alındı" yazılır: kurallar onu hemen klasörüne geri taşımasın.
+    /// </summary>
+    private static void OnDragOutCompleted(string path, DragDropEffects result, bool inside)
+    {
+        if (inside || !result.HasFlag(DragDropEffects.Move) || OnDesktop(path)) return;
+        var onDesktop = System.IO.Path.Combine(AppHost.DesktopDirectory, System.IO.Path.GetFileName(path));
+        Task.Run(() =>
+        {
+            try
+            {
+                if (!File.Exists(path) && File.Exists(onDesktop))
+                    AppHost.Journal.Add(new MoveEntry { Source = onDesktop, Destination = path, Undone = true });
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                DebugLog.Write($"sürükleme sonrası kayıt: {ex.Message}");
+            }
         });
     }
 

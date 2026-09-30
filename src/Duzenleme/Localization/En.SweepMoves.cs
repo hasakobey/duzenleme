@@ -75,7 +75,6 @@ internal static partial class En
         // Otomatik taşıma sayfasının bildirimleri ve soruları
         new("\"{0}\" kuralı silindi.", "The \"{0}\" rule was deleted."),
         new("Kural silindi.", "The rule was deleted."),
-        new("\"{0}\" klasörü oluşturulamadı: {1}", "Couldn't create the \"{0}\" folder: {1}"),
         new("\"{1}\" klasörü oluşturuldu. Otomatik taşıma kapalı olduğu için {0} dosya masaüstünde bekliyor.",
             "The \"{1}\" folder was created. Auto-move is off, so {0} file is still waiting on the desktop.",
             "The \"{1}\" folder was created. Auto-move is off, so {0} files are still waiting on the desktop."),

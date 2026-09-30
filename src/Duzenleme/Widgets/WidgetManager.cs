@@ -180,11 +180,10 @@ public sealed class WidgetManager
             var path = System.IO.Path.Combine(AppHost.DesktopDirectory, name);
             // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın; otomatik taşıma kapalıysa dosya da taşınmasın.
             AppHost.MarkQuietFolder(path);
-            try { System.IO.Directory.CreateDirectory(path); }
-            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            if (FolderCreation.TryCreate(path) is { Ok: false } failed)
             {
                 AppHost.ConsumeQuietFolder(path);
-                MessageBox.Show(ex.Message, AppInfo.Name);
+                Views.Notice.FolderFailed(failed);
                 return null;
             }
             AppHost.NoteFolderCreated(path);

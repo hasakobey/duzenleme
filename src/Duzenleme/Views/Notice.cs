@@ -29,6 +29,19 @@ public static class Notice
         AppHost.Tray?.Notify(AppInfo.Name, trayHint is null ? text : text + " " + trayHint, action);
     }
 
+    /// <summary>
+    /// Açılamayan klasörü bildirir (<see cref="FolderCreation.TryCreate"/>). Güvenlik engeliyse Windows Güvenliği'nin
+    /// ilgili sayfasını açan düğme de çıkar.
+    /// </summary>
+    public static void FolderFailed(FolderCreateResult result)
+    {
+        if (result.Ok) return;
+        if (result.BlockedBySecurity)
+            Show(result.Error!, NoticeKind.Warning, L.T("Windows Güvenliği'ni aç"),
+                () => Browser.Open(FolderCreation.RansomwareProtectionUri));
+        else Show(result.Error!, NoticeKind.Warning);
+    }
+
     public static void Hide()
     {
         if (Application.Current is not { } app) return;

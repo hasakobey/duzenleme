@@ -54,7 +54,6 @@ internal static partial class En
         new("Widget'tan kaldır", "Hide in this panel", Context: "bölme"),
         new("Widget'tan kaldır", "Remove from box", Context: "kutu"),
         new("Bu bölmede ara", "Search this panel"),
-        new("Klasör oluşturulamadı: {0}", "Couldn't create the folder: {0}"),
         new("Öğe ekle", "Add item"),
         new("Uygulama ya da dosya…", "App or file…"),
         new("Klasör…", "Folder…"),

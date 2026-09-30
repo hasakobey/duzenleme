@@ -1,5 +1,6 @@
 using System.Windows;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -230,7 +231,24 @@ public static class Menus
     /// Listedeki öğe dışarı sürüklenebilsin (başka bölmeye, Gezgin'e, e-postaya…). <paramref name="allowed"/> taşımayı
     /// içermiyorsa hedef dosyayı yerinden oynatamaz (kısayol kutusundaki öğeler yalnızca bağlantıdır).
     /// </summary>
-    public static void EnableDragOut(ListBox list, DragDropEffects allowed)
+    private static readonly ConditionalWeakTable<ListBox, StrongBox<Point>> _pressedAt = new();
+
+    /// <summary>
+    /// Bırakılan sol tuş bir tıklama mı (basıldığı yerden sürükleme mesafesi kadar uzaklaşmadı mı)? Sürüklenemeyen öğeyi
+    /// (Bu Bilgisayar…) sürükleyip bırakmak onu açmasın.
+    /// </summary>
+    public static bool IsClick(ListBox list, MouseButtonEventArgs e)
+    {
+        if (!_pressedAt.TryGetValue(list, out var down)) return true;
+        var delta = e.GetPosition(list) - down.Value;
+        return Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+               Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance;
+    }
+
+    /// <param name="describe">Öğenin sürükleme kaynağı (başka widget'a bırakılınca hedef onu tanır).</param>
+    /// <param name="completed">Sürükleme bitti: yol, sonuç ve bir widget'ın içine bırakıldı mı.</param>
+    internal static void EnableDragOut(ListBox list, DragDropEffects allowed, Func<TileItem, WidgetDragSource>? describe = null,
+        Action<string, DragDropEffects, bool>? completed = null)
     {
         Point? start = null;
         TileItem? item = null;
@@ -238,6 +256,7 @@ public static class Menus
         {
             item = ItemAt(list, e.OriginalSource);
             start = item is null ? null : e.GetPosition(list);
+            _pressedAt.AddOrUpdate(list, new StrongBox<Point>(e.GetPosition(list)));
         };
         list.PreviewMouseLeftButtonUp += (_, _) => { start = null; item = null; };
         list.PreviewMouseMove += (_, e) =>
@@ -250,10 +269,14 @@ public static class Menus
             // Yol diske bakılmadan bilinir (bölmede anlık görüntüden, kutuda arka plan denetiminden): ulaşılamayan bir ağ
             // yolu sürüklemeyi başlatırken arayüzü dondurmasın.
             var draggable = !item.Missing && !TileItem.IsShellObject(item.Path);
+            var source = draggable ? describe?.Invoke(item) : null;
             start = null;
             item = null;
             if (!draggable) return;
-            DragDrop.DoDragDrop(list, new DataObject(DataFormats.FileDrop, new[] { path }), allowed);
+            var result = DragDropEffects.None;
+            var inside = WidgetDrag.Run(source,
+                () => result = DragDrop.DoDragDrop(list, new DataObject(DataFormats.FileDrop, new[] { path }), allowed));
+            completed?.Invoke(path, result, inside);
         };
     }
 }

@@ -42,7 +42,14 @@ public partial class LauncherView : UserControl, IWidgetView
         Items.KeyDown += OnItemsKey;
         Menus.AttachItemMenu(Items, FillItemMenu);
 
-        Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link);
+        // Kutudaki öğe bağlantıdır: dışarı (Gezgin'e) sürüklenince asıl dosya yerinden oynamaz. Başka bir kutuya ya da bölmeye
+        // bırakılınca hedef onu WidgetDrag'den tanır ve bu kutudan çıkarır (Ctrl ile kutuya kopyalanır).
+        Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link, item =>
+        {
+            var tab = Current;
+            var path = item.Path;
+            return new WidgetDragSource(_config.Id, path, FromBox: true, () => TakeOut(tab, path), ItemLooks.Get(_config, path));
+        });
         DragEnter += OnDragOver;
         DragOver += OnDragOver;
         DragLeave += (_, _) => DropOverlay.Visibility = Visibility.Collapsed;
@@ -330,7 +337,10 @@ public partial class LauncherView : UserControl, IWidgetView
     /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Kutulara eklediklerim masaüstünden kalksın" açıksa
     /// masaüstündekiler kutunun klasörüne taşınır.
     /// </summary>
-    private async void AddItems(IReadOnlyList<string> paths)
+    /// <param name="look">Başka kutudan taşınan öğenin orada verilmiş adı ve simgesi.</param>
+    /// <param name="then">Ekleme bittikten sonra (ör. kaynak kutudan çıkarmak): öğe önce burada olmalı, yoksa kutunun
+    /// klasörüne taşınmış öğe arada masaüstüne geri konur.</param>
+    private async void AddItems(IReadOnlyList<string> paths, ItemLook? look = null, Action? then = null)
     {
         var tab = Current;
         var existing = await Task.Run(() => paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList());
@@ -343,14 +353,34 @@ public partial class LauncherView : UserControl, IWidgetView
                 {
                     tab.Items.Add(path);
                     added.Add(path);
+                    if (look is not null && ItemLooks.Get(_config, path) is null) ItemLooks.Restore(_config, path, look);
                 }
         });
+        if (existing.Count > 0) then?.Invoke();
         if (added.Count > 0 && BoxMover.Active) BoxMover.Claim(_config, added, justAdded: true);
+    }
+
+    /// <summary>
+    /// Öğe sürüklenerek başka bir widget'a taşındı: bu sekmeden çıkar (başka sekmede de yoksa adı ve simgesi de). Kutunun
+    /// klasörüne taşınmış öğe başka kutuda yoksa masaüstüne döner (BoxMover.Reconcile).
+    /// </summary>
+    private void TakeOut(LauncherTab tab, string path)
+    {
+        if (!_config.Tabs.Contains(tab)) return;
+        var index = tab.Items.FindIndex(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return;
+        var elsewhere = _config.Tabs.Where(t => t != tab).Any(t => t.Items.Contains(path, StringComparer.OrdinalIgnoreCase));
+        Change(() =>
+        {
+            tab.Items.RemoveAt(index);
+            if (!elsewhere) ItemLooks.Reset(_config, path);
+        });
+        BoxMover.Reconcile();
     }
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
-        if (Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
+        if (Menus.IsClick(Items, e) && Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)
         {
             TileItem.Launch(item.Path);
             // Açılan öğe seçili kalmasın (vurgusu ve menüsü sonraki tıklamaları karıştırmasın).
@@ -417,8 +447,8 @@ public partial class LauncherView : UserControl, IWidgetView
             foreach (var tab in _config.Tabs.Where(t => t != Current))
                 move.Items.Add(Menus.Item(Menus.Literal(tab.Name), () => Change(() =>
                 {
-                    Current.Items.Remove(item.Path);
-                    tab.Items.Add(item.Path);
+                    Current.Items.RemoveAll(p => string.Equals(p, item.Path, StringComparison.OrdinalIgnoreCase));
+                    if (!tab.Items.Contains(item.Path, StringComparer.OrdinalIgnoreCase)) tab.Items.Add(item.Path);
                 })));
             menu.Items.Add(move);
         }
@@ -426,11 +456,40 @@ public partial class LauncherView : UserControl, IWidgetView
         menu.Items.Add(Menus.Item(L.T("Kutu ayarları…"), () => MenuRequested?.Invoke()));
     }
 
+    /// <summary>
+    /// Bırakılınca ne olur: kendi öğesi yer değiştirir; başka kutudan gelen buraya taşınır (Ctrl basılıysa kopyalanır);
+    /// bölmeden, Gezgin'den ya da başka uygulamadan gelen kısayol olarak eklenir.
+    /// </summary>
+    private enum DropKind { None, Reorder, MoveHere, Add }
+
+    private DropKind PlanDrop(DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return DropKind.None;
+        var source = WidgetDrag.For(e.Data);
+        if (source is null) return DropKind.Add;
+        if (source.WidgetId == _config.Id)
+            return Current.Items.Contains(source.Path, StringComparer.OrdinalIgnoreCase) ? DropKind.Reorder : DropKind.Add;
+        if (!source.FromBox) return DropKind.Add;
+        return e.KeyStates.HasFlag(DragDropKeyStates.ControlKey) ? DropKind.Add : DropKind.MoveHere;
+    }
+
     private void OnDragOver(object sender, DragEventArgs e)
     {
-        var ok = e.Data.GetDataPresent(DataFormats.FileDrop);
-        e.Effects = ok ? DragDropEffects.Link : DragDropEffects.None;
-        DropOverlay.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
+        var kind = PlanDrop(e);
+        // Kaynağın izin verdiği bir etki seçilmeli; yoksa Windows bırakmayı reddeder (yalnızca kopyalamaya izin veren uygulama).
+        var allowed = e.AllowedEffects;
+        e.Effects = kind == DropKind.None ? DragDropEffects.None
+            : allowed.HasFlag(DragDropEffects.Link) ? DragDropEffects.Link
+            : allowed.HasFlag(DragDropEffects.Copy) ? DragDropEffects.Copy
+            : allowed & DragDropEffects.Move;
+        var text = kind switch
+        {
+            DropKind.Add => L.T("Bırak, kısayol olarak eklensin"),
+            DropKind.MoveHere => L.T("Bırak, bu kutuya taşınsın"),
+            _ => null,
+        };
+        if (text is not null) DropText.Text = text;
+        DropOverlay.Visibility = text is not null ? Visibility.Visible : Visibility.Collapsed;
         e.Handled = true;
     }
 
@@ -438,7 +497,52 @@ public partial class LauncherView : UserControl, IWidgetView
     {
         DropOverlay.Visibility = Visibility.Collapsed;
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
-        AddItems(paths);
+        var kind = PlanDrop(e);
+        var source = WidgetDrag.For(e.Data);
+        if (source is not null) WidgetDrag.MarkDropped();
+        e.Handled = true;
+        switch (kind)
+        {
+            case DropKind.Reorder when source is not null:
+                Reorder(source.Path, e);
+                break;
+            case DropKind.MoveHere when source is not null:
+                AddItems([source.Path], source.Look, source.RemoveFromSource);
+                break;
+            case DropKind.Add:
+                AddItems(source is not null ? [source.Path] : paths, source?.Look);
+                break;
+        }
+    }
+
+    /// <summary>Kendi öğesini etkin sekmede bırakıldığı öğenin önüne (sağ/alt yarısına bırakılınca arkasına) taşır.</summary>
+    private void Reorder(string path, DragEventArgs e)
+    {
+        var tab = Current;
+        var target = Menus.ItemAt(Items, e.OriginalSource);
+        var items = tab.Items;
+        var from = items.FindIndex(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        if (from < 0) return;
+        int to;
+        if (target is null) to = items.Count;   // boş alana: sona
+        else
+        {
+            to = items.FindIndex(p => string.Equals(p, target.Path, StringComparison.OrdinalIgnoreCase));
+            if (to < 0) return;
+            if (Items.ItemContainerGenerator.ContainerFromItem(target) is FrameworkElement box)
+            {
+                var at = e.GetPosition(box);
+                if (_config.View == ItemView.List ? at.Y > box.ActualHeight / 2 : at.X > box.ActualWidth / 2) to++;
+            }
+        }
+        if (to > from) to--;
+        if (to == from) return;
+        Change(() =>
+        {
+            var moving = items[from];
+            items.RemoveAt(from);
+            items.Insert(Math.Clamp(to, 0, items.Count), moving);
+        });
     }
 
     public void ApplyPalette(WidgetPalette palette)

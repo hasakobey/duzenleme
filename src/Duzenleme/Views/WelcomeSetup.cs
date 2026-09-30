@@ -39,7 +39,7 @@ internal static class WelcomeSetup
 
         // 2. Klasörler ve kurallar (kural listesi yerinde değiştirilmez: izleyici arka planda okur).
         var failed = new List<string>();
-        string? firstError = null;
+        FolderCreateResult? firstFailure = null;
         if (c.AutoMove == true)
         {
             var existing = ExistingFolders();
@@ -52,18 +52,13 @@ internal static class WelcomeSetup
                 var path = Path.Combine(AppHost.DesktopDirectory, name);
                 // Klasörü biz açıyoruz: "simge ver" balonu çıkmasın.
                 AppHost.MarkQuietFolder(path);
-                try
-                {
-                    Directory.CreateDirectory(path);
-                    AppHost.NoteFolderCreated(path);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                if (FolderCreation.TryCreate(path) is { Ok: false } result)
                 {
                     AppHost.ConsumeQuietFolder(path);
-                    DebugLog.Write($"karşılama: klasör oluşturulamadı {name}: {ex.Message}");
                     failed.Add(name);
-                    firstError ??= ex.Message;
+                    firstFailure ??= result;
                 }
+                else AppHost.NoteFolderCreated(path);
             }
             AppHost.SaveSettings();
         }
@@ -95,7 +90,7 @@ internal static class WelcomeSetup
 
         // 6. Açılamayan klasörler.
         if (failed.Count > 0)
-            AppHost.Tray?.Notify(L.T("Bazı klasörler oluşturulamadı"), $"{L.Join(failed)}: {firstError}");
+            AppHost.Tray?.Notify(L.T("Bazı klasörler oluşturulamadı"), $"{L.Join(failed)}: {firstFailure?.Error}");
 
         DebugLog.Write($"karşılama uygulandı: bölme {fencesAdded}, araç {toolsAdded}, taşıma {Describe(c.AutoMove)}, {watch.ElapsedMilliseconds} ms");
 
