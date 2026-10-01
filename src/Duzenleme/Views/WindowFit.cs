@@ -15,19 +15,6 @@ public static class WindowFit
 {
     private const double Margin = 16;
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left, Top, Right, Bottom; }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
-
     /// <summary>
     /// Hedef nokta: DUZENLEME_WINDOW_AT varsa o, yoksa onCursorMonitor ise imlecin yeri; ikisi de yoksa pencerenin
     /// açıldığı monitör. Pencere gösterilmeden (kurucuda) çağrılır.
@@ -121,8 +108,8 @@ public static class WindowFit
     private static void Fit(Window window)
     {
         var hwnd = new WindowInteropHelper(window).Handle;
-        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
-        if (!GetMonitorInfo(MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */), ref info)) return;
+        var info = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>() };
+        if (!NativeMethods.GetMonitorInfo(NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST), ref info)) return;
 
         var dpi = VisualTreeHelper.GetDpi(window);
         var left = info.rcWork.Left / dpi.DpiScaleX;

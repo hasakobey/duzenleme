@@ -77,8 +77,15 @@ public static partial class AiIconGenerator
             || name.StartsWith("anthropic-", StringComparison.OrdinalIgnoreCase) || name.StartsWith("X-Stainless-", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Anahtarın geçerli olduğunu ücretsiz bir çağrıyla (model bilgisi) doğrular.</summary>
-    public static async Task<string?> ValidateKeyAsync(string apiKey, CancellationToken ct = default)
+    /// <summary>
+    /// Anahtarın geçerli olduğunu ücretsiz bir çağrıyla (model bilgisi) doğrular. SDK işi (istemciyi kurmak, isteği
+    /// göndermek) iş parçacığı havuzunda yapılır: SDK yayında önceden derlenmez (ReadyToRun dışı), ilk çağrıdaki derleme
+    /// arayüzü dondurmasın.
+    /// </summary>
+    public static Task<string?> ValidateKeyAsync(string apiKey, CancellationToken ct = default) =>
+        Task.Run(() => ValidateKeyCoreAsync(apiKey, ct));
+
+    private static async Task<string?> ValidateKeyCoreAsync(string apiKey, CancellationToken ct)
     {
         try
         {
@@ -92,8 +99,14 @@ public static partial class AiIconGenerator
         catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { return L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."); }
     }
 
-    /// <summary>Açıklamaya göre SVG üretir ve güvenli hale getirilmiş SVG metnini döner.</summary>
-    public static async Task<string> GenerateSvgAsync(string apiKey, string folderName, string description, CancellationToken ct = default)
+    /// <summary>
+    /// Açıklamaya göre SVG üretir ve güvenli hale getirilmiş SVG metnini döner. İstemciyi kurmak, isteği hazırlamak ve
+    /// göndermek iş parçacığı havuzunda yapılır (bkz. <see cref="ValidateKeyAsync"/>).
+    /// </summary>
+    public static Task<string> GenerateSvgAsync(string apiKey, string folderName, string description, CancellationToken ct = default) =>
+        Task.Run(() => GenerateSvgCoreAsync(apiKey, folderName, description, ct));
+
+    private static async Task<string> GenerateSvgCoreAsync(string apiKey, string folderName, string description, CancellationToken ct)
     {
         var client = CreateClient(apiKey);
         var prompt = $"""

@@ -290,7 +290,7 @@ public sealed class TrayIcon : IDisposable
             var flags = Native.TPM_RIGHTBUTTON | Native.TPM_RETURNCMD | Native.TPM_NONOTIFY
                         | (NativeMethods.GetSystemMetrics(Native.SM_MENUDROPALIGNMENT) != 0 ? Native.TPM_RIGHTALIGN : Native.TPM_LEFTALIGN);
             var chosen = Native.TrackPopupMenuEx(menu, flags, point.X, point.Y, _window.Handle, IntPtr.Zero);
-            Native.PostMessage(_window.Handle, Native.WM_NULL, IntPtr.Zero, IntPtr.Zero);
+            NativeMethods.PostMessage(_window.Handle, Native.WM_NULL, IntPtr.Zero, IntPtr.Zero);
             if (chosen != 0 && commands.TryGetValue(chosen, out var item))
                 _window.Dispatcher.BeginInvoke(() => Run(item));
         }
@@ -558,10 +558,6 @@ public sealed class TrayIcon : IDisposable
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetForegroundWindow(IntPtr hwnd);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool PostMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

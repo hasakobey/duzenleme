@@ -165,6 +165,95 @@ public sealed class DirectorySnapshotTests : IDisposable
         WaitFor(() => snapshot.State == SnapshotState.Ready && snapshot.Entries.Count == 1, seconds: 10);
     }
 
+    // --- Yeni klasörler (2.2: ayrı NewFolderWatcher yerine anlık görüntünün okuma farkı) ---
+
+    /// <summary>Anlık görüntüyü DirectoriesAppeared'a ilk okumadan önce abone olarak başlatır.</summary>
+    private (DirectorySnapshot Snapshot, List<string> Appeared) StartWatchingFolders()
+    {
+        var appeared = new List<string>();
+        var snapshot = new DirectorySnapshot(_dir, action => action());
+        snapshot.DirectoriesAppeared += folders => { lock (appeared) appeared.AddRange(folders); };
+        snapshot.Start();
+        WaitFor(() => snapshot.State == SnapshotState.Ready);
+        return (snapshot, appeared);
+    }
+
+    private static List<string> Names(List<string> appeared)
+    {
+        lock (appeared) return appeared.Select(Path.GetFileName).ToList()!;
+    }
+
+    [Fact]
+    public void New_folder_made_outside_is_reported_but_not_files_or_what_the_first_read_found()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "Eski"));
+        File.WriteAllText(Path.Combine(_dir, "eski.txt"), "x");
+        var (snapshot, appeared) = StartWatchingFolders();
+        using var _ = snapshot;
+        Assert.Empty(Names(appeared)); // ilk okumada var olanlar "yeni" değildir
+
+        File.WriteAllText(Path.Combine(_dir, "rapor.pdf"), "x");
+        Directory.CreateDirectory(Path.Combine(_dir, "Faturalar"));
+
+        WaitFor(() => Names(appeared).Contains("Faturalar"));
+        WaitFor(() => snapshot.Entries.Any(e => e.Name == "rapor.pdf"));
+        Thread.Sleep(DirectorySnapshot.IdleDelay * 2);
+        Assert.Equal(["Faturalar"], Names(appeared));
+        Assert.Equal(Path.Combine(_dir, "Faturalar"), appeared.Single());
+    }
+
+    [Fact]
+    public void Folder_created_by_the_app_is_still_reported_after_note_created()
+    {
+        // Uygulamanın açtığı klasör listeye beklemeden eklenir; okuma farkı yine de onu yeni sayar ("simge ver" önerisini
+        // sessiz işaret susturur, izleyici değil).
+        var (snapshot, appeared) = StartWatchingFolders();
+        using var _ = snapshot;
+        var folder = Path.Combine(_dir, "PDF");
+        Directory.CreateDirectory(folder);
+        snapshot.NoteCreated(folder, isDirectory: true);
+        Assert.Contains(snapshot.Entries, e => e.Name == "PDF");
+
+        WaitFor(() => Names(appeared).Contains("PDF"));
+    }
+
+    [Fact]
+    public void Renamed_folder_is_reported_under_its_new_name_also_after_note_renamed()
+    {
+        var first = Directory.CreateDirectory(Path.Combine(_dir, "Yeni klasör")).FullName;
+        var (snapshot, appeared) = StartWatchingFolders();
+        using var _ = snapshot;
+
+        // Bölmede F2: ad diskte değişir ve liste beklemeden güncellenir; okuma yeni adı yine yeni görür.
+        var renamed = Path.Combine(_dir, "Faturalar");
+        Directory.Move(first, renamed);
+        snapshot.NoteRenamed(first, renamed);
+        WaitFor(() => Names(appeared).Contains("Faturalar"));
+
+        // Gezgin'deki yeniden adlandırma da.
+        Directory.Move(renamed, Path.Combine(_dir, "Belgeler"));
+        WaitFor(() => Names(appeared).Contains("Belgeler"));
+        Assert.DoesNotContain("Yeni klasör", Names(appeared));
+    }
+
+    [Fact]
+    public void Directory_diff_reports_only_folders_new_since_the_previous_read()
+    {
+        static DirEntry Folder(string name) => new(Path.Combine(@"C:\d", name), name, true, FileAttributes.Directory, DateTime.UnixEpoch, 0);
+        static DirEntry Document(string name) => new(Path.Combine(@"C:\d", name), name, false, 0, DateTime.UnixEpoch, 1);
+
+        var (first, none) = DirectorySnapshot.DirectoryDiff(null, [Folder("A"), Document("b.txt")]);
+        Assert.Empty(none); // ilk okuma
+        Assert.Equal([@"C:\d\A"], first);
+
+        var (second, appeared) = DirectorySnapshot.DirectoryDiff(first, [Folder("A"), Folder("C"), Document("d.txt")]);
+        Assert.Equal([@"C:\d\C"], appeared);
+
+        // Silinen klasör bildirilmez; yalnızca harfi değişen klasör (eskiden olduğu gibi) yeni görünür.
+        var (_, afterRename) = DirectorySnapshot.DirectoryDiff(second, [Folder("c")]);
+        Assert.Equal([@"C:\d\c"], afterRename);
+    }
+
     [Fact]
     public void Shared_snapshots_are_reference_counted()
     {
@@ -213,6 +302,30 @@ public sealed class ResilientWatcherTests : IDisposable
         release.Set();
         await start.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(watcher.IsRunning);
+    }
+
+    [Fact]
+    public async Task Start_in_background_returns_at_once_even_on_a_slow_folder()
+    {
+        // Ağdaki ya da OneDrive'daki masaüstü: klasöre bakmak saniyelerce sürebilir; açılış ve "otomatik taşımayı aç" beklemesin.
+        using var release = new ManualResetEventSlim();
+        var watcher = ResilientWatcher.ForTests(_dir, path =>
+        {
+            release.Wait(TimeSpan.FromSeconds(10));
+            return Directory.Exists(path);
+        });
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        watcher.StartInBackground(() => started.TrySetResult());
+        sw.Stop();
+        Assert.True(sw.ElapsedMilliseconds < 50, $"StartInBackground {sw.ElapsedMilliseconds} ms bekledi");
+        Assert.False(started.Task.IsCompleted);
+
+        release.Set();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(watcher.IsRunning);
+        watcher.Dispose();
     }
 
     [Fact]

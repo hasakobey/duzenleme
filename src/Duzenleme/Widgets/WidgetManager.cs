@@ -28,14 +28,10 @@ public sealed class WidgetManager
     {
         // Masaüstü nöbetçisi: Explorer yeniden başlarsa ya da (Windows 10 / 11 23H2'de) duvar kağıdı slayt gösterisi
         // masaüstünü WorkerW'ye bölerse widget'lar yeni sahibine bağlanır; aksi halde duvar kağıdının arkasında kalırlar.
+        // Sahip önbellekte tutulur (bkz. DesktopIcons.DesktopOwner): her turda pencereler taranmaz, yalnızca sahip hâlâ simge
+        // görünümünü taşıyor mu bakılır. Gezgin yeniden başlayınca tepsinin bildirimiyle beklemeden de bakılır.
         _shellWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-        _shellWatch.Tick += (_, _) =>
-        {
-            // Masaüstü sahibini bir kez bul (pencereleri tarar), tüm widget'lar için kullan.
-            var owner = Desktop.DesktopIcons.DesktopOwner();
-            foreach (var window in _open.Values) window.EnsureAttached(owner);
-            AppHost.ReconcileDesktopState();
-        };
+        _shellWatch.Tick += (_, _) => CheckDesktopOwner();
         _shellWatch.Start();
 
         // Monitör takılıp çıkarılınca/uykudan uyanınca düzen birkaç saniye oynar; oturunca widget'lar kayıtlı yerlerine döner.
@@ -49,6 +45,27 @@ public sealed class WidgetManager
     }
 
     private readonly DispatcherTimer _displaySettle;
+
+    /// <summary>Widget'ları masaüstünün şimdiki sahibine bağlar (değiştiyse) ve Windows simgelerinin durumunu uzlaştırır.</summary>
+    private void CheckDesktopOwner()
+    {
+        // Masaüstü sahibini bir kez bul, tüm widget'lar için kullan.
+        var owner = Desktop.DesktopIcons.DesktopOwner();
+        foreach (var window in _open.Values) window.EnsureAttached(owner);
+        AppHost.ReconcileDesktopState();
+    }
+
+    /// <summary>
+    /// Gezgin yeniden başladı (görev çubuğu yeniden kuruldu; tepsinin "TaskbarCreated" bildirimi): widget'lar 3 sn'lik
+    /// nöbetçiyi beklemeden yeni masaüstüne bağlanır. Masaüstü penceresi henüz hazır değilse sonraki tur yakalar.
+    /// </summary>
+    public void OnShellRestarted()
+    {
+        if (_shuttingDown) return;
+        _shellWatch.Stop();
+        CheckDesktopOwner();
+        _shellWatch.Start();
+    }
 
     private void OnDisplayChanged(object? sender, EventArgs e) =>
         Application.Current?.Dispatcher.BeginInvoke(() => { _displaySettle.Stop(); _displaySettle.Start(); });

@@ -108,9 +108,12 @@ public static class ShellFileOperations
         [return: MarshalAs(UnmanagedType.Bool)] bool GetAnyOperationsAborted();
     }
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
-    private static extern void SHCreateItemFromParsingName(string path, IntPtr bindContext, [MarshalAs(UnmanagedType.LPStruct)] Guid riid,
-        [MarshalAs(UnmanagedType.Interface)] out IShellItem item);
+    /// <summary>Yoldan kabuk öğesi. Açılamazsa HRESULT'un karşılığı olan hata fırlar (ör. bulunamayan yolda FileNotFoundException).</summary>
+    private static IShellItem ItemFromPath(string path)
+    {
+        Marshal.ThrowExceptionForHR(Widgets.NativeMethods.SHCreateItemFromParsingName(path, IntPtr.Zero, typeof(IShellItem).GUID, out var item));
+        return (IShellItem)item!;
+    }
 
     [DllImport("shell32.dll")]
     private static extern void SHGetSettings(out uint state, uint mask);
@@ -157,9 +160,9 @@ public static class ShellFileOperations
             if (owner != IntPtr.Zero) op.SetOwnerWindow(owner);
             foreach (var (from, to) in moves)
             {
-                SHCreateItemFromParsingName(from, IntPtr.Zero, typeof(IShellItem).GUID, out var source);
+                var source = ItemFromPath(from);
                 items.Add(source);
-                SHCreateItemFromParsingName(Path.GetDirectoryName(to)!, IntPtr.Zero, typeof(IShellItem).GUID, out var folder);
+                var folder = ItemFromPath(Path.GetDirectoryName(to)!);
                 items.Add(folder);
                 op.MoveItem(source, folder, Path.GetFileName(to), IntPtr.Zero);
             }
@@ -201,7 +204,7 @@ public static class ShellFileOperations
         IShellItem? item = null;
         try
         {
-            SHCreateItemFromParsingName(path, IntPtr.Zero, typeof(IShellItem).GUID, out item);
+            item = ItemFromPath(path);
             op.SetOperationFlags(flags);
             if (owner != IntPtr.Zero) op.SetOwnerWindow(owner);
             queue(op, item);

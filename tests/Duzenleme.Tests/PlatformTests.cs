@@ -10,6 +10,7 @@ namespace Duzenleme.Tests;
 /// <summary>
 /// 2.2: uygulama WinForms'suz (tepsi simgesi doğrudan Shell_NotifyIcon; mimari başına ~24,6 MB daha küçük ve açılışta
 /// WinForms yüklenmez). WinForms ya da System.Drawing geri gelmesin; kurulum eski sürümlerin WinForms dosyalarını silsin.
+/// Klasör izleyicileri de yalnızca kendi yerlerinde kurulur.
 /// </summary>
 public class PlatformTests
 {
@@ -87,6 +88,37 @@ public class PlatformTests
             @"^(tr\\)?(System\.Windows\.Forms(\.Primitives|\.Design(\.Editors)?)?|System\.(Drawing\.)?Design|Microsoft\.VisualBasic\.Forms|WindowsFormsIntegration)(\.resources)?\.dll$", f));
         // Taşınabilir klasörü temizleyen liste (eski adlı program dosyaları) değişmedi: WinForms dosyaları orada silinmez.
         Assert.Empty(LegacyFiles.ProgramFiles.Intersect(LegacyFiles.WinFormsProgramFiles, StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// 2.2: klasör izleyicileri tek yerden. FileSystemWatcher yalnızca ResilientWatcher'da (kendini toparlar, arka planda
+    /// kurulabilir); ResilientWatcher'ı yalnızca otomatik taşıma (DesktopWatcher) ve paylaşılan anlık görüntüler
+    /// (DirectorySnapshot) kurar. Klasör gösteren görünüm Snapshots.Acquire kullanır, yeni klasör önerisi anlık görüntünün
+    /// DirectoriesAppeared'ını: aynı klasöre ikinci izleyici açılmaz.
+    /// </summary>
+    [Fact]
+    public void Folder_watchers_are_only_made_in_their_own_places()
+    {
+        var allowed = new Dictionary<string, string[]>
+        {
+            ["FileSystemWatcher"] = [@"Core\ResilientWatcher.cs"],
+            ["ResilientWatcher"] = [@"Core\ResilientWatcher.cs", @"Core\DesktopWatcher.cs", @"Core\DirectorySnapshot.cs"],
+        };
+        var offenders = new List<string>();
+        foreach (var file in SourceFiles("*.cs"))
+        {
+            var rel = Path.GetRelativePath(SourceRoot, file);
+            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(file), CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview)).GetRoot();
+            foreach (var name in root.DescendantNodes().OfType<IdentifierNameSyntax>())
+            {
+                if (!allowed.TryGetValue(name.Identifier.ValueText, out var places)) continue;
+                if (places.Contains(rel, StringComparer.OrdinalIgnoreCase)) continue;
+                offenders.Add($"{rel}:{name.GetLocation().GetLineSpan().StartLinePosition.Line + 1}: {name.Identifier.ValueText}");
+            }
+        }
+        Assert.True(offenders.Count == 0, "İzleyici yalnızca kendi yerinde kurulur:\n" + string.Join("\n", offenders));
+        // Masaüstünün ayrı "yeni klasör" izleyicisi kalktı (anlık görüntünün okuma farkı kullanılır).
+        Assert.False(File.Exists(Path.Combine(SourceRoot, "Desktop", "NewFolderWatcher.cs")));
     }
 
     private static string SourceRoot => Path.Combine(RepoRoot(), "src", "Duzenleme");

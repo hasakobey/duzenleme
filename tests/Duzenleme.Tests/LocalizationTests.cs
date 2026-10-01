@@ -378,7 +378,7 @@ public class LocalizationTests
     private static readonly Regex TurkishLetter = new("[çğıöşüÇĞİÖŞÜ]");
 
     /// <summary>Tamamı veri olan dosyalar (ham Türkçe denetimi dışında): çok dilli "Yeni klasör" adları, geliştirici aracı.</summary>
-    private static readonly string[] DataFiles = [@"Desktop\NewFolderWatcher.cs", @"Icons\IconSheet.cs"];
+    private static readonly string[] DataFiles = [@"Desktop\NewFolderSuggestions.cs", @"Icons\IconSheet.cs"];
 
     /// <summary>Tek tek izin verilen ham metinler (dosya, metin): kimlikler.</summary>
     private static readonly (string File, string Text)[] AllowedLiterals = [(@"Core\AppInfo.cs", "Düzenleme")];

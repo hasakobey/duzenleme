@@ -52,6 +52,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 2.2: yapay zekâ simgesinin SDK'sı yalnızca kullanıcı isteyince çalışır; yayında önceden derlenmez (ReadyToRun),
+         mimari başına ~9 MB daha küçük. İlk çağrıdaki derleme arka planda olur (AiIconGenerator SDK işini Task.Run'da yapar).
+         SharpVectors (SVG çizimi) önceden derlenmiş kalır. -->
+    <PublishReadyToRunExclude Include="Anthropic.dll;Microsoft.Extensions.AI.Abstractions.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Duzenleme.Tests" />
   </ItemGroup>
 

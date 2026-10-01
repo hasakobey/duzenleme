@@ -207,7 +207,7 @@ public sealed class TileItem : INotifyPropertyChanged
         // Önizleme gelene kadar (varsa) türün simgesi görünsün.
         if (preview && Icon is null && ShellIcons.TryCached(path, pixels, false, isDirectory, out var typeIcon)) Icon = typeIcon;
         // Arada başka bir boyut istendiyse (ekran değişti) geç gelen eski boyut yenisinin üstüne yazılmaz.
-        ShellIcons.Request(path, pixels, preview, icon => { if (_pixels == pixels) Icon = icon ?? Icon; });
+        ShellIcons.Request(path, pixels, preview, isDirectory, icon => { if (_pixels == pixels) Icon = icon ?? Icon; });
     }
 
     // Kullanıcının seçtiği simge (kısayol kutusu); yüklenemezse null yapılır ve dosyanın kendi simgesine dönülür.
@@ -360,7 +360,7 @@ public sealed class TileItem : INotifyPropertyChanged
     public static void Launch(string path, bool asAdmin = false)
     {
         const int ASFW_ANY = -1;
-        AllowSetForegroundWindow(ASFW_ANY);
+        NativeMethods.AllowSetForegroundWindow(ASFW_ANY);
         var dispatcher = Application.Current?.Dispatcher;
         Task.Run(() =>
         {
@@ -389,13 +389,10 @@ public sealed class TileItem : INotifyPropertyChanged
         });
     }
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool AllowSetForegroundWindow(int processId);
-
     /// <summary>Öğeyi Gezgin'de seçili gösterir. Yolun varlığı arka planda denetlenir (ulaşılamayan ağ yolu beklenmez).</summary>
     public static void Reveal(string path)
     {
-        AllowSetForegroundWindow(-1);
+        NativeMethods.AllowSetForegroundWindow(-1);
         Task.Run(() =>
         {
             if (!File.Exists(path) && !Directory.Exists(path)) return;

@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using System.Text;
+using Duzenleme.Widgets;
 
 namespace Duzenleme.Desktop;
 
@@ -17,9 +17,6 @@ public static class DesktopIcons
     private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr FindWindow(string lpClassName, string? lpWindowName);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string? className, string? windowName);
 
     [DllImport("user32.dll")]
@@ -30,16 +27,35 @@ public static class DesktopIcons
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr hwnd);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int GetClassName(IntPtr hwnd, StringBuilder name, int max);
-
     [DllImport("user32.dll")]
     private static extern IntPtr GetParent(IntPtr hwnd);
 
-    /// <summary>Masaüstündeki SHELLDLL_DefView (simge listesinin kabı).</summary>
+    // Simge görünümünü (SHELLDLL_DefView) son bulunduğu yerde taşıyan pencere (Progman ya da WorkerW). Masaüstü nöbetçisi
+    // 3 sn'de bir sorar: pencereleri her seferinde taramamak için önce buraya bakılır. Herhangi bir iş parçacığından okunur.
+    private static IntPtr _defViewHost;
+
+    /// <summary>
+    /// Masaüstündeki SHELLDLL_DefView (simge listesinin kabı). Son bulunduğu pencere hâlâ masaüstününse (duruyor, sınıfı
+    /// Progman/WorkerW) ve görünüm hâlâ onun altındaysa oradan alınır; değilse (Gezgin yeniden başladı, slayt gösterisi
+    /// görünümü taşıdı) baştan aranır. Tek simge görünümü olduğundan sonuç baştan aramayla aynıdır.
+    /// </summary>
     public static IntPtr FindDefView()
     {
-        var progman = FindWindow("Progman", null);
+        var host = Volatile.Read(ref _defViewHost);
+        if (host != IntPtr.Zero && NativeMethods.IsWindow(host) && NativeMethods.ClassOf(host) is "Progman" or "WorkerW")
+        {
+            var cached = FindWindowEx(host, IntPtr.Zero, "SHELLDLL_DefView", null);
+            if (cached != IntPtr.Zero) return cached;
+        }
+        var found = SearchDefView();
+        Volatile.Write(ref _defViewHost, found == IntPtr.Zero ? IntPtr.Zero : GetParent(found));
+        return found;
+    }
+
+    /// <summary>Simge görünümünü baştan arar: önce Progman'ın altında, yoksa masaüstünün WorkerW pencerelerinde.</summary>
+    private static IntPtr SearchDefView()
+    {
+        var progman = NativeMethods.FindWindow("Progman", null);
         var defView = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
         if (defView != IntPtr.Zero) return defView;
 
@@ -47,7 +63,7 @@ public static class DesktopIcons
         EnumWindows((hwnd, _) =>
         {
             // Yalnızca masaüstünün WorkerW'leri: başka bir programın içindeki kabuk görünümü (ör. dosya iletişim kutusu) değil.
-            if (ClassOf(hwnd) != "WorkerW") return true;
+            if (NativeMethods.ClassOf(hwnd) != "WorkerW") return true;
             var found = FindWindowEx(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null);
             if (found == IntPtr.Zero) return true;
             defView = found;
@@ -59,12 +75,13 @@ public static class DesktopIcons
     /// <summary>
     /// Widget'ların sahibi olacak pencere: simge görünümünü (SHELLDLL_DefView) taşıyan üst pencere.
     /// Windows 11 24H2+'da ve bölünmemiş düzende Progman; Windows 10 / 11 23H2'de slayt gösterisi vb. sonrası WorkerW.
+    /// Ucuzdur: görünümün yeri önbellekte tutulur (bkz. <see cref="FindDefView"/>).
     /// </summary>
     public static IntPtr DesktopOwner()
     {
         var defView = FindDefView();
         var host = defView == IntPtr.Zero ? IntPtr.Zero : GetParent(defView);
-        return host != IntPtr.Zero ? host : FindWindow("Progman", null);
+        return host != IntPtr.Zero ? host : NativeMethods.FindWindow("Progman", null);
     }
 
     public static IntPtr FindListView()
@@ -120,11 +137,11 @@ public static class DesktopIcons
     /// <summary>Tanı için masaüstü pencerelerinin durumu (günlüğe yazılır; başka bilgisayardaki hatayı anlamak için).</summary>
     public static string Describe()
     {
-        var progman = FindWindow("Progman", null);
+        var progman = NativeMethods.FindWindow("Progman", null);
         var defView = FindDefView();
         var host = defView == IntPtr.Zero ? IntPtr.Zero : GetParent(defView);
         var lv = defView == IntPtr.Zero ? IntPtr.Zero : FindWindowEx(defView, IntPtr.Zero, "SysListView32", null);
-        return $"Progman={progman:X} DefView={defView:X} parent={host:X}({(host == IntPtr.Zero ? "-" : ClassOf(host))}) " +
+        return $"Progman={progman:X} DefView={defView:X} parent={host:X}({(host == IntPtr.Zero ? "-" : NativeMethods.ClassOf(host))}) " +
                $"liste={lv:X} visible={(lv != IntPtr.Zero && IsWindowVisible(lv))} hiddenByWindows={HiddenByWindows} " +
                $"Windows={Environment.OSVersion.Version}"; // l10n: çevrilmez
     }
@@ -158,7 +175,7 @@ public static class DesktopIcons
     {
         if (hwnd == IntPtr.Zero) return false;
         var root = GetAncestor(hwnd, GA_ROOT);
-        var cls = ClassOf(root);
+        var cls = NativeMethods.ClassOf(root);
         if (cls == "Progman") return true;
         // Windows 10 / 11 23H2'de (duvar kağıdı slayt gösterisi vb.) simgeler bir WorkerW'nin altındadır.
         return cls == "WorkerW" && FindWindowEx(root, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero;
@@ -168,11 +185,4 @@ public static class DesktopIcons
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
-
-    private static string ClassOf(IntPtr hwnd)
-    {
-        var sb = new StringBuilder(64);
-        GetClassName(hwnd, sb, sb.Capacity);
-        return sb.ToString();
-    }
 }

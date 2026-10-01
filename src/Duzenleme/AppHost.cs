@@ -339,7 +339,10 @@ public static class AppHost
     {
         Settings.Paused = paused;
         SaveSettings();
-        if (!paused) OrganizeNowInBackground();
+        // Kapalıyken masaüstü izlenmez (indirmelerin her yazması boşuna uyandırmasın). Açılınca izleyici arka planda kurulur,
+        // ardından kapalıyken gelen dosyalar için masaüstü düzenlenir (önce izleyici: arada gelen dosya kaçmasın).
+        if (paused) Watcher.Pause();
+        else Watcher.Resume(afterStart: OrganizeNowInBackground);
     }
 
     /// <summary>
@@ -409,16 +412,30 @@ public static class AppHost
     }
 
     // Uygulamanın kendi açtığı klasörler: masaüstünde yeni klasör görülünce çıkan "simge ver" balonu bunlar için çıkmaz.
-    // Yalnızca UI iş parçacığından çağrılır (klasör izleyicisinin geri çağrısı da Dispatcher'a aktarılır).
-    private static readonly HashSet<string> _quietFolders = new(StringComparer.OrdinalIgnoreCase);
+    // Yalnızca UI iş parçacığından çağrılır (öneri geri çağrısı da Dispatcher'a aktarılır). Değer: işaretlendiği an.
+    private static readonly Dictionary<string, long> _quietFolders = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Sessiz işaretin ömrü. İşaret, klasör görülüp öneri değerlendirilince tüketilir (birkaç saniye); öneri kapalıyken ya da
+    /// klasör hiç görülmezse (oluşturulamadı, zaten vardı) tüketilmez ve bu süreden sonra düşer: aynı yolda sonradan Gezgin'de
+    /// açılan klasör sessiz kalmasın.
+    /// </summary>
+    private static readonly TimeSpan QuietFor = TimeSpan.FromMinutes(2);
 
     /// <summary>Az sonra oluşturulacak klasörü "sessiz" işaretler (Directory.CreateDirectory'den önce çağrılır).</summary>
-    public static void MarkQuietFolder(string path) => _quietFolders.Add(QuietKey(path));
+    public static void MarkQuietFolder(string path)
+    {
+        var now = Environment.TickCount64;
+        foreach (var stale in _quietFolders.Where(p => now - p.Value > QuietFor.TotalMilliseconds).Select(p => p.Key).ToList())
+            _quietFolders.Remove(stale);
+        _quietFolders[QuietKey(path)] = now;
+    }
 
-    /// <summary>Klasör sessiz işaretliyse işareti kaldırır ve true döner.</summary>
-    public static bool ConsumeQuietFolder(string path) => _quietFolders.Remove(QuietKey(path));
+    /// <summary>Klasör (süresi geçmemiş) sessiz işaretliyse true döner; işaret her durumda kalkar.</summary>
+    public static bool ConsumeQuietFolder(string path) =>
+        _quietFolders.Remove(QuietKey(path), out var marked) && Environment.TickCount64 - marked <= QuietFor.TotalMilliseconds;
 
-    // İzleyicinin verdiği yolla (FileSystemWatcher.FullPath) aynı biçim: tam yol, sonda ayraç yok. Diske dokunmaz.
+    // Anlık görüntünün verdiği yolla (DirEntry.Path: izlenen klasör + ad) aynı biçim: tam yol, sonda ayraç yok. Diske dokunmaz.
     private static string QuietKey(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
 
     // ------------------------------------------------------------------------------------------------------------------
