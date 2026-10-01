@@ -451,4 +451,36 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? IconFolders { get; set; }
+
+    // 2.2 tanılama
+    // (bool ve metin: eski sürüm bilmediği alanları Extra'da korur. Kalıcı enum'a üye eklenmedi. Varsayılanken yazılmaz.)
+
+    /// <summary>
+    /// Ayarlar'daki "Hata günlüğü tut" kapatıldı: <c>logs\</c> klasörüne hiçbir şey yazılmaz (bellekteki son kayıtlar ve
+    /// sayaçlar sürer), çökme raporuna günlüğün son satırları eklenmez. Varsayılan: günlük açık (içeriği temizlenir).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ErrorLogOff { get; set; }
+
+    /// <summary>
+    /// Uygulama çökünce: null = sor (sonraki açılışta şeritle), "always" = sormadan kaydet, "never" = kaydetme. Tanınmayan
+    /// değer (daha yeni sürümün) "sor" sayılır; bkz. <see cref="CrashReportModes"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CrashReportMode { get; set; }
+}
+
+/// <summary><see cref="AppSettings.CrashReportMode"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>
+public static class CrashReportModes
+{
+    public const string Always = "always";
+    public const string Never = "never";
+
+    /// <summary>Kayıtlı değeri çözer: "always" ya da "never"; boş ya da tanınmayan değerde null (sor).</summary>
+    public static string? Normalize(string? mode) => mode?.Trim().ToLowerInvariant() switch
+    {
+        Always => Always,
+        Never => Never,
+        _ => null,
+    };
 }

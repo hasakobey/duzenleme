@@ -55,6 +55,31 @@ public class PackagedAppTests
         Assert.Equal(Roaming + @"\NestDesk", Show(null, cache + @"\settings.json"));
     }
 
+    [Fact]
+    public void Path_to_show_is_resolved_per_path()
+    {
+        var real = Roaming + @"\NestDesk\logs";
+        var cache = Cache + @"\NestDesk\logs";
+        // Yönlendirilen kopya varsa o (paketli sürümün yeni yazdığı logs\), yoksa asıl yol.
+        Assert.Equal(cache, PackagedApp.PathToShow(real, cache, p => p == cache));
+        Assert.Equal(real, PackagedApp.PathToShow(real, cache, _ => false));
+        // Paketsiz: yönlendirme yok.
+        Assert.Equal(real, PackagedApp.PathToShow(real, null, _ => true));
+    }
+
+    [Fact]
+    public void Path_to_show_differs_from_data_folder_for_users_from_installer()
+    {
+        // Kurulum sürümünden gelen kullanıcı: ayarlar gerçek %AppData%'da (veri klasörü orayı gösterir), ama Store sürümünün
+        // yeni oluşturduğu logs\ klasörü LocalCache'te. Tek klasör kararı yanlış yeri açardı.
+        var data = Roaming + @"\NestDesk";
+        var cacheData = Cache + @"\NestDesk";
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { data + @"\settings.json", cacheData, cacheData + @"\logs" };
+        Assert.Equal(data, PackagedApp.DataFolderToShow(data, cacheData, existing.Contains, existing.Contains));
+        var logs = PackagedApp.PathToShow(data + @"\logs", PackagedApp.RedirectedRoamingPath(data + @"\logs", Roaming, Local, Family), existing.Contains);
+        Assert.Equal(cacheData + @"\logs", logs);
+    }
+
     [Theory]
     [InlineData(0, StartupTaskState.Disabled)]
     [InlineData(1, StartupTaskState.DisabledByUser)]
