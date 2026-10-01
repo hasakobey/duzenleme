@@ -49,6 +49,16 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, string Key)
         return true;
     }
 
+    /// <summary>
+    /// Tuş adı biçimce geçerli mi: tek harf ya da rakam, ya da harfle başlayan harf/rakam dizisi ("F5", "OemPeriod").
+    /// Sayısal ad ("12") ve virgüllü ad ("A,B") reddedilir: Enum.TryParse bunları sayı/bayrak birleşimi olarak kabul edip
+    /// başka bir tuşa çevirirdi. Tuşun gerçekten çözülüp çözülmediğine kayıt/gönderme bakar.
+    /// </summary>
+    public static bool IsWellFormedKeyName(string? key) =>
+        !string.IsNullOrEmpty(key) && (key.Length == 1
+            ? char.IsAsciiLetterOrDigit(key[0])
+            : char.IsAsciiLetter(key[0]) && key.All(char.IsAsciiLetterOrDigit));
+
     public override string ToString()
     {
         var parts = new List<string>();

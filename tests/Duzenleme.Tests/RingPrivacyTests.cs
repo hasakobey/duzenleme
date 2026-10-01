@@ -4,25 +4,50 @@ using System.Text.RegularExpressions;
 namespace Duzenleme.Tests;
 
 /// <summary>
-/// Halka gizliliği (PRIVACY §4, Store 10.5): yapıştırılan metin, web adresi, komut, gönderilen tuşlar ve ön plandaki sürecin
-/// adı hiçbir günlüğe (DebugLog, AppLog, PerfLog, Debug/Trace/Console) girmez; ön plan bilgisi ve pano içeriği diske yazılmaz.
-/// Kaynak taraması: Ring*, Snippet*, KeySender ve ForegroundInfo dosyaları (arayüz bölümü eklenince RingRunner, RingPopup…
-/// kendiliğinden kapsanır).
+/// Halka gizliliği (PRIVACY §4, Store 10.5): yapıştırılan metin, web adresi, komut, gönderilen tuşlar, ön plandaki pencerenin
+/// başlığı ve sürecinin adı hiçbir günlüğe (DebugLog, AppLog, PerfLog, JsonFile.Log, FolderIconLog, CrashReports,
+/// Debug/Trace/Console/EventLog) girmez; ön plan bilgisi ve pano içeriği diske yazılmaz; adresler günlüğe yazmayan
+/// <c>Browser.Open(…, log: false)</c> ile açılır. Kaynak taraması: Ring*, Snippet*, KeySender ve ForegroundInfo dosyaları
+/// (arayüz bölümü eklenince RingRunner, RingPopup… kendiliğinden kapsanır).
+/// <para>
+/// Günlük çağrısının argümanlarında (dize sabitlerinin metni dışında; enterpolasyon delikleri dahil) şu sözcükleri içeren
+/// hiçbir ad bulunamaz (deve hörgücü adların içinde de: <c>snippetText</c>, <c>targetUrl</c>, <c>prevTitle</c>): bkz.
+/// <see cref="SensitiveWords"/>. Hata nesnesi ancak türüyle ya da HResult'uyla yazılır (<c>ex.GetType().Name</c>):
+/// <c>ex</c>, <c>ex.Message</c>, <c>ex.ToString()</c> yasak (Process.Start'ın iletisi dosya adını içerir). Güvenli günlük
+/// argümanları: sabit metin, sonuç, sayı, süre, <c>nameof(…)</c>.
+/// </para>
 /// </summary>
 public class RingPrivacyTests
 {
     /// <summary>Günlük çağrıları: argümanları taranır.</summary>
-    private static readonly Regex LogCall =
-        new(@"\b(DebugLog\.Write|AppLog\.\w+|PerfLog\.\w+|Debug\.Write(Line)?|Trace\.\w+|Console\.Write(Line)?)\s*\(");
+    private static readonly Regex LogCall = new(
+        @"\b(DebugLog\.Write|AppLog\.\w+|PerfLog\.\w+|JsonFile\.Log|FolderIconLog\.\w+|CrashReports\.\w+|EventLog\.\w+|" +
+        @"Debug\.\w+|Trace\.\w+|Console\.(Error\.|Out\.)?Write(Line)?)\s*\(");
 
-    /// <summary>Günlüğe girmemesi gereken veri (argümanın kodunda, dize sabitlerinin dışında).</summary>
-    private static readonly Regex Sensitive = new(
-        @"\b(Text|Url|Uri|Command|Args|Arguments|Keys|Chords?|Snippet|ProcessName|Process|Title|Clipboard|Saved|Value|Data)\b",
-        RegexOptions.IgnoreCase);
+    /// <summary>Günlüğe girmemesi gereken veri: bu sözcükleri (harf duyarsız) içeren her ad.</summary>
+    private static readonly string[] SensitiveWords =
+    [
+        "text", "url", "uri", "command", "cmd", "args", "argument", "key", "chord", "snippet", "process", "title",
+        "clipboard", "saved", "previous", "value", "data", "path", "message", "content", "payload", "stack", "name",
+    ];
+
+    /// <summary>Hata nesnesi: türü ya da HResult'u dışında yazılamaz (ileti ve ToString kullanıcı verisi taşır).</summary>
+    private static readonly Regex RawException = new(
+        @"\b(ex|e|exc|exception|error|err|failure|inner|\w*Exception)\b(?!\s*(\(\s*\))?\s*\??\.\s*(GetType\s*\(|HResult\b|InnerException\b|GetBaseException\s*\())");
+
+    // Güvenli kalıplar: önce atılır.
+    private static readonly Regex SafeTypeName = new(@"\.\s*GetType\s*\(\s*\)\s*\.\s*(Full)?Name\b");
+    private static readonly Regex NameOf = new(@"\bnameof\s*\([^()]*\)");
+    private static readonly Regex Identifier = new(@"[\p{L}_][\p{L}\p{Nd}_]*");
+
+    /// <summary>Adres açma: halka dosyalarında yalnızca günlüğe yazmayan biçim.</summary>
+    private static readonly Regex BrowserOpen = new(@"\bBrowser\.Open\s*\(");
+    private static readonly Regex NoLogArgument = new(@"\blog\s*:\s*false\b");
 
     /// <summary>Ön plan ve pano bilgisini taşıyan dosyalar diske/kayıt defterine yazmaz.</summary>
-    private static readonly Regex DiskWrite =
-        new(@"\b(File\.(Write|Append|Create|Copy|Move|Replace)\w*|StreamWriter|FileStream|Registry\w*|JsonFile\.Save|DurableFile)\b");
+    private static readonly Regex DiskWrite = new(
+        @"\b(File\.(Write|Append|Create|Copy|Move|Replace|Open)\w*|FileInfo|\w+\.(OpenWrite|AppendText|CreateText)\b|" +
+        @"StreamWriter|FileStream|Directory\.Create\w*|IsolatedStorage\w*|Registry\w*|JsonFile\.Save|DurableFile)\b");
 
     [Fact]
     public void Ring_sources_never_log_user_content()
@@ -52,22 +77,55 @@ public class RingPrivacyTests
     [Fact]
     public void Scanner_flags_bad_calls_and_allows_constant_messages()
     {
-        const string bad = """
-            DebugLog.Write($"yapıştırıldı: {text}");
-            AppLog.Warn("RingRunner", action.Url);
-            PerfLog.Write("ring " + ForegroundInfo.ProcessName(hwnd));
-            Debug.WriteLine(string.Join(",", chords));
-            AppLog.Info("Ring", $"sonuç {outcome} {snippet.Length}");
-            """;
-        Assert.Equal(5, Offenders("x.cs", bad).Count);
+        string[] bad =
+        [
+            """DebugLog.Write($"yapıştırıldı: {text}");""",
+            """AppLog.Warn("RingRunner", action.Url);""",
+            """PerfLog.Write("ring " + ForegroundInfo.ProcessName(hwnd));""",
+            """Debug.WriteLine(string.Join(",", chords));""",
+            """AppLog.Info("Ring", $"sonuç {outcome} {snippet.Length}");""",
+            // Deve hörgücü adlar
+            """DebugLog.Write($"{snippetText}");""",
+            """DebugLog.Write($"açılıyor {targetUrl}");""",
+            """DebugLog.Write($"komut {cmdLine}");""",
+            """DebugLog.Write($"ön plan {fgProcessName}");""",
+            """DebugLog.Write($"pencere {prevTitle}");""",
+            // Hata iletisi ve nesnesi
+            """DebugLog.Write($"başlatılamadı {ex.Message}");""",
+            """DebugLog.Write($"başlatılamadı {ex}");""",
+            """AppLog.Error("Ring", ex);""",
+            """DebugLog.Write("x" + ex.ToString());""",
+            """DebugLog.Write($"{failure.InnerException}");""",
+            // Öteki dize biçimleri ve günlükler
+            """DebugLog.Write($@"yol {itemPath}");""",
+            """DebugLog.Write(@$"yol {itemPath}");""",
+            "DebugLog.Write($\"\"\"raw {pastedText}\"\"\");",
+            """JsonFile.Log($"bozuk {value}");""",
+            """FolderIconLog.Write($"{folder.FullName}");""",
+            """CrashReports.Note($"{text}");""",
+            """Console.Error.WriteLine(text);""",
+            // Günlüğe yazan adres açma
+            """Browser.Open(url);""",
+            """Browser.Open(action.Url!, log: true);""",
+        ];
+        foreach (var line in bad) Assert.True(Offenders("x.cs", line).Count == 1, "yakalanmadı: " + line);
 
         const string good = """
             DebugLog.Write("halka açıldı");
             PerfLog.Write($"Ring.Open {elapsed.TotalMilliseconds:0} ms");
             AppLog.Info("Ring", "Text ve Url yazılmaz");   // sabit metindeki sözcükler sayılmaz
             // DebugLog.Write($"{text}") yorum satırı
+            /* DebugLog.Write($"{text}") */
             PerfLog.Count("Ring.Paste");
             DebugLog.Write("bkz. https://example.com"); var keys = 1;   // dizedeki "//" yorum değildir
+            DebugLog.Write($"SnippetPaste: {ex.GetType().Name}");
+            DebugLog.Write($"hata {ex.HResult:X8} {failure.GetBaseException().GetType().Name}");
+            DebugLog.Write($"{nameof(KeySender)}: {outcome} {count}");
+            DebugLog.Write($@"C:\ yolu {{değil}} {count}");
+            DebugLog.Write($"süre {(ok ? "tamam" : "yok")}");
+            DebugLog.Write(')' + "(");
+            Browser.Open(action.Url!, log: false);
+            var text = "x"; var url = text;
             """;
         Assert.Empty(Offenders("x.cs", good));
     }
@@ -78,104 +136,158 @@ public class RingPrivacyTests
         var code = StripComments(source);
         foreach (Match m in LogCall.Matches(code))
         {
-            var args = Arguments(code, m.Index + m.Length);
-            var visible = CodeOnly(args);
-            if (Sensitive.Match(visible) is { Success: true } hit)
-                result.Add($"{name}:{LineOf(code, m.Index)}: {m.Value}… ({hit.Value})");
+            var visible = Visible(Arguments(code, m.Index + m.Length));
+            if (Problem(visible) is { } problem) result.Add($"{name}:{LineOf(code, m.Index)}: {m.Value}… ({problem})");
         }
+        foreach (Match m in BrowserOpen.Matches(code))
+            if (!NoLogArgument.IsMatch(Visible(Arguments(code, m.Index + m.Length))))
+                result.Add($"{name}:{LineOf(code, m.Index)}: {m.Value}… (log: false yok)");
         return result;
     }
 
-    /// <summary>Açılan parantezden kapanana dek (dize sabitlerindeki parantezler sayılmaz).</summary>
+    /// <summary>Argüman kodunda yasak ad ya da ham hata nesnesi; yoksa null.</summary>
+    private static string? Problem(string visible)
+    {
+        var code = NameOf.Replace(SafeTypeName.Replace(visible, ".GetType()"), " ");
+        if (RawException.Match(code) is { Success: true } raw) return raw.Value;
+        foreach (Match id in Identifier.Matches(code))
+        {
+            var lower = id.Value.ToLowerInvariant();
+            if (SensitiveWords.FirstOrDefault(lower.Contains) is { } word) return $"{id.Value}: {word}";
+        }
+        return null;
+    }
+
+    /// <summary>Açılan parantezden kapanana dek (dize ve karakter sabitlerindeki parantezler sayılmaz).</summary>
     private static string Arguments(string code, int start)
     {
         var depth = 1;
-        var inString = false;
-        for (var i = start; i < code.Length; i++)
+        for (var i = start; i < code.Length;)
         {
+            if (LiteralEnd(code, i) is > 0 and var end) { i = end; continue; }
             var c = code[i];
-            if (inString)
-            {
-                if (c == '\\') i++;
-                else if (c == '"') inString = false;
-                continue;
-            }
-            if (c == '"') inString = true;
-            else if (c == '(') depth++;
+            if (c == '(') depth++;
             else if (c == ')' && --depth == 0) return code[start..i];
+            i++;
         }
         return code[start..];
     }
 
-    /// <summary>Kod kısmı: düz dize sabitleri atılır, enterpolasyonlu dizelerden yalnızca {…} delikleri kalır.</summary>
-    private static string CodeOnly(string args)
+    /// <summary>Görünen kod: dize/karakter sabitlerinin metni atılır, enterpolasyon deliklerinin kodu kalır.</summary>
+    private static string Visible(string code)
     {
         var sb = new StringBuilder();
-        for (var i = 0; i < args.Length; i++)
+        for (var i = 0; i < code.Length;)
         {
-            var interpolated = args[i] == '$' && i + 1 < args.Length && args[i + 1] == '"';
-            if (interpolated) i++;
-            if (args[i] != '"')
+            var holes = new List<(int Start, int Length)>();
+            if (LiteralEnd(code, i, holes) is > 0 and var end)
             {
-                sb.Append(args[i]);
+                sb.Append(' ');
+                foreach (var (s, l) in holes) sb.Append(Visible(code.Substring(s, l))).Append(' ');
+                i = end;
                 continue;
             }
-            var hole = 0;
-            for (i++; i < args.Length; i++)
-            {
-                var c = args[i];
-                if (hole == 0 && c == '\\') { i++; continue; }
-                if (interpolated && c == '{' && i + 1 < args.Length && args[i + 1] == '{' && hole == 0) { i++; continue; }
-                if (interpolated && c == '{') { hole++; sb.Append(' '); continue; }
-                if (interpolated && c == '}' && hole > 0) { hole--; sb.Append(' '); continue; }
-                if (hole > 0) { sb.Append(c); continue; }
-                if (c == '"') break;
-            }
-            sb.Append(' ');
+            sb.Append(code[i++]);
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// <paramref name="i"/>'de bir dize ya da karakter sabiti başlıyorsa bittiği yerden sonraki sıra; değilse -1. Dize
+    /// biçimleri: "…", @"…", $"…", $@"…", @$"…", ham """…""" ($'lı); enterpolasyon delikleri <paramref name="holes"/>'a yazılır
+    /// (ham enterpolasyonlu dizenin içeriği bütünüyle delik sayılır: temkinli).
+    /// </summary>
+    private static int LiteralEnd(string code, int i, List<(int Start, int Length)>? holes = null)
+    {
+        if (code[i] == '\'')
+        {
+            var close = code.IndexOf('\'', i + (i + 1 < code.Length && code[i + 1] == '\\' ? 3 : 2));
+            return close < 0 ? code.Length : close + 1;
+        }
+
+        var j = i;
+        var dollars = 0;
+        var verbatim = false;
+        while (j < code.Length && j - i < 4 && code[j] is '$' or '@')
+        {
+            if (code[j] == '$') dollars++;
+            else verbatim = true;
+            j++;
+        }
+        if (j >= code.Length || code[j] != '"') return -1;
+
+        var quotes = 0;
+        while (j + quotes < code.Length && code[j + quotes] == '"') quotes++;
+        if (quotes >= 3)
+        {
+            var start = j + quotes;
+            var close = code.IndexOf(new string('"', quotes), start, StringComparison.Ordinal);
+            if (close < 0) close = code.Length;
+            if (dollars > 0) holes?.Add((start, close - start));
+            return Math.Min(code.Length, close + quotes);
+        }
+        if (quotes == 2) return j + 2;   // ""
+
+        var p = j + 1;
+        while (p < code.Length)
+        {
+            var c = code[p];
+            if (!verbatim && c == '\\') { p += 2; continue; }
+            if (c == '"')
+            {
+                if (verbatim && p + 1 < code.Length && code[p + 1] == '"') { p += 2; continue; }
+                return p + 1;
+            }
+            if (dollars > 0 && c is '{' or '}' && p + 1 < code.Length && code[p + 1] == c) { p += 2; continue; }
+            if (dollars > 0 && c == '{')
+            {
+                var start = p + 1;
+                var depth = 1;
+                for (p = start; p < code.Length && depth > 0;)
+                {
+                    if (LiteralEnd(code, p) is > 0 and var end) { p = end; continue; }
+                    if (code[p] == '{') depth++;
+                    else if (code[p] == '}') depth--;
+                    p++;
+                }
+                holes?.Add((start, Math.Max(0, p - 1 - start)));
+                continue;
+            }
+            if (!verbatim && c == '\n') return p;   // kapanmamış sabit: satır sonunda bırak
+            p++;
+        }
+        return code.Length;
     }
 
     /// <summary>Yorumları atar (satırlar korunur); dize ve karakter sabitlerinin içindeki "//" yorum sayılmaz.</summary>
     private static string StripComments(string source)
     {
         var sb = new StringBuilder(source.Length);
-        for (var i = 0; i < source.Length; i++)
+        for (var i = 0; i < source.Length;)
         {
+            if (LiteralEnd(source, i) is > 0 and var end)
+            {
+                sb.Append(source, i, end - i);
+                i = end;
+                continue;
+            }
             var c = source[i];
             var next = i + 1 < source.Length ? source[i + 1] : '\0';
             if (c == '/' && next == '/')
             {
                 while (i < source.Length && source[i] != '\n') i++;
-                if (i < source.Length) sb.Append('\n');
                 continue;
             }
             if (c == '/' && next == '*')
             {
-                var end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                end = end < 0 ? source.Length : end + 2;
-                sb.Append('\n', source.AsSpan(i, end - i).Count('\n'));
-                i = end - 1;
-                continue;
-            }
-            if (c is '"' or '\'')
-            {
-                var verbatim = c == '"' && i > 0 && source[i - 1] == '@';
-                sb.Append(c);
-                for (i++; i < source.Length; i++)
-                {
-                    sb.Append(source[i]);
-                    if (!verbatim && source[i] == '\\' && i + 1 < source.Length) { sb.Append(source[++i]); continue; }
-                    if (source[i] == c)
-                    {
-                        if (verbatim && i + 1 < source.Length && source[i + 1] == '"') { sb.Append(source[++i]); continue; }
-                        break;
-                    }
-                    if (source[i] == '\n' && !verbatim) break;   // kapanmamış sabit: satır sonunda bırak
-                }
+                var close = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                close = close < 0 ? source.Length : close + 2;
+                sb.Append('\n', source.AsSpan(i, close - i).Count('\n'));
+                i = close;
                 continue;
             }
             sb.Append(c);
+            i++;
         }
         return sb.ToString();
     }

@@ -29,6 +29,19 @@ public class RingActionsTests
     [InlineData("search-ms:query=x&crumb=location:\\\\evil", UrlCheck.Invalid)]
     [InlineData("ms-msdt:/id PCWDiagnostic", UrlCheck.Invalid)]
     [InlineData("data:text/html,<b>x</b>", UrlCheck.Invalid)]
+    [InlineData("ms-officecmd:{\"id\":1}", UrlCheck.Invalid)]
+    [InlineData("ms-appinstaller:?source=https://example.com/a.msix", UrlCheck.Invalid)]
+    [InlineData("hcp://system/x", UrlCheck.Invalid)]
+    [InlineData("its:C:/x.chm::/a.htm", UrlCheck.Invalid)]
+    [InlineData("ms-its:x.chm::/a.htm", UrlCheck.Invalid)]
+    [InlineData("mk:@MSITStore:x.chm::/a.htm", UrlCheck.Invalid)]
+    [InlineData("res://x.dll/1", UrlCheck.Invalid)]
+    [InlineData("mhtml:http://example.com/a.mht", UrlCheck.Invalid)]
+    [InlineData("ms-cxh://x", UrlCheck.Invalid)]
+    [InlineData("ms-cxh-full://x", UrlCheck.Invalid)]
+    [InlineData("shell:startup", UrlCheck.Invalid)]
+    [InlineData("https://\u202Eexample.com", UrlCheck.Invalid)]
+    [InlineData("https://exa\u200Bmple.com", UrlCheck.Invalid)]
     [InlineData("notepad.exe", UrlCheck.Invalid)]
     [InlineData("example.com", UrlCheck.Invalid)]
     [InlineData("/etc/passwd", UrlCheck.Invalid)]
@@ -53,6 +66,13 @@ public class RingActionsTests
     [InlineData("www.example.com/yol?q=1", "https://www.example.com/yol?q=1")]
     [InlineData("https://a.b", "https://a.b")]
     [InlineData("ms-settings:display", "ms-settings:display")]
+    [InlineData("localhost:3000", "http://localhost:3000")]
+    [InlineData("localhost:3000/api?x=1", "http://localhost:3000/api?x=1")]
+    [InlineData("127.0.0.1:5000", "http://127.0.0.1:5000")]
+    [InlineData("example.com:8080/x", "https://example.com:8080/x")]
+    [InlineData("192.168.1.1:8080", "https://192.168.1.1:8080")]
+    [InlineData("mailto:1@example.com", "mailto:1@example.com")]
+    [InlineData("tel:123", "tel:123")]
     [InlineData(@"C:\x.exe", null)]
     [InlineData(@"\\server\share", null)]
     [InlineData("notepad", null)]
@@ -85,6 +105,15 @@ public class RingActionsTests
         Assert.False(RingActions.ValidKeys(null));
         Assert.False(RingActions.ValidKeys(["Ctrl+Alt"]));
         Assert.Equal(8, RingActions.MaxChords);
+
+        // Gönderilemeyecek adlar: sayı (Enum.TryParse başka tuşa çevirirdi), virgül, kendisi değiştirici olan tuş.
+        Assert.False(RingActions.ValidKeys(["Ctrl+12"]));
+        Assert.False(RingActions.ValidKeys(["Ctrl+A,B"]));
+        Assert.False(RingActions.ValidKeys(["LeftShift"]));
+        Assert.False(RingActions.ValidKeys(["Ctrl+RightAlt"]));
+        Assert.True(RingActions.ValidKeys(["Ctrl+1", "OemPeriod", "NumPad5"]));
+        Assert.False(RingActions.ValidKeys(["Ctrl+X"], _ => false));        // gönderenin çözücüsü reddederse
+        Assert.False(RingActions.IsRunnable(new LauncherAction { Type = RingActionTypes.Keys, Keys = ["Ctrl+12"] }));
     }
 
     [Fact]
@@ -127,6 +156,15 @@ public class RingActionsTests
         Assert.True(RingActions.MarkImported(Item(RingActionTypes.Url, @"C:\x.exe")));
         Assert.False(RingActions.MarkImported(Item(RingActionTypes.Url, "https://example.com")));
         Assert.False(RingActions.MarkImported(Item(RingActionTypes.App)));
+
+        // Bu sürümün tanımadığı tür ya da kimlik de kapalı gelir: daha yeni bir sürüm onu tanıyıp onaysız çalıştırmasın.
+        Assert.True(RingActions.MarkImported(Item("macro")));
+        Assert.True(RingActions.MarkImported(new LauncherAction { Type = RingActionTypes.App, App = "organize-now" }));
+        Assert.True(RingActions.MarkImported(new LauncherAction()));
+        // Bilinmeyen alan taşıyan (daha yeni sürümün) adres öğesi de.
+        var future = JsonSerializer.Deserialize<LauncherAction>(
+            """{ "Type": "url", "Url": "https://example.com", "Browser": "x.exe" }""", JsonFile.Options)!;
+        Assert.True(RingActions.MarkImported(future));
 
         var command = Item(RingActionTypes.Command);
         RingActions.MarkImported(command);

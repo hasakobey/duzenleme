@@ -88,10 +88,14 @@ public static class WidgetSeeds
 
     /// <summary>
     /// Çoğaltılan widget'ın kopyası için: çalışan zamanlayıcı baştan başlar (iki widget aynı anda çalmasın), elle sıra ve
-    /// gizlenen öğeler korunur.
+    /// gizlenen öğeler korunur. Kutu/halka eylemleri yeni kimlik alır: kopyadan öteki halkaya taşınan öğe orada aynı kimlikli
+    /// bir öğeyle karışmasın.
     /// </summary>
     public static void PrepareDuplicate(WidgetConfig copy)
     {
         if (WidgetVariants.Is(copy, WidgetVariants.Timer) && copy.Timer is { } timer) copy.Timer = TimerLogic.Fresh(timer);
+        foreach (var tab in copy.Tabs)
+            foreach (var action in tab?.Actions ?? [])
+                if (action is not null) action.Id = LauncherAction.NewId();
     }
 }

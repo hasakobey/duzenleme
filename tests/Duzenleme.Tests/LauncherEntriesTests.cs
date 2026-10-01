@@ -126,6 +126,63 @@ public class LauncherEntriesTests
     }
 
     [Fact]
+    public void Duplicates_are_not_inserted_and_clashing_ids_are_renewed()
+    {
+        var tab = new LauncherTab { Items = ["a"], Actions = [Act("x", 0)] };
+        Assert.Equal(-1, LauncherEntries.Insert(tab, 0, LauncherEntry.Of("A")));          // aynı yol (harf duyarsız)
+        Assert.Equal(-1, LauncherEntries.Insert(tab, 0, LauncherEntry.Of(tab.Actions![0])));  // aynı nesne
+        Assert.Equal("X a", Describe(tab));
+
+        var twin = Act("x", 0);                                                           // ör. çoğaltılmış halkadan
+        Assert.Equal(2, LauncherEntries.Insert(tab, 2, LauncherEntry.Of(twin)));
+        Assert.NotEqual("x", twin.Id);
+        Assert.Equal(0, LauncherEntries.IndexOfAction(tab, "x"));
+        Assert.Equal(2, LauncherEntries.IndexOfAction(tab, twin.Id));
+
+        var nameless = Act("", 0);
+        LauncherEntries.Insert(tab, 0, LauncherEntry.Of(nameless));
+        Assert.False(string.IsNullOrEmpty(nameless.Id));
+        Assert.Equal(3, tab.Actions!.Select(a => a.Id).Distinct().Count());               // 3 eylem, hepsi ayrı kimlikli
+    }
+
+    [Fact]
+    public void Moving_a_path_onto_a_tab_that_has_it_loses_nothing()
+    {
+        var root = new LauncherTab { Items = ["a", "b"] };
+        var sub = new LauncherTab { Items = ["B"] };
+        Assert.False(LauncherEntries.MoveTo(root, 1, sub, 0));
+        Assert.Equal("a b", Describe(root));
+        Assert.Equal("B", Describe(sub));
+        Assert.False(LauncherEntries.MoveTo(root, 5, sub, 0));
+        Assert.True(LauncherEntries.MoveTo(root, 0, sub, 0));
+        Assert.Equal("a B", Describe(sub));
+    }
+
+    [Fact]
+    public void Null_entries_in_a_hand_edited_file_are_skipped()
+    {
+        var tab = JsonSerializer.Deserialize<LauncherTab>(
+            """{ "Items": ["a", null, "b"], "Actions": [null, { "Id": "x", "Type": "url", "PathsBefore": 1 }] }""", JsonFile.Options)!;
+        Assert.Equal("a X b", Describe(tab));
+        Assert.Equal(3, LauncherEntries.Count(tab));
+        Assert.True(LauncherEntries.Move(tab, 2, 0));
+        Assert.Equal(new[] { "b", "a" }, tab.Items);                                      // yazılınca boşlar düşer
+        Assert.Single(tab.Actions!);
+    }
+
+    [Fact]
+    public void Duplicated_ring_gets_new_action_ids()
+    {
+        var ring = WidgetSeeds.Create(WidgetSeeds.Ring)!;
+        var copy = ring.Clone();
+        WidgetSeeds.PrepareDuplicate(copy);
+        var before = ring.Tabs[0].Actions!.Select(a => a.Id).ToList();
+        var after = copy.Tabs[0].Actions!.Select(a => a.Id).ToList();
+        Assert.Empty(before.Intersect(after));
+        Assert.Equal(ring.Tabs[0].Actions!.Select(a => a.App), copy.Tabs[0].Actions!.Select(a => a.App));
+    }
+
+    [Fact]
     public void Unknown_action_type_and_fields_are_kept_through_edits()
     {
         var unknown = JsonSerializer.Deserialize<LauncherAction>("""{ "Id": "m", "Type": "macro", "Steps": [1, 2] }""", JsonFile.Options)!;

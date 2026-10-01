@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -8,31 +9,58 @@ namespace Duzenleme.Desktop;
 /// <summary>
 /// Halkanın "metin yapıştır" öğesi (Store 10.5: pano geçmişine ve bulut panosuna girmez, önceki pano geri konur):
 /// <list type="number">
-/// <item>önceki pano içeriği bellekte saklanır (yalnızca beyaz listedeki biçimler; bkz. <see cref="Classify"/>),</item>
+/// <item>hedef hâlâ önde ve girdiyi alabiliyor mu bakılır (değilse panoya dokunulmaz),</item>
+/// <item>önceki pano içeriği bellekte saklanır (asıl biçimler; bkz. <see cref="Classify"/>); okunamazsa yapıştırılmaz,</item>
 /// <item>metin, izleme/geçmiş/bulut dışlama biçimleriyle panoya konur ve kalıcı yapılır (OleFlushClipboard),</item>
-/// <item>pano sıra numarası alınır, Ctrl+V gönderilir,</item>
-/// <item>~1 sn sonra sıra numarası değişmediyse (başka bir şey panoya yazmadıysa) önceki içerik, yine dışlama biçimleriyle
-/// geri konur; önce pano boşsa boşaltılır. Önceki içerikte beyaz liste dışı biçim varsa geri konmaz, sonuç bildirilir.</item>
+/// <item>pano sıra numarası alınır, hedef yeniden denetlenip Ctrl+V gönderilir (değilse önceki içerik hemen geri konur),</item>
+/// <item>~1 sn ileti işlenerek beklenir (panonun sahibi biziz; başka uygulama panoyu boşaltırken takılmasın), sonra sıra
+/// numarası değişmediyse (başka bir şey panoya yazmadıysa) önceki içeriğin asıl biçimleri, yine dışlama biçimleriyle geri
+/// konur; geri konacak asıl biçim yoksa pano boşaltılır (metin panoda bırakılmaz).</item>
 /// </list>
-/// Hepsi kendi STA iş parçacığında (<see cref="ShellFileOperations.RunSta"/>). Metin ve pano içeriği asla günlüğe yazılmaz.
+/// Hepsi kendi STA iş parçacığında (<see cref="ShellFileOperations.RunSta"/>), <see cref="KeySender"/>'ın kapısıyla tek tek
+/// ve en çok <see cref="Timeout"/> beklenerek. Metin ve pano içeriği asla günlüğe yazılmaz (yalnızca hata türü).
 /// </summary>
 internal static class SnippetPaste
 {
     /// <summary>Yapıştırmadan sonra önceki içeriği geri koymadan önceki bekleme (hedef uygulama panoyu okusun).</summary>
     public static readonly TimeSpan RestoreDelay = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// <see cref="PasteAsync"/>'in en uzun beklemesi (askıdaki bir uygulamanın geciktirilmiş biçimi panoyu kilitleyebilir).
+    /// Süre dolarsa iş parçacığı Ctrl+V göndermez; kapı iş gerçekten bitince bırakılır.
+    /// </summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(4);
+
     public enum Outcome
     {
         /// <summary>Yapıştırıldı, önceki içerik geri kondu (ya da pano boştu ve boşaltıldı).</summary>
         Restored,
 
+        /// <summary>Yapıştırıldı; önceki içeriğin asıl biçimleri geri kondu, geri konamayanlar (ör. Office nesnesi) düştü.</summary>
+        PartiallyRestored,
+
+        /// <summary>Yapıştırıldı; önceki içerikte geri konabilen biçim yoktu: pano boşaltıldı (metin panoda kalmadı).</summary>
+        NotRestorable,
+
         /// <summary>Yapıştırıldı; bu arada pano başka biri tarafından değişti: geri konmadı (yenisinin üstüne yazılmaz).</summary>
         ClipboardChanged,
 
-        /// <summary>Yapıştırıldı; önceki içerik geri konamayacak biçimler içeriyordu (ör. Office nesnesi): metin panoda kaldı.</summary>
-        NotRestorable,
+        /// <summary>Yapıştırıldı; önceki içerik geri konamadı (pano meşguldü): metin panoda kalmış olabilir.</summary>
+        PastedNotRestored,
 
-        /// <summary>Pano açılamadı ya da tuş gönderilemedi.</summary>
+        /// <summary>Başka bir tuş/metin gönderimi sürüyor: hiçbir şey yapılmadı.</summary>
+        Busy,
+
+        /// <summary>Hedef yok, masaüstü ya da bu uygulama: yapıştırılmadı, pano eski hâlinde.</summary>
+        NoTarget,
+
+        /// <summary>Öndeki pencere hedef değil: yapıştırılmadı, pano eski hâlinde.</summary>
+        NotInFront,
+
+        /// <summary>Hedef yönetici olarak (daha yüksek düzeyde) çalışıyor ya da bilinmiyor: yapıştırılmadı.</summary>
+        Elevated,
+
+        /// <summary>Pano açılamadı, süre doldu ya da tuş gönderilemedi: yapıştırılmadı.</summary>
         Failed,
     }
 
@@ -41,120 +69,255 @@ internal static class SnippetPaste
     public const string CanIncludeInHistory = "CanIncludeInClipboardHistory";
     public const string CanUploadToCloud = "CanUploadToCloudClipboard";
     public const string PreferredDropEffect = "Preferred DropEffect";
+    public const string Png = "PNG";
 
-    /// <summary>Geri konabilen asıl biçimler.</summary>
+    /// <summary>Geri konabilen asıl biçimler (içeriğin kendisi).</summary>
     public static IReadOnlyList<string> Primary =>
-        [DataFormats.UnicodeText, DataFormats.Text, DataFormats.Rtf, DataFormats.Html, DataFormats.FileDrop, DataFormats.Dib, DataFormats.Bitmap];
+        [DataFormats.UnicodeText, DataFormats.Text, DataFormats.Rtf, DataFormats.Html, DataFormats.FileDrop, DataFormats.Dib,
+            DataFormats.Bitmap, Png];
 
     /// <summary>
-    /// Asıl biçimlerin Windows'un ya da kaynak uygulamanın eklediği yan bilgileri: içerik taşımaz, geri konmaz (asıl biçimden
-    /// yeniden üretilir ya da önemsizdir). Bunlar dışında bir biçim varsa önceki içerik geri konmaz.
+    /// Asıl biçimlerin Windows'un ya da kaynak uygulamanın eklediği yan bilgileri: geri konmaz (asıl biçimden yeniden
+    /// üretilir ya da önemsizdir) ve düşmeleri kayıp sayılmaz. Bunlar dışındaki biçimler (ör. Excel hücreleri, Office
+    /// nesneleri) geri konamaz: <see cref="Outcome.PartiallyRestored"/>.
     /// </summary>
     public static IReadOnlyList<string> Companions =>
     [
         DataFormats.OemText, DataFormats.Locale, "Format17", // CF_DIBV5: DIB'den üretilir
         "FileName", "FileNameW", "Shell IDList Array", "Shell Object Offsets", "DataObjectAttributes",
-        "DataObjectAttributesRequiringElevation", "AsyncFlag", PreferredDropEffect,
-        "Chromium internal source URL", "msSourceUrl", "text/x-moz-url-priv", "text/_moz_htmlcontext", "text/_moz_htmlinfo",
+        "DataObjectAttributesRequiringElevation", "AsyncFlag", PreferredDropEffect, "Performed DropEffect",
+        "Logical Performed DropEffect", "Paste Succeeded", "DragImageBits", "DragContext", "DropDescription",
+        "UniformResourceLocator", "UniformResourceLocatorW", "Ole Private Data",
+        "Chromium internal source URL", "Chromium internal source RFH token", "Chromium Web Custom MIME Data Format",
+        "msSourceUrl", "text/x-moz-url", "text/x-moz-url-priv", "text/_moz_htmlcontext", "text/_moz_htmlinfo",
+        "VisualStudioEditorOperationsLineCutCopyClipboardTag", "MSDEVColumnSelect", "MSDEVLineSelect",
         ExcludeFromMonitoring, CanIncludeInHistory, CanUploadToCloud, "Clipboard Viewer Ignore",
     ];
 
+    /// <summary>Önceki içeriğin geri konma planı: geri konacak biçimler (panodaki sırasıyla) ve bir şeyin düşüp düşmediği.</summary>
+    public readonly record struct RestorePlan(IReadOnlyList<string> Formats, bool Lossy);
+
     /// <summary>
-    /// Önceki pano içeriği geri konabilir mi ve hangi biçimlerle (saf; testlenir). Yalnızca asıl ve yan biçimler varsa
-    /// geri konabilir; geri konanlar: UnicodeText (yoksa Text), RTF, HTML, FileDrop (+ Preferred DropEffect: kes/kopyala),
-    /// DIB (yoksa Bitmap). Boş pano geri konabilir (boşaltılır).
+    /// Önceki pano içeriğinden ne geri konur (saf; testlenir): panoda bulunan her asıl biçim, panodaki sırasıyla; UnicodeText
+    /// varsa Text, DIB varsa Bitmap (Windows üretir) alınmaz; FileDrop'la birlikte Preferred DropEffect (kes/kopyala) de.
+    /// Asıl ve yan biçim dışında bir biçim varsa Lossy. Boş pano ya da yalnızca yan bilgi: hiçbir şey (pano boşaltılır).
     /// </summary>
-    public static (bool Restorable, IReadOnlyList<string> Formats) Classify(IEnumerable<string> formats)
+    public static RestorePlan Classify(IEnumerable<string> formats)
     {
-        var set = new HashSet<string>(formats, StringComparer.OrdinalIgnoreCase);
-        var known = new HashSet<string>(Primary.Concat(Companions), StringComparer.OrdinalIgnoreCase);
-        if (set.Any(f => !known.Contains(f))) return (false, []);
+        var list = formats.Where(f => !string.IsNullOrEmpty(f)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var set = new HashSet<string>(list, StringComparer.OrdinalIgnoreCase);
+        var primary = new HashSet<string>(Primary, StringComparer.OrdinalIgnoreCase);
+        var companions = new HashSet<string>(Companions, StringComparer.OrdinalIgnoreCase);
 
         var restore = new List<string>();
-        if (set.Contains(DataFormats.UnicodeText)) restore.Add(DataFormats.UnicodeText);
-        else if (set.Contains(DataFormats.Text)) restore.Add(DataFormats.Text);
-        if (set.Contains(DataFormats.Rtf)) restore.Add(DataFormats.Rtf);
-        if (set.Contains(DataFormats.Html)) restore.Add(DataFormats.Html);
-        if (set.Contains(DataFormats.FileDrop))
+        foreach (var format in list)
         {
-            restore.Add(DataFormats.FileDrop);
-            if (set.Contains(PreferredDropEffect)) restore.Add(PreferredDropEffect);
+            if (!primary.Contains(format)) continue;
+            if (Is(format, DataFormats.Text) && set.Contains(DataFormats.UnicodeText)) continue;
+            if (Is(format, DataFormats.Bitmap) && set.Contains(DataFormats.Dib)) continue;
+            restore.Add(format);
+            if (Is(format, DataFormats.FileDrop) && set.Contains(PreferredDropEffect)) restore.Add(PreferredDropEffect);
         }
-        if (set.Contains(DataFormats.Dib)) restore.Add(DataFormats.Dib);
-        else if (set.Contains(DataFormats.Bitmap)) restore.Add(DataFormats.Bitmap);
-        // Yalnızca yan bilgi (asıl içerik yok): geri konacak bir şey yok, pano boş sayılır.
-        return (true, restore);
+        var lossy = list.Any(f => !primary.Contains(f) && !companions.Contains(f));
+        return new RestorePlan(restore, lossy);
     }
+
+    private static bool Is(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Yapıştırılacak metnin pano içeriği: metin ve üç dışlama biçimi (saf; testlenir).</summary>
+    public static List<(string Format, object Value)> SnippetPayload(string text) => [(DataFormats.UnicodeText, text), .. Exclusions()];
+
+    /// <summary>Geri konan önceki içerik: saklanan biçimler ve üç dışlama biçimi (saf; testlenir).</summary>
+    public static List<(string Format, object Value)> RestorePayload(IEnumerable<(string Format, object Value)> saved) =>
+        [.. saved, .. Exclusions()];
+
+    /// <summary>Pano geçmişi (Win+V), bulut panosu ve pano izleyicileri bu içeriği almaz (her biri DWORD 0, her seferinde yeni akış).</summary>
+    public static IEnumerable<(string Format, object Value)> Exclusions() =>
+    [
+        (ExcludeFromMonitoring, new MemoryStream(BitConverter.GetBytes(0))),
+        (CanIncludeInHistory, new MemoryStream(BitConverter.GetBytes(0))),
+        (CanUploadToCloud, new MemoryStream(BitConverter.GetBytes(0))),
+    ];
+
+    // Panoya en son koyduğumuz metnin sıra numarası (geri konunca 0): panoda hâlâ kendi metnimiz duruyorsa (önceki geri koyma
+    // başarısız olduysa) o "önceki içerik" sayılmaz, boşaltılır.
+    private static uint _snippetSequence;
 
     /// <summary>
-    /// Metni ön plandaki pencereye yapıştırır (çağıran önce hedefi öne getirir, kısayol tuşlarının bırakılmasını bekler ve
-    /// yönetici penceresini dışlar). Metin <see cref="RingActions.ValidText"/> değilse hiçbir şey yapmaz.
+    /// Metni <paramref name="target"/> penceresine yapıştırır. Çağıran önce halkanın kapanmasını, hedefin öne gelmesini ve
+    /// kısayol tuşlarının bırakılmasını bekler; hedefin önde olduğuna ve girdiyi alabildiğine burada da (panoya yazmadan ve
+    /// Ctrl+V'den hemen önce) bakılır. Metin <see cref="RingActions.ValidText"/> değilse hiçbir şey yapmaz. Hata fırlatmaz.
     /// </summary>
-    public static async Task<Outcome> PasteAsync(string text)
+    public static async Task<Outcome> PasteAsync(IntPtr target, string text)
     {
         if (!RingActions.ValidText(text)) return Outcome.Failed;
-        var outcome = Outcome.Failed;
-        try { await ShellFileOperations.RunSta(() => outcome = Run(text)); }
-        catch (Exception ex) when (ex is ExternalException or InvalidOperationException) { return Outcome.Failed; }
-        return outcome;
-    }
+        if (!KeySender.TryEnterGate()) return Outcome.Busy;
 
-    private static Outcome Run(string text)
-    {
-        // 1. Önceki içerik (yalnızca bellekte).
-        var (restorable, saved) = Save();
-
-        // 2. Metin + dışlama biçimleri; copy: true → OleFlushClipboard: iş parçacığı bitse de içerik panoda kalır. Otomatik
-        // dönüştürme yok (WPF'in .NET nesne biçimi eklenmesin); Text/OEMText'i Windows UnicodeText'ten üretir.
-        var data = new DataObject();
-        data.SetData(DataFormats.UnicodeText, text, autoConvert: false);
-        AddExclusions(data);
-        Clipboard.SetDataObject(data, copy: true);
-        var sequence = GetClipboardSequenceNumber();
-
-        // 3. Ctrl+V (hâlâ basılı değiştiriciler önce bırakılır).
-        var sent = KeySender.Send(["Ctrl+V"], KeySender.HeldModifiers());
-
-        // 4. Hedef okusun; sonra yalnızca pano bu arada değişmediyse geri koy.
-        Thread.Sleep(RestoreDelay);
-        if (GetClipboardSequenceNumber() != sequence) return sent ? Outcome.ClipboardChanged : Outcome.Failed;
-        if (!restorable) return sent ? Outcome.NotRestorable : Outcome.Failed;
-        if (saved.Count == 0) Clipboard.Clear();
-        else
+        var run = new PasteRun(target, text);
+        Task work;
+        try { work = ShellFileOperations.RunSta(run.Execute); }
+        catch (Exception ex)
         {
-            var back = new DataObject();
-            foreach (var (format, value) in saved) back.SetData(format, value, autoConvert: false);
-            AddExclusions(back);
-            Clipboard.SetDataObject(back, copy: true);
+            KeySender.ExitGate();
+            DebugLog.Write($"SnippetPaste: {ex.GetType().Name}");
+            return Outcome.Failed;
         }
-        return sent ? Outcome.Restored : Outcome.Failed;
+        // Kapı iş gerçekten bitince bırakılır: süre dolsa da geç kalan iş başka bir gönderimle iç içe geçmesin. İş zamanında
+        // biterse burada hemen (dönmeden önce) bırakılır; devam işlevi o zaman bir şey yapmaz.
+        var released = 0;
+        void Release() { if (Interlocked.Exchange(ref released, 1) == 0) KeySender.ExitGate(); }
+        _ = work.ContinueWith(_ => Release(), TaskScheduler.Default);
+
+        if (await Task.WhenAny(work, Task.Delay(Timeout)).ConfigureAwait(false) != work)
+        {
+            run.Abandon();
+            DebugLog.Write("SnippetPaste: timeout");
+            return run.Sent ? Outcome.PastedNotRestored : Outcome.Failed;
+        }
+        Release();
+        return run.Result;
     }
 
-    /// <summary>Panodaki içeriğin geri konacak kopyası; okunamayan asıl biçim varsa geri konamaz sayılır.</summary>
-    private static (bool Restorable, List<(string Format, object Value)> Saved) Save()
+    /// <summary>Bir yapıştırmanın STA iş parçacığındaki gövdesi ve durumu.</summary>
+    private sealed class PasteRun(IntPtr target, string text)
+    {
+        private volatile bool _abandoned;
+        private volatile bool _sent;
+
+        public Outcome Result { get; private set; } = Outcome.Failed;
+        public bool Sent => _sent;
+
+        /// <summary>Süre doldu: iş bundan sonra Ctrl+V göndermez, panoya yazdıysa önceki içeriği geri koyar.</summary>
+        public void Abandon() => _abandoned = true;
+
+        /// <summary>Hiçbir hatayı dışarı sızdırmaz; günlüğe yalnızca hatanın türü yazılır.</summary>
+        public void Execute()
+        {
+            try { Result = Run(); }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"SnippetPaste: {ex.GetType().Name}");
+                Result = _sent ? Outcome.PastedNotRestored : Outcome.Failed;
+            }
+        }
+
+        private Outcome Run()
+        {
+            // 1. Hedef: panoya dokunmadan önce.
+            if (Map(ForegroundInfo.Check(target)) is { } refused) return refused;
+
+            // 2. Önceki içerik (yalnızca bellekte); okunamazsa yapıştırılmaz (yapıştırsak kaybolurdu).
+            if (_abandoned) return Outcome.Failed;
+            var previous = Save();
+            if (previous is null || _abandoned) return Outcome.Failed;
+
+            // 3. Metin + dışlama biçimleri; copy: true → OleFlushClipboard: iş parçacığı bitse de içerik panoda kalır.
+            // Otomatik dönüştürme yok (WPF'in .NET nesne biçimi eklenmesin); Text/OEMText'i Windows UnicodeText'ten üretir.
+            Clipboard.SetDataObject(Build(SnippetPayload(text)), copy: true);
+            var sequence = GetClipboardSequenceNumber();
+            _snippetSequence = sequence;
+
+            // 4. Ctrl+V: hedef hâlâ önde ve girdiyi alabiliyorsa (hâlâ basılı değiştiriciler önce bırakılır).
+            var result = _abandoned ? SendResult.Failed : KeySender.SendTo(target, ["Ctrl+V"], KeySender.HeldModifiers());
+            if (result != SendResult.Sent)
+            {
+                // Yapıştırılmadı: önceki içerik hemen geri (pano bu arada değişmediyse). Geri konamazsa panoda kalan kendi
+                // metnimiz bir sonraki yapıştırmada "önceki içerik" sayılmaz (_snippetSequence).
+                try { if (GetClipboardSequenceNumber() == sequence) Restore(previous); }
+                catch (Exception ex) when (ex is ExternalException or InvalidOperationException or IOException)
+                {
+                    DebugLog.Write($"SnippetPaste: {ex.GetType().Name}");
+                }
+                return Map(result);
+            }
+            _sent = true;
+
+            // 5. Hedef okusun (iletiler işlenerek); sonra yalnızca pano bu arada değişmediyse geri koy.
+            PumpFor(RestoreDelay);
+            if (GetClipboardSequenceNumber() != sequence) return Outcome.ClipboardChanged;
+            try { Restore(previous); }
+            catch (Exception ex) when (ex is ExternalException or InvalidOperationException or IOException)
+            {
+                DebugLog.Write($"SnippetPaste: {ex.GetType().Name}");
+                return Outcome.PastedNotRestored;
+            }
+            return previous.Saved.Count == 0 ? (previous.Lossy ? Outcome.NotRestorable : Outcome.Restored)
+                : previous.Lossy ? Outcome.PartiallyRestored : Outcome.Restored;
+        }
+
+        private static Outcome? Map(InputTarget check) => check switch
+        {
+            InputTarget.Ok => null,
+            InputTarget.NotInFront => Outcome.NotInFront,
+            InputTarget.Elevated => Outcome.Elevated,
+            _ => Outcome.NoTarget,
+        };
+
+        private static Outcome Map(SendResult result) => result switch
+        {
+            SendResult.NoTarget => Outcome.NoTarget,
+            SendResult.NotInFront => Outcome.NotInFront,
+            SendResult.Elevated => Outcome.Elevated,
+            _ => Outcome.Failed,
+        };
+    }
+
+    /// <summary>Saklanan önceki içerik: geri konacak biçimler ve bir şeyin düşüp düşmediği.</summary>
+    private sealed record Previous(List<(string Format, object Value)> Saved, bool Lossy);
+
+    /// <summary>
+    /// Panodaki içeriğin geri konacak kopyası; pano açılamazsa null. Okunamayan asıl biçim düşer (Lossy). Panoda hâlâ kendi
+    /// metnimiz duruyorsa önceki içerik yok sayılır (geri konunca pano boşaltılır).
+    /// </summary>
+    private static Previous? Save()
     {
         var saved = new List<(string, object)>();
-        IDataObject? current;
-        try { current = Clipboard.GetDataObject(); }
-        catch (ExternalException) { return (false, saved); }
-        if (current is null) return (true, saved);
+        if (_snippetSequence != 0 && GetClipboardSequenceNumber() == _snippetSequence) return new Previous(saved, Lossy: false);
 
+        IDataObject? current;
         string[] formats;
-        try { formats = current.GetFormats(autoConvert: false); }
-        catch (ExternalException) { return (false, saved); }
-        var (restorable, restore) = Classify(formats);
-        if (!restorable) return (false, saved);
-        foreach (var format in restore)
+        try
+        {
+            current = Clipboard.GetDataObject();
+            if (current is null) return new Previous(saved, Lossy: false);
+            formats = current.GetFormats(autoConvert: false);
+        }
+        catch (ExternalException) { return null; }
+
+        var plan = Classify(formats);
+        var lossy = plan.Lossy;
+        foreach (var format in plan.Formats)
         {
             object? value;
             try { value = current.GetData(format, autoConvert: false); }
-            catch (Exception ex) when (ex is ExternalException or OutOfMemoryException) { return (false, saved); }
+            catch (Exception ex) when (ex is ExternalException or OutOfMemoryException or InvalidOperationException) { value = null; }
             // Akışlar kopyalanır: panonun eski nesnesi değişince geçersiz kalmasın.
-            if (value is Stream stream) value = Copy(stream);
-            if (value is null) return (false, saved);
+            try { if (value is Stream stream) value = Copy(stream); }
+            catch (Exception ex) when (ex is IOException or NotSupportedException or ObjectDisposedException) { value = null; }
+            if (value is null) { lossy = true; continue; }
             saved.Add((format, value));
         }
-        return (true, saved);
+        return new Previous(saved, lossy);
+    }
+
+    /// <summary>Önceki içeriği (dışlama biçimleriyle) geri koyar; geri konacak bir şey yoksa panoyu boşaltır.</summary>
+    private static void Restore(Previous previous)
+    {
+        if (previous.Saved.Count == 0) Clipboard.Clear();
+        else
+        {
+            // Akışlar bir kez okunur: her geri koymada baştan.
+            foreach (var (_, value) in previous.Saved) if (value is Stream { CanSeek: true } stream) stream.Position = 0;
+            Clipboard.SetDataObject(Build(RestorePayload(previous.Saved)), copy: true);
+        }
+        _snippetSequence = 0;
+    }
+
+    private static DataObject Build(IEnumerable<(string Format, object Value)> payload)
+    {
+        var data = new DataObject();
+        foreach (var (format, value) in payload) data.SetData(format, value, autoConvert: false);
+        return data;
     }
 
     private static MemoryStream Copy(Stream stream)
@@ -166,14 +329,56 @@ internal static class SnippetPaste
         return copy;
     }
 
-    /// <summary>Pano geçmişi (Win+V), bulut panosu ve pano izleyicileri bu içeriği almaz (DWORD 0).</summary>
-    private static void AddExclusions(DataObject data)
+    /// <summary>
+    /// Süre dolana dek bu iş parçacığının iletilerini işleyerek bekler: panonun sahibi (OLE pano penceresi) bu iş
+    /// parçacığındadır; başka bir uygulama panoyu boşaltırken gönderdiği WM_DESTROYCLIPBOARD'a hemen yanıt verilir.
+    /// </summary>
+    private static void PumpFor(TimeSpan duration)
     {
-        data.SetData(ExcludeFromMonitoring, new MemoryStream(BitConverter.GetBytes(0)), autoConvert: false);
-        data.SetData(CanIncludeInHistory, new MemoryStream(BitConverter.GetBytes(0)), autoConvert: false);
-        data.SetData(CanUploadToCloud, new MemoryStream(BitConverter.GetBytes(0)), autoConvert: false);
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < duration)
+        {
+            var left = (uint)Math.Max(1, Math.Ceiling((duration - clock.Elapsed).TotalMilliseconds));
+            MsgWaitForMultipleObjectsEx(0, IntPtr.Zero, left, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+            while (PeekMessageW(out var msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(ref msg);
+                DispatchMessageW(ref msg);
+            }
+        }
+    }
+
+    private const uint QS_ALLINPUT = 0x04FF;
+    private const uint MWMO_INPUTAVAILABLE = 0x0004;
+    private const uint PM_REMOVE = 0x0001;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public int ptX;
+        public int ptY;
+        public uint lPrivate;
     }
 
     [DllImport("user32.dll")]
     private static extern uint GetClipboardSequenceNumber();
+
+    [DllImport("user32.dll")]
+    private static extern uint MsgWaitForMultipleObjectsEx(uint count, IntPtr handles, uint milliseconds, uint wakeMask, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PeekMessageW(out MSG msg, IntPtr hwnd, uint filterMin, uint filterMax, uint remove);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TranslateMessage(ref MSG msg);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr DispatchMessageW(ref MSG msg);
 }

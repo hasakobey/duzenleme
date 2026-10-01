@@ -103,10 +103,18 @@ public static class RingActions
     public const int MaxTextLength = 10_000;
     public const int MaxUrlLength = 4096;
 
-    // Kabukta kod çalıştıran ya da uzak aramaya açılan şemalar: onayla da kabul edilmez.
+    // Kabukta kod çalıştıran, uygulama kuran, yerel/uzak dosyayı açan ya da uzak aramaya açılan şemalar: onayla da kabul
+    // edilmez ("bir kez onay" yalnızca öğe eklenirken sorulur, sonra her seçimde sormadan açılır).
     private static readonly HashSet<string> BlockedSchemes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "file", "javascript", "vbscript", "data", "jar", "ms-msdt", "search-ms", "search",
+        "file", "javascript", "vbscript", "data", "jar", "ms-msdt", "search-ms", "search", "shell",
+        "ms-officecmd", "ms-appinstaller", "hcp", "its", "ms-its", "mk", "res", "mhtml", "ms-cxh", "ms-cxh-full", "jnlp",
+    };
+
+    // Kendisi değiştirici olan tuş adları: tuş öğesinde asıl tuş olamaz (gönderilecek birleşim yalnızca değiştirici kalırdı).
+    private static readonly HashSet<string> ModifierKeyNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "LeftShift", "RightShift", "LeftCtrl", "RightCtrl", "LeftAlt", "RightAlt", "LWin", "RWin", "System",
     };
 
     /// <summary>Uygulama eylemi öğesi (tohum ve "NestDesk eylemi" menüsü).</summary>
@@ -128,7 +136,8 @@ public static class RingActions
         // Yol gibi görünen her şey (C:\…, \\sunucu\…, /…) adres değildir; Uri onları file: olarak kabul ederdi.
         if (value.StartsWith('\\') || value.StartsWith('/') || (value.Length >= 2 && value[1] == ':' && char.IsAsciiLetter(value[0])))
             return false;
-        if (value.Any(char.IsControl)) return false;
+        // Denetim ve biçim karakterleri (ör. U+202E sağdan sola çevirme) adresi gizleyebilir.
+        if (value.Any(c => char.IsControl(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format)) return false;
         if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed)) return false;
         if (parsed.IsFile || parsed.IsUnc || string.IsNullOrEmpty(parsed.Scheme) || BlockedSchemes.Contains(parsed.Scheme)) return false;
         // http/https sunucusuz olamaz ("http:x").
@@ -140,13 +149,19 @@ public static class RingActions
     }
 
     /// <summary>
-    /// Kullanıcının yazdığı adres: şeması yoksa ve bir alan adına benziyorsa ("example.com/a") başına https:// eklenir.
-    /// Geçerli adres döner; değilse null.
+    /// Kullanıcının yazdığı adres: şeması yoksa ve bir alan adına benziyorsa ("example.com/a") başına https:// eklenir;
+    /// sunucu:bağlantı noktası ("localhost:3000", "example.com:8080/x") şema sanılmaz, yerel sunucuya http://, ötekine
+    /// https:// eklenir. Geçerli adres döner; değilse null.
     /// </summary>
     public static string? TryNormalizeUrl(string? text)
     {
         var value = text?.Trim();
         if (string.IsNullOrEmpty(value)) return null;
+        if (HostWithPort(value) is { } host)
+        {
+            var scheme = IsLoopback(host) ? "http://" : "https://";
+            return CheckUrl(scheme + value) == UrlCheck.Allowed ? scheme + value : null;
+        }
         if (CheckUrl(value) != UrlCheck.Invalid) return value;
         if (value.Contains(':') || value.Contains('\\') || value.Any(char.IsWhiteSpace) || !value.Contains('.') || value.StartsWith('.'))
             return null;
@@ -154,9 +169,33 @@ public static class RingActions
         return CheckUrl(withScheme) == UrlCheck.Allowed ? withScheme : null;
     }
 
-    /// <summary>Tuş öğesi: 1–<see cref="MaxChords"/> birleşim, her biri ayrıştırılabilir (tek tuş da olur: "F5").</summary>
-    public static bool ValidKeys(IReadOnlyList<string>? chords) =>
-        chords is { Count: > 0 and <= MaxChords } && chords.All(c => Hotkey.TryParse(c, out _, requireModifier: false));
+    /// <summary>
+    /// "sunucu:sayı…" biçimindeyse sunucu adı ("localhost", "example.com", "192.168.1.1"): iki noktadan sonrası rakamla
+    /// başlıyorsa bu bir bağlantı noktasıdır, önündeki şema değildir. Sunucu adı yalnızca harf, rakam, nokta ve tire olabilir;
+    /// gerçek bir şema ("mailto:1@x", "tel:123") nokta içermediğinden ve localhost olmadığından dokunulmaz. Değilse null.
+    /// </summary>
+    private static string? HostWithPort(string value)
+    {
+        var colon = value.IndexOf(':');
+        if (colon <= 0 || colon + 1 >= value.Length || !char.IsAsciiDigit(value[colon + 1])) return null;
+        var host = value[..colon];
+        if (!host.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-')) return null;
+        return host.Contains('.') || host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ? host : null;
+    }
+
+    private static bool IsLoopback(string host) =>
+        host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host.StartsWith("127.", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Tuş öğesi: 1–<see cref="MaxChords"/> birleşim, her biri ayrıştırılabilir (tek tuş da olur: "F5"); asıl tuş biçimce
+    /// geçerli bir ad (<see cref="Hotkey.IsWellFormedKeyName"/>: "12", "A,B" olmaz) ve kendisi değiştirici değil
+    /// ("LeftShift" olmaz). <paramref name="keyResolves"/> verilirse tuş adı onunla da çözülmeli (gönderenin kendi çözücüsü;
+    /// Desktop/KeySender.CanSend bunu yapar): Core WPF'in tuş tablosunu bilmez, "Ctrl+Foo" ancak onunla elenir.
+    /// </summary>
+    public static bool ValidKeys(IReadOnlyList<string>? chords, Func<string, bool>? keyResolves = null) =>
+        chords is { Count: > 0 and <= MaxChords } && chords.All(c =>
+            Hotkey.TryParse(c, out var chord, requireModifier: false) && Hotkey.IsWellFormedKeyName(chord.Key) &&
+            !ModifierKeyNames.Contains(chord.Key) && (keyResolves is null || keyResolves(chord.Key)));
 
     /// <summary>Metin öğesi: boş değil, en çok <see cref="MaxTextLength"/> karakter.</summary>
     public static bool ValidText(string? text) => !string.IsNullOrEmpty(text) && text.Length <= MaxTextLength;
@@ -176,18 +215,20 @@ public static class RingActions
     };
 
     /// <summary>
-    /// İçe aktarılan öğe (paylaşılan halka): komut, tuş ve metin öğeleri ile http/https/mailto dışındaki adresler kullanıcı
-    /// tek tek görüp onaylayana dek kapalı gelir. Kapattıysa true.
+    /// İçe aktarılan öğe (paylaşılan halka) kullanıcı tek tek görüp onaylayana dek kapalı gelir; yalnızca http/https/mailto
+    /// adresi ve bu sürümün tanıdığı NestDesk eylemi açık kalır. Komut, tuş ve metin öğeleri, başka şemalı adresler,
+    /// tanınmayan türler ve kimlikler (daha yeni bir sürüm onları tanıyıp onaysız çalıştırmasın) ve bu sürümün bilmediği
+    /// alan taşıyan öğeler (<see cref="LauncherAction.Extra"/>) kapalı gelir. Kapattıysa true.
     /// </summary>
     public static bool MarkImported(LauncherAction action)
     {
-        var risky = action.Type switch
+        var safe = action.Extra is not { Count: > 0 } && action.Type switch
         {
-            RingActionTypes.Command or RingActionTypes.Keys or RingActionTypes.Text => true,
-            RingActionTypes.Url => CheckUrl(action.Url) != UrlCheck.Allowed,
+            RingActionTypes.Url => CheckUrl(action.Url) == UrlCheck.Allowed,
+            RingActionTypes.App => RingAppIds.IsKnown(action.App),
             _ => false,
         };
-        if (!risky || action.Disabled) return false;
+        if (safe || action.Disabled) return false;
         action.Disabled = true;
         return true;
     }

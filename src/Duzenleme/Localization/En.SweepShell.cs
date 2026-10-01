@@ -59,6 +59,7 @@ internal static partial class En
         new("Klavyende AltGr ile \"{0}\" yazılıyor; başka bir kısayol seç (ör. Win+Shift+…)",
             "Your keyboard types \"{0}\" with this combination (AltGr); choose another shortcut (for example, Win+Shift+…)"),
         new("Başka bir uygulama kullanıyor", "Another app is using it"),
+        new("{0}'in başka bir kısayoluyla aynı", "Same as another {0} shortcut"),
 
         // Klasör simgesi kütüphanesi (FolderIconCatalog, L.N): öteki adlar En.Common.cs ve En.P5.cs'te
         new("Finans", "Finance"),

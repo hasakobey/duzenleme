@@ -5,14 +5,50 @@ using Duzenleme.Widgets;
 
 namespace Duzenleme.Desktop;
 
+/// <summary>Tuş gönderiminin sonucu (kalıcı değil; arayüz bildirime çevirir).</summary>
+public enum SendResult
+{
+    /// <summary>Bütün birleşimler gönderildi.</summary>
+    Sent,
+
+    /// <summary>Başka bir tuş/metin gönderimi sürüyor: hiçbir şey yapılmadı.</summary>
+    Busy,
+
+    /// <summary>Birleşimler geçersiz ya da çözülemedi: hiçbir şey gönderilmedi.</summary>
+    Invalid,
+
+    /// <summary>Hedef yok, masaüstü ya da bu uygulama (<see cref="InputTarget.NoTarget"/>).</summary>
+    NoTarget,
+
+    /// <summary>Öndeki pencere hedef değil: (kalan) birleşimler gönderilmedi.</summary>
+    NotInFront,
+
+    /// <summary>Hedef yönetici olarak (daha yüksek düzeyde) çalışıyor ya da bilinmiyor: gönderilmedi.</summary>
+    Elevated,
+
+    /// <summary>SendInput olayların hepsini almadı (basılı kalan tuşlar bırakıldı).</summary>
+    Failed,
+}
+
 /// <summary>
 /// Halkanın "tuş kısayolu gönder" öğesi: kullanıcının seçtiği en çok <see cref="RingActions.MaxChords"/> tuş birleşimini
 /// SendInput ile, birleşimler arasında <see cref="ChordGap"/> bekleyerek bir kez gönderir (döngü, tekrar, zamanlayıcı yok).
 /// Kanca yok: yalnızca hâlâ basılı değiştiricilere GetAsyncKeyState ile, sınırlı süre bakılır. Gönderilen tuşlar günlüğe
-/// yazılmaz. Gönderme ve bekleme arayüz iş parçacığında yapılmaz (Send uyur).
+/// yazılmaz. Gönderme ve bekleme arayüz iş parçacığında yapılmaz (Send uyur). Tuş ve metin gönderimleri tek tek yapılır
+/// (<see cref="TryEnterGate"/>): ikinci seçim birincisi bitene dek <see cref="SendResult.Busy"/> alır. Her birleşimden hemen
+/// önce hedefin hâlâ önde olduğuna ve girdiyi alabildiğine bakılır (<see cref="ForegroundInfo.Check"/>).
 /// </summary>
 internal static class KeySender
 {
+    // Tuş ve metin gönderimlerinin kapısı (SnippetPaste de kullanır): iki gönderim iç içe geçmesin, pano kaybolmasın.
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+
+    /// <summary>Gönderim kapısını almayı dener (beklemez); alınamadıysa başka bir gönderim sürüyor.</summary>
+    public static bool TryEnterGate() => Gate.Wait(0);
+
+    /// <summary>Kapıyı bırakır (yalnızca <see cref="TryEnterGate"/> true dönmüşse).</summary>
+    public static void ExitGate() => Gate.Release();
+
     /// <summary>Birleşimler arası bekleme.</summary>
     public static readonly TimeSpan ChordGap = TimeSpan.FromMilliseconds(20);
 
@@ -140,24 +176,69 @@ internal static class KeySender
     private static ushort? VirtualKeyOf(string key) =>
         HotkeyManager.TryGetVirtualKey(key, out var vk) && vk is > 0 and <= 0xFE ? (ushort)vk : null;
 
+    /// <summary>
+    /// Birleşimler gönderilebilir mi: <see cref="RingActions.ValidKeys"/> ve gönderenin kendi tuş çözücüsü (öğe düzenlenirken
+    /// ve içe aktarılırken; Core "Ctrl+Foo"yu tek başına eleyemez).
+    /// </summary>
+    public static bool CanSend(IReadOnlyList<string>? chords) => TryBuild(chords, out _, scanOf: _ => 0);
+
+    /// <summary>
+    /// Olay grubunun yalnızca ilk <paramref name="injected"/> olayı gönderilebildiyse basılı kalan tuşların bırakılması
+    /// (ters sırayla; saf). SendInput yarıda kalınca Ctrl/Alt/Win basılı kalmasın.
+    /// </summary>
+    public static KeyStroke[] ReleaseAfterPartial(IReadOnlyList<KeyStroke> group, int injected)
+    {
+        var down = new List<KeyStroke>();
+        foreach (var stroke in group.Take(Math.Clamp(injected, 0, group.Count)))
+        {
+            if (!stroke.Up) down.Add(stroke);
+            else down.RemoveAll(s => s.Vk == stroke.Vk);
+        }
+        return [.. Enumerable.Reverse(down).Select(s => s with { Up = true })];
+    }
+
     // ---------------------------------------------------------------- gönderme ve bekleme (arayüz iş parçacığında değil)
 
     /// <summary>
-    /// Birleşimleri ön plandaki pencereye bir kez gönderir. Önce hâlâ basılı değiştiriciler bırakılır. Hepsi gönderildiyse
-    /// true. UIPI (yönetici penceresi) engellerse Windows hata bildirmeyebilir: çağıran hedefi önceden denetler
-    /// (<see cref="ForegroundInfo.IsElevated"/>).
+    /// Birleşimleri <paramref name="target"/> penceresine bir kez gönderir (arka planda; kapıyı alır). Önce hâlâ basılı
+    /// değiştiriciler bırakılır; her birleşimden hemen önce hedef önde mi ve girdiyi alabilir mi diye bakılır (UIPI yönetici
+    /// penceresine giden girdiyi hata vermeden yutar). Çağıran önce halkanın kapanmasını, hedefin öne gelmesini ve kısayol
+    /// tuşlarının bırakılmasını bekler (<see cref="WaitForKeysReleasedAsync"/>).
     /// </summary>
-    public static bool Send(IReadOnlyList<string> chords, IReadOnlyCollection<ushort>? heldModifiers = null)
+    public static Task<SendResult> SendToAsync(IntPtr target, IReadOnlyList<string> chords)
     {
-        if (!TryBuild(chords, out var groups, heldModifiers)) return false;
+        if (!TryEnterGate()) return Task.FromResult(SendResult.Busy);
+        return Task.Run(() =>
+        {
+            try { return SendTo(target, chords, HeldModifiers()); }
+            finally { ExitGate(); }
+        });
+    }
+
+    /// <summary>
+    /// <see cref="SendToAsync"/>'in gövdesi: kapıyı çağıran tutar (SnippetPaste'in Ctrl+V'si). Arayüz iş parçacığında çağrılmaz.
+    /// </summary>
+    public static SendResult SendTo(IntPtr target, IReadOnlyList<string> chords, IReadOnlyCollection<ushort>? heldModifiers)
+    {
+        if (!TryBuild(chords, out var groups, heldModifiers)) return SendResult.Invalid;
         var size = Marshal.SizeOf<INPUT>();
         for (var i = 0; i < groups.Count; i++)
         {
             if (i > 0) Thread.Sleep(ChordGap);
+            switch (ForegroundInfo.Check(target))
+            {
+                case InputTarget.NoTarget: return SendResult.NoTarget;
+                case InputTarget.NotInFront: return SendResult.NotInFront;
+                case InputTarget.Elevated: return SendResult.Elevated;
+            }
             var inputs = groups[i].Select(ToInput).ToArray();
-            if (SendInput((uint)inputs.Length, inputs, size) != inputs.Length) return false;
+            var injected = (int)SendInput((uint)inputs.Length, inputs, size);
+            if (injected == inputs.Length) continue;
+            var release = ReleaseAfterPartial(groups[i], injected).Select(ToInput).ToArray();
+            if (release.Length > 0) SendInput((uint)release.Length, release, size);
+            return SendResult.Failed;
         }
-        return true;
+        return SendResult.Sent;
     }
 
     /// <summary>Şu an fiziksel olarak basılı (taraflı) değiştiriciler.</summary>
@@ -174,7 +255,7 @@ internal static class KeySender
 
     /// <summary>
     /// Tuşlar bırakılana dek (en çok <paramref name="timeout"/>, en çok <see cref="MaxWait"/>) 15 ms aralıkla bakar. Hepsi
-    /// bırakıldıysa true; süre dolduysa false (çağıran değiştiricileri <see cref="Send"/> ile bıraktırır ya da vazgeçer).
+    /// bırakıldıysa true; süre dolduysa false (çağıran değiştiricileri <see cref="SendTo"/> ile bıraktırır ya da vazgeçer).
     /// Arka plan iş parçacığı için; arayüzde <see cref="WaitForKeysReleasedAsync"/>.
     /// </summary>
     public static bool WaitForKeysReleased(IReadOnlyCollection<int> vks, TimeSpan timeout)
