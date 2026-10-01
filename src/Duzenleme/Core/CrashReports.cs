@@ -86,6 +86,19 @@ public static class CrashReports
         return path;
     }
 
+    /// <summary>
+    /// Önceki oturum donmuş ve düzgün kapanmamıştı (sonraki açılışta, arka planda): "hang" raporu. Günlük açıksa o oturumun
+    /// son satırları diskteki günlükten alınır (bu oturumun belleğindekiler değil). Disk hatasını fırlatır.
+    /// </summary>
+    public static string? WriteHang(string logsDirectory, string? mode, bool logOff, SessionState previous, DateTime utcNow)
+    {
+        IReadOnlyList<LogEntry> tail = logOff || CrashReportModes.Normalize(mode) == CrashReportModes.Never
+            ? []
+            : LogFiles.Read(logsDirectory, previous.StartUtc).Where(e => e.Session == previous.Session).ToList();
+        return Write(Path.Combine(logsDirectory, FolderName), mode, logOff, KindHang, null, tail, previous.Session,
+            previous.Version, utcNow);
+    }
+
     private static string Stamp(DateTime utc) => utc.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture);
 
     private static string UniquePath(string directory, string stem)
@@ -316,6 +329,13 @@ public enum PreviousSession
 /// <summary>Oturum nöbetçisi (<c>logs\session.json</c>): yalnızca asıl örnek yazar ve siler.</summary>
 public sealed record SessionState(string Session, string Version, DateTime StartUtc, int ProcessId, bool Hang)
 {
+    /// <summary>
+    /// Windows oturumu kapanıyor (SessionEnding): süreç Exit'e varmadan sonlandırılabilir; nöbetçi silinmez (kapanış iptal
+    /// edilebilir) ama sonraki açılış bunu olağan kapanış sayar.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Ending { get; init; }
+
     [System.Text.Json.Serialization.JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
@@ -352,7 +372,8 @@ public static class SessionMarker
     /// </summary>
     public static PreviousSession Assess(SessionState? previous, string currentVersion)
     {
-        if (previous is null) return PreviousSession.Clean;
+        // Oturum kapanırken (SessionEnding) Windows süreci bekletmeden sonlandırabilir: olağan kapanış.
+        if (previous is null || previous.Ending) return PreviousSession.Clean;
         if (!string.Equals(previous.Version, currentVersion, StringComparison.Ordinal)) return PreviousSession.Unclean;
         return previous.Hang ? PreviousSession.Hang : PreviousSession.Unclean;
     }

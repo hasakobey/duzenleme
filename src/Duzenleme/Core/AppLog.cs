@@ -237,6 +237,21 @@ public sealed class AppLogChannel
         }
     }
 
+    /// <summary>
+    /// Kayıt ve bir sayı (ör. HTTP durum kodu): istisna (ve onun iletisi) yazılmadan yalnızca sayı <c>f.code</c> olarak girer.
+    /// </summary>
+    public void Write(AppLogLevel level, string area, string message, int code)
+    {
+        try
+        {
+            Record(level, area, message, null,
+                new Dictionary<string, string>(StringComparer.Ordinal) { ["code"] = code.ToString(CultureInfo.InvariantCulture) });
+        }
+        catch
+        {
+        }
+    }
+
     /// <summary>Kayıt (temizlenmiş istisnayla). Alan, ileti ve ek bilgiler de temizleyiciden geçer.</summary>
     internal void Record(AppLogLevel level, string area, string message, ScrubbedError? error, IReadOnlyDictionary<string, string>? facts)
     {
@@ -618,6 +633,10 @@ public static class AppLog
     public static void Error(string area, string message, Exception? ex = null) => Channel.Write(AppLogLevel.Error, area, message, ex);
     public static void Warn(string area, string message, Exception? ex = null) => Channel.Write(AppLogLevel.Warn, area, message, ex);
     public static void Info(string area, string message, Exception? ex = null) => Channel.Write(AppLogLevel.Info, area, message, ex);
+
+    /// <summary>İstisnasız, yalnızca bir sayıyla (ör. yapay zekâ isteğinin HTTP durum kodu; yanıt gövdesi ya da ileti yazılmaz).</summary>
+    public static void Warn(string area, string message, int code) => Channel.Write(AppLogLevel.Warn, area, message, code);
+    public static void Info(string area, string message, int code) => Channel.Write(AppLogLevel.Info, area, message, code);
 
     /// <summary>Oturum başı kaydı: sürüm, kanal, mimari, Windows derlemesi, dil, ekranlar, tema (yalnızca yazılır).</summary>
     public static void Session(DiagnosticEnvironment environment)

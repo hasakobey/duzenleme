@@ -73,6 +73,18 @@ New-Item -ItemType Directory -Force $staging | Out-Null
 
 # Yerel aracı çalıştırır. makeappx paketlediği her dosyayı yazdığı için çıktı yalnızca hata olursa gösterilir;
 # uyarılar görünür kalır. (makepri UTF-16 yazar: araya giren NUL karakterleri atılır.)
+# 2.2 tanılama: NestDesk.dll'in gömülü taşınabilir PDB'si (DebugType=embedded) ReadyToRun'dan sonra da yerinde mi? Çökme
+# raporlarındaki yığın karelerinin satır numarası buna bağlı. Gömülü PDB, PE hata ayıklama dizininde "MPDB" imzalı bir blob'dur.
+function Assert-EmbeddedPdb([string]$folder) {
+    $dll = Join-Path $folder 'NestDesk.dll'
+    if (-not (Test-Path $dll)) { throw "Yayın çıktısında NestDesk.dll yok: $folder" }
+    $bytes = [IO.File]::ReadAllBytes($dll)
+    $text = [Text.Encoding]::GetEncoding(28591).GetString($bytes)
+    if ($text.IndexOf('MPDB', [StringComparison]::Ordinal) -lt 0) {
+        throw "NestDesk.dll gömülü PDB içermiyor (MPDB bulunamadı): $dll. Yığın karelerinde satır numarası olmaz; DebugType=embedded ve ReadyToRun ayarını denetle."
+    }
+}
+
 function Invoke-Tool([string]$exe, [string[]]$arguments) {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
@@ -327,9 +339,10 @@ try {
         $layout = Join-Path $work "layout-$a"
         Write-Host "==> $a yayınlanıyor…"
         dotnet publish $project -c Release -r "win-$a" --self-contained true `
-            -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=none -p:GenerateDocumentationFile=false `
+            -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=embedded -p:GenerateDocumentationFile=false `
             --artifacts-path $artifacts --disable-build-servers -o $layout -nologo -v q
         if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız: $a" }
+        Assert-EmbeddedPdb $layout
         foreach ($reserved in 'AppxManifest.xml', 'resources.pri', 'Assets') {
             if (Test-Path (Join-Path $layout $reserved)) { throw "Yayın çıktısında paket dosyasıyla çakışan öğe var: $reserved" }
         }

@@ -318,6 +318,18 @@ public class MigrationTests
         Assert.DoesNotContain(" ", url);
     }
 
+    [Fact]
+    public void Problem_report_link_has_no_user_data()
+    {
+        // "GitHub'da sorun aç": yalnızca şablon, başlık ve sürüm; günlük, yol, paket ya da açıklama yok (Store 10.5.2).
+        var url = SupportLinks.ReportProblem("2.2.0");
+        Assert.StartsWith(AppInfo.IssuesUrl + "/new?template=" + SupportLinks.ProblemTemplate + "&", url);
+        Assert.Equal("https", new Uri(url).Scheme);
+        Assert.DoesNotContain("body=", url);
+        Assert.DoesNotContain(" ", url);
+        Assert.EndsWith("&" + SupportLinks.ProblemVersionField + "=2.2.0", url);
+    }
+
     // ---------- Klasör simgesi öneki ----------
 
     [Theory]

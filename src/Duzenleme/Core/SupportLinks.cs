@@ -20,4 +20,20 @@ public static class SupportLinks
             "");
         return $"{AppInfo.IssuesUrl}/new?title={Uri.EscapeDataString(title)}&body={Uri.EscapeDataString(body)}";
     }
+
+    /// <summary>Sorun kaydı formunun adı (<c>.github/ISSUE_TEMPLATE/sorun.yml</c>) ve sürüm alanının kimliği.</summary>
+    public const string ProblemTemplate = "sorun.yml";
+    public const string ProblemVersionField = "version";
+
+    /// <summary>
+    /// "GitHub'da sorun aç" (Ayarlar > Yardım): sorun formunu açar. Adres YALNIZCA şablonun adını, başlığı ve sürümü taşır;
+    /// günlük, tanılama paketi, yol ya da kullanıcının yazdığı hiçbir şey konmaz (Store 10.5.2: uygulama bir şey göndermez,
+    /// paketi kullanıcı isterse kendisi ekler). Başlık iki dillidir (sorunu okuyan geliştirici için): çevrilmez.
+    /// </summary>
+    public static string ReportProblem(string version)
+    {
+        var title = "Sorun / Problem: "; // l10n: çevrilmez (iki dilli şablon)
+        return $"{AppInfo.IssuesUrl}/new?template={Uri.EscapeDataString(ProblemTemplate)}&title={Uri.EscapeDataString(title)}" +
+               $"&{ProblemVersionField}={Uri.EscapeDataString(version)}";
+    }
 }

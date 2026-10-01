@@ -1,0 +1,62 @@
+name: Sorun bildir / Report a problem
+description: NestDesk'te bir şey ters gittiyse / Something went wrong in NestDesk
+title: "Sorun / Problem: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Sorun kayıtları herkese açıktır.** Ekran görüntüsü ya da dosya eklemeden önce içinde kişisel bilgi (dosya adları, notlar, e-posta) olmadığından emin ol.
+        **Issues are public.** Before attaching a screenshot or a file, make sure it doesn't contain personal information (file names, notes, email addresses).
+
+        Tanılama paketi: NestDesk → Ayarlar → Yardım → **Tanılama paketi oluştur**. Paket bu bilgisayarda oluşur, hiçbir yere kendiliğinden gönderilmez. Eklemeden önce zip'i açıp `rapor.html` dosyasına bakabilirsin.
+        Diagnostic package: NestDesk → Settings → Help → **Create diagnostic package**. It is created on your PC and never sent anywhere automatically. Before attaching it, you can open the zip and look at `rapor.html`.
+  - type: input
+    id: version
+    attributes:
+      label: Sürüm / Version
+      description: Ayarlar → Hakkında / Settings → About
+      placeholder: "2.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Nereden kuruldu? / Installed from
+      options:
+        - Microsoft Store
+        - Kurulum sihirbazı / Installer
+        - Taşınabilir zip / Portable zip
+        - Bilmiyorum / Not sure
+    validations:
+      required: false
+  - type: textarea
+    id: what
+    attributes:
+      label: Ne oldu? / What happened?
+      description: Ne bekliyordun, ne oldu? / What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Nasıl tekrarlanır? / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: false
+  - type: textarea
+    id: package
+    attributes:
+      label: Tanılama paketi (isteğe bağlı) / Diagnostic package (optional)
+      description: Zip'i buraya sürükle. Herkese açık olacağını unutma. / Drag the zip here. Remember that it will be public.
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Gizlilik / Privacy
+      options:
+        - label: Eklediğim dosyalara baktım; kişisel bilgi yok. / I looked at the files I attached; they contain no personal information.
+          required: false

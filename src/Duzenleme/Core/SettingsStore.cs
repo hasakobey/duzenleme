@@ -97,7 +97,7 @@ public sealed class SettingsStore : IDisposable
         {
             // Anlık görüntü alınamadı (ör. çökme yolunda liste o an değişiyordu): değişiklik kaybolmasın, sonra yeniden denensin.
             _dirty = true;
-            System.Diagnostics.Debug.WriteLine(ex);
+            AppLog.Warn("settings", "snapshot-failed", ex);
             return null;
         }
     }

@@ -42,7 +42,8 @@
         </ui:NavigationView>
 
         <!-- Bildirim şeridi: kapatılana, yenisi gelene, sayfa değişene ya da pencere gizlenene dek durur. Zamanlayıcı yok; belirirken
-             kısa solma (Views.Motion). -->
+             kısa solma (Views.Motion). Tek eylem metnin sağında; soru şeridinde (Notice.Ask) 2-3 seçenek metnin altında, hep
+             görünür (fareyle belirmez). -->
         <Border x:Name="NoticeBar" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Bottom" HorizontalAlignment="Center"
                 Margin="24" Padding="16,10" CornerRadius="10" MaxWidth="640"
                 Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
@@ -53,8 +54,14 @@
                 <ui:Button x:Name="NoticeClose" DockPanel.Dock="Right" Appearance="Transparent" Icon="{ui:SymbolIcon Dismiss24}"
                            ToolTip="{l:T 'Kapat'}" AutomationProperties.Name="{l:T 'Kapat'}" AutomationProperties.AutomationId="Notice.Close"
                            VerticalAlignment="Center" Click="NoticeClose_Click" />
-                <ui:Button x:Name="NoticeAction" DockPanel.Dock="Right" Margin="12,0,4,0" VerticalAlignment="Center"
-                           AutomationProperties.AutomationId="Notice.Action" Click="NoticeAction_Click" />
+                <StackPanel x:Name="NoticeActions" DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,4,0" VerticalAlignment="Center">
+                    <ui:Button x:Name="NoticeAction" VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="Notice.Action" Click="NoticeAction_Click" />
+                    <ui:Button x:Name="NoticeAction2" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
+                               AutomationProperties.AutomationId="Notice.Action2" Click="NoticeAction_Click" />
+                    <ui:Button x:Name="NoticeAction3" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"
+                               AutomationProperties.AutomationId="Notice.Action3" Click="NoticeAction_Click" />
+                </StackPanel>
                 <TextBlock x:Name="NoticeText" TextWrapping="Wrap" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                            AutomationProperties.AutomationId="Notice.Text" />

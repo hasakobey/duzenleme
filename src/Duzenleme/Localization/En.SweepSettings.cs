@@ -184,8 +184,6 @@ internal static partial class En
             "Portable version · To update, extract the new zip over this folder; your data folder is kept."),
         new("Kurulum sürümü · Güncellemek için indirme sayfasından yeni kurulum dosyasını çalıştır; ayarların korunur.",
             "Installed version · To update, run the new installer from the download page; your settings are kept."),
-        new("{0} güncelleme denetlemez ve kendiliğinden internete bağlanmaz. Ayarların ve notların yalnızca bu bilgisayarda.",
-            "{0} doesn't check for updates and never connects to the internet on its own. Your settings and notes stay on this PC."),
         new("İndirme sayfasını aç", "Open download page"),
         new("Uygulamadan çık", "Exit app"),
     ]);

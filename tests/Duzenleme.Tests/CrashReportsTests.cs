@@ -33,7 +33,7 @@ public class CrashReportsTests : IDisposable
     private string? Write(string? mode, bool logOff = false, DateTime? at = null, string kind = CrashReports.KindCrash) =>
         CrashReports.Write(Dir, mode, logOff, kind, Error(), Recent(5), "abc123", "2.2.0", at ?? _now);
 
-    private string[] Names() => Directory.Exists(Dir) ? Directory.GetFiles(Dir).Select(Path.GetFileName).Order().ToArray()! : [];
+    private string[] Names() => Directory.Exists(Dir) ? Directory.GetFiles(Dir).Select(f => Path.GetFileName(f)!).Order().ToArray() : [];
 
     [Fact]
     public void Never_writes_nothing()
@@ -234,6 +234,48 @@ public class CrashReportsTests : IDisposable
         Assert.Equal(PreviousSession.Hang, SessionMarker.Assess(state with { Hang = true }, "2.2.0"));
         // Güncelleme süreci kapatır: sürüm değiştiyse donma bile sorulmaz.
         Assert.Equal(PreviousSession.Unclean, SessionMarker.Assess(state with { Hang = true }, "2.2.1"));
+    }
+
+    [Fact]
+    public void Session_ending_counts_as_clean_and_is_written_only_when_set()
+    {
+        var logs = Path.Combine(_root, "logs");
+        Directory.CreateDirectory(logs);
+        var state = new SessionState("abc123", "2.2.0", _now, 42, Hang: true);
+        SessionMarker.Write(logs, state);
+        Assert.DoesNotContain("Ending", File.ReadAllText(Path.Combine(logs, SessionMarker.FileName)));
+        SessionMarker.Write(logs, state with { Ending = true });
+        var read = SessionMarker.Read(logs)!;
+        Assert.True(read.Ending);
+        // Windows oturumu kapanırken sonlandırılan süreç: donma kaydı olsa da soru yok.
+        Assert.Equal(PreviousSession.Clean, SessionMarker.Assess(read, "2.2.0"));
+    }
+
+    [Fact]
+    public void Hang_report_takes_only_the_previous_sessions_log_lines()
+    {
+        var logs = Path.Combine(_root, "logs");
+        var channel = new AppLogChannel(logs, LogScrubber.Plain, persist: true, utcNow: () => _now.AddMinutes(-30), background: false,
+            session: "old111", version: "2.2.0");
+        channel.Write(AppLogLevel.Warn, "ui", "ui-unresponsive", null);
+        Assert.True(channel.FlushSync(TimeSpan.FromSeconds(5)));
+        var other = new AppLogChannel(logs, LogScrubber.Plain, persist: true, utcNow: () => _now.AddMinutes(-1), background: false,
+            session: "new222", version: "2.2.0");
+        other.Write(AppLogLevel.Info, "session", "start", null);
+        Assert.True(other.FlushSync(TimeSpan.FromSeconds(5)));
+        var previous = new SessionState("old111", "2.2.0", _now.AddHours(-1), 7, Hang: true);
+
+        var path = CrashReports.WriteHang(logs, null, logOff: false, previous, _now);
+        var report = CrashReports.Read(path!)!;
+        Assert.True(report.IsPending);
+        Assert.Equal(CrashReports.KindHang, report.Kind);
+        Assert.Equal("old111", report.Session);
+        Assert.Null(report.Error);
+        Assert.Equal(["ui-unresponsive"], report.LogTail.Select(e => e.Message));
+
+        // Günlük kapalıysa günlük satırı eklenmez; "Kaydetme" hiçbir şey yazmaz.
+        Assert.Empty(CrashReports.Read(CrashReports.WriteHang(logs, CrashReportModes.Always, logOff: true, previous, _now.AddSeconds(1))!)!.LogTail);
+        Assert.Null(CrashReports.WriteHang(logs, CrashReportModes.Never, logOff: false, previous, _now.AddSeconds(2)));
     }
 
     [Fact]

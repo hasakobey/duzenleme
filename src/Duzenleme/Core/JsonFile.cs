@@ -54,10 +54,35 @@ public static class JsonFile
         if (TryParse<T>(text, out var value)) return value;
 
         // Okunamayan dosya varsayılanla ezilmeden önce yedeklensin; kullanıcının ayarları kaybolmasın.
-        try { File.Copy(path, $"{path}.bozuk-{DateTime.Now:yyyyMMdd-HHmmss}", overwrite: true); }
-        catch (IOException) { }
-        return TryRead<T>(path + ".bak") ?? fallback();
+        string? backup = $"{path}.bozuk-{DateTime.Now:yyyyMMdd-HHmmss}";
+        try { File.Copy(path, backup, overwrite: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { backup = null; }
+        var previous = TryRead<T>(path + ".bak");
+        // Kopya alınamasa da bildirilir: kullanıcı ayarlarının neden değiştiğini bilsin (metin .bak'ın yüklenip yüklenmediğine göre).
+        try { Corrupted?.Invoke(KindOf(path), backup, previous is not null); }
+        catch (Exception ex) { Log?.Invoke("bozuk dosya bildirimi: " + ex.GetType().Name); } // l10n: çevrilmez (günlük)
+        return previous ?? fallback();
     }
+
+    /// <summary>
+    /// Bir dosya okunamadı ve yerine yedeği ya da varsayılan yüklendi (herhangi bir iş parçacığından, Load içinde):
+    /// tür (<see cref="KindOf"/>), <c>.bozuk-*</c> kopyasının yolu (kopya alınamadıysa null) ve <c>.bak</c> yüklendi mi.
+    /// </summary>
+    public static Action<string, string?, bool>? Corrupted { get; set; }
+
+    public const string KindSettings = "settings";
+    public const string KindJournal = "journal";
+    public const string KindBoxMoves = "box-moves";
+    public const string KindOther = "other";
+
+    /// <summary>Okunamayan dosyanın türü (bildirimin metni buna göre seçilir): ayarlar, taşıma geçmişi, kutu kayıtları ya da başka.</summary>
+    public static string KindOf(string path) => Path.GetFileName(path).ToLowerInvariant() switch
+    {
+        "settings.json" => KindSettings,
+        "journal.json" => KindJournal,
+        "box-moves.json" => KindBoxMoves,
+        _ => KindOther,
+    };
 
     private static bool TryParse<T>(string text, out T value) where T : class
     {

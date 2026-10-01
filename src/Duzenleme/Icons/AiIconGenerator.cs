@@ -86,10 +86,27 @@ public static partial class AiIconGenerator
             await client.Models.Retrieve(Model, cancellationToken: ct);
             return null;
         }
-        catch (AnthropicUnauthorizedException) { return L.T("Anahtar geçersiz."); }
-        catch (AnthropicForbiddenException) { return L.T("Bu anahtarın modele erişim izni yok."); }
-        catch (AnthropicApiException ex) { return L.F("API hatası: {0}", ex.Message); }
-        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { return L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."); }
+        // Hata günlüğüne yalnızca durum kodu (anahtar, yanıt gövdesi ve ileti yazılmaz).
+        catch (AnthropicUnauthorizedException)
+        {
+            Core.AppLog.Info("ai", "validate-unauthorized", 401);
+            return L.T("Anahtar geçersiz.");
+        }
+        catch (AnthropicForbiddenException)
+        {
+            Core.AppLog.Info("ai", "validate-forbidden", 403);
+            return L.T("Bu anahtarın modele erişim izni yok.");
+        }
+        catch (AnthropicApiException ex)
+        {
+            Core.AppLog.Warn("ai", "validate-api-error", (int)ex.StatusCode);
+            return L.F("API hatası: {0}", ex.Message);
+        }
+        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException)
+        {
+            Core.AppLog.Info("ai", "validate-unreachable");
+            return L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.");
+        }
     }
 
     /// <summary>Açıklamaya göre SVG üretir ve güvenli hale getirilmiş SVG metnini döner.</summary>
@@ -117,13 +134,33 @@ public static partial class AiIconGenerator
                 Messages = [new() { Role = Role.User, Content = prompt }],
             }, ct);
         }
-        catch (AnthropicUnauthorizedException) { throw new AiIconException(L.T("API anahtarı geçersiz. Ayarlar'dan kontrol et.")); }
-        catch (AnthropicRateLimitException) { throw new AiIconException(L.T("Çok fazla istek gönderildi; biraz bekleyip tekrar dene.")); }
-        catch (AnthropicApiException ex) { throw new AiIconException(L.F("API hatası: {0}", ex.Message)); }
-        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException) { throw new AiIconException(L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.")); }
+        // Hata günlüğüne yalnızca durum kodu (klasör adı, açıklama, yanıt gövdesi ve ileti yazılmaz).
+        catch (AnthropicUnauthorizedException)
+        {
+            Core.AppLog.Info("ai", "generate-unauthorized", 401);
+            throw new AiIconException(L.T("API anahtarı geçersiz. Ayarlar'dan kontrol et."));
+        }
+        catch (AnthropicRateLimitException)
+        {
+            Core.AppLog.Info("ai", "generate-rate-limited", 429);
+            throw new AiIconException(L.T("Çok fazla istek gönderildi; biraz bekleyip tekrar dene."));
+        }
+        catch (AnthropicApiException ex)
+        {
+            Core.AppLog.Warn("ai", "generate-api-error", (int)ex.StatusCode);
+            throw new AiIconException(L.F("API hatası: {0}", ex.Message));
+        }
+        catch (Exception ex) when (ex is AnthropicIOException or System.Net.Http.HttpRequestException)
+        {
+            Core.AppLog.Info("ai", "generate-unreachable");
+            throw new AiIconException(L.T("Sunucuya ulaşılamadı. İnternet bağlantını kontrol et."));
+        }
 
         if (response.StopReason == "refusal")
+        {
+            Core.AppLog.Info("ai", "generate-refusal");
             throw new AiIconException(L.T("Bu açıklama için simge üretilemedi. Farklı bir açıklama dene."));
+        }
 
         var text = string.Concat(response.Content.Select(b => b.TryPickText(out var t) ? t.Text : ""));
         var match = SvgBlock().Match(text);

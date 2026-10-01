@@ -74,6 +74,7 @@ internal static class BoxMover
         {
             // Bir işin hatası kuyruğu durdurmasın.
             DebugLog.Write($"kutu işi: {ex}");
+            AppLog.Error("box", "job-failed", ex);
         }
     }
 
@@ -148,6 +149,8 @@ internal static class BoxMover
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
                 {
                     DebugLog.Write($"kutuya taşınamadı {path}: {ex.Message}");
+                    if (FileLocks.IsSharingViolation(ex)) AppLog.Count("box.locked");
+                    else AppLog.Warn("box", "move-to-box-failed", ex);
                     return new ClaimResult(path, null, BoxLinkReason.None, ex is UnauthorizedAccessException ? L.T("izin yok") : ex.Message);
                 }
             }
@@ -362,6 +365,8 @@ internal static class BoxMover
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 DebugLog.Write($"masaüstüne geri konamadı {record.Current}: {ex.Message}");
+                if (FileLocks.IsSharingViolation(ex)) AppLog.Count("box.locked");
+                else AppLog.Warn("box", "return-failed", ex);
                 return new ReturnResult(record, null, ex is UnauthorizedAccessException ? L.T("izin yok") : ex.Message);
             }
         }
@@ -384,6 +389,7 @@ internal static class BoxMover
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             DebugLog.Write($"geri konan öğe korunamadı {restored}: {ex.Message}");
+            AppLog.Warn("box", "keep-on-desktop-failed", ex);
         }
     }
 
@@ -440,6 +446,8 @@ internal static class BoxMover
         catch (Exception ex) when (ex is OperationCanceledException or IOException or UnauthorizedAccessException)
         {
             DebugLog.Write($"izinli taşıma: {ex.Message}");
+            if (ex is OperationCanceledException) AppLog.Info("box", "elevated-move-cancelled");
+            else AppLog.Warn("box", "elevated-move-failed", ex);
         }
         return await Task.Run(() =>
         {

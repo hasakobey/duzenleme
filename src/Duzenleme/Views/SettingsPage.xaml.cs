@@ -130,6 +130,8 @@ public partial class SettingsPage : Page
             AppInfo.Name);
         RemoveIconsText.Text = L.F("Masaüstündeki klasörlere {0}'in verdiği simgeleri kaldırır. {0}'i kaldırmadan önce kullanabilirsin: simgeler klasörlerin içinde durduğu için kendiliğinden silinmez.",
             AppInfo.Name);
+        ReportProblemText.Text = L.F("Bir şey ters gittiyse tanılama paketini oluşturup sorun kaydına ekleyebilirsin. {0} hiçbir şeyi kendiliğinden göndermez.",
+            AppInfo.Name);
         LoadAbout();
 
         Fold.Attach(SystemIconsFold, SystemIconsContent, LoadSystemIcons);
@@ -137,6 +139,7 @@ public partial class SettingsPage : Page
         Fold.Attach(HotkeysFold, HotkeysContent);
         Fold.Attach(AiFold, AiContent);
         Fold.Attach(LocationsFold, LocationsContent);
+        Fold.Attach(ErrorLogFold, ErrorLogContent, LoadErrorLog);
 
         foreach (var mode in DesktopModes.Choices)
             IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
@@ -154,6 +157,7 @@ public partial class SettingsPage : Page
                 BoxMover.Changed += UpdateBoxPanel;
                 FolderIconWindow.IconChanged += OnFolderIconChanged;
                 Motion.Changed += UpdateAnimationsNote;
+                Diagnostics.Changed += OnDiagnosticsChanged;
             },
             detach: () =>
             {
@@ -162,6 +166,7 @@ public partial class SettingsPage : Page
                 BoxMover.Changed -= UpdateBoxPanel;
                 FolderIconWindow.IconChanged -= OnFolderIconChanged;
                 Motion.Changed -= UpdateAnimationsNote;
+                Diagnostics.Changed -= OnDiagnosticsChanged;
             },
             refresh: Load);
     }
@@ -211,6 +216,7 @@ public partial class SettingsPage : Page
             // Kullanıcı Windows ayarlarından ya da Görev Yöneticisi'nden dönünce durumlar yenilensin.
             WatchHostActivation(true);
             LoadStartup();
+            if (_errorLogLoaded) LoadErrorLog();
         }
         finally { _loading = false; }
     }
@@ -808,9 +814,85 @@ public partial class SettingsPage : Page
     private void OpenData_Click(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(AppHost.DataDirectoryOnDisk) { UseShellExecute = true });
 
+    // ---- Gelişmiş: hata günlüğü (2.2 yerel tanılama) ----
+
+    // Bölüm ilk açılınca dolar; durum satırı (diskteki günlükler) arka planda okunur.
+    private bool _errorLogLoaded;
+    private int _logStatusQuery;
+
+    private void LoadErrorLog()
+    {
+        _errorLogLoaded = true;
+        var loading = _loading;
+        _loading = true;
+        try
+        {
+            ErrorLogToggle.IsChecked = !AppHost.Settings.ErrorLogOff;
+            CrashModeBox.SelectedIndex = CrashReportModes.Normalize(AppHost.Settings.CrashReportMode) switch
+            {
+                CrashReportModes.Always => 1,
+                CrashReportModes.Never => 2,
+                _ => 0,
+            };
+        }
+        finally { _loading = loading; }
+        RefreshLogStatus();
+    }
+
+    private void OnDiagnosticsChanged()
+    {
+        if (_errorLogLoaded) LoadErrorLog();
+    }
+
+    private async void RefreshLogStatus()
+    {
+        var query = ++_logStatusQuery;
+        LogStatus status;
+        try { status = await Diagnostics.ReadStatusAsync(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+        if (query != _logStatusQuery) return;
+        LogStatusText.Text = AppHost.Settings.ErrorLogOff
+            ? L.F("Hata günlüğü kapalı: yeni kayıt yazılmıyor. Kayıtlı günlükler: {0}", MeasureText.Bytes(status.Bytes))
+            : L.P(status.Errors, "Son 7 günde {0} hata · {1}", MeasureText.Bytes(status.Bytes));
+        PendingRow.Visibility = status.Pending > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PendingText.Text = L.P(status.Pending, "{0} çökme raporu kaydedilmeyi bekliyor.");
+    }
+
+    private void ErrorLogToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        Diagnostics.SetLogEnabled(ErrorLogToggle.IsChecked == true);
+    }
+
+    private void CrashModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || CrashModeBox.SelectedIndex < 0) return;
+        Diagnostics.SetCrashMode(CrashModeBox.SelectedIndex switch
+        {
+            1 => CrashReportModes.Always,
+            2 => CrashReportModes.Never,
+            _ => null,
+        });
+    }
+
+    private void SavePending_Click(object sender, RoutedEventArgs e) => Diagnostics.SavePending();
+
+    private void DiscardPending_Click(object sender, RoutedEventArgs e) => Diagnostics.DiscardPending();
+
+    private void OpenLogs_Click(object sender, RoutedEventArgs e) => Diagnostics.OpenLogsFolder();
+
+    private void DeleteLogs_Click(object sender, RoutedEventArgs e) => Diagnostics.DeleteLogs(Window.GetWindow(this));
+
     // ---- Yardım ve Hakkında ----
 
     private void Welcome_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowWelcome(rerun: true);
+
+    private void CreatePackage_Click(object sender, RoutedEventArgs e) => Diagnostics.CreatePackage(Window.GetWindow(this));
+
+    private void OpenDiagnosticPage_Click(object sender, RoutedEventArgs e) => Diagnostics.OpenPage();
+
+    /// <summary>"GitHub'da sorun aç": adres yalnızca şablonu, başlığı ve sürümü taşır (paketi kullanıcı kendisi ekler).</summary>
+    private void ReportProblem_Click(object sender, RoutedEventArgs e) => Browser.Open(SupportLinks.ReportProblem(AppInfo.Version));
 
     /// <summary>Sürüm, kanal (Store / taşınabilir / kurulum) ve nasıl güncelleneceği. Uygulama kendisi güncelleme denetlemez.</summary>
     private void LoadAbout()
@@ -822,7 +904,7 @@ public partial class SettingsPage : Page
             : AppHost.IsPortable
                 ? L.T("Taşınabilir sürüm · Güncellemek için yeni zip'i bu klasörün üzerine çıkar; data klasörün korunur.")
                 : L.T("Kurulum sürümü · Güncellemek için indirme sayfasından yeni kurulum dosyasını çalıştır; ayarların korunur.");
-        PrivacyText.Text = L.F("{0} güncelleme denetlemez ve kendiliğinden internete bağlanmaz. Ayarların ve notların yalnızca bu bilgisayarda.", AppInfo.Name);
+        PrivacyText.Text = L.F("{0} güncelleme denetlemez ve kendiliğinden internete bağlanmaz. Ayarların, notların ve hata günlüğün yalnızca bu bilgisayarda.", AppInfo.Name);
         // Store sürümünü Store günceller; indirme sayfası yalnızca kurulum/taşınabilir sürüm için.
         ReleasesButton.Visibility = PackageInfo.IsPackaged ? Visibility.Collapsed : Visibility.Visible;
     }

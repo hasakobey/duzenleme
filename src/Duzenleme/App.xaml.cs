@@ -24,7 +24,10 @@ public partial class App : Application
     private static extern bool AllowSetForegroundWindow(int processId);
     private MainWindow? _mainWindow;
     private NewFolderWatcher? _newFolders;
+    private UiWatchdog? _watchdog;
     private bool _exiting;
+    // İşlenmeyen arayüz hatalarının şeridi: imza başına bir kez, oturumda en çok üç (bkz. ErrorNoticeLimiter).
+    private readonly ErrorNoticeLimiter _uiErrors = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -141,20 +144,26 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             DebugLog.Write("CRASH " + e.ExceptionObject);
-            AppHost.OnCrash(e.IsTerminating);
+            var exception = e.ExceptionObject as Exception;
+            AppLog.Error("crash", "unhandled-exception", exception);
+            // Sıra: simgeler, ayarlar, geçmiş, çökme raporu (bu iş parçacığında, eşzamanlı), günlük.
+            AppHost.OnCrash(e.IsTerminating, exception);
         };
         // Gözlenmemiş görev hatası süreci sonlandırmaz (.NET): yalnızca günlüğe yazılır, ayarlar arayüz iş parçacığında diske indirilir.
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             DebugLog.Write("UNOBSERVED " + e.Exception);
+            AppLog.Warn("task", "unobserved-task-exception", e.Exception);
             e.SetObserved();
             Dispatcher.BeginInvoke(() => AppHost.SaveSettingsNow());
         };
-        // Oturum kapanırken süreç Exit'e varmadan sonlandırılabilir: simgeler ve bekleyen kayıtlar şimdi.
+        // Oturum kapanırken süreç Exit'e varmadan sonlandırılabilir: simgeler ve bekleyen kayıtlar şimdi. Oturum nöbetçisi
+        // silinmez ("kapanıyor" işaretlenir): kapanış iptal edilirse uygulama sürer.
         SessionEnding += (_, _) =>
         {
             AppHost.RestoreDesktopOnExit();
             AppHost.FlushAll();
+            AppHost.MarkSessionEnding();
         };
 
         try
@@ -167,6 +176,9 @@ public partial class App : Application
         {
             // Yarım başlamış, görünmez bir örnek tek-örnek kilidini tutup sonraki açılışları engellemesin.
             DebugLog.Write("STARTUP " + ex);
+            // Kutu açıkken kullanıcı süreci kapatabilir: önce hata günlüğüne.
+            AppLog.Error("startup", "startup-failed", ex);
+            AppLog.FlushSync(TimeSpan.FromMilliseconds(500));
             System.Windows.MessageBox.Show(StartupErrorMessage(ex), L.F("{0} başlatılamadı", AppInfo.Name),
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             _exiting = true;
@@ -215,8 +227,14 @@ public partial class App : Application
         // disk önceliğiyle; Windows ile başlarken oturum açılışıyla yarışmasın diye daha geç.
         AppHost.StartDeferredWork(autostart: args.Minimized);
         MigrateFromLegacyNameInBackground();
+        // Hata günlüğü: oturum başı kaydı (sürüm, kanal, Windows derlemesi, ekranlar, tema; kişisel bilgi yok) ve arayüz nöbetçisi.
+        AppLog.Session(Views.Diagnostics.CurrentEnvironment());
+        _watchdog = new UiWatchdog(Dispatcher, AppHost.SetSessionHang);
+        using (var self = System.Diagnostics.Process.GetCurrentProcess())
+            AppHost.StartupMs = (long)(DateTime.Now - self.StartTime).TotalMilliseconds;
         if (PerfLog.Enabled)
-            PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms"); // l10n: çevrilmez
+            PerfLog.Write($"StartServices bitti: süreç {AppHost.StartupMs} ms"); // l10n: çevrilmez
+        StartTestCrashIfAsked();
 
         _started = true;
         if (args.Peek) Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command), DispatcherPriority.ApplicationIdle);
@@ -252,6 +270,21 @@ public partial class App : Application
                     AppInfo.Name),
                 Views.NoticeKind.Info), DispatcherPriority.ApplicationIdle);
         }
+    }
+
+    /// <summary>
+    /// Arayüz denemesi (yalnızca --desktop ile): NESTDESK_TEST_CRASH=1 ise açılıştan birkaç saniye sonra arka plan iş
+    /// parçacığında yakalanmayan bir hata atılır ve süreç sonlanır (çökme yolu, rapor, sonraki açılıştaki şerit denensin).
+    /// </summary>
+    private void StartTestCrashIfAsked()
+    {
+        if (!AppHost.IsTestDesktop || AppEnvironment.Get("TEST_CRASH") != "1") return;
+        Dispatcher.BeginInvoke(() => new Thread(() =>
+        {
+            Thread.Sleep(2000);
+            throw new InvalidOperationException("NESTDESK_TEST_CRASH");
+        })
+        { IsBackground = true, Name = "test crash" }.Start(), DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>
@@ -501,6 +534,7 @@ public partial class App : Application
             AppHost.RestoreDesktopOnExit();
             Views.PeekBar.CloseBar();
             AppHost.DoubleClick?.Dispose();
+            _watchdog?.Dispose();
             _newFolders?.Dispose();
             AppHost.Hotkeys?.Dispose();
             AppHost.Watcher?.Dispose();
@@ -522,6 +556,9 @@ public partial class App : Application
     {
         // Başka bir yoldan kapanıyorsa (ör. Shutdown) bekleyen kayıtlar kaybolmasın; temizse bir şey yazmaz.
         AppHost.FlushAll();
+        // Temiz çıkış: oturum nöbetçisi silinir (yalnızca asıl örnek; kilit bırakılmadan önce, --restart'la gelen yeni örnek
+        // kendi nöbetçisini yazmadan önce).
+        AppHost.EndSession();
         // --exit ile bekleyen kurulum programı hemen devam edebilsin.
         try { _instanceMutex?.ReleaseMutex(); }
         catch (ApplicationException) { }
@@ -533,14 +570,34 @@ public partial class App : Application
         base.OnExit(e);
     }
 
+    /// <summary>
+    /// Arayüz iş parçacığındaki yakalanmamış hata: tek bir hata tüm uygulamayı (ve masaüstü izlemeyi) kapatmasın. İleti kutusu
+    /// yok; hata günlüğüne yazılır, ayarlar diske iner ve şeritte (pencere gizliyse balonda) kısaca söylenir. "Ayrıntıları
+    /// kopyala" yalnızca temizlenmiş metni panoya koyar. Aynı imza oturumda bir kez, toplam en çok üç kez bildirilir; dakikada
+    /// 20'den çok hata günlüğe tek bir "exception-storm" olarak da yazılır.
+    /// </summary>
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        // Tek bir hata tüm uygulamayı (ve masaüstü izlemeyi) kapatmasın.
         DebugLog.Write("UNHANDLED " + e.Exception);
-        // Kullanıcı kutuyu kapatmadan süreci sonlandırabilir: o ana dek yapılanlar diske insin.
-        AppHost.SaveSettingsNow();
-        System.Windows.MessageBox.Show(e.Exception.Message, L.F("{0} — beklenmeyen hata", AppInfo.Name), System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
         e.Handled = true;
+        try
+        {
+            AppLog.Error("ui", "unhandled-ui-exception", e.Exception);
+            AppHost.SaveSettingsNow();
+            var error = AppLog.Channel.Scrubber.Error(e.Exception);
+            var decision = _uiErrors.Note(LogEntry.SignatureOf(AppLogLevel.Error, "ui", "unhandled-ui-exception", error), Environment.TickCount64);
+            if (decision.Storm) AppLog.Warn("ui", "exception-storm");
+            if (!decision.Notify || _exiting) return;
+            var details = ErrorDetails.Text(error, AppInfo.Version, AppLog.Channel.Session);
+            Views.Notice.Show(L.F("Beklenmeyen bir hata oldu; {0} çalışmaya devam ediyor.", AppInfo.Name), Views.NoticeKind.Warning,
+                L.T("Ayrıntıları kopyala"), () => Views.Diagnostics.CopyDetails(details),
+                trayHint: L.T("Ayrıntıları panoya kopyalamak için tıkla."));
+        }
+        catch (Exception ex)
+        {
+            // Bildirim yolunun kendisi hata verirse yeni bir döngü başlamasın.
+            DebugLog.Write("UNHANDLED (bildirim) " + ex);
+        }
     }
 
     private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool RestoreDesktop,

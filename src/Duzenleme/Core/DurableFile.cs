@@ -262,7 +262,7 @@ public sealed class DurableFile : IDisposable
     private static void Raise(Action action)
     {
         try { action(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { AppLog.Error("durable-file", "event-handler-failed", ex); }
     }
 
     /// <summary>Kilit/paylaşım ihlali, erişim reddi (virüs tarayıcısı, yedekleme, eşitleme) gibi geçici olabilecek hatalar.</summary>

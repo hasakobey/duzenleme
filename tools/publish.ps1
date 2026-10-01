@@ -59,6 +59,18 @@ if ($signIdentity) {
     if (-not $signtool) { throw 'İmzalama istendi ama signtool bulunamadı (Windows SDK gerekli).' }
 }
 
+# 2.2 tanılama: NestDesk.dll'in gömülü taşınabilir PDB'si (DebugType=embedded) ReadyToRun'dan sonra da yerinde mi? Çökme
+# raporlarındaki yığın karelerinin satır numarası buna bağlı. Gömülü PDB, PE hata ayıklama dizininde "MPDB" imzalı bir blob'dur.
+function Assert-EmbeddedPdb([string]$folder) {
+    $dll = Join-Path $folder 'NestDesk.dll'
+    if (-not (Test-Path $dll)) { throw "Yayın çıktısında NestDesk.dll yok: $folder" }
+    $bytes = [IO.File]::ReadAllBytes($dll)
+    $text = [Text.Encoding]::GetEncoding(28591).GetString($bytes)
+    if ($text.IndexOf('MPDB', [StringComparison]::Ordinal) -lt 0) {
+        throw "NestDesk.dll gömülü PDB içermiyor (MPDB bulunamadı): $dll. Yığın karelerinde satır numarası olmaz; DebugType=embedded ve ReadyToRun ayarını denetle."
+    }
+}
+
 # Klasördeki imzasız tüm exe/dll'leri imzalar (Microsoft imzalı .NET dosyalarına dokunmaz).
 function Sign-Folder([string]$folder) {
     if (-not $signtool) { return }
@@ -78,9 +90,10 @@ foreach ($a in $Arch) {
     Write-Host "==> $a yayınlanıyor…"
     # Tek dosya yerine klasör: WPF'in yerel kütüphaneleri %TEMP%'e açılmaz (kilitli bilgisayarlarda engellenmez, hızlı açılır).
     dotnet publish $project -c Release -r "win-$a" --self-contained true `
-        -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=none -p:GenerateDocumentationFile=false `
+        -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=embedded -p:GenerateDocumentationFile=false `
         -o $out -nologo -v q
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız: $a" }
+    Assert-EmbeddedPdb $out
     # Kurulum ve Run değeri bu adı bekler (NestDesk.iss AppExe, Core/AppInfo.cs ExeName).
     if (-not (Test-Path (Join-Path $out 'NestDesk.exe'))) { throw "Yayın çıktısında NestDesk.exe yok: $out" }
     Sign-Folder $out

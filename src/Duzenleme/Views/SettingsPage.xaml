@@ -642,9 +642,111 @@
                 </StackPanel>
             </StackPanel>
         </Border>
+        <!-- Hata günlüğü (2.2 yerel tanılama): temizlenmiş, bu bilgisayarda kalır; kapatılabilir ve silinebilir. Durum satırı
+             bölüm açılınca arka planda okunur. -->
+        <Border Style="{StaticResource Row}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="DocumentBulletList24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Hata günlüğü'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Hatalar bu bilgisayarda kaydedilir; hiçbir şey gönderilmez.'}" />
+                    </StackPanel>
+                    <ui:Button x:Name="ErrorLogFold" Grid.Column="2" Style="{StaticResource FoldButton}"
+                               AutomationProperties.AutomationId="Settings.ErrorLog" AutomationProperties.HelpText="{l:T 'Hata günlüğü'}" />
+                </Grid>
+                <StackPanel x:Name="ErrorLogContent" Margin="36,12,0,0">
+                    <TextBlock x:Name="LogStatusText" Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               AutomationProperties.AutomationId="Settings.LogStatus" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Hata günlüğü tut'}" />
+                            <TextBlock Style="{StaticResource Muted}"
+                                       Text="{l:T 'Hata türleri, programın kendi yığın kareleri ve her açılışta oturum bilgileri (Windows derlemesi, ekran sayısı ve ölçeği, dil, tema) yazılır. Dosya ve klasör adların, notların ve yazdıkların asla yazılmaz. Günlük bu bilgisayarda kalır: en çok 4 MB, 14 gün.'}" />
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="ErrorLogToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         Checked="ErrorLogToggle_Changed" Unchecked="ErrorLogToggle_Changed"
+                                         AutomationProperties.AutomationId="Settings.ErrorLogOn" AutomationProperties.Name="{l:T 'Hata günlüğü tut'}" />
+                    </Grid>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Çökme olunca'}" />
+                            <TextBlock Style="{StaticResource Muted}"
+                                       Text="{l:T 'Rapor yalnızca sürümü, hata türünü ve programın kendi yığın karelerini içerir; bu bilgisayarda kalır.'}" />
+                        </StackPanel>
+                        <ComboBox x:Name="CrashModeBox" Grid.Column="1" Width="200" Margin="16,0,0,0" VerticalAlignment="Center"
+                                  SelectionChanged="CrashModeBox_SelectionChanged"
+                                  AutomationProperties.AutomationId="Settings.CrashMode" AutomationProperties.Name="{l:T 'Çökme olunca'}">
+                            <ComboBoxItem Content="{l:T 'Her seferinde sor'}" />
+                            <ComboBoxItem Content="{l:T 'Sormadan kaydet'}" />
+                            <ComboBoxItem Content="{l:T 'Kaydetme'}" />
+                        </ComboBox>
+                    </Grid>
+                    <Grid x:Name="PendingRow" Margin="0,0,0,12" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="PendingText" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   AutomationProperties.AutomationId="Settings.PendingCrash" />
+                        <ui:Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Content="{l:T 'Kaydet'}"
+                                   AutomationProperties.AutomationId="Settings.SavePendingCrash" Click="SavePending_Click" />
+                        <ui:Button Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Center" Content="{l:T 'Sil'}"
+                                   AutomationProperties.AutomationId="Settings.DiscardPendingCrash" Click="DiscardPending_Click" />
+                    </Grid>
+                    <WrapPanel>
+                        <ui:Button Content="{l:T 'Günlük klasörünü aç'}" Icon="{ui:SymbolIcon FolderOpen24}" Margin="0,0,8,0"
+                                   AutomationProperties.AutomationId="Settings.OpenLogs" Click="OpenLogs_Click" />
+                        <ui:Button Content="{l:T 'Günlükleri sil'}" Icon="{ui:SymbolIcon Delete24}"
+                                   AutomationProperties.AutomationId="Settings.DeleteLogs" Click="DeleteLogs_Click" />
+                    </WrapPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <!-- ================= Yardım ================= -->
         <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Yardım'}" />
+        <!-- Sorun bildir (2.2 yerel tanılama): paket ve sayfa yalnızca bu bilgisayarda oluşur; GitHub bağlantısı yalnızca sürümü
+             taşır, paketi kullanıcı kendisi ekler. -->
+        <Border Style="{StaticResource Row}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="Bug24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Top"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1">
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Sorun bildir'}" />
+                    <TextBlock x:Name="ReportProblemText" Style="{StaticResource Muted}" />
+                    <WrapPanel Margin="0,12,0,0">
+                        <ui:Button x:Name="CreatePackageButton" Appearance="Primary" Padding="16,8" Margin="0,0,8,0"
+                                   Icon="{ui:SymbolIcon FolderZip24}" Content="{l:T 'Tanılama paketi oluştur'}"
+                                   AutomationProperties.AutomationId="Settings.DiagnosticPackage" Click="CreatePackage_Click" />
+                        <ui:Button Padding="16,8" Icon="{ui:SymbolIcon DocumentSearch24}" Content="{l:T 'Tanılama sayfasını aç'}"
+                                   AutomationProperties.AutomationId="Settings.DiagnosticPage" Click="OpenDiagnosticPage_Click" />
+                    </WrapPanel>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0">
+                        <Hyperlink Click="ReportProblem_Click" AutomationProperties.AutomationId="Settings.ReportProblem"><Run Text="{l:T 'GitHub\'da sorun aç'}" /></Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </Border>
         <Border Style="{StaticResource Row}">
             <Grid>
                 <Grid.ColumnDefinitions>

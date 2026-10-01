@@ -34,6 +34,7 @@ internal static class RecycleBinActions
         catch (Exception ex)
         {
             DebugLog.Write($"Geri Dönüşüm Kutusu boşaltılamadı: {ex}");
+            AppLog.Warn("recyclebin", "empty-failed", ex);
             MessageBox.Show(L.F("Geri Dönüşüm Kutusu boşaltılamadı: {0}", ex.Message), AppInfo.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally

@@ -32,6 +32,12 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- WFAC010 WinForms uygulamaları içindir; DPI ayarını WPF manifest'ten okur. -->
     <NoWarn>$(NoWarn);WFAC010;WFO0003</NoWarn>
+    <!-- 2.2 tanılama: yayın derlemesinde kaynak yolları depoya göreli (/_/src/Duzenleme/...; XAML'in ürettiği .g.cs dosyaları
+         /_/obj/...); gömülü PDB ile çökme raporundaki yığın karelerinde satır numarası çıkar, geliştiricinin makinesindeki yol
+         (kullanıcı adı) DLL'e girmez. Ara klasör önce: package-msix.ps1 onu proje dışına (artifacts) koyar. PDB'yi yayın
+         betikleri gömer (DebugType=embedded) ve gömülü kaldığını denetler. -->
+    <_NestDeskObjDir>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)'))))</_NestDeskObjDir>
+    <PathMap Condition="'$(Configuration)' == 'Release'">$(_NestDeskObjDir)=/_/obj/,$(MSBuildProjectDirectory)\=/_/src/Duzenleme/</PathMap>
   </PropertyGroup>
 
   <ItemGroup>
