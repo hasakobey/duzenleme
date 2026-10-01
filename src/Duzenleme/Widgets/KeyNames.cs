@@ -10,4 +10,5 @@ internal static class KeyNames
     public const string Enter = "Enter";
     public const string Delete = "Del";
     public const string Find = "Ctrl+F";
+    public const string Backspace = "Backspace";
 }

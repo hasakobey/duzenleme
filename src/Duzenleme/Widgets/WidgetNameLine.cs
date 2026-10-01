@@ -27,6 +27,7 @@ internal sealed class WidgetNameLine
     private readonly ShadowText? _shadow;
     private readonly Action _changed;
     private readonly TitleEditor _editor;
+    private readonly bool _editOnly;
     private bool _textShadow;
 
     /// <param name="view">Widget görünümü.</param>
@@ -34,9 +35,13 @@ internal sealed class WidgetNameLine
     /// <param name="text">Ad yazısı.</param>
     /// <param name="shadow">Saydam kartta yazının gölgesi (zamanlayıcı); yoksa null.</param>
     /// <param name="changed">Ad değişti ve kaydedildi: görünüm yeniden çizilir (erişilebilirlik adı dahil).</param>
-    public WidgetNameLine(FrameworkElement view, WidgetConfig config, Grid row, TextBlock text, ShadowText? shadow, Action changed)
+    /// <param name="editOnly">Ad widget'ın kendi içinde yazılıyor (halka menünün ortası): satır yalnızca düzenlenirken görünür,
+    /// "Göster ▸ Ad" kapalıyken de yerinde düzenlenir (görünüm adı göstermeyi o parçaya göre seçer).</param>
+    public WidgetNameLine(FrameworkElement view, WidgetConfig config, Grid row, TextBlock text, ShadowText? shadow, Action changed,
+        bool editOnly = false)
     {
         _view = view;
+        _editOnly = editOnly;
         _config = config;
         _row = row;
         _text = text;
@@ -74,7 +79,7 @@ internal sealed class WidgetNameLine
     public void Render()
     {
         if (!_editor.IsEditing) _text.Text = Name ?? "";
-        _row.Visibility = _editor.IsEditing || (Name is not null && _config.Shows(PartKey)) ? Visibility.Visible : Visibility.Collapsed;
+        _row.Visibility = _editor.IsEditing || (!_editOnly && Name is not null && _config.Shows(PartKey)) ? Visibility.Visible : Visibility.Collapsed;
         _shadow?.Show(_textShadow && !_editor.IsEditing);
     }
 
@@ -85,7 +90,7 @@ internal sealed class WidgetNameLine
     public bool Begin()
     {
         if (_editor.IsEditing) return _editor.Begin();
-        if (!_config.Shows(PartKey) || !_view.IsVisible) return AskInDialog();
+        if ((!_editOnly && !_config.Shows(PartKey)) || !_view.IsVisible) return AskInDialog();
         _row.Visibility = Visibility.Visible;
         if (_editor.Begin()) return true;
         Render();

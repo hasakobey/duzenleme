@@ -520,6 +520,12 @@ public partial class App : Application
         _mainWindow.Activate();
     }
 
+    /// <summary>Kısayolun işini kısayolsuz yapar (halka menünün NestDesk eylemleri; bkz. Core.RingAppIds).</summary>
+    internal void RunAction(HotkeyAction action)
+    {
+        if (action != HotkeyAction.Ring) OnHotkey(action);
+    }
+
     private void OnHotkey(HotkeyAction action)
     {
         switch (action)

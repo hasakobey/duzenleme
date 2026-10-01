@@ -17,6 +17,7 @@ public static class WidgetViews
         (WidgetKind.Clock, WidgetVariants.World) => new WorldClockView(config),
         (WidgetKind.Clock, WidgetVariants.System) => new SystemStatusView(config),
         (WidgetKind.Launcher, WidgetVariants.Recycle) => new RecycleBinView(config),
+        (WidgetKind.Launcher, WidgetVariants.Ring) => new RingWidgetView(config),
         (WidgetKind.Clock, _) => new ClockView(config),
         (WidgetKind.Date, _) => new DateView(config),
         (WidgetKind.Note, _) => new NoteView(config),

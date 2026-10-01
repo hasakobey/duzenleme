@@ -17,6 +17,9 @@ public static class WidgetText
         // Başlık 2.0 için yazılıdır (varsayılan ad, oluşturulduğu dilde); varsayılansa arayüz dilinde, değiştirildiyse kendisi.
         WidgetVariants.Recycle => string.IsNullOrWhiteSpace(c.Title) || L.Variants("Geri Dönüşüm Kutusu").Contains(c.Title.Trim())
             ? L.T("Geri Dönüşüm Kutusu") : c.Title.Trim(),
+        // Halka menü: başlık 2.0/2.1 için de yazılıdır (varsayılan ad); öğeler bütün halkalarda (alt halkalar dahil) sayılır.
+        WidgetVariants.Ring => (string.IsNullOrWhiteSpace(c.Title) || L.Variants("Halka menü").Contains(c.Title.Trim())
+            ? L.T("Halka menü") : L.F("Halka menü · {0}", c.Title.Trim())) + " " + L.P(c.Tabs.Sum(t => t is null ? 0 : LauncherEntries.Count(t)), "({0} öğe)"),
         _ => c.Kind switch
         {
             WidgetKind.Clock => L.T("Saat"),

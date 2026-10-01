@@ -19,6 +19,7 @@ public partial class LauncherView : UserControl, IWidgetView
     // Yerinde yeniden adlandırma: başlık ve öğenin görünen adı (dosyaya dokunulmaz, bkz. ItemLooks).
     private readonly TitleEditor _titleEditor;
     private TileRename? _rename;
+    private readonly LauncherEdits _edits;
     private bool _renderDeferred;
     private string? _selectAfterRender;
 
@@ -27,6 +28,7 @@ public partial class LauncherView : UserControl, IWidgetView
         _config = config;
         if (_config.Tabs.Count == 0) _config.Tabs.Add(new LauncherTab { Name = L.T("Uygulamalar") });
         InitializeComponent();
+        _edits = new LauncherEdits(_config, Render);
 
         _titleEditor = new TitleEditor(this, Header, TitleText, HeaderIconButton, () => DefaultTitle, CommitTitle, PickIcon, ApplyParts);
         Header.MouseLeftButtonDown += (_, e) =>
@@ -254,7 +256,7 @@ public partial class LauncherView : UserControl, IWidgetView
                     _config.Tabs.RemoveAt(index);
                     _config.ActiveTab = Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1);
                     // Başka sekmede kalmayan öğelerin adları ve simgeleri de gider (son silinen öğe "Geri al" için tutulur).
-                    ItemLooks.Prune(_config, _lastRemoved is { } last ? [last.Path] : null);
+                    ItemLooks.Prune(_config, _edits.LastRemoved?.Entry.Path is { } last ? [last] : null);
                 });
                 // Sekmedeki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
                 BoxMover.Reconcile();
@@ -284,17 +286,8 @@ public partial class LauncherView : UserControl, IWidgetView
         });
     }
 
-    private void Change(Action change)
-    {
-        change();
-        AppHost.SaveSettings();
-        // Kutudaki masaüstü dosyaları kurallarla taşınmasın (bkz. DesktopOrganizer.Pinned).
-        AppHost.RefreshPinnedPaths();
-        Render();
-    }
-
-    /// <summary>Son kaldırılan öğe (menüdeki "Geri al" için); kullanıcının verdiği ad ve simgesiyle.</summary>
-    private (LauncherTab Tab, int Index, string Path, ItemLook? Look)? _lastRemoved;
+    // Kaydet, kutudaki masaüstü dosyalarını kurallardan koru, yeniden çiz (bkz. LauncherEdits).
+    private void Change(Action change) => _edits.Change(change);
 
     /// <summary>
     /// Öğeyi listeden çıkarır; kutunun menüsündeki "Geri al" ile yerine döner. Masaüstünden kutuya taşınmış öğe (başka kutuda
@@ -302,38 +295,12 @@ public partial class LauncherView : UserControl, IWidgetView
     /// </summary>
     private void RemoveItem(TileItem item)
     {
-        var tab = Current;
-        var index = tab.Items.FindIndex(p => string.Equals(p, item.Path, StringComparison.OrdinalIgnoreCase));
-        if (index < 0) return;
-        var moved = BoxMover.IsMoved(item.Path);
-        var path = tab.Items[index];
-        // Öğe başka sekmede de duruyorsa adı ve simgesi orada kalır.
-        var elsewhere = _config.Tabs.Where(t => t != tab).Any(t => t.Items.Contains(path, StringComparer.OrdinalIgnoreCase));
-        _lastRemoved = (tab, index, path, elsewhere ? null : ItemLooks.Get(_config, path));
-        Change(() =>
-        {
-            tab.Items.RemoveAt(index);
-            if (!elsewhere) ItemLooks.Reset(_config, path);
-        });
-        if (!moved) return;
-        BoxMover.Reconcile();
-        if (!BoxPlan.Referenced(AppHost.Settings.Widgets).Contains(item.Path))
+        if (_edits.Remove(Current, LauncherEntries.IndexOfPath(Current, item.Path)) == true)
             Views.Notice.Show(L.F("\"{0}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", item.Name), Views.NoticeKind.Info, L.T("Geri al"),
                 UndoRemove, L.T("Geri almak için buraya tıkla."));
     }
 
-    private void UndoRemove()
-    {
-        if (_lastRemoved is not { } last || !_config.Tabs.Contains(last.Tab)) return;
-        _lastRemoved = null;
-        Change(() =>
-        {
-            last.Tab.Items.Insert(Math.Min(last.Index, last.Tab.Items.Count), last.Path);
-            ItemLooks.Restore(_config, last.Path, last.Look);
-        });
-        // Öğe bu arada masaüstüne geri konduysa kutu onu yeniden bulur (kip açıksa yeniden taşınır).
-        BoxMover.Reconcile();
-    }
+    private void UndoRemove() => _edits.UndoRemove();
 
     /// <summary>
     /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Kutulara eklediklerim masaüstünden kalksın" açıksa
@@ -342,43 +309,14 @@ public partial class LauncherView : UserControl, IWidgetView
     /// <param name="look">Başka kutudan taşınan öğenin orada verilmiş adı ve simgesi.</param>
     /// <param name="then">Ekleme bittikten sonra (ör. kaynak kutudan çıkarmak): öğe önce burada olmalı, yoksa kutunun
     /// klasörüne taşınmış öğe arada masaüstüne geri konur.</param>
-    private async void AddItems(IReadOnlyList<string> paths, ItemLook? look = null, Action? then = null)
-    {
-        var tab = Current;
-        var existing = await Task.Run(() => paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList());
-        if (!_config.Tabs.Contains(tab)) tab = Current;
-        var added = new List<string>();
-        Change(() =>
-        {
-            foreach (var path in existing)
-                if (!tab.Items.Contains(path, StringComparer.OrdinalIgnoreCase))
-                {
-                    tab.Items.Add(path);
-                    added.Add(path);
-                    if (look is not null && ItemLooks.Get(_config, path) is null) ItemLooks.Restore(_config, path, look);
-                }
-        });
-        if (existing.Count > 0) then?.Invoke();
-        if (added.Count > 0 && BoxMover.Active) BoxMover.Claim(_config, added, justAdded: true);
-    }
+    private void AddItems(IReadOnlyList<string> paths, ItemLook? look = null, Action? then = null) =>
+        _edits.AddItems(() => Current, paths, look, then);
 
     /// <summary>
     /// Öğe sürüklenerek başka bir widget'a taşındı: bu sekmeden çıkar (başka sekmede de yoksa adı ve simgesi de). Kutunun
     /// klasörüne taşınmış öğe başka kutuda yoksa masaüstüne döner (BoxMover.Reconcile).
     /// </summary>
-    private void TakeOut(LauncherTab tab, string path)
-    {
-        if (!_config.Tabs.Contains(tab)) return;
-        var index = tab.Items.FindIndex(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
-        if (index < 0) return;
-        var elsewhere = _config.Tabs.Where(t => t != tab).Any(t => t.Items.Contains(path, StringComparer.OrdinalIgnoreCase));
-        Change(() =>
-        {
-            tab.Items.RemoveAt(index);
-            if (!elsewhere) ItemLooks.Reset(_config, path);
-        });
-        BoxMover.Reconcile();
-    }
+    private void TakeOut(LauncherTab tab, string path) => _edits.TakeOut(tab, path);
 
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
@@ -569,9 +507,9 @@ public partial class LauncherView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        if (_lastRemoved is { } last)
+        if (_edits.LastRemoved?.Entry.Path is { } lastPath)
         {
-            menu.Primary.Add(Menus.Item(L.F("Geri al: \"{0}\" listeye dönsün", Menus.Literal(TileItem.DisplayName(last.Path))), UndoRemove));
+            menu.Primary.Add(Menus.Item(L.F("Geri al: \"{0}\" listeye dönsün", Menus.Literal(TileItem.DisplayName(lastPath))), UndoRemove));
             menu.Primary.Add(new Separator());
         }
         var add = new MenuItem { Header = L.T("Öğe ekle") };

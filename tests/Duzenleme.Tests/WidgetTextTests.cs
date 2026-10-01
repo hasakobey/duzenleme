@@ -44,6 +44,27 @@ public class WidgetTextTests
     }
 
     [Fact]
+    public void Ring_menu_counts_items_in_every_ring()
+    {
+        var ring = WidgetSeeds.Create(WidgetSeeds.Ring)!;                  // başlık "Halka menü", 4 NestDesk eylemi
+        Assert.Equal("Halka menü (4 öğe)", Name(ring));
+        ring.Tabs.Add(new LauncherTab { Name = "Oyunlar", Items = [@"C:.exe"], Actions = [new() { Type = RingActionTypes.Url, Url = "https://example.com" }] });
+        Assert.Equal("Halka menü (6 öğe)", Name(ring));
+        ring.Title = "İş";
+        Assert.Equal("Halka menü · İş (6 öğe)", Name(ring));
+        ring.Title = null;
+        Assert.Equal("Halka menü (6 öğe)", Name(ring));
+
+        // Tohumun yazdığı varsayılan ad oluşturulduğu dilde kalır; ad arayüz dilinde gösterilir.
+        ring.Title = "Halka menü";
+        using var _ = Localization.L.Use(Localization.Lang.En);
+        Assert.Equal("Ring menu (6 items)", Name(ring));
+        ring.Tabs.RemoveAt(1);
+        ring.Tabs[0].Actions!.RemoveRange(1, 3);
+        Assert.Equal("Ring menu (1 item)", Name(ring));
+    }
+
+    [Fact]
     public void Fence_uses_title_filter_or_folder()
     {
         Assert.Equal("Bölme · Klasörler", Name(new() { Kind = WidgetKind.Fence, Filter = DesktopFilter.Folders }));

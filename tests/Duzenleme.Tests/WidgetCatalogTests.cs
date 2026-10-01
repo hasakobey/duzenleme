@@ -29,4 +29,20 @@ public class WidgetCatalogTests
             Assert.NotEqual(WidgetGroup.Fence, choice.Group);
         }
     }
+
+    [Fact]
+    public void Ring_menu_is_a_tool_of_its_own()
+    {
+        var ring = Assert.Single(WidgetCatalog.Tools, c => c.Key == WidgetSeeds.Ring);
+        Assert.Equal("Halka menü", ring.Label);
+        Assert.Equal(Wpf.Ui.Controls.SymbolRegular.DataPie24, ring.Icon);
+        Assert.True(WidgetIcons.IsDrawable(ring.Icon));
+        Assert.False(ring.ShowInWelcome);
+        Assert.False(ring.AsksName);
+        Assert.Equal(WidgetGroup.Tool, ring.Group);
+        // Kısayol kutusu kutucuğu halkayı (aynı temel tür) kendisi saymaz; halka da kutuyu.
+        var box = WidgetSeeds.Create(WidgetSeeds.Launcher)!;
+        Assert.False(ring.Matches!(box));
+        Assert.False(WidgetCatalog.Tools.Single(c => c.Key == WidgetSeeds.Launcher).Matches!(WidgetSeeds.Create(WidgetSeeds.Ring)!));
+    }
 }
