@@ -10,6 +10,7 @@ public partial class MainWindow : FluentWindow
 {
     private bool _reallyClose;
     private Type? _pendingPage;
+    private bool _firstPageShown;
     private IReadOnlyList<NoticeChoice> _noticeChoices = [];
 
     public MainWindow()
@@ -26,8 +27,14 @@ public partial class MainWindow : FluentWindow
             RootNavigation.Navigate(_pendingPage ?? typeof(HomePage));
             _pendingPage = null;
         };
-        // Bildirim o sayfanın işine aittir: sayfa değişince ya da pencere gizlenince kalkar.
-        RootNavigation.Navigated += (_, _) => HideNotice();
+        // Bildirim o sayfanın işine aittir: sayfa değişince ya da pencere gizlenince kalkar. Pencerenin ilk sayfası bir sayfa
+        // değişimi değildir: pencere ilk kez açılırken gösterilen şerit kalır (ör. gizliyken balonla sorulan çökme sorusu,
+        // Notice.ShowWaitingAsk; ilk gezinme ondan sonra bitebilir).
+        RootNavigation.Navigated += (_, _) =>
+        {
+            if (_firstPageShown) HideNotice();
+            _firstPageShown = true;
+        };
         IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is false) HideNotice();

@@ -202,9 +202,16 @@ public static class CrashReports
         && List(crashesDirectory, pending: true).Concat(List(crashesDirectory, pending: false))
             .Any(r => string.Equals(r.Session, session, StringComparison.Ordinal));
 
-    /// <summary>Henüz sorulmamış bekleyen raporlar (açılıştaki şerit yalnızca bunları sorar; tepsi balonu her açılışta çıkmasın).</summary>
-    public static IReadOnlyList<CrashReport> ToAsk(string crashesDirectory) =>
-        List(crashesDirectory, pending: true).Where(r => !r.Asked).ToList();
+    /// <summary>
+    /// Henüz sorulmamış bekleyen raporlar (açılıştaki şerit yalnızca bunları sorar; tepsi balonu her açılışta çıkmasın).
+    /// <paramref name="currentSession"/>: bu oturumun kendi raporu sorulmaz. Açılıştan hemen sonra çöken oturum, süreç
+    /// kapanana dek açılış denetimini çalıştırıp az önce yazdığı raporu "soruldu" işaretleyebilirdi: sonraki açılışta şerit
+    /// çıkmazdı (ve yarıda kalan işaretleme bir .tmp bırakırdı).
+    /// </summary>
+    public static IReadOnlyList<CrashReport> ToAsk(string crashesDirectory, string? currentSession = null) =>
+        List(crashesDirectory, pending: true)
+            .Where(r => !r.Asked && !(currentSession is { Length: > 0 } && string.Equals(r.Session, currentSession, StringComparison.Ordinal)))
+            .ToList();
 
     /// <summary>Raporun bir kez sorulduğunu işaretler.</summary>
     public static void MarkAsked(string path)
@@ -249,13 +256,30 @@ public static class CrashReports
         foreach (var file in Files(crashesDirectory, PendingPrefix)) Save(file, utcNow);
     }
 
-    /// <summary>"Günlükleri sil": bütün çökme raporlarını siler.</summary>
+    /// <summary>"Günlükleri sil": bütün çökme raporlarını (yarıda kalmış yazmaların .tmp kopyaları dahil) siler.</summary>
     public static void DeleteAll(string crashesDirectory)
     {
-        foreach (var file in Files(crashesDirectory, PendingPrefix).Concat(Files(crashesDirectory, SavedPrefix)))
+        foreach (var file in Files(crashesDirectory, PendingPrefix).Concat(Files(crashesDirectory, SavedPrefix)).Concat(Leftovers(crashesDirectory)))
         {
             try { File.Delete(file); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>Yarıda kalmış atomik yazmaların kopyaları (pending-*.json.tmp, crash-*.json.tmp): raporun kendisi gibi silinir.</summary>
+    private static IEnumerable<string> Leftovers(string crashesDirectory)
+    {
+        try
+        {
+            if (!Directory.Exists(crashesDirectory)) return [];
+            return Directory.EnumerateFiles(crashesDirectory, "*.json.tmp", SearchOption.TopDirectoryOnly)
+                .Where(f => Path.GetFileName(f) is var name
+                            && (name.StartsWith(PendingPrefix, StringComparison.OrdinalIgnoreCase) || name.StartsWith(SavedPrefix, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
         }
     }
 

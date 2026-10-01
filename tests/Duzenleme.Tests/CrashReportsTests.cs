@@ -138,6 +138,34 @@ public class CrashReportsTests : IDisposable
         Assert.Single(CrashReports.List(Dir, pending: true));
     }
 
+    /// <summary>
+    /// Açılıştan hemen sonra çöken oturum, süreç kapanana dek açılış denetimini çalıştırabilir: kendi raporunu sormamalı
+    /// ("soruldu" işaretlerse sonraki açılışta şerit çıkmaz). Önceki oturumların raporları yine sorulur.
+    /// </summary>
+    [Fact]
+    public void Own_session_report_is_left_for_the_next_start()
+    {
+        var own = Write(null)!; // oturum "abc123"
+        var previous = CrashReports.Write(Dir, null, false, CrashReports.KindCrash, Error(), Recent(1), "old999", "2.2.0", _now.AddMinutes(-5))!;
+        Assert.Equal([previous], CrashReports.ToAsk(Dir, currentSession: "abc123").Select(r => r.Path));
+        Assert.Equal(2, CrashReports.ToAsk(Dir, currentSession: "other1").Count);
+        Assert.Equal(2, CrashReports.ToAsk(Dir).Count);
+        Assert.False(CrashReports.Read(own)!.Asked);
+    }
+
+    /// <summary>"Günlükleri sil" yarıda kalmış yazmaların .tmp kopyalarını da siler (raporun bir kopyasını taşıyabilirler).</summary>
+    [Fact]
+    public void Delete_all_removes_interrupted_temp_copies()
+    {
+        var pending = Write(null)!;
+        var saved = Write(CrashReportModes.Always, at: _now.AddSeconds(1))!;
+        File.WriteAllText(pending + ".tmp", "");
+        File.WriteAllText(saved + ".tmp", "{}");
+        File.WriteAllText(Path.Combine(Dir, "notes.json.tmp"), "başka bir dosya");
+        CrashReports.DeleteAll(Dir);
+        Assert.Equal(["notes.json.tmp"], Names());
+    }
+
     [Fact]
     public void Save_and_discard()
     {

@@ -1198,7 +1198,8 @@ public static class AppHost
                 CrashReports.SaveAll(crashes, now);
                 return;
         }
-        var toAsk = CrashReports.ToAsk(crashes);
+        // Bu oturumun kendi raporu (açılıştan hemen sonra çöktüyse) burada sorulmaz: sonraki açılış sorar.
+        var toAsk = CrashReports.ToAsk(crashes, currentSession: AppLog.Channel.Session);
         if (toAsk.Count > 0)
             _dispatcher?.BeginInvoke(() => Views.Diagnostics.AskAboutCrashes(toAsk), DispatcherPriority.ApplicationIdle);
     }
