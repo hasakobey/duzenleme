@@ -34,6 +34,9 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // App.xaml'ın kaynakları (WPF-UI sözlükleri, QuietStyles) InitializeComponent'te, OnStartup'tan önce yüklendi. Zaman
+        // burada alınır, işaret tek örnek denetiminden sonra yazılır (yardımcı süreçler --exit/--peek günlüğü kirletmesin).
+        var resourcesAt = PerfLog.Now();
         // Dil: önce Windows'unki (başlangıç hataları ve yeni kullanıcının varsayılan ayarları için); ayarlar okununca yeniden.
         L.Init(null);
         var args = ParseArgs(e.Args);
@@ -128,6 +131,7 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        PerfLog.Mark("App.resources", atMs: resourcesAt);
         ThreadPool.RegisterWaitForSingleObject(_showSignal, (_, _) => Dispatcher.BeginInvoke(ShowMainWindow), null, -1, false);
         ThreadPool.RegisterWaitForSingleObject(_addSignal, (_, _) => Dispatcher.BeginInvoke(ShowQuickAdd), null, -1, false);
         ThreadPool.RegisterWaitForSingleObject(_peekSignal, (_, _) => Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command)), null, -1, false);
@@ -190,6 +194,7 @@ public partial class App : Application
 
         var tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
         AppHost.Tray = tray;
+        PerfLog.Mark("Tray.created");
         // Gezgin yeniden başladı: widget'lar 3 sn'lik nöbetçiyi beklemeden yeni masaüstüne bağlansın.
         tray.TaskbarCreated += AppHost.Widgets.OnShellRestarted;
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
@@ -224,6 +229,7 @@ public partial class App : Application
         MigrateFromLegacyNameInBackground();
         if (PerfLog.Enabled)
             PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms"); // l10n: çevrilmez
+        PerfLog.Mark("StartServices.end");
 
         _started = true;
         if (args.Peek) Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command), DispatcherPriority.ApplicationIdle);
@@ -259,6 +265,24 @@ public partial class App : Application
                     AppInfo.Name),
                 Views.NoticeKind.Info), DispatcherPriority.ApplicationIdle);
         }
+
+        // Ayarlar daha yeni bir sürümle kaydedilmiş (kullanıcı eski sürüme döndü): bir kez, kalıcı şeritte ya da balonda.
+        // Dosyanın önceki hâli açılışta yedeklendiyse (SettingsVersion.BackupBeforeChange) yedekler klasörü açılabilir.
+        if (AppHost.SettingsFromNewerVersion is { } newer)
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (newer.BackedUp)
+                    Views.Notice.Show(
+                        L.F("Ayarların {0} {1} ile kaydedilmiş. Bu sürümün bilmediği ayarların çoğu korunur; bazı yeni özellikler burada görünmez. Önceki hâli yedekler klasöründe.",
+                            AppInfo.Name, newer.Version),
+                        Views.NoticeKind.Info, L.T("Yedekler klasörünü aç"), () => AppHost.OpenDataSubfolder(SettingsVersion.BackupFolder),
+                        trayHint: L.T("Yedekler klasörünü açmak için buraya tıkla."));
+                else
+                    Views.Notice.Show(
+                        L.F("Ayarların {0} {1} ile kaydedilmiş. Bu sürümün bilmediği ayarların çoğu korunur; bazı yeni özellikler burada görünmez.",
+                            AppInfo.Name, newer.Version),
+                        Views.NoticeKind.Info);
+            }, DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>

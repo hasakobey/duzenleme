@@ -5,16 +5,31 @@
 // C# konsol yoklaması Smart App Control'e takılıyor; dotnet fsi bellekte derlediği için takılmıyor. Kullanım:
 //   dotnet fsi tools\compat\compat-probe.fsx <eski Duzenleme.dll> <yeni NestDesk.dll> <çalışma klasörü> [ek settings.json ...]
 // Beklenen: her dosyada ".bozuk=0" ve widget sayısı aynı; kaybolanlar yalnızca yeni sürümün alanları.
+// Çıktıdaki "2.0" eski (ölçülen önceki sürüm), "2.1" yeni DLL'dir.
 open System
 open System.IO
 open System.Collections
 open System.Reflection
+open System.Runtime.Loader
 open System.Text.Json
 open System.Linq.Expressions
 
 let args = fsi.CommandLineArgs
-let old = Assembly.LoadFrom(Path.GetFullPath args.[1])
-let neu = Assembly.LoadFrom(Path.GetFullPath args.[2])
+
+// Her DLL kendi AssemblyLoadContext'inde: geliştirme dalı sürüm çıkana dek önceki sürümün numarasını taşır (ikisi de
+// "NestDesk, Version=2.1.1.0"); Assembly.LoadFrom ikincisini "Assembly with same name is already loaded" ile reddederdi.
+// Bağımlılıklar önce varsayılan bağlamdan (çalışma zamanı), yoksa DLL'in kendi klasöründen yüklenir (LoadFrom gibi).
+let isolated (name: string) (path: string) =
+    let full = Path.GetFullPath path
+    let dir = Path.GetDirectoryName full
+    let context = AssemblyLoadContext(name, true)
+    context.add_Resolving(Func<AssemblyLoadContext, AssemblyName, Assembly>(fun ctx dependency ->
+        let candidate = Path.Combine(dir, dependency.Name + ".dll")
+        if File.Exists candidate then ctx.LoadFromAssemblyPath candidate else null))
+    context.LoadFromAssemblyPath full
+
+let old = isolated "eski" args.[1]
+let neu = isolated "yeni" args.[2]
 let work = Path.GetFullPath args.[3]
 Directory.CreateDirectory work |> ignore
 printfn "2.0: %s %O   2.1: %s %O" (old.GetName().Name) (old.GetName().Version) (neu.GetName().Name) (neu.GetName().Version)

@@ -1,5 +1,6 @@
-// tools/perf/perf-run.ps1 yardımcısı (PowerShell Add-Type ile derlenir; uygulamaya girmez).
-// Yalnızca test örneğinin kendi pencerelerine ileti gönderir; gerçek fare/klavye kullanılmaz.
+// tools/perf/perf-run.ps1 yardımcısı (PowerShell Add-Type ile derlenir; uygulamaya girmez). Windows PowerShell 5.1'in
+// derleyicisi C# 5'tir: $"", ?., => üyeler, nameof ve out var kullanma.
+// Yalnızca test örneğinin kendi pencerelerine ileti gönderir; gerçek fare/klavye kullanılmaz. Bkz. docs/perf.md.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -44,7 +45,19 @@ public static class PerfNative
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr h, int msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool PostMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] static extern uint GetGuiResources(IntPtr process, uint flags);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+
+    static readonly IntPtr HWND_MESSAGE = new IntPtr(-3);
+    const int WM_HOTKEY = 0x0312;
+    const uint PROCESS_QUERY_INFORMATION = 0x0400;
+    const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+    /// <summary>GetGuiResources bayrakları: GDI nesneleri, USER nesneleri ve süreç boyunca en yüksek değerleri.</summary>
+    public const int GdiObjects = 0, UserObjects = 1, GdiObjectsPeak = 2, UserObjectsPeak = 4;
 
     /// <summary>Sürecin görünür widget pencereleri (başlığı "... widget").</summary>
     public static List<IntPtr> WidgetWindows(int pid)
@@ -79,6 +92,44 @@ public static class PerfNative
     {
         IntPtr r;
         SendMessageTimeout(h, 0x0021, h, new IntPtr((0x0201 << 16) | 1 /*HTCLIENT*/), 0, 5000, out r);
+    }
+
+    /// <summary>
+    /// Sürecin kısayol penceresi: yalnızca ileti alan (HWND_MESSAGE altında), başlığı "DuzenlemeHotkeys" olan pencere
+    /// (Desktop/HotkeyManager; ad bilerek eski). Kurulu NestDesk'in de aynı adlı penceresi var: süreç kimliğiyle ayırt edilir.
+    /// Yoksa IntPtr.Zero.
+    /// </summary>
+    public static IntPtr HotkeyWindow(int pid)
+    {
+        var child = IntPtr.Zero;
+        while (true)
+        {
+            child = FindWindowEx(HWND_MESSAGE, child, null, "DuzenlemeHotkeys");
+            if (child == IntPtr.Zero) return IntPtr.Zero;
+            uint p; GetWindowThreadProcessId(child, out p);
+            if (p == (uint)pid) return child;
+        }
+    }
+
+    /// <summary>
+    /// Test örneğine WM_HOTKEY gönderir (id = HotkeyAction + 1; 1 = masaüstünü gizle/göster). Kısayolun kayıtlı olması
+    /// gerekmez: uygulama iletiyi kimliğinden tanır, test örneğinin ayarlarında bütün kısayollar boştur (gerçek tuş kapılmaz).
+    /// Pencere bulunamazsa false.
+    /// </summary>
+    public static bool PostHotkey(int pid, int id)
+    {
+        var h = HotkeyWindow(pid);
+        return h != IntPtr.Zero && PostMessage(h, WM_HOTKEY, new IntPtr(id), IntPtr.Zero);
+    }
+
+    /// <summary>Sürecin GDI ya da USER nesne sayısı (GetGuiResources; bayraklar yukarıda); süreç açılamazsa -1.</summary>
+    public static int GuiResources(int pid, int flags)
+    {
+        var h = OpenProcess(PROCESS_QUERY_INFORMATION, false, (uint)pid);
+        if (h == IntPtr.Zero) h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)pid);
+        if (h == IntPtr.Zero) return -1;
+        try { return (int)GetGuiResources(h, (uint)flags); }
+        finally { CloseHandle(h); }
     }
 
     static string ClassOf(IntPtr h) { var sb = new StringBuilder(64); GetClassName(h, sb, 64); return sb.ToString(); }

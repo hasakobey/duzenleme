@@ -153,6 +153,30 @@ public class PackagedAppTests
             WinRt.AwaitObject((out IntPtr operation) => statics.GetFolderFromPathAsync(path.Handle, out operation), TimeSpan.FromSeconds(10)));
     }
 
+    [Fact]
+    public void Backup_folder_is_resolved_per_folder_not_from_the_data_folder()
+    {
+        // Kurulum sürümünden gelen kullanıcı: ayarlar ve eski günlük yedekler gerçek %AppData%'da; Store sürümünün yeni
+        // yazdığı sürüm yedekleri (before-*.json) LocalCache'teki yedekler klasöründe. "Yedekler klasörünü aç" orayı açmalı.
+        var data = Roaming + @"\NestDesk";
+        var cacheData = Cache + @"\NestDesk";
+        var backups = data + @"\" + SettingsVersion.BackupFolder;
+        var cacheBackups = cacheData + @"\" + SettingsVersion.BackupFolder;
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            data + @"\settings.json", backups, cacheData, cacheBackups,
+        };
+        Assert.Equal(data, PackagedApp.DataFolderToShow(data, cacheData, existing.Contains, existing.Contains));
+        Assert.Equal(cacheBackups, PackagedApp.PathToShow(backups, PackagedApp.RedirectedRoamingPath(backups, Roaming, Local, Family), existing.Contains));
+
+        // Henüz yönlendirilen yedek yoksa gerçek klasör (eski günlük yedekler) gösterilir.
+        existing.Remove(cacheBackups);
+        Assert.Equal(backups, PackagedApp.PathToShow(backups, PackagedApp.RedirectedRoamingPath(backups, Roaming, Local, Family), existing.Contains));
+        // Taşınabilir ya da test veri klasörü %AppData% altında değil: olduğu gibi.
+        Assert.Equal(@"D:\nd\data\yedekler", PackagedApp.PathToShow(@"D:\nd\data\yedekler",
+            PackagedApp.RedirectedRoamingPath(@"D:\nd\data\yedekler", Roaming, Local, Family), _ => true));
+    }
+
     [DllImport("combase.dll")]
     private static extern IntPtr WindowsGetStringRawBuffer(IntPtr hstring, out uint length);
 

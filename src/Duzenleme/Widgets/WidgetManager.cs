@@ -118,6 +118,7 @@ public sealed class WidgetManager
             Restoring = false;
             ApplyZOrder();
             PerfLog.Write($"widget'lar açıldı: {_open.Count} widget, {clock.ElapsedMilliseconds} ms"); // l10n: çevrilmez
+            if (PerfLog.Enabled) PerfLog.Mark("RestoreAll.end", $"widgets={_open.Count} {PerfLog.Gc()}");
             Changed?.Invoke();
         }
 
@@ -663,6 +664,7 @@ public sealed class WidgetManager
         var view = WidgetViews.Create(config);
         var window = new WidgetWindow(config, view) { PendingPlacement = place };
         window.Closed += (_, _) => OnWindowClosed(config);
+        if (PerfLog.Enabled && !_firstRendered) window.ContentRendered += OnFirstRendered;
         _open[config.Id] = window;
         // Oluşurken etkinleşip kullanıcının yazdığı pencereden odağı almasın (bkz. QuietShow). Pencere henüz gösterilmediği
         // için alanı kayıtlı boyuttan tahmin edilir (büyük kart yalnızca solar).
@@ -670,6 +672,17 @@ public sealed class WidgetManager
         if (fadeIn) Views.Motion.Pop(window, () => QuietShow.Show(window), window.Surface, MotionSurface.LayeredWidget, window.PixelArea);
         else Views.Motion.Appear(window, () => QuietShow.Show(window), fade: false);
         return window;
+    }
+
+    // Başarım işareti (yalnızca NESTDESK_PERF_LOG açıkken): ilk çizilen widget.
+    private bool _firstRendered;
+
+    private void OnFirstRendered(object? sender, EventArgs e)
+    {
+        if (sender is Window window) window.ContentRendered -= OnFirstRendered;
+        if (_firstRendered) return;
+        _firstRendered = true;
+        PerfLog.Mark("Widget.firstRendered");
     }
 
     private void OnWindowClosed(WidgetConfig config)

@@ -26,5 +26,10 @@
     <ProjectReference Include="..\..\src\Duzenleme\Duzenleme.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Altın ayar dosyaları (GoldenSettingsTests): 2.0.0, 2.1.1 ve daha yeni bir sürümün yazdığı biçim. -->
+    <None Include="Golden\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
 

@@ -460,4 +460,13 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool CalmMotion { get; set; }
+
+    // 2.2 ayar güvenliği
+    /// <summary>
+    /// Dosyayı son açan sürüm ("2.2.0"): açılışta bir kez damgalanır. Çalışan sürümden farklıysa dosya, uygulama ona dokunmadan
+    /// önce "yedekler" klasörüne kopyalanır (bkz. <see cref="SettingsVersion"/>); daha yeni bir sürümünse kullanıcıya bir kez
+    /// söylenir. null = 2.2'den önceki sürüm. 2.1 bu alanı tanımaz ve <see cref="Extra"/>'da aynen korur.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SavedWithAppVersion { get; set; }
 }

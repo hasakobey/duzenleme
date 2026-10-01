@@ -178,11 +178,27 @@ public static class AppHost
 
         // Tanınmayan enum değeri (daha yeni sürümden) ayarları silmez, yedek değere döner: günlüğe yazılır.
         JsonFile.Log = DebugLog.Write;
+        var loadClock = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
         Settings = JsonFile.Load(SettingsPath, () => new AppSettings());
+        if (loadClock is not null)
+            PerfLog.Mark("Settings.loaded", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"load={loadClock.Elapsed.TotalMilliseconds:0.0}ms"));
+        // Sürüm değiştiyse (yükseltme ya da daha eski sürüme dönüş) dosya, ilk kayıt onu değiştirmeden önce kopyalanır.
+        // Eşzamanlı ve sürüm başına bir kez: daha eski sürüm tanımadığı enum değerlerini ilk kayıtta yedek değerle ezer.
+        var version = SettingsVersion.Check(Settings.SavedWithAppVersion, AppInfo.Version);
+        var versionBackup = SettingsVersion.BackupBeforeChange(SettingsPath, BackupDirectory, version, AppInfo.Version, DateTime.Now,
+            DebugLog.Write);
         _store = new SettingsStore(new DurableFile(SettingsPath), () => JsonFile.Serialize(Settings),
             tick => new DispatcherOwnerTimer(dispatcher, tick));
         _store.File.Failed += OnSettingsWriteFailed;
         _store.File.Recovered += () => DebugLog.Write("ayarlar yeniden yazılabiliyor");
+        if (version.Kind != SettingsVersionKind.Same)
+        {
+            // Damga yazılır: bildirim ve yedek bir sonraki açılışta yinelenmesin.
+            Settings.SavedWithAppVersion = AppInfo.Version;
+            if (version.Kind == SettingsVersionKind.Downgrade)
+                SettingsFromNewerVersion = (SettingsVersion.Display(version.From), BackedUp: versionBackup is not null);
+            SaveSettings();
+        }
         Journal = new MoveJournal(Path.Combine(DataDirectory, "journal.json"));
         Journal.WriteFailed += ex => DebugLog.Write($"geçmiş yazılamadı: {ex.Message}");
         Organizer = new DesktopOrganizer(DesktopDirectory, () => Settings, Journal);
@@ -191,7 +207,16 @@ public static class AppHost
         BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
         Widgets = new WidgetManager();
         Icons.FolderIconService.Changed += OnFolderIconChanged;
-        BackgroundIo.Run($"{AppInfo.Name} ayar yedeği", BackupSettingsDaily); // l10n: çevrilmez (iş parçacığı adı)
+        // Günlük yedek; sürüm yedeklerinden fazlası silinir (az önce alınan kalır) ve anahtar yoksa onlardan da çıkarılır
+        // (ör. 2.1'de silinmiş anahtar, daha önceki bir sürüm yedeğinde kalmış olabilir).
+        var keyless = string.IsNullOrEmpty(Settings.AiKeyProtected);
+        var backupDir = BackupDirectory;
+        BackgroundIo.Run($"{AppInfo.Name} ayar yedeği", () => // l10n: çevrilmez (iş parçacığı adı)
+        {
+            BackupSettingsDaily();
+            if (versionBackup is not null) SettingsVersion.PruneBackups(backupDir, versionBackup, log: DebugLog.Write);
+            if (keyless) SettingsVersion.ClearPropertyInBackups(backupDir, nameof(AppSettings.AiKeyProtected), DebugLog.Write);
+        }, onError: ex => DebugLog.Write($"ayar yedeği: {ex}"));
         // Kutulardaki masaüstü öğeleri kurallarla taşınmasın; widget eklenince/kaldırılınca küme yenilenir, kaldırılan
         // kutunun taşınmış öğeleri masaüstüne döner (kutu "Geri al" ile gelirse yeniden taşınır).
         Widgets.Changed += () =>
@@ -209,6 +234,71 @@ public static class AppHost
             Settings.IconsHiddenByApp = false;
             SaveSettings();
         }
+        PerfLog.Mark("AppHost.initialized");
+    }
+
+    // --- Sürüm değişikliği yedekleri (2.2) ---
+
+    /// <summary>
+    /// Ayar dosyası bu açılışta daha yeni bir sürümle kaydedilmişti: o sürüm (gösterilecek biçimde, <see cref="SettingsVersion.Display"/>)
+    /// ve önceki hâlinin yedeklenip yedeklenmediği (arayüz hazır olunca bir kez söylenir); yoksa null.
+    /// </summary>
+    public static (string Version, bool BackedUp)? SettingsFromNewerVersion { get; private set; }
+
+    /// <summary>Ayar yedeklerinin klasörü (günlük ve sürüm değişikliği yedekleri), uygulamanın gördüğü yol.</summary>
+    private static string BackupDirectory => Path.Combine(DataDirectory, SettingsVersion.BackupFolder);
+
+    /// <summary>
+    /// Yapay zekâ anahtarı silindi ya da değişti: sürüm değişikliği yedeklerinden (before-*.json; sürüm değişene dek aylarca
+    /// durabilir) anahtarın şifreli kopyası çıkarılır, yedeğin geri kalanı kalır. Arka planda. Günlük yedekler kendi sırasıyla döner.
+    /// </summary>
+    public static void RemoveKeyFromVersionBackups()
+    {
+        var dir = BackupDirectory;
+        BackgroundIo.Run($"{AppInfo.Name} sürüm yedekleri", // l10n: çevrilmez (iş parçacığı adı)
+            () => SettingsVersion.ClearPropertyInBackups(dir, nameof(AppSettings.AiKeyProtected), DebugLog.Write),
+            onError: ex => DebugLog.Write($"sürüm yedekleri temizlenemedi: {ex.Message}"));
+    }
+
+    /// <summary>
+    /// Veri klasöründeki bir dosyanın ya da klasörün Gezgin'in (paket dışındaki programların) gördüğü yeri, YOL BAŞINA
+    /// (<see cref="PackagedApp.PathToShow"/>, matris C10): Store sürümünde Windows'un pakete özel LocalCache'e yönlendirdiği
+    /// kopya varsa o, yoksa asıl yol. Paketsizken yolun kendisi. Disk sorgusu yapar: arayüz iş parçacığında çağırma.
+    /// </summary>
+    public static string PathOnDisk(string path)
+    {
+        if (PackageInfo.FamilyName is not { } family) return path;
+        var redirected = PackagedApp.RedirectedRoamingPath(path,
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), family);
+        return PackagedApp.PathToShow(path, redirected, p => Directory.Exists(p) || File.Exists(p));
+    }
+
+    /// <summary>
+    /// Veri klasörünün bir alt klasörünü (ör. <see cref="SettingsVersion.BackupFolder"/>) Gezgin'de açar; alt klasör yoksa veri
+    /// klasörünü. Yol klasör başına çözülür (<see cref="PathOnDisk"/>): kurulum sürümünden gelen kullanıcıda veri klasörü gerçek
+    /// %AppData%'dayken Store sürümünün yeni yazdığı dosyalar LocalCache'tedir. Disk ve kabuk işi arka planda.
+    /// </summary>
+    public static void OpenDataSubfolder(string name)
+    {
+        var data = DataDirectory;
+        Task.Run(() =>
+        {
+            try
+            {
+                var folder = PathOnDisk(Path.Combine(data, name));
+                using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                    Directory.Exists(folder) ? folder : DataDirectoryOnDisk)
+                {
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException
+                                           or UnauthorizedAccessException)
+            {
+                DebugLog.Write($"klasör açılamadı ({name}): {ex.Message}");
+            }
+        });
     }
 
     /// <summary>
@@ -872,12 +962,13 @@ public static class AppHost
         try
         {
             if (!File.Exists(SettingsPath)) return;
-            var dir = Path.Combine(DataDirectory, "yedekler");
+            var dir = BackupDirectory;
             var today = Path.Combine(dir, $"settings-{DateTime.Now:yyyy-MM-dd}.json");
             if (File.Exists(today)) return;
             Directory.CreateDirectory(dir);
             File.Copy(SettingsPath, today);
-            foreach (var old in new DirectoryInfo(dir).GetFiles("settings-*.json").OrderByDescending(f => f.Name).Skip(7))
+            // Sürüm değişikliği yedekleri (before-*.json) bu desene uymaz: kendi sıralarıyla tutulurlar.
+            foreach (var old in new DirectoryInfo(dir).GetFiles(SettingsVersion.DailyBackupPattern).OrderByDescending(f => f.Name).Skip(7))
                 old.Delete();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
