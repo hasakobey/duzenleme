@@ -10,7 +10,7 @@ public partial class MainWindow : FluentWindow
 {
     private bool _reallyClose;
     private Type? _pendingPage;
-    private Action? _noticeAction;
+    private IReadOnlyList<NoticeChoice> _noticeChoices = [];
 
     public MainWindow()
     {
@@ -28,7 +28,13 @@ public partial class MainWindow : FluentWindow
         };
         // Bildirim o sayfanın işine aittir: sayfa değişince ya da pencere gizlenince kalkar.
         RootNavigation.Navigated += (_, _) => HideNotice();
-        IsVisibleChanged += (_, e) => { if (e.NewValue is false) HideNotice(); };
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is false) HideNotice();
+            // Pencere gizliyken balonla sorulan soru (ör. çökme raporu) pencere açılınca şeritte.
+            else Notice.ShowWaitingAsk();
+        };
+        StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) Notice.ShowWaitingAsk(); };
     }
 
     /// <summary>Sayfaya geçer; pencere henüz yüklenmediyse yüklenince geçer.</summary>
@@ -42,7 +48,9 @@ public partial class MainWindow : FluentWindow
     /// Pencerenin altında kalıcı bildirim şeridi: kapatılana, eylemine basılana, yenisi gelene, sayfa değişene ya da pencere
     /// gizlenene dek durur (kendiliğinden kaybolmaz). Doğrudan değil <see cref="Notice"/> üzerinden çağrılır.
     /// </summary>
-    internal void ShowNotice(string text, NoticeKind kind, string? actionText, Action? action)
+    /// <param name="choices">0–3 düğme. Tek düğme metnin sağında; birden çoksa metnin altında.</param>
+    /// <param name="primary">İlk düğme birincil görünümde (soru şeridi).</param>
+    internal void ShowNotice(string text, NoticeKind kind, IReadOnlyList<NoticeChoice> choices, bool primary)
     {
         NoticeText.Text = text;
         var (symbol, brush) = kind switch
@@ -54,9 +62,24 @@ public partial class MainWindow : FluentWindow
         };
         NoticeIcon.Symbol = symbol;
         NoticeIcon.SetResourceReference(ForegroundProperty, brush);
-        _noticeAction = actionText is null ? null : action;
-        NoticeAction.Content = actionText;
-        NoticeAction.Visibility = _noticeAction is null ? Visibility.Collapsed : Visibility.Visible;
+        _noticeChoices = choices;
+        var buttons = new[] { NoticeAction, NoticeAction2, NoticeAction3 };
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var choice = i < choices.Count ? choices[i] : null;
+            buttons[i].Content = choice?.Text;
+            buttons[i].Tag = i;
+            buttons[i].Visibility = choice is null ? Visibility.Collapsed : Visibility.Visible;
+            // Soru şeridinin ilk seçeneği birincil; öteki düğmeler (ve tek eylemli bildirim) eskisi gibi stilin varsayılanında.
+            if (primary && i == 0) buttons[i].Appearance = ControlAppearance.Primary;
+            else buttons[i].ClearValue(Wpf.Ui.Controls.Button.AppearanceProperty);
+        }
+        NoticeActions.Visibility = choices.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        // Birden çok seçenek metnin altında (uzun soru dar bir sütuna sıkışmasın); tek eylem eskisi gibi sağda.
+        var below = choices.Count > 1;
+        System.Windows.Controls.DockPanel.SetDock(NoticeActions, below ? System.Windows.Controls.Dock.Bottom : System.Windows.Controls.Dock.Right);
+        NoticeActions.Margin = below ? new Thickness(0, 10, 0, 0) : new Thickness(12, 0, 4, 0);
+        NoticeActions.HorizontalAlignment = below ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
         // Belirirken aşağıdan kısa bir yükselişle ve solarak gelir (Sakin: yalnızca solma); açık şeritteki bildirim yerinde
         // değişir (oynamaz). × ile kapanmaktaysa çıkış her zaman iptal olur: yeni bildirim kaybolmaz.
         Motion.Appear(NoticeBar, () => NoticeBar.Visibility = Visibility.Visible, MotionKind.Rise);
@@ -64,7 +87,7 @@ public partial class MainWindow : FluentWindow
 
     internal void HideNotice()
     {
-        _noticeAction = null;
+        _noticeChoices = [];
         Motion.Stop(NoticeBar);
         NoticeBar.Visibility = Visibility.Collapsed;
     }
@@ -72,14 +95,15 @@ public partial class MainWindow : FluentWindow
     /// <summary>× ile kapatılan şerit kısa bir çıkışla gider (öbür kapanışlar hemen); bu arada gelen bildirim çıkışı iptal eder.</summary>
     private void NoticeClose_Click(object sender, RoutedEventArgs e)
     {
-        _noticeAction = null;
+        _noticeChoices = [];
         Motion.Exit(NoticeBar, () => NoticeBar.Visibility = Visibility.Collapsed, surface: MotionSurface.Window);
     }
 
     private void NoticeAction_Click(object sender, RoutedEventArgs e)
     {
         // Önce şerit kapanır: eylem yeni bir bildirim gösterirse (ör. "Geri alındı") o kalsın.
-        var action = _noticeAction;
+        var index = (sender as FrameworkElement)?.Tag is int i ? i : 0;
+        var action = index < _noticeChoices.Count ? _noticeChoices[index].Action : null;
         HideNotice();
         action?.Invoke();
     }

@@ -187,6 +187,7 @@ public static class ShellIcons
                                        InvalidOperationException or COMException)
         {
             DebugLog.Write($"simge resmi yüklenemedi {file}: {ex.Message}");
+            AppLog.Warn("icons", "image-load-failed", ex);
             return null;
         }
     }
@@ -208,7 +209,11 @@ public static class ShellIcons
                 {
                     ImageSource? icon = null;
                     try { icon = load(); }
-                    catch (Exception ex) { DebugLog.Write($"simge yüklenemedi: {ex.Message}"); }
+                    catch (Exception ex)
+                    {
+                        DebugLog.Write($"simge yüklenemedi: {ex.Message}");
+                        AppLog.Warn("icons", "load-failed", ex);
+                    }
                     if (batch.Count == 0) batchStarted = Environment.TickCount64;
                     batch.Add((done, icon, dispatcher));
                     if (Queue.Count == 0 || Environment.TickCount64 - batchStarted >= BatchMilliseconds) Deliver(batch);
@@ -232,7 +237,11 @@ public static class ShellIcons
                 foreach (var (done, icon, _) in items)
                 {
                     try { done(icon); }
-                    catch (Exception ex) { DebugLog.Write($"simge bildirimi: {ex}"); }
+                    catch (Exception ex)
+                    {
+                        DebugLog.Write($"simge bildirimi: {ex}");
+                        AppLog.Error("icons", "deliver-failed", ex);
+                    }
                 }
             }, DispatcherPriority.Background);
         }

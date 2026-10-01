@@ -524,11 +524,16 @@ public class LocalizationTests
             result.CultureProblems.Add($"{where(call)}: {call}");
     }
 
-    /// <summary>L.* argümanı, DebugLog.Write iletisi ya da öznitelik (ör. [Obsolete]) metni: ham arayüz metni sayılmaz.</summary>
+    /// <summary>
+    /// L.* argümanı, DebugLog.Write ya da AppLog.Error/Warn/Info iletisi (günlük içeriği çevrilmez) ya da öznitelik (ör.
+    /// [Obsolete]) metni: ham arayüz metni sayılmaz.
+    /// </summary>
     private static bool IsExemptLiteral(SyntaxNode node) =>
         node.Ancestors().Any(a => a is AttributeSyntax
                                   || a is InvocationExpressionSyntax call
-                                  && (LMethod(call) is not null || call.Expression.ToString() is "DebugLog.Write" or "Duzenleme.DebugLog.Write"));
+                                  && (LMethod(call) is not null
+                                      || call.Expression.ToString() is "DebugLog.Write" or "Duzenleme.DebugLog.Write"
+                                          or "AppLog.Error" or "AppLog.Warn" or "AppLog.Info"));
 
     private static void ScanXaml(string rel, XDocument document, ScanResult result)
     {

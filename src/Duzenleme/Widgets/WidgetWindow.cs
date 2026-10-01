@@ -164,7 +164,6 @@ public sealed class WidgetWindow : Window
             Activated += (_, _) => DebugLog.Write($"{tag} Activated");
             Deactivated += (_, _) => DebugLog.Write($"{tag} Deactivated");
             PreviewGotKeyboardFocus += (_, e) => DebugLog.Write($"{tag} GotKeyboardFocus -> {e.NewFocus?.GetType().Name}");
-            PreviewKeyDown += (_, e) => DebugLog.Write($"{tag} KeyDown {e.Key}");
             LocationChanged += (_, _) => DebugLog.Write($"{tag} LocationChanged {Left:0},{Top:0}");
             SizeChanged += (_, e) => DebugLog.Write($"{tag} SizeChanged {e.NewSize.Width:0}x{e.NewSize.Height:0}");
             DpiChanged += (_, e) => DebugLog.Write($"{tag} DpiChanged {e.OldDpi.PixelsPerDip}->{e.NewDpi.PixelsPerDip}");

@@ -648,6 +648,7 @@ public sealed class WidgetManager
         catch (Exception ex)
         {
             DebugLog.Write($"widget açılamadı {config.Kind}: {ex}");
+            AppLog.Error("widget", "open-failed", ex);
             if (_open.Remove(config.Id, out var half))
             {
                 _closingOnPurpose.Add(config.Id);

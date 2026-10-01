@@ -338,7 +338,8 @@ public class SettingsVersionTests
     {
         // AppHost.Initialize'ın sırası (arayüzsüz sınanamaz): yükle → sürüm yedeği → kayıt deposu ve ilk kayıt. Yedek kayıttan
         // sonraya kayarsa daha eski sürüm, tanımadığı enum değerlerini yedek alınmadan ezerdi.
-        var text = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "AppHost.cs"));
+        // Satır sonları çalışma kopyasına göre CRLF ya da LF olabilir (core.autocrlf).
+        var text = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "AppHost.cs")).Replace("\r\n", "\n");
         var start = text.IndexOf("public static void Initialize(", StringComparison.Ordinal);
         Assert.True(start >= 0);
         var body = text[start..text.IndexOf("\n    }\n", start, StringComparison.Ordinal)];

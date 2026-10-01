@@ -261,7 +261,7 @@ public sealed class DirectorySnapshot : IDisposable
         catch (Exception ex)
         {
             // Zamanlayıcı iş parçacığındaki beklenmedik hata süreci düşürmesin.
-            System.Diagnostics.Debug.WriteLine(ex);
+            AppLog.Error("snapshot", "scan-failed", ex);
         }
         finally
         {

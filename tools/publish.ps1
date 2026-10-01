@@ -14,10 +14,14 @@
 #   NESTDESK_SIGN_PFX (+ NESTDESK_SIGN_PASSWORD)            .pfx dosyası
 #   NESTDESK_SIGN_THUMBPRINT                                sertifika deposundaki/donanım anahtarındaki sertifika
 #   NESTDESK_SIGN_DLIB + NESTDESK_SIGN_DMDF                 Microsoft Trusted (Artifact) Signing
+#
+# Yayın kapısı (2.2 tanılama): hata günlüğü varsayılan açık olduğu için PRIVACY.md (TR ve EN) onu anlatmadan ve kurulumun
+# "verileri de sil" sorusu günlükleri anmadan yayın yapılmaz. -Draft ile yalnızca uyarı verilir (deneme derlemesi; dağıtma).
 param(
     [ValidateSet('x64', 'arm64', 'x86')]
     [string[]]$Arch = @('x64', 'arm64', 'x86'),
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$Draft
 )
 $ErrorActionPreference = 'Stop'
 # global.json .NET 10 SDK ister; kullanıcı başına kurulu SDK varsa onu kullan.
@@ -31,6 +35,23 @@ $stage = Join-Path $dist 'stage'
 
 $version = ([xml](Get-Content $project -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 if (-not $version) { throw 'Duzenleme.csproj içinde <Version> bulunamadı.' }
+
+# --- Yayın kapısı: tanılama gizlilik metinlerinde anlatılmış mı? ---
+# Hata günlüğü varsayılan açıktır; Store ilkesi (10.5.1) ve gizlilik sözü bunu ancak PRIVACY.md anlatırsa karşılar.
+function Assert-DiagnosticsDisclosed([switch]$WarnOnly) {
+    $problems = @()
+    $privacy = [IO.File]::ReadAllText((Join-Path $root 'PRIVACY.md'), [Text.Encoding]::UTF8)
+    if ([regex]::Matches($privacy, 'logs/nestdesk-').Count -lt 2) { $problems += 'PRIVACY.md, TR ve EN bölümlerinde logs/nestdesk-… hata günlüğü dosyalarını anlatmıyor' }
+    if ($privacy -notmatch 'Hata günlüğü') { $problems += 'PRIVACY.md (TR) "Hata günlüğü"nü anmıyor' }
+    if ($privacy -notmatch 'error log') { $problems += 'PRIVACY.md (EN) "error log"u anmıyor' }
+    $iss = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'installer\NestDesk.iss'), [Text.Encoding]::UTF8)
+    if ($iss -notmatch '(?m)^english\.DeleteDataPrompt=.*error logs') { $problems += 'NestDesk.iss english.DeleteDataPrompt hata günlüklerini anmıyor' }
+    if ($iss -notmatch '(?m)^turkish\.DeleteDataPrompt=.*hata günlük') { $problems += 'NestDesk.iss turkish.DeleteDataPrompt hata günlüklerini anmıyor' }
+    if ($problems.Count -eq 0) { return }
+    $message = "Tanılama gizlilik metinlerinde anlatılmadan yayın yapılmaz:`n  " + ($problems -join "`n  ")
+    if ($WarnOnly) { Write-Warning ($message + "`n  (-Draft: deneme derlemesi; dağıtma)") } else { throw $message }
+}
+Assert-DiagnosticsDisclosed -WarnOnly:$Draft
 
 Remove-Item $dist -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
@@ -59,6 +80,18 @@ if ($signIdentity) {
     if (-not $signtool) { throw 'İmzalama istendi ama signtool bulunamadı (Windows SDK gerekli).' }
 }
 
+# 2.2 tanılama: NestDesk.dll'in gömülü taşınabilir PDB'si (DebugType=embedded) ReadyToRun'dan sonra da yerinde mi? Çökme
+# raporlarındaki yığın karelerinin satır numarası buna bağlı. Gömülü PDB, PE hata ayıklama dizininde "MPDB" imzalı bir blob'dur.
+function Assert-EmbeddedPdb([string]$folder) {
+    $dll = Join-Path $folder 'NestDesk.dll'
+    if (-not (Test-Path $dll)) { throw "Yayın çıktısında NestDesk.dll yok: $folder" }
+    $bytes = [IO.File]::ReadAllBytes($dll)
+    $text = [Text.Encoding]::GetEncoding(28591).GetString($bytes)
+    if ($text.IndexOf('MPDB', [StringComparison]::Ordinal) -lt 0) {
+        throw "NestDesk.dll gömülü PDB içermiyor (MPDB bulunamadı): $dll. Yığın karelerinde satır numarası olmaz; DebugType=embedded ve ReadyToRun ayarını denetle."
+    }
+}
+
 # Klasördeki imzasız tüm exe/dll'leri imzalar (Microsoft imzalı .NET dosyalarına dokunmaz).
 function Sign-Folder([string]$folder) {
     if (-not $signtool) { return }
@@ -78,9 +111,10 @@ foreach ($a in $Arch) {
     Write-Host "==> $a yayınlanıyor…"
     # Tek dosya yerine klasör: WPF'in yerel kütüphaneleri %TEMP%'e açılmaz (kilitli bilgisayarlarda engellenmez, hızlı açılır).
     dotnet publish $project -c Release -r "win-$a" --self-contained true `
-        -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=none -p:GenerateDocumentationFile=false `
+        -p:PublishSingleFile=false -p:PublishReadyToRun=true -p:DebugType=embedded -p:GenerateDocumentationFile=false `
         -o $out -nologo -v q
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish başarısız: $a" }
+    Assert-EmbeddedPdb $out
     # Kurulum ve Run değeri bu adı bekler (NestDesk.iss AppExe, Core/AppInfo.cs ExeName).
     if (-not (Test-Path (Join-Path $out 'NestDesk.exe'))) { throw "Yayın çıktısında NestDesk.exe yok: $out" }
     Sign-Folder $out

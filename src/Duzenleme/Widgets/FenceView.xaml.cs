@@ -275,6 +275,7 @@ public partial class FenceView : UserControl, IWidgetView
         catch (Exception ex)
         {
             DebugLog.Write($"bölme hesaplanamadı: {ex}");
+            AppLog.Error("fence", "compute-failed", ex);
             return;
         }
         if (generation != _generation || _detached) return;

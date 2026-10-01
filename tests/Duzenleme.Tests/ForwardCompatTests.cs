@@ -161,6 +161,36 @@ public class ForwardCompatTests : IDisposable
     }
 
     [Fact]
+    public void Diagnostics_settings_are_not_written_when_default()
+    {
+        var json = System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(new AppSettings()));
+        Assert.DoesNotContain("\"ErrorLogOff\"", json);
+        Assert.DoesNotContain("\"CrashReportMode\"", json);
+
+        var set = System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(new AppSettings { ErrorLogOff = true, CrashReportMode = CrashReportModes.Always }));
+        Assert.Contains("\"ErrorLogOff\": true", set);
+        Assert.Contains("\"CrashReportMode\": \"always\"", set);
+
+        var loaded = Load(set);
+        Assert.True(loaded.ErrorLogOff);
+        Assert.Equal("always", loaded.CrashReportMode);
+        Assert.Equal(0, BrokenBackups);
+    }
+
+    [Fact]
+    public void Diagnostics_settings_default_for_older_files_and_unknown_mode_means_ask()
+    {
+        var old = Load("""{ "Paused": true }""");
+        Assert.False(old.ErrorLogOff);
+        Assert.Null(old.CrashReportMode);
+        var future = Load("""{ "CrashReportMode": "weekly" }""");
+        Assert.Equal("weekly", future.CrashReportMode);                   // korunur (daha yeni sürümün değeri)
+        Assert.Null(CrashReportModes.Normalize(future.CrashReportMode));  // ama "sor" sayılır
+        Assert.Equal(CrashReportModes.Never, CrashReportModes.Normalize(" Never "));
+        Assert.Equal(0, BrokenBackups);
+    }
+
+    [Fact]
     public void Settings_from_20_load_with_new_defaults()
     {
         var s = Load("""{ "Widgets": [ { "Kind": "Note", "NoteText": "x" }, { "Kind": "Fence", "FolderName": "PDF" } ] }""");

@@ -31,6 +31,7 @@ public static class FolderCreation
         {
             var result = Explain(ex, path);
             JsonFile.Log?.Invoke($"klasör oluşturulamadı: {path}: {ex.GetType().Name} {ex.Message} (engel={result.BlockedBySecurity})"); // l10n: çevrilmez
+            AppLog.Warn("folder", "create-failed", ex);
             return result;
         }
     }

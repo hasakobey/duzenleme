@@ -15,7 +15,6 @@ internal static partial class En
         new("Ayar klasörüne erişilemiyor:\n{0}\n\n{1}\n\nTaşınabilir sürümü kullanıyorsan programı yazılabilir bir klasöre (ör. Belgeler) çıkar.",
             "Can't access the settings folder:\n{0}\n\n{1}\n\nIf you're using the portable version, extract the program to a folder you can write to (for example, Documents)."),
         new("Beklenmeyen bir hata oluştu:\n{0}", "Something went wrong:\n{0}"),
-        new("{0} — beklenmeyen hata", "{0} — unexpected error"),
         new("{0} kuruluma hazır", "{0} is ready to set up"),
         new("Masaüstünü birkaç adımda düzenlemek için buraya tıkla.", "Click here to organize your desktop in a few steps."),
         new("{0} artık {1}", "{0} is now {1}"),

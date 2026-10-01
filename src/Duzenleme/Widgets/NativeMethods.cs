@@ -285,4 +285,27 @@ internal static class NativeMethods
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern int SHCreateItemFromParsingName(string path, IntPtr bindContext, [MarshalAs(UnmanagedType.LPStruct)] Guid riid,
         [MarshalAs(UnmanagedType.Interface)] out object? item);
+
+    // 2.2 tanılama: oturum başı kaydındaki ekran sayısı ve ölçekleri (yalnızca yazılır; hiçbir davranış ona bağlanmaz).
+    private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr hdc, ref RECT rect, IntPtr data);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc proc, IntPtr data);
+
+    /// <summary>Bağlı ekranların ölçekleri yüzde olarak (ör. 100, 125); okunamazsa boş.</summary>
+    public static List<int> MonitorScalePercents()
+    {
+        var scales = new List<int>();
+        try
+        {
+            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr monitor, IntPtr _, ref RECT _, IntPtr _) =>
+            {
+                scales.Add(GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 ? (int)Math.Round(dpi / 96.0 * 100) : 100);
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        return scales;
+    }
 }

@@ -161,7 +161,7 @@ public sealed class ResilientWatcher : IDisposable
     private static void Safe(Action action)
     {
         try { action(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { AppLog.Error("watcher", "callback-failed", ex); }
     }
 
     /// <summary>
@@ -188,6 +188,6 @@ public sealed class ResilientWatcher : IDisposable
     {
         if (watcher is null) return;
         try { watcher.Dispose(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
+        catch (Exception ex) { AppLog.Warn("watcher", "dispose-failed", ex); }
     }
 }

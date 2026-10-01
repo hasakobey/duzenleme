@@ -178,6 +178,8 @@ public static class AppHost
 
         // Tanınmayan enum değeri (daha yeni sürümden) ayarları silmez, yedek değere döner: günlüğe yazılır.
         JsonFile.Log = DebugLog.Write;
+        // Okunamayan ayar/geçmiş/kutu dosyası: hata günlüğüne yazılır, arayüz hazır olunca doğru metinle söylenir.
+        JsonFile.Corrupted = OnFileCorrupted;
         var loadClock = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
         Settings = JsonFile.Load(SettingsPath, () => new AppSettings());
         if (loadClock is not null)
@@ -187,10 +189,19 @@ public static class AppHost
         var version = SettingsVersion.Check(Settings.SavedWithAppVersion, AppInfo.Version);
         var versionBackup = SettingsVersion.BackupBeforeChange(SettingsPath, BackupDirectory, version, AppInfo.Version, DateTime.Now,
             DebugLog.Write);
+        // Hata günlüğü (DebugLog'dan ayrı, temizlenmiş): bu ana dek bellekte bekleyen kayıtlar da yazılır ("Hata günlüğü tut"
+        // kapalıysa hiçbir dosya oluşmaz). Yalnızca asıl örnek buraya gelir.
+        AppLog.Start(LogsDirectory, new LogScrubber(ScrubContext.ForCurrentUser(DesktopDirectories, DataDirectory, BoxMover.Root)),
+            persist: !Settings.ErrorLogOff, mirror: DebugLog.Enabled ? DebugLog.Write : null);
+        StartSession();
         _store = new SettingsStore(new DurableFile(SettingsPath), () => JsonFile.Serialize(Settings),
             tick => new DispatcherOwnerTimer(dispatcher, tick));
         _store.File.Failed += OnSettingsWriteFailed;
-        _store.File.Recovered += () => DebugLog.Write("ayarlar yeniden yazılabiliyor");
+        _store.File.Recovered += () =>
+        {
+            DebugLog.Write("ayarlar yeniden yazılabiliyor");
+            AppLog.Info("settings", "write-recovered");
+        };
         if (version.Kind != SettingsVersionKind.Same)
         {
             // Damga yazılır: bildirim ve yedek bir sonraki açılışta yinelenmesin.
@@ -200,7 +211,11 @@ public static class AppHost
             SaveSettings();
         }
         Journal = new MoveJournal(Path.Combine(DataDirectory, "journal.json"));
-        Journal.WriteFailed += ex => DebugLog.Write($"geçmiş yazılamadı: {ex.Message}");
+        Journal.WriteFailed += ex =>
+        {
+            DebugLog.Write($"geçmiş yazılamadı: {ex.Message}");
+            AppLog.Warn("journal", "write-failed", ex);
+        };
         Organizer = new DesktopOrganizer(DesktopDirectory, () => Settings, Journal);
         Organizer.MoveFailed += OnMoveFailed;
         Watcher = new DesktopWatcher(Organizer, () => Settings.Paused);
@@ -360,7 +375,12 @@ public static class AppHost
         if (PerfLog.Enabled)
             PerfLog.Write($"sayaçlar: {PerfLog.Summary()} ayar yazma={_store?.File.WriteCount} geçmiş yazma={Journal?.WriteCount}"); // l10n: çevrilmez
         try { Journal?.Flush(TimeSpan.FromSeconds(2)); }
-        catch (Exception ex) { DebugLog.Write($"geçmiş yazılamadı: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"geçmiş yazılamadı: {ex.Message}");
+            AppLog.Warn("journal", "flush-failed", ex);
+        }
+        AppLog.FlushSync(TimeSpan.FromMilliseconds(500));
     }
 
     /// <summary>Arayüz iş parçacığında değilse işi oraya aktarır ve false döner.</summary>
@@ -381,6 +401,10 @@ public static class AppHost
     private static void OnMoveFailed(string path, Exception ex)
     {
         DebugLog.Write($"taşınamadı: {path}: {ex.GetType().Name} {ex.Message}");
+        // Kilitli dosya olağandır (indiriliyor, açık): hata sayılmaz, yalnızca sayaç. Engellenen yazma uyarıdır.
+        if (FileLocks.IsSharingViolation(ex)) AppLog.Count("organizer.locked");
+        else if (ex is UnauthorizedAccessException) AppLog.Warn("organizer", "move-denied", ex);
+        else AppLog.Info("organizer", "move-failed", ex);
         if (ex is not UnauthorizedAccessException) return;
         if (Interlocked.Exchange(ref _moveBlockedWarned, 1) == 1) return;
         var result = FolderCreation.Explain(ex, path);
@@ -395,6 +419,7 @@ public static class AppHost
     private static void OnSettingsWriteFailed(Exception ex)
     {
         DebugLog.Write($"ayarlar yazılamadı: {ex}");
+        AppLog.Warn("settings", "write-failed", ex);
         // Kullanıcıya bir oturumda en fazla iki kez söylenir; değişiklikler bellekte durur, yazma arka planda yeniden denenir.
         if (Interlocked.Increment(ref _writeWarnings) > 2) return;
         _dispatcher?.BeginInvoke(() => Views.Notice.Show(
@@ -403,10 +428,12 @@ public static class AppHost
     }
 
     /// <summary>
-    /// Çökme yolu (herhangi bir iş parçacığından): simgeleri bizim gizlediğimiz hâlde bırakma ve ayarları diske indir.
-    /// Süreç sonlanmıyorsa (gözlenmemiş görev hatası) simgelere dokunulmaz.
+    /// Çökme yolu (herhangi bir iş parçacığından), sırayla: simgeleri bizim gizlediğimiz hâlde bırakma, ayarları ve taşıma
+    /// geçmişini diske indir (kullanıcının verisi önce), sonra kısa ve temizlenmiş çökme raporu (çağıran iş parçacığında,
+    /// eşzamanlı, süreçte bir kez; "Kaydetme" seçiliyse hiçbir şey) ve hata günlüğünün bekleyenleri. Süreç sonlanmıyorsa
+    /// simgelere dokunulmaz ve rapor yazılmaz.
     /// </summary>
-    public static void OnCrash(bool terminating)
+    public static void OnCrash(bool terminating, Exception? exception = null)
     {
         try
         {
@@ -423,6 +450,18 @@ public static class AppHost
         catch (Exception ex) { DebugLog.Write("çökme: ayarlar " + ex.Message); }
         try { Journal?.Flush(TimeSpan.FromSeconds(1)); }
         catch (Exception ex) { DebugLog.Write("çökme: geçmiş " + ex.Message); }
+        if (terminating && DataDirectory.Length > 0)
+        {
+            // Ayarlar okunamadan çöktüyse varsayılan: sor.
+            var settings = Settings;
+            try
+            {
+                CrashReports.WriteOnce(CrashesDirectory, settings?.CrashReportMode, settings?.ErrorLogOff ?? false, CrashReports.KindCrash,
+                    exception, AppLog.Recent(CrashReports.MaxLogTail), AppLog.Channel.Scrubber, AppLog.Channel.Session, DateTime.UtcNow);
+            }
+            catch (Exception ex) { DebugLog.Write("çökme: rapor " + ex.Message); }
+        }
+        AppLog.FlushSync(TimeSpan.FromMilliseconds(500));
     }
 
     public static void SetPaused(bool paused)
@@ -472,7 +511,19 @@ public static class AppHost
             // Eski sürümün mutlak yollu klasör simgelerini onar.
             Icons.FolderIconService.RepairDesktopFolders(desktop);
         }, autostart ? TimeSpan.FromSeconds(20) : TimeSpan.FromSeconds(3),
-            ex => DebugLog.Write($"açılış taraması: {ex}"));
+            ex =>
+            {
+                DebugLog.Write($"açılış taraması: {ex}");
+                AppLog.Error("startup", "deferred-scan-failed", ex);
+            });
+        // Tanılama bakımı ve önceki oturumun sonu: eski günlükler/raporlar silinir; çökme ya da donma raporu bekliyorsa
+        // arayüz hazır olunca şeritte (pencere gizliyse balonda) sorulur.
+        var logs = LogsDirectory;
+        var mode = Settings.CrashReportMode;
+        var logOff = Settings.ErrorLogOff;
+        BackgroundIo.Run($"{AppInfo.Name} tanılama", () => CheckPreviousSession(logs, mode, logOff), // l10n: çevrilmez (iş parçacığı adı)
+            autostart ? TimeSpan.FromSeconds(20) : TimeSpan.FromSeconds(3),
+            ex => AppLog.Warn("diagnostics", "startup-check-failed", ex));
     }
 
     /// <summary>
@@ -1013,6 +1064,164 @@ public static class AppHost
         if (!IsTestDesktop) DesktopIcons.SetVisible(true);
         Settings.IconsHiddenByApp = false;
         SaveSettingsNow(TimeSpan.FromSeconds(3), changed: true);
+    }
+
+    // ------------------------------------------------------------------------------------------------------------------
+    // 2.2 tanılama: hata günlüğü, oturum nöbetçisi, çökme raporları ve okunamayan dosya bildirimi.
+
+    /// <summary>Hata günlüğü, çökme raporları, oturum nöbetçisi ve tanılama sayfasının klasörü (<c>&lt;veri&gt;\logs</c>).</summary>
+    public static string LogsDirectory => Path.Combine(DataDirectory, LogFiles.FolderName);
+
+    public static string CrashesDirectory => Path.Combine(LogsDirectory, CrashReports.FolderName);
+
+    /// <summary>Açılışın süresi (süreç başından StartServices sonuna, ms); tanılama sayfasının "Başarım" bölümü için.</summary>
+    public static long? StartupMs { get; set; }
+
+    private static readonly object _sessionGate = new();
+    // Nöbetçi (logs\session.json) yalnızca asıl örneğindir: Initialize'a yalnızca o gelir; --peek/--add gibi ikincil
+    // örnekler ona hiç dokunmaz (onların veri klasörü boştur).
+    private static bool _sessionOwned;
+    private static SessionState? _session;
+    private static SessionState? _previousSession;
+    private static Task _sessionStart = Task.CompletedTask;
+
+    /// <summary>Bu oturumun nöbetçisini yazar; öncekini (varsa) okuyup saklar. Arka planda.</summary>
+    private static void StartSession()
+    {
+        var logs = LogsDirectory;
+        lock (_sessionGate)
+        {
+            _sessionOwned = true;
+            _session = new SessionState(AppLog.Channel.Session, AppInfo.Version, DateTime.UtcNow, Environment.ProcessId, Hang: false);
+        }
+        _sessionStart = BackgroundIo.Run($"{AppInfo.Name} oturum", () => // l10n: çevrilmez (iş parçacığı adı)
+        {
+            _previousSession = SessionMarker.Read(logs);
+            WriteSessionMarker();
+        }, onError: ex => AppLog.Warn("session", "marker-failed", ex));
+    }
+
+    private static void WriteSessionMarker()
+    {
+        lock (_sessionGate)
+        {
+            if (!_sessionOwned || _session is null) return;
+            try
+            {
+                Directory.CreateDirectory(LogsDirectory);
+                SessionMarker.Write(LogsDirectory, _session);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Count("session.writefailed"); }
+        }
+    }
+
+    /// <summary>
+    /// Arayüz uzun süre yanıt vermedi (true) ya da toparlandı (false): nöbetçiye işlenir (UiWatchdog, arka planda). Oturum
+    /// kapanırken (SessionEnding'deki eşzamanlı yazmalar arayüzü birkaç saniye tutabilir) gelen donma "kapanıyor" işaretini
+    /// silmez; toparlanma hiç silmez (bkz. <see cref="SessionMarker.WithHang"/>).
+    /// </summary>
+    public static void SetSessionHang(bool hung)
+    {
+        lock (_sessionGate)
+        {
+            if (!_sessionOwned || _session is null) return;
+            TimeSpan? sinceEnding = _session.Ending ? TimeSpan.FromMilliseconds(Environment.TickCount64 - _sessionEndingAtMs) : null;
+            var next = SessionMarker.WithHang(_session, hung, sinceEnding);
+            if (ReferenceEquals(next, _session)) return;
+            _session = next;
+        }
+        WriteSessionMarker();
+    }
+
+    // Son SessionEnding'in anı (Environment.TickCount64): iptal edilen kapanıştan sonraki ikinci kapanış da yeni süre alır.
+    private static long _sessionEndingAtMs;
+
+    /// <summary>Windows oturumu kapanıyor: nöbetçi silinmez (kapanış iptal edilebilir), "kapanıyor" işaretlenir.</summary>
+    public static void MarkSessionEnding()
+    {
+        lock (_sessionGate)
+        {
+            _sessionEndingAtMs = Environment.TickCount64;
+            if (!_sessionOwned || _session is null || _session.Ending) return;
+            _session = _session with { Ending = true };
+        }
+        WriteSessionMarker();
+    }
+
+    /// <summary>Temiz çıkış (OnExit): nöbetçi silinir. Yalnızca asıl örnekte; tek örnek kilidi bırakılmadan önce çağrılır.</summary>
+    public static void EndSession()
+    {
+        if (!_sessionStart.IsCompleted)
+        {
+            try { _sessionStart.Wait(TimeSpan.FromSeconds(1)); }
+            catch (AggregateException) { }
+        }
+        lock (_sessionGate)
+        {
+            if (!_sessionOwned) return;
+            _sessionOwned = false;
+            SessionMarker.Delete(LogsDirectory);
+        }
+    }
+
+    /// <summary>
+    /// Açılıştan birkaç saniye sonra, arka planda: günlük ve rapor bakımı, önceki oturumun nasıl bittiği (yalnızca donup
+    /// düzgün kapanmadıysa "hang" raporu; sürüm değiştiyse ya da donma yoksa yalnızca Info) ve sorulacak raporlar.
+    /// </summary>
+    private static void CheckPreviousSession(string logs, string? mode, bool logOff)
+    {
+        var now = DateTime.UtcNow;
+        var crashes = Path.Combine(logs, CrashReports.FolderName);
+        AppLog.Channel.PruneNow();
+        CrashReports.Prune(crashes, now);
+        try { _sessionStart.Wait(TimeSpan.FromSeconds(5)); }
+        catch (AggregateException) { }
+        var previous = _previousSession;
+        switch (SessionMarker.Assess(previous, AppInfo.Version))
+        {
+            case PreviousSession.Unclean:
+                AppLog.Info("session", "previous-session-unclean");
+                break;
+            case PreviousSession.Hang:
+                AppLog.Warn("session", "previous-session-hang");
+                try { CrashReports.WriteHang(logs, mode, logOff, previous!, now); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Warn("session", "hang-report-failed", ex); }
+                break;
+        }
+        // Seçim sonradan değiştiyse bekleyenler ona uyar: "Kaydetme" siler, "Sormadan kaydet" kaydeder; soru yalnızca "Sor"da.
+        switch (CrashReportModes.Normalize(mode))
+        {
+            case CrashReportModes.Never:
+                foreach (var report in CrashReports.List(crashes, pending: true)) CrashReports.Discard(report.Path);
+                return;
+            case CrashReportModes.Always:
+                CrashReports.SaveAll(crashes, now);
+                return;
+        }
+        var toAsk = CrashReports.ToAsk(crashes);
+        if (toAsk.Count > 0)
+            _dispatcher?.BeginInvoke(() => Views.Diagnostics.AskAboutCrashes(toAsk), DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>
+    /// Bir veri dosyası okunamadı (Initialize içinde, JsonFile.Load): hata günlüğüne yazılır ve arayüz hazır olunca doğru metinle
+    /// söylenir (.bak yüklendiyse "son sağlam kopyası", yüklenmediyse varsayılanlar). Okunamayan dosyanın kopyası silinmez.
+    /// </summary>
+    private static void OnFileCorrupted(string kind, string? backup, bool usedBak)
+    {
+        // Alan ve ileti metin sabitidir (AppLogTests taraması): dosya türü ve sonuç dallarla seçilir.
+        switch (kind, usedBak)
+        {
+            case (JsonFile.KindSettings, true): AppLog.Warn("settings", "corrupt-file-backup-loaded"); break;
+            case (JsonFile.KindSettings, false): AppLog.Warn("settings", "corrupt-file-defaults-loaded"); break;
+            case (JsonFile.KindJournal, true): AppLog.Warn("journal", "corrupt-file-backup-loaded"); break;
+            case (JsonFile.KindJournal, false): AppLog.Warn("journal", "corrupt-file-defaults-loaded"); break;
+            case (JsonFile.KindBoxMoves, true): AppLog.Warn("box-moves", "corrupt-file-backup-loaded"); break;
+            case (JsonFile.KindBoxMoves, false): AppLog.Warn("box-moves", "corrupt-file-defaults-loaded"); break;
+            case (_, true): AppLog.Warn("data", "corrupt-file-backup-loaded"); break;
+            default: AppLog.Warn("data", "corrupt-file-defaults-loaded"); break;
+        }
+        _dispatcher?.BeginInvoke(() => Views.Diagnostics.ShowCorruptFile(kind, backup, usedBak), DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>DispatcherTimer tabanlı tek atımlık zamanlayıcı (kayıt zamanlaması; Normal öncelik: yoğun girişte de gecikmez).</summary>
