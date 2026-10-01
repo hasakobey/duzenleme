@@ -34,7 +34,8 @@ public class PlatformTests
         var references = typeof(AppInfo).Assembly.GetReferencedAssemblies().Select(a => a.Name ?? "").ToList();
         Assert.Contains("PresentationFramework", references);
         Assert.DoesNotContain(references, name => Forbidden.Any(f => name.StartsWith(f, StringComparison.OrdinalIgnoreCase))
-                                                  || name.StartsWith("Microsoft.VisualBasic", StringComparison.OrdinalIgnoreCase)
+                                                  // Microsoft.VisualBasic.dll (ör. FileIO) WinForms değildir; yalnızca .Forms'u yasak.
+                                                  || name.StartsWith("Microsoft.VisualBasic.Forms", StringComparison.OrdinalIgnoreCase)
                                                   || name.Equals("WindowsFormsIntegration", StringComparison.OrdinalIgnoreCase));
     }
 

@@ -28,8 +28,8 @@ public sealed class WidgetManager
     {
         // Masaüstü nöbetçisi: Explorer yeniden başlarsa ya da (Windows 10 / 11 23H2'de) duvar kağıdı slayt gösterisi
         // masaüstünü WorkerW'ye bölerse widget'lar yeni sahibine bağlanır; aksi halde duvar kağıdının arkasında kalırlar.
-        // Sahip önbellekte tutulur (bkz. DesktopIcons.DesktopOwner): her turda pencereler taranmaz, yalnızca sahip hâlâ simge
-        // görünümünü taşıyor mu bakılır. Gezgin yeniden başlayınca tepsinin bildirimiyle beklemeden de bakılır.
+        // Her turda pencereler taranmaz: WorkerW düzeninde son sahip önbellektedir (bkz. DesktopIcons.FindDefView). Gezgin
+        // yeniden başlayınca tepsinin bildirimiyle beklemeden de bağlanılır.
         _shellWatch = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _shellWatch.Tick += (_, _) => CheckDesktopOwner();
         _shellWatch.Start();
@@ -49,22 +49,33 @@ public sealed class WidgetManager
     /// <summary>Widget'ları masaüstünün şimdiki sahibine bağlar (değiştiyse) ve Windows simgelerinin durumunu uzlaştırır.</summary>
     private void CheckDesktopOwner()
     {
+        AttachAllToDesktop();
+        AppHost.ReconcileDesktopState();
+    }
+
+    private void AttachAllToDesktop()
+    {
         // Masaüstü sahibini bir kez bul, tüm widget'lar için kullan.
         var owner = Desktop.DesktopIcons.DesktopOwner();
         foreach (var window in _open.Values) window.EnsureAttached(owner);
-        AppHost.ReconcileDesktopState();
     }
 
     /// <summary>
     /// Gezgin yeniden başladı (görev çubuğu yeniden kuruldu; tepsinin "TaskbarCreated" bildirimi): widget'lar 3 sn'lik
-    /// nöbetçiyi beklemeden yeni masaüstüne bağlanır. Masaüstü penceresi henüz hazır değilse sonraki tur yakalar.
+    /// nöbetçiyi beklemeden yeni masaüstüne bağlanır. Masaüstü penceresi henüz hazır değilse sonraki tur yakalar. Simgelerin
+    /// durumu burada uzlaştırılmaz, sonraki tura kalır: Gezgin açılırken simge listesini kendisi yeniden gösterir; o an da
+    /// gizlemek "üst üste yeniden gösterildi" sayacını boşuna artırır ve gizli masaüstünden vazgeçirebilir.
     /// </summary>
     public void OnShellRestarted()
     {
         if (_shuttingDown) return;
         _shellWatch.Stop();
-        CheckDesktopOwner();
-        _shellWatch.Start();
+        try { AttachAllToDesktop(); }
+        finally
+        {
+            // Bağlanırken bir hata olsa da nöbetçi durmasın (sonraki slayt gösterisi bölünmesini de yakalasın).
+            if (!_shuttingDown) _shellWatch.Start();
+        }
     }
 
     private void OnDisplayChanged(object? sender, EventArgs e) =>

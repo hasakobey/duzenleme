@@ -64,9 +64,17 @@ public sealed class DirectorySnapshot : IDisposable
     private long _scans;
 
     // Son okumada görülen klasörlerin yolları (yalnızca okuma değiştirir; NoteCreated/NoteRenamed değil: uygulamanın kendi
-    // açtığı ya da yeniden adlandırdığı klasör de "yeni" sayılsın). İlk okumadan önce null. Yalnızca Scan'den (okumalar
-    // sırayla, aynı anda bir tane) erişilir.
+    // açtığı ya da yeniden adlandırdığı klasör de "yeni" sayılsın). İlk okumadan önce ve DirectoriesAppeared'ı dinleyen
+    // yokken null (ortak masaüstü, portallar: küme boşuna kurulmaz). Yalnızca Scan'den (okumalar sırayla, aynı anda bir tane)
+    // erişilir.
     private HashSet<string>? _scannedDirectories;
+
+    private Action<IReadOnlyList<string>>? _directoriesAppeared;
+
+    // İlk dinleyen gelince sonraki okuma, o anki listeyle (hazırsa; değilse ilk okuma gibi) karşılaştırılır: abone olmadan
+    // önce var olan klasörler "yeni" sayılmaz, abone olduktan sonra gelenler kaçmaz. _lock ile korunur.
+    private bool _rebase;
+    private IReadOnlyList<DirEntry>? _rebaseFrom;
 
     /// <param name="directory">İzlenecek klasör.</param>
     /// <param name="post"><see cref="Changed"/>'i sahibin (arayüz) iş parçacığında çalıştırır.</param>
@@ -102,9 +110,30 @@ public sealed class DirectorySnapshot : IDisposable
     /// Okumada yeni görülen klasörler (tam yollar): bir önceki okumaya göre oluşturulan, yeniden adlandırılan ya da içeri
     /// taşınan; uygulamanın kendi açtıkları da (<see cref="NoteCreated"/> listeye önceden eklese de). İlk okumada, okunamayan
     /// ya da bulunamayan klasörde tetiklenmez. Okumanın iş parçacığında (arka planda) tetiklenir; ayrı bir izleyici gerekmez
-    /// (masaüstündeki yeni klasöre simge önerisi bunu kullanır).
+    /// (masaüstündeki yeni klasöre simge önerisi bunu kullanır). Klasörler yalnızca dinleyen varken izlenir.
     /// </summary>
-    public event Action<IReadOnlyList<string>>? DirectoriesAppeared;
+    public event Action<IReadOnlyList<string>>? DirectoriesAppeared
+    {
+        add
+        {
+            lock (_lock)
+            {
+                if (_directoriesAppeared is null)
+                {
+                    _rebase = true;
+                    _rebaseFrom = _state == SnapshotState.Ready ? Volatile.Read(ref _entries) : null;
+                }
+                _directoriesAppeared += value;
+            }
+        }
+        remove
+        {
+            lock (_lock) _directoriesAppeared -= value;
+        }
+    }
+
+    /// <summary>Klasör kümesi tutuluyor mu (yalnızca testler için; okuma iş parçacığının alanını eşitlemeden okur).</summary>
+    internal bool TracksDirectories => Volatile.Read(ref _scannedDirectories) is not null;
 
     /// <summary>
     /// İzlemeyi başlatır ve ilk okumayı yapar; ikisi de arka planda (2.1 P6: klasör portalı ağdaki ya da takılı olmayan bir
@@ -223,9 +252,7 @@ public sealed class DirectorySnapshot : IDisposable
         {
             var (entries, state) = Read(Directory);
             Interlocked.Increment(ref _scans);
-            List<string>? appeared = null;
-            if (state == SnapshotState.Ready)
-                (_scannedDirectories, appeared) = DirectoryDiff(_scannedDirectories, entries);
+            var appeared = state == SnapshotState.Ready ? DiffDirectories(entries) : null;
             Publish(entries, state);
             if (appeared is { Count: > 0 }) RaiseAppeared(appeared);
             // Okunamayan klasör (ağ kesintisi) kendiliğinden olay göndermeyebilir: bir süre sonra yeniden bakılır.
@@ -295,7 +322,29 @@ public sealed class DirectorySnapshot : IDisposable
     // Abonenin hatası okumanın kendi hata yakalayıcısına düşer (yalnızca hazır okumada çağrılır; yeniden deneme gerekmez).
     private void RaiseAppeared(List<string> appeared)
     {
-        if (!_disposed) DirectoriesAppeared?.Invoke(appeared);
+        if (!_disposed) Volatile.Read(ref _directoriesAppeared)?.Invoke(appeared);
+    }
+
+    /// <summary>Bu hazır okumada yeni görülen klasörler; dinleyen yoksa küme tutulmaz ve null döner (yalnızca Scan'den).</summary>
+    private List<string>? DiffDirectories(List<DirEntry> entries)
+    {
+        bool listening, rebase;
+        IReadOnlyList<DirEntry>? from;
+        lock (_lock)
+        {
+            listening = _directoriesAppeared is not null;
+            (rebase, from) = (_rebase, _rebaseFrom);
+            (_rebase, _rebaseFrom) = (false, null);
+        }
+        if (!listening)
+        {
+            Volatile.Write(ref _scannedDirectories, null);
+            return null;
+        }
+        if (rebase) _scannedDirectories = from is null ? null : DirectoryDiff(null, from).Current;
+        var (current, appeared) = DirectoryDiff(_scannedDirectories, entries);
+        Volatile.Write(ref _scannedDirectories, current);
+        return appeared;
     }
 
     /// <summary>

@@ -20,12 +20,17 @@ public sealed class DesktopWatcher : IDisposable
     private readonly ConcurrentDictionary<string, (Timer Timer, DateTime FirstSeen)> _pending = new(StringComparer.OrdinalIgnoreCase);
     private ResilientWatcher? _watcher;
     private bool _disposed;
+    private readonly Func<string, bool>? _directoryExists; // yalnızca testler (bkz. ForTests)
 
     public DesktopWatcher(DesktopOrganizer organizer, Func<bool> isPaused)
     {
         _organizer = organizer;
         _isPaused = isPaused;
     }
+
+    /// <summary>Testler için: izleyicinin "klasör var mı" sorusu yerine verilen işlev (ör. ağ zaman aşımında bekleyen).</summary>
+    internal DesktopWatcher(DesktopOrganizer organizer, Func<bool> isPaused, Func<string, bool> directoryExists)
+        : this(organizer, isPaused) => _directoryExists = directoryExists;
 
     /// <summary>İzleme şu anda çalışıyor mu? (Duraklatılmışken ya da masaüstü klasörü erişilemezken false.)</summary>
     public bool IsRunning => Volatile.Read(ref _watcher)?.IsRunning == true;
@@ -37,7 +42,8 @@ public sealed class DesktopWatcher : IDisposable
     /// İzlemeyi başlatır (açılışta ve otomatik taşıma açılınca). Beklemez: izleyici iş parçacığı havuzunda kurulur (ağdaki ya
     /// da OneDrive'daki masaüstünde klasöre bakmak saniyelerce sürebilir). <paramref name="afterStart"/> izleyici kurulduktan
     /// sonra havuzda çağrılır: kapalıyken gelen dosyaları yakalayan tarama izleyiciden sonra yapılsın, arada gelen dosya
-    /// kaçmasın. Zaten izleniyorsa yalnızca <paramref name="afterStart"/> çalışır (hemen, çağıranın iş parçacığında).
+    /// kaçmasın. Kurulum sürerken (ağ zaman aşımı) yeniden duraklatıldıysa çağrılmaz: kapalıyken dosya taşınmasın. Zaten
+    /// izleniyorsa yalnızca <paramref name="afterStart"/> çalışır (hemen, çağıranın iş parçacığında).
     /// </summary>
     public void Resume(Action? afterStart = null)
     {
@@ -47,16 +53,25 @@ public sealed class DesktopWatcher : IDisposable
             if (_disposed) return;
             if (_watcher is null)
             {
-                watcher = new ResilientWatcher(_organizer.DesktopDirectory,
-                    NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
-                    Schedule,
-                    onOverflow: OrganizeAllInBackground,   // olay kaçtıysa masaüstünü baştan tara
-                    onRecovered: OrganizeAllInBackground); // izleyici yeniden kurulduysa aradaki dosyaları yakala
+                const NotifyFilters filter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size;
+                watcher = _directoryExists is null
+                    ? new ResilientWatcher(_organizer.DesktopDirectory, filter, Schedule,
+                        onOverflow: OrganizeAllInBackground,   // olay kaçtıysa masaüstünü baştan tara
+                        onRecovered: OrganizeAllInBackground)  // izleyici yeniden kurulduysa aradaki dosyaları yakala
+                    : ResilientWatcher.ForTests(_organizer.DesktopDirectory, _directoryExists, e => Schedule(e.FullPath), filter);
                 Volatile.Write(ref _watcher, watcher);
             }
         }
-        if (watcher is not null) watcher.StartInBackground(afterStart);
-        else afterStart?.Invoke();
+        if (watcher is null)
+        {
+            afterStart?.Invoke();
+            return;
+        }
+        watcher.StartInBackground(afterStart is null ? null : () =>
+        {
+            // Bu izleyici beklerken Pause (ve belki yeni bir Resume) geldiyse eski kurulumun taraması yapılmaz.
+            if (Volatile.Read(ref _watcher) == watcher && !_isPaused()) afterStart();
+        });
     }
 
     /// <summary>

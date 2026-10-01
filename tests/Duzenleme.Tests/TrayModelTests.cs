@@ -2,6 +2,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Duzenleme.Core;
 using Duzenleme.Localization;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Duzenleme.Tests;
 
@@ -238,6 +240,26 @@ public class TrayModelTests
         Assert.Equal("Windows desktop icons", items.Single(i => i.Command == TrayCommand.IconModes).Text);
         Assert.Equal("Bring widgets to front (5 s)", items.Single(i => i.Command == TrayCommand.RevealWidgets).Text);
         Assert.Equal("Hide desktop", TrayMenuModel.Build(State()).Single(i => i.Command == TrayCommand.ToggleDesktop).Text);
+    }
+
+    /// <summary>Menü modelindeki her komutun tepside (TrayIcon.Run) bir karşılığı var: yeni öğe tıklanınca boşa düşmesin.</summary>
+    [Fact]
+    public void Every_menu_command_is_handled_by_the_tray()
+    {
+        var source = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "TrayIcon.cs"));
+        var run = CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(m => m.Identifier.ValueText == "Run");
+        var handled = run.DescendantNodes().OfType<SwitchLabelSyntax>()
+            .SelectMany(label => label.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+            .Where(m => m.Expression.ToString() == nameof(TrayCommand))
+            .Select(m => m.Name.Identifier.ValueText)
+            .ToHashSet();
+
+        // Ayraç ve alt menü başlığı komut değildir.
+        var commands = Enum.GetNames<TrayCommand>().Except([nameof(TrayCommand.Separator), nameof(TrayCommand.IconModes)]);
+        Assert.Empty(commands.Where(c => !handled.Contains(c)));
+        foreach (var item in Flatten(TrayMenuModel.Build(State())).Where(i => !i.IsSeparator && i.Children is null))
+            Assert.Contains(item.Command.ToString(), handled);
     }
 
     private static IEnumerable<TrayMenuItem> Flatten(IEnumerable<TrayMenuItem> items) =>

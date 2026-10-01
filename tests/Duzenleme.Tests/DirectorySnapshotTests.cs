@@ -237,6 +237,35 @@ public sealed class DirectorySnapshotTests : IDisposable
     }
 
     [Fact]
+    public void Folders_are_tracked_only_while_someone_listens()
+    {
+        // Ortak masaüstü ve portallar dinlenmez: her okumada klasör kümesi kurulmaz.
+        using var snapshot = Start();
+        Directory.CreateDirectory(Path.Combine(_dir, "Önceden"));
+        WaitFor(() => snapshot.Entries.Any(e => e.Name == "Önceden"));
+        Assert.False(snapshot.TracksDirectories);
+
+        // Sonradan abone olunca o anki liste taban olur: önceden var olan yeni sayılmaz, sonra gelen kaçmaz.
+        var appeared = new List<string>();
+        Action<IReadOnlyList<string>> listener = folders => { lock (appeared) appeared.AddRange(folders); };
+        snapshot.DirectoriesAppeared += listener;
+        Directory.CreateDirectory(Path.Combine(_dir, "Sonra"));
+        WaitFor(() => Names(appeared).Contains("Sonra"));
+        Assert.Equal(["Sonra"], Names(appeared));
+        Assert.True(snapshot.TracksDirectories);
+
+        // Abonelik bitince küme bırakılır; yeniden abone olununca arada gelenler yeni sayılmaz.
+        snapshot.DirectoriesAppeared -= listener;
+        Directory.CreateDirectory(Path.Combine(_dir, "Arada"));
+        WaitFor(() => snapshot.Entries.Any(e => e.Name == "Arada"));
+        WaitFor(() => !snapshot.TracksDirectories);
+        snapshot.DirectoriesAppeared += listener;
+        Directory.CreateDirectory(Path.Combine(_dir, "Son"));
+        WaitFor(() => Names(appeared).Contains("Son"));
+        Assert.Equal(["Sonra", "Son"], Names(appeared));
+    }
+
+    [Fact]
     public void Directory_diff_reports_only_folders_new_since_the_previous_read()
     {
         static DirEntry Folder(string name) => new(Path.Combine(@"C:\d", name), name, true, FileAttributes.Directory, DateTime.UnixEpoch, 0);

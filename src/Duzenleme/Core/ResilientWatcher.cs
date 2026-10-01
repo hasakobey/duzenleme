@@ -56,8 +56,9 @@ public sealed class ResilientWatcher : IDisposable
     }
 
     /// <summary>Testler için: klasör var mı sorusu yerine verilen işlev (ör. ulaşılamayan ağ yolunda saniyelerce bekleyen).</summary>
-    internal static ResilientWatcher ForTests(string path, Func<string, bool> directoryExists, Action<FileSystemEventArgs>? onChange = null) =>
-        new(path, NotifyFilters.FileName, onChange ?? (_ => { }), null, null, rich: true, directoryExists);
+    internal static ResilientWatcher ForTests(string path, Func<string, bool> directoryExists, Action<FileSystemEventArgs>? onChange = null,
+        NotifyFilters filter = NotifyFilters.FileName) =>
+        new(path, filter, onChange ?? (_ => { }), null, null, rich: true, directoryExists);
 
     /// <summary>İzleyiciyi çağıranın iş parçacığında kurar (klasöre bakar: arayüz iş parçacığında değil).</summary>
     public void Start() => TryStart();

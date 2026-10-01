@@ -30,52 +30,49 @@ public static class DesktopIcons
     [DllImport("user32.dll")]
     private static extern IntPtr GetParent(IntPtr hwnd);
 
-    // Simge görünümünü (SHELLDLL_DefView) son bulunduğu yerde taşıyan pencere (Progman ya da WorkerW). Masaüstü nöbetçisi
-    // 3 sn'de bir sorar: pencereleri her seferinde taramamak için önce buraya bakılır. Herhangi bir iş parçacığından okunur.
-    private static IntPtr _defViewHost;
+    // Simge görünümünü (SHELLDLL_DefView) son bulunduğu WorkerW (Windows 10 / 11 23H2'de slayt gösterisi vb. sonrası).
+    // Masaüstü nöbetçisi 3 sn'de bir sorar: o düzende pencereleri her seferinde taramamak için önce buraya bakılır. Progman'ın
+    // altındaki görünüm (Windows 11 24H2+ ve bölünmemiş düzen) zaten iki çağrıyla bulunur, önbelleğe alınmaz. Herhangi bir iş
+    // parçacığından okunur.
+    private static IntPtr _defViewWorkerW;
 
     /// <summary>
-    /// Masaüstündeki SHELLDLL_DefView (simge listesinin kabı). Son bulunduğu pencere hâlâ masaüstününse (duruyor, sınıfı
-    /// Progman/WorkerW) ve görünüm hâlâ onun altındaysa oradan alınır; değilse (Gezgin yeniden başladı, slayt gösterisi
-    /// görünümü taşıdı) baştan aranır. Tek simge görünümü olduğundan sonuç baştan aramayla aynıdır.
+    /// Masaüstündeki SHELLDLL_DefView (simge listesinin kabı). Önce Progman'ın altına, sonra son bulunduğu WorkerW'ye (hâlâ
+    /// duruyor ve sınıfı WorkerW ise) bakılır; ikisinde de yoksa (Gezgin yeniden başladı, slayt gösterisi görünümü taşıdı)
+    /// masaüstünün WorkerW'leri taranır. Tek simge görünümü olduğundan sonuç baştan aramayla aynıdır.
     /// </summary>
     public static IntPtr FindDefView()
-    {
-        var host = Volatile.Read(ref _defViewHost);
-        if (host != IntPtr.Zero && NativeMethods.IsWindow(host) && NativeMethods.ClassOf(host) is "Progman" or "WorkerW")
-        {
-            var cached = FindWindowEx(host, IntPtr.Zero, "SHELLDLL_DefView", null);
-            if (cached != IntPtr.Zero) return cached;
-        }
-        var found = SearchDefView();
-        Volatile.Write(ref _defViewHost, found == IntPtr.Zero ? IntPtr.Zero : GetParent(found));
-        return found;
-    }
-
-    /// <summary>Simge görünümünü baştan arar: önce Progman'ın altında, yoksa masaüstünün WorkerW pencerelerinde.</summary>
-    private static IntPtr SearchDefView()
     {
         var progman = NativeMethods.FindWindow("Progman", null);
         var defView = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
         if (defView != IntPtr.Zero) return defView;
 
+        var cached = Volatile.Read(ref _defViewWorkerW);
+        if (cached != IntPtr.Zero && NativeMethods.IsWindow(cached) && NativeMethods.ClassOf(cached) == "WorkerW")
+        {
+            defView = FindWindowEx(cached, IntPtr.Zero, "SHELLDLL_DefView", null);
+            if (defView != IntPtr.Zero) return defView;
+        }
+
         // Duvar kağıdı slayt gösterisinde görünüm bir WorkerW altına taşınır.
+        var host = IntPtr.Zero;
         EnumWindows((hwnd, _) =>
         {
             // Yalnızca masaüstünün WorkerW'leri: başka bir programın içindeki kabuk görünümü (ör. dosya iletişim kutusu) değil.
             if (NativeMethods.ClassOf(hwnd) != "WorkerW") return true;
             var found = FindWindowEx(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null);
             if (found == IntPtr.Zero) return true;
-            defView = found;
+            (defView, host) = (found, hwnd);
             return false;
         }, IntPtr.Zero);
+        Volatile.Write(ref _defViewWorkerW, host);
         return defView;
     }
 
     /// <summary>
     /// Widget'ların sahibi olacak pencere: simge görünümünü (SHELLDLL_DefView) taşıyan üst pencere.
     /// Windows 11 24H2+'da ve bölünmemiş düzende Progman; Windows 10 / 11 23H2'de slayt gösterisi vb. sonrası WorkerW.
-    /// Ucuzdur: görünümün yeri önbellekte tutulur (bkz. <see cref="FindDefView"/>).
+    /// Ucuzdur: pencereler yalnızca görünüm yer değiştirince taranır (bkz. <see cref="FindDefView"/>).
     /// </summary>
     public static IntPtr DesktopOwner()
     {

@@ -217,4 +217,44 @@ public class OrganizerTests
         Assert.True(again);
         Assert.True(watcher.IsRunning);
     }
+
+    [Fact]
+    public async Task Turning_auto_move_off_while_the_watcher_is_still_starting_skips_the_scan()
+    {
+        using var t = new TempDesktop();
+        using var release = new ManualResetEventSlim();
+        var paused = false;
+        var checks = 0;
+        // Ağdaki/OneDrive'daki masaüstü: klasöre bakmak saniyelerce sürer.
+        using var watcher = new DesktopWatcher(t.Organizer, () => Volatile.Read(ref paused), path =>
+        {
+            release.Wait(TimeSpan.FromSeconds(10));
+            try { return Directory.Exists(path); }
+            finally { Interlocked.Increment(ref checks); }
+        });
+
+        // Açıldı, kurulum beklerken yeniden kapatıldı: bekleyen kurulumun taraması yapılmamalı.
+        var scans = 0;
+        watcher.Resume(() => Interlocked.Increment(ref scans));
+        Volatile.Write(ref paused, true);
+        watcher.Pause();
+        release.Set();
+        for (var i = 0; i < 250 && Volatile.Read(ref checks) < 1; i++) await Task.Delay(20);
+        await Task.Delay(300);
+        Assert.Equal(0, Volatile.Read(ref scans));
+        Assert.False(watcher.IsRunning);
+
+        // Kapat-aç arka arkaya (ilk kurulum hâlâ beklerken): yalnızca son kurulum tarar, bir kez.
+        release.Reset();
+        Volatile.Write(ref paused, false);
+        watcher.Resume(() => Interlocked.Increment(ref scans));
+        watcher.Pause();
+        watcher.Resume(() => Interlocked.Increment(ref scans));
+        release.Set();
+        for (var i = 0; i < 250 && Volatile.Read(ref scans) < 1; i++) await Task.Delay(20);
+        for (var i = 0; i < 250 && Volatile.Read(ref checks) < 3; i++) await Task.Delay(20);
+        await Task.Delay(300);
+        Assert.Equal(1, Volatile.Read(ref scans));
+        Assert.True(watcher.IsRunning);
+    }
 }

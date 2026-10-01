@@ -340,9 +340,10 @@ public static class AppHost
         Settings.Paused = paused;
         SaveSettings();
         // Kapalıyken masaüstü izlenmez (indirmelerin her yazması boşuna uyandırmasın). Açılınca izleyici arka planda kurulur,
-        // ardından kapalıyken gelen dosyalar için masaüstü düzenlenir (önce izleyici: arada gelen dosya kaçmasın).
+        // ardından kapalıyken gelen dosyalar için masaüstü düzenlenir (önce izleyici: arada gelen dosya kaçmasın). Tarama
+        // yalnızca otomatik taşıma o an hâlâ açıksa yapılır: kurulum sürerken yeniden kapatıldıysa dosya taşınmaz.
         if (paused) Watcher.Pause();
-        else Watcher.Resume(afterStart: OrganizeNowInBackground);
+        else Watcher.Resume(afterStart: OrganizeIfActive);
     }
 
     /// <summary>
