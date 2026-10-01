@@ -1194,7 +1194,7 @@ public sealed class WidgetWindow : Window
         _revealing = false;
         // Vurgu ışıması kısa bir solmayla söner (geçişler kapalıysa hemen kalkar).
         if (_glow is { } glow)
-            Views.Motion.Disappear(glow, glow.Remove, milliseconds: MotionPolicy.GlowFadeMs, frameRate: MotionPolicy.WidgetFrameRate);
+            Views.Motion.Disappear(glow, glow.Remove, milliseconds: MotionPolicy.GlowMs, frameRate: MotionPolicy.WidgetFrameRate);
         _glow = null;
         _card.BorderThickness = new Thickness(1);
         ApplyStyle();

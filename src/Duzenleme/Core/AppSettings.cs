@@ -437,8 +437,8 @@ public sealed class AppSettings
 
     // 2.1 P7 — hareket
     /// <summary>
-    /// Ayarlar'daki "Animasyonlar" kapatıldı: kısa solma geçişleri hiç oynamaz. false (varsayılan) = Windows'un "Animasyon
-    /// efektleri" ayarına uyulur (bkz. <see cref="MotionPolicy"/>).
+    /// Ayarlar > Animasyonlar'da "Kapalı": hiçbir geçiş oynamaz. false (varsayılan) = Canlı ya da Sakin
+    /// (<see cref="CalmMotion"/>), her zaman Windows'un "Animasyon efektleri" ayarına uyarak (bkz. <see cref="MotionPolicy"/>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool AnimationsOff { get; set; }
@@ -451,4 +451,13 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? IconFolders { get; set; }
+
+    // 2.2 Hareket
+    /// <summary>
+    /// Ayarlar > Animasyonlar'da "Sakin": yalnızca kısa solmalar (2.1 davranışı). false (varsayılan) = "Canlı".
+    /// <see cref="AnimationsOff"/> ("Kapalı") baskındır ve bunu değiştirmez (bkz. <see cref="MotionPolicy.Flags"/>). 2.1 bu
+    /// alanı tanımaz, Extra'da aynen geri yazar; orada Canlı ve Sakin aynı solmadır.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CalmMotion { get; set; }
 }

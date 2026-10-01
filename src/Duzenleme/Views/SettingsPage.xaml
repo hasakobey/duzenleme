@@ -22,6 +22,33 @@
             <Setter Property="Margin" Value="16,0,0,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <!-- Bölümlü seçim (Animasyonlar: Canlı / Sakin / Kapalı). WPF-UI'nin geçişli RadioButton şablonu yerine kendi şablonu:
+             hiçbir şey kaymaz ya da solmaz, seçilen bölümün zemini anında vurgu rengi olur (yerleşim değişmez). -->
+        <Style x:Key="Segment" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="MinWidth" Value="76" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Part" CornerRadius="4" Padding="12,5" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Part" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Part" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Part" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
 
     <StackPanel Style="{StaticResource PageRoot}">
@@ -117,7 +144,8 @@
                 </ComboBox>
             </Grid>
         </Border>
-        <!-- Animasyonlar (Views.Motion): yalnızca kısa solmalar; Windows'un "Animasyon efektleri" kapalıysa anahtar açık da olsa oynamaz. -->
+        <!-- Animasyonlar (Views.Motion, Core.MotionPolicy): Canlı / Sakin / Kapalı. Windows'un "Animasyon efektleri" kapalıysa
+             seçim ne olursa olsun hiçbir şey oynamaz (not ve Windows ayarı bağlantısı); enerji tasarrufu ve uzak masaüstü Sakin'e indirir. -->
         <Border Style="{StaticResource Row}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -125,18 +153,29 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ui:SymbolIcon Symbol="SlideTransition24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                <ui:SymbolIcon x:Name="MotionIcon" Symbol="SlideTransition24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Animasyonlar'}" />
                     <TextBlock Style="{StaticResource Muted}"
-                               Text="{l:T 'Menüler, sayfalar ve widget\'lar kısa bir solmayla açılıp kapanır; hiçbir şey kaymaz ya da büyümez. Windows\'un animasyon ayarına uyar.'}" />
+                               Text="{l:T 'Canlı: widget\'lar ve sayfalar hafifçe büyüyerek ya da kayarak açılır. Sakin: yalnızca kısa solmalar. Kapalı: hiçbir şey oynamaz. Windows\'un animasyon ayarına her zaman uyar.'}" />
                     <TextBlock x:Name="AnimationsNote" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="Collapsed"
                                AutomationProperties.AutomationId="Settings.AnimationsNote" />
+                    <TextBlock x:Name="WindowsMotionLink" Margin="0,2,0,0" Visibility="Collapsed">
+                        <Hyperlink Click="OpenVisualEffects_Click" AutomationProperties.AutomationId="Settings.Motion.OpenWindows"><Run Text="{l:T 'Windows ayarını aç'}" /></Hyperlink>
+                    </TextBlock>
                 </StackPanel>
-                <ui:ToggleSwitch x:Name="AnimationsToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
-                                 Checked="AnimationsToggle_Changed" Unchecked="AnimationsToggle_Changed"
-                                 AutomationProperties.AutomationId="Settings.Animations" AutomationProperties.Name="{l:T 'Animasyonlar'}" />
+                <Border Grid.Column="2" Margin="16,0,0,0" Padding="2" VerticalAlignment="Center" CornerRadius="6" BorderThickness="1"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                    <StackPanel Orientation="Horizontal" AutomationProperties.Name="{l:T 'Animasyonlar'}">
+                        <RadioButton x:Name="MotionLively" Style="{StaticResource Segment}" GroupName="SettingsMotion" Content="{l:T 'Canlı'}"
+                                     Checked="MotionChoice_Checked" AutomationProperties.AutomationId="Settings.Motion.Lively" />
+                        <RadioButton x:Name="MotionCalm" Style="{StaticResource Segment}" GroupName="SettingsMotion" Content="{l:T 'Sakin'}"
+                                     Checked="MotionChoice_Checked" AutomationProperties.AutomationId="Settings.Motion.Calm" />
+                        <RadioButton x:Name="MotionOff" Style="{StaticResource Segment}" GroupName="SettingsMotion" Content="{l:T 'Kapalı'}"
+                                     Checked="MotionChoice_Checked" AutomationProperties.AutomationId="Settings.Motion.Off" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
 

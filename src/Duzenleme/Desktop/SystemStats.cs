@@ -75,6 +75,9 @@ public static class SystemStats
         return new BatteryInfo(s.BatteryLifePercent <= 100 ? s.BatteryLifePercent : null, (s.BatteryFlag & ChargingFlag) != 0, s.ACLineStatus == 1);
     }
 
+    /// <summary>Enerji (pil) tasarrufu açık mı (SystemStatusFlag); okunamazsa false. Hareket bunu Sakin'e indirir.</summary>
+    public static bool EnergySaverOn() => GetSystemPowerStatus(out var s) && s.SystemStatusFlag == 1;
+
     /// <summary>Sürücünün boş alanı; okunamazsa null. Arka planda çağır.</summary>
     public static DiskInfo? Disk(string root) =>
         GetDiskFreeSpaceEx(root, out var free, out var total, out _) ? new DiskInfo(root, free, total) : null;
