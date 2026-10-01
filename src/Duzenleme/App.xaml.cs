@@ -36,6 +36,8 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // App.xaml'ın kaynakları (WPF-UI sözlükleri, QuietStyles) InitializeComponent'te, OnStartup'tan önce yüklendi.
+        PerfLog.Mark("App.resources");
         // Dil: önce Windows'unki (başlangıç hataları ve yeni kullanıcının varsayılan ayarları için); ayarlar okununca yeniden.
         L.Init(null);
         var args = ParseArgs(e.Args);
@@ -191,6 +193,7 @@ public partial class App : Application
         SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
 
         AppHost.Tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
+        PerfLog.Mark("Tray.created");
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
         AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.OnDesktopDoubleClick);
@@ -217,6 +220,7 @@ public partial class App : Application
         MigrateFromLegacyNameInBackground();
         if (PerfLog.Enabled)
             PerfLog.Write($"StartServices bitti: süreç {(DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds:0} ms"); // l10n: çevrilmez
+        PerfLog.Mark("StartServices.end");
 
         _started = true;
         if (args.Peek) Dispatcher.BeginInvoke(() => TogglePeek(AppHost.PeekOrigin.Command), DispatcherPriority.ApplicationIdle);
@@ -252,6 +256,15 @@ public partial class App : Application
                     AppInfo.Name),
                 Views.NoticeKind.Info), DispatcherPriority.ApplicationIdle);
         }
+
+        // Ayarlar daha yeni bir sürümle kaydedilmiş (kullanıcı eski sürüme döndü): bir kez, kalıcı şeritte ya da balonda.
+        // Dosyanın önceki hâli açılışta yedeklendi (AppHost.BackupBeforeVersionChange).
+        if (AppHost.SettingsFromNewerVersion is { } newer)
+            Dispatcher.BeginInvoke(() => Views.Notice.Show(
+                L.F("Ayarların {0} {1} ile kaydedilmiş. Bu sürümün bilmediği ayarlar korunur; bazı yeni özellikler burada görünmez. Önceki hâli yedekler klasöründe.",
+                    AppInfo.Name, newer),
+                Views.NoticeKind.Info, L.T("Yedekler klasörünü aç"), () => AppHost.OpenDataSubfolder(SettingsVersion.BackupFolder)),
+                DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>

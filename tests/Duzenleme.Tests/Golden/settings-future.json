@@ -1,0 +1,126 @@
+{
+  "Rules": [
+    {
+      "TargetFolder": "PDF",
+      "Extensions": [ "pdf" ],
+      "Enabled": true,
+      "Schedule": "daily"
+    },
+    {
+      "TargetFolder": "Resimler",
+      "Extensions": [ "jpg", "png" ],
+      "Enabled": false
+    }
+  ],
+  "CreateMissingFolders": false,
+  "Paused": true,
+  "ShowNotifications": true,
+  "Theme": "Sepia",
+  "FirstRunDone": true,
+  "RenameNoticeShown": true,
+  "CloseToTrayHintShown": true,
+  "Widgets": [
+    {
+      "Id": "90000000000000000000000000000001",
+      "Kind": "Launcher",
+      "Variant": "ring",
+      "Left": 800,
+      "Top": 400,
+      "PixelLeft": 1000,
+      "PixelTop": 500,
+      "Width": 320,
+      "Height": 320,
+      "Style": "Neon",
+      "Accent": "Violet",
+      "Title": "Halka men\u00FC",
+      "Tabs": [
+        {
+          "Name": "Uygulamalar",
+          "Items": [ "C:\\Users\\ali\\Desktop\\Taray\u0131c\u0131.lnk" ],
+          "Actions": [
+            { "Kind": "url", "Url": "https://example.com/", "Title": "\u00D6rnek", "PathsBefore": 1, "Extra1": 7 },
+            { "Kind": "teleport", "Target": "mars", "Disabled": true }
+          ],
+          "Color": "#336699"
+        },
+        {
+          "Name": "Alt halka",
+          "Items": [],
+          "Actions": [ { "Kind": "app", "App": "new-note" } ]
+        }
+      ],
+      "ItemLooks": {
+        "C:\\Users\\ali\\Desktop\\Taray\u0131c\u0131.lnk": { "Name": "Web", "Icon": "sym:Globe24", "Color": "#FF0000" }
+      },
+      "LookTheme": "neon",
+      "LookAccentColor": "#12AB34",
+      "QuickKeys": true,
+      "Z": 30
+    },
+    {
+      "Id": "90000000000000000000000000000002",
+      "Kind": "Fence",
+      "Filter": "Images",
+      "Sort": "Name",
+      "IconSize": "Huge",
+      "Width": 400,
+      "Height": 300,
+      "Virtualize": { "From": 150, "To": 120 },
+      "Z": 31
+    },
+    {
+      "Id": "90000000000000000000000000000003",
+      "Kind": "Note",
+      "NoteColor": "Orange",
+      "NoteText": "gelecekten not",
+      "LookTheme": "kagit",
+      "Z": 32
+    },
+    {
+      "Id": "90000000000000000000000000000004",
+      "Kind": "Hologram",
+      "Variant": "hologram",
+      "Projection": [ 1, 2, 3 ],
+      "Z": 33
+    },
+    {
+      "Id": "90000000000000000000000000000005",
+      "Kind": "Clock",
+      "Variant": "timer",
+      "Timer": { "Mode": "interval", "Minutes": 20, "Sound": "bell", "EndsUtc": null },
+      "Zones": [ { "Id": "Tokyo Standard Time", "Label": "Ofis", "Order": 2 } ],
+      "Z": 34
+    }
+  ],
+  "Hotkeys": {
+    "ToggleDesktop": "Ctrl+Alt+H",
+    "OrganizeNow": "",
+    "OpenApp": "Ctrl+Alt+D",
+    "NewNote": "Ctrl+Alt+N",
+    "PeekWidgets": "Ctrl+Alt+W",
+    "QuickAdd": "Ctrl+Alt+B",
+    "PeekDesktop": "Ctrl+Alt+G",
+    "Ring": "Ctrl+Alt+R"
+  },
+  "Layouts": [
+    {
+      "Name": "Gelecek d\u00FCzeni",
+      "Created": "2027-01-02T03:04:05Z",
+      "Renk": "mavi",
+      "Widgets": [
+        { "Id": "90000000000000000000000000000006", "Kind": "Note", "NoteText": "d\u00FCzen", "LookTheme": "gece" }
+      ]
+    }
+  ],
+  "SuggestFolderIcons": false,
+  "AiKeyProtected": null,
+  "Language": "en",
+  "NewWidgetPlacement": "smart",
+  "AnimationsOff": false,
+  "SavedWithAppVersion": "9.1.0",
+  "CalmMotion": true,
+  "CrashReportMode": "always",
+  "ErrorLogOff": true,
+  "RingWidgetId": "90000000000000000000000000000001",
+  "GelecekNesne": { "a": [ 1, 2, { "b": null } ], "c": "\u00E7" }
+}

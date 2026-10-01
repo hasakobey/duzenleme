@@ -16,10 +16,13 @@ public static class ApiKeyStore
 
     public static void Save(string? apiKey)
     {
+        var had = HasKey;
         AppHost.Settings.AiKeyProtected = string.IsNullOrWhiteSpace(apiKey)
             ? null
             : Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(apiKey.Trim()), Entropy, DataProtectionScope.CurrentUser));
         AppHost.SaveSettings();
+        // Anahtar silindi: sürüm değişikliği yedekleri (aylarca kalabilir) şifreli kopyasını da taşımasın.
+        if (had && !HasKey) AppHost.DeleteVersionBackups();
     }
 
     public static string? Load()

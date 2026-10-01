@@ -178,11 +178,25 @@ public static class AppHost
 
         // Tanınmayan enum değeri (daha yeni sürümden) ayarları silmez, yedek değere döner: günlüğe yazılır.
         JsonFile.Log = DebugLog.Write;
+        var loadClock = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
         Settings = JsonFile.Load(SettingsPath, () => new AppSettings());
+        if (loadClock is not null)
+            PerfLog.Mark("Settings.loaded", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"load={loadClock.Elapsed.TotalMilliseconds:0.0}ms"));
+        // Sürüm değiştiyse (yükseltme ya da daha eski sürüme dönüş) dosya, ilk kayıt onu değiştirmeden önce kopyalanır.
+        // Eşzamanlı ve sürüm başına bir kez: daha eski sürüm tanımadığı enum değerlerini ilk kayıtta yedek değerle ezer.
+        var version = SettingsVersion.Check(Settings.SavedWithAppVersion, AppInfo.Version);
+        if (version.Kind != SettingsVersionKind.Same) BackupBeforeVersionChange(version.From);
         _store = new SettingsStore(new DurableFile(SettingsPath), () => JsonFile.Serialize(Settings),
             tick => new DispatcherOwnerTimer(dispatcher, tick));
         _store.File.Failed += OnSettingsWriteFailed;
         _store.File.Recovered += () => DebugLog.Write("ayarlar yeniden yazılabiliyor");
+        if (version.Kind != SettingsVersionKind.Same)
+        {
+            // Damga yazılır: bildirim ve yedek bir sonraki açılışta yinelenmesin.
+            Settings.SavedWithAppVersion = AppInfo.Version;
+            if (version.Kind == SettingsVersionKind.Downgrade) SettingsFromNewerVersion = version.From;
+            SaveSettings();
+        }
         Journal = new MoveJournal(Path.Combine(DataDirectory, "journal.json"));
         Journal.WriteFailed += ex => DebugLog.Write($"geçmiş yazılamadı: {ex.Message}");
         Organizer = new DesktopOrganizer(DesktopDirectory, () => Settings, Journal);
@@ -209,6 +223,86 @@ public static class AppHost
             Settings.IconsHiddenByApp = false;
             SaveSettings();
         }
+        PerfLog.Mark("AppHost.initialized");
+    }
+
+    // --- Sürüm değişikliği yedekleri (2.2) ---
+
+    /// <summary>
+    /// Ayar dosyası bu açılışta daha yeni bir sürümle kaydedilmişti: o sürüm (arayüz hazır olunca bir kez söylenir); yoksa null.
+    /// </summary>
+    public static string? SettingsFromNewerVersion { get; private set; }
+
+    /// <summary>
+    /// Sürüm değişince <c>settings.json</c>'ın kopyası "yedekler" klasörüne (<see cref="SettingsVersion.BackupName"/>); en yeni
+    /// üç kopya kalır. Initialize'da, dosya yüklendikten hemen sonra ve ilk kayıttan önce, eşzamanlı (sürüm başına bir kez).
+    /// Kopyalanamazsa açılış sürer.
+    /// </summary>
+    private static void BackupBeforeVersionChange(string? from)
+    {
+        try
+        {
+            if (!File.Exists(SettingsPath)) return;   // yeni kullanıcı: yedeklenecek bir şey yok
+            var dir = Path.Combine(DataDirectory, SettingsVersion.BackupFolder);
+            Directory.CreateDirectory(dir);
+            var name = SettingsVersion.BackupName(from, AppInfo.Version, DateTime.Now);
+            File.Copy(SettingsPath, Path.Combine(dir, name), overwrite: true);
+            DebugLog.Write($"sürüm değişti ({from ?? SettingsVersion.UnknownFrom} → {AppInfo.Version}): ayarların kopyası {name}");
+            var names = Directory.EnumerateFiles(dir, SettingsVersion.VersionBackupPattern).Select(f => Path.GetFileName(f));
+            foreach (var old in SettingsVersion.Prune(names))
+            {
+                try { File.Delete(Path.Combine(dir, old)); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { DebugLog.Write($"eski sürüm yedeği silinemedi: {ex.Message}"); }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DebugLog.Write($"sürüm yedeği alınamadı: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Sürüm değişikliği yedeklerini (before-*.json) siler, arka planda. Yapay zekâ anahtarı silinince çağrılır: bu yedekler
+    /// sürüm değişene dek (aylarca) durur ve anahtarın şifreli kopyasını taşır. Günlük yedekler kendi sırasıyla döner.
+    /// </summary>
+    public static void DeleteVersionBackups()
+    {
+        var dir = Path.Combine(DataDirectory, SettingsVersion.BackupFolder);
+        BackgroundIo.Run($"{AppInfo.Name} sürüm yedekleri", () => // l10n: çevrilmez (iş parçacığı adı)
+        {
+            if (!Directory.Exists(dir)) return;
+            foreach (var file in Directory.EnumerateFiles(dir, SettingsVersion.VersionBackupPattern))
+            {
+                if (!SettingsVersion.IsVersionBackup(Path.GetFileName(file))) continue;
+                try { File.Delete(file); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { DebugLog.Write($"sürüm yedeği silinemedi: {ex.Message}"); }
+            }
+        }, onError: ex => DebugLog.Write($"sürüm yedekleri silinemedi: {ex.Message}"));
+    }
+
+    /// <summary>
+    /// Veri klasörünün bir alt klasörünü (ör. <see cref="SettingsVersion.BackupFolder"/>) Gezgin'de açar; alt klasör yoksa veri
+    /// klasörünü. Yol Gezgin'in gördüğü yerden çözülür (<see cref="DataDirectoryOnDisk"/>); disk ve kabuk işi arka planda.
+    /// </summary>
+    public static void OpenDataSubfolder(string name)
+    {
+        Task.Run(() =>
+        {
+            try
+            {
+                var root = DataDirectoryOnDisk;
+                var folder = Path.Combine(root, name);
+                using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Directory.Exists(folder) ? folder : root)
+                {
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException
+                                           or UnauthorizedAccessException)
+            {
+                DebugLog.Write($"klasör açılamadı ({name}): {ex.Message}");
+            }
+        });
     }
 
     /// <summary>
@@ -854,12 +948,13 @@ public static class AppHost
         try
         {
             if (!File.Exists(SettingsPath)) return;
-            var dir = Path.Combine(DataDirectory, "yedekler");
+            var dir = Path.Combine(DataDirectory, SettingsVersion.BackupFolder);
             var today = Path.Combine(dir, $"settings-{DateTime.Now:yyyy-MM-dd}.json");
             if (File.Exists(today)) return;
             Directory.CreateDirectory(dir);
             File.Copy(SettingsPath, today);
-            foreach (var old in new DirectoryInfo(dir).GetFiles("settings-*.json").OrderByDescending(f => f.Name).Skip(7))
+            // Sürüm değişikliği yedekleri (before-*.json) bu desene uymaz: kendi sıralarıyla tutulurlar.
+            foreach (var old in new DirectoryInfo(dir).GetFiles(SettingsVersion.DailyBackupPattern).OrderByDescending(f => f.Name).Skip(7))
                 old.Delete();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }

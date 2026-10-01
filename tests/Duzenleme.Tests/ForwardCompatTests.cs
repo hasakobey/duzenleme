@@ -7,6 +7,7 @@ namespace Duzenleme.Tests;
 /// 2.1'den sonraki sürümlerin yazdığı ayarlar 2.1'de silinmesin: tanınmayan enum değeri bütün dosyayı bozuk saydırmaz
 /// (yedek değer), bilinmeyen alanlar okunup aynen geri yazılır.
 /// </summary>
+[Collection(JsonFileLogCollection.Name)]
 public class ForwardCompatTests : IDisposable
 {
     private readonly string _dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "nd-compat-" + Guid.NewGuid().ToString("N"))).FullName;
