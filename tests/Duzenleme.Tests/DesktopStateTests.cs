@@ -156,11 +156,35 @@ public class DesktopStateTests
     public void Default_hotkeys_are_all_set_and_distinct()
     {
         var hotkeys = new HotkeySettings();
-        var values = Enum.GetValues<HotkeyAction>().Select(hotkeys.Get).ToList();
+        // Halka kısayolu (2.2) varsayılan olarak kapalı ve atanmamıştır (Store: kullanıcı açıklamayla açar).
+        Assert.Equal("", hotkeys.Get(HotkeyAction.Ring));
+        Assert.Null(hotkeys.Ring);
+        var values = Enum.GetValues<HotkeyAction>().Where(a => a != HotkeyAction.Ring).Select(hotkeys.Get).ToList();
 
         Assert.All(values, v => Assert.True(Hotkey.TryParse(v, out _), v));
         Assert.Equal(values.Count, values.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.Equal("Ctrl+Alt+G", hotkeys.Get(HotkeyAction.PeekDesktop));
+    }
+
+    [Fact]
+    public void Ring_hotkey_is_appended_with_id_8_and_ignored_while_off()
+    {
+        // Kayıt kimliği (int)eylem + 1: yeni üye yalnızca sona eklenir (perf-run "ring" senaryosu id 8 gönderir).
+        Assert.Equal(8, (int)HotkeyAction.Ring + 1);
+        Assert.Equal(HotkeyAction.Ring, Enum.GetValues<HotkeyAction>().Last());
+
+        var hotkeys = new HotkeySettings();
+        Assert.False(hotkeys.Accepts(HotkeyAction.Ring));
+        Assert.All(Enum.GetValues<HotkeyAction>().Where(a => a != HotkeyAction.Ring), a => Assert.True(hotkeys.Accepts(a)));
+
+        hotkeys.Set(HotkeyAction.Ring, "Ctrl+Alt+R");
+        Assert.True(hotkeys.Accepts(HotkeyAction.Ring));
+        Assert.Equal("Ctrl+Alt+R", hotkeys.Get(HotkeyAction.Ring));
+
+        // Boş ya da boşluk: kapalı (null, yazılmaz).
+        hotkeys.Set(HotkeyAction.Ring, "  ");
+        Assert.Null(hotkeys.Ring);
+        Assert.False(hotkeys.Accepts(HotkeyAction.Ring));
     }
 
     [Fact]

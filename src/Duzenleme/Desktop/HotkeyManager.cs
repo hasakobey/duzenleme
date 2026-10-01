@@ -23,6 +23,9 @@ public sealed class HotkeyManager : IDisposable
     private readonly Action<HotkeyAction> _handler;
     private readonly List<int> _registered = [];
 
+    // Son uygulanan ayar: kapalı halka kısayolunun iletisi yok sayılır (HotkeySettings.Accepts).
+    private HotkeySettings? _applied;
+
     /// <summary>Kaydedilemeyen kısayollar (başka bir uygulama kullanıyor olabilir).</summary>
     public Dictionary<HotkeyAction, string> Failures { get; } = [];
 
@@ -84,6 +87,7 @@ public sealed class HotkeyManager : IDisposable
         foreach (var id in _registered) UnregisterHotKey(_window.Handle, id);
         _registered.Clear();
         Failures.Clear();
+        _applied = settings;
 
         foreach (var action in Enum.GetValues<HotkeyAction>())
         {
@@ -113,7 +117,7 @@ public sealed class HotkeyManager : IDisposable
             if (Enum.IsDefined(action))
             {
                 handled = true;
-                _handler(action);
+                if (_applied?.Accepts(action) ?? action != HotkeyAction.Ring) _handler(action);
             }
         }
         return IntPtr.Zero;

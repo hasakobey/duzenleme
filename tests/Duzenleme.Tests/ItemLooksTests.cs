@@ -100,6 +100,32 @@ public class ItemLooksTests
     }
 
     [Fact]
+    public void Restore_keeps_fields_written_by_a_newer_version()
+    {
+        // 2.3'ün öğe kaydına eklediği bir alan (ör. kısayol harfi): kutudan çıkar → Geri al sonrası kaybolmamalı.
+        var path = JsonSerializer.Serialize(Chrome);
+        var box = JsonSerializer.Deserialize<WidgetConfig>(
+            $$"""{ "Kind": "Launcher", "Tabs": [ { "Items": [ {{path}} ] } ], "ItemLooks": { {{path}}: { "Name": "Web", "Key": "w" } } }""",
+            JsonFile.Options)!;
+        var look = ItemLooks.Take(box, Chrome);
+        Assert.NotNull(look);
+        ItemLooks.Restore(box, Chrome, look);
+
+        var restored = ItemLooks.Get(box, Chrome)!;
+        Assert.Equal("Web", restored.Name);
+        Assert.Equal("w", restored.Extra!["Key"].GetString());
+        Assert.NotSame(look!.Extra, restored.Extra); // kopya: geri alınan kayıtla paylaşılmaz
+
+        // Yalnızca yeni sürümün alanını taşıyan kayıt boş sayılmaz (Prune/Restore onu silmez).
+        var onlyKey = new ItemLook { Extra = restored.Extra };
+        Assert.False(onlyKey.IsEmpty);
+        Assert.True(new ItemLook().IsEmpty);
+        restored.Name = null;
+        Assert.False(ItemLooks.Prune(box));
+        Assert.NotNull(ItemLooks.Get(box, Chrome));
+    }
+
+    [Fact]
     public void Name_and_icon_round_trip_in_settings()
     {
         var box = Box(Chrome);
