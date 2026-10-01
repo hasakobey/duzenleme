@@ -241,4 +241,159 @@ public class ForwardCompatTests : IDisposable
         Assert.Equal("daily", chosen[0].Extra!["Schedule"].GetString());
         Assert.Contains("\"Schedule\": \"daily\"", System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(new AppSettings { Rules = chosen })));
     }
+
+    // ---------------------------------------------------------------- 2.2 Halka
+
+    /// <summary>2.1'in ayar biçimi (Halka alanlarını tanımaz; bilinmeyenleri Extra'da aynen geri yazar).</summary>
+    private sealed class Settings21
+    {
+        public bool Paused { get; set; }
+        public List<Widget21> Widgets { get; set; } = [];
+        public Hotkeys21 Hotkeys { get; set; } = new();
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    private sealed class Widget21
+    {
+        public string Id { get; set; } = "";
+        public WidgetKind Kind { get; set; }
+        public string? Variant { get; set; }
+        public string? Title { get; set; }
+        public List<Tab21> Tabs { get; set; } = [];
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    private sealed class Tab21
+    {
+        public string Name { get; set; } = "";
+        public List<string> Items { get; set; } = [];
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    private sealed class Hotkeys21
+    {
+        public string ToggleDesktop { get; set; } = "Ctrl+Alt+H";
+        public string PeekDesktop { get; set; } = "Ctrl+Alt+G";
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public Dictionary<string, JsonElement>? Extra { get; set; }
+    }
+
+    private static AppSettings RingSettings()
+    {
+        var ring = WidgetSeeds.Create(WidgetSeeds.Ring)!;
+        var root = ring.Tabs[0];
+        LauncherEntries.Insert(root, 1, LauncherEntry.Of(@"C:\Users\x\Desktop\a.lnk"));
+        LauncherEntries.Insert(root, 99, LauncherEntry.Of(@"C:\Users\x\Desktop\b.lnk"));
+        LauncherEntries.Insert(root, 2, LauncherEntry.Of(new LauncherAction
+        {
+            Type = RingActionTypes.Url, Url = "https://example.com", Name = "Örnek", Icon = "sym:Globe24",
+        }));
+        LauncherEntries.Insert(root, 99, LauncherEntry.Of(new LauncherAction
+        {
+            Type = RingActionTypes.Command, Command = "notepad.exe", Args = "x.txt", Dir = @"C:\Users\x", HideWindow = true, Admin = true,
+        }));
+        var sub = new LauncherTab { Name = "Alt" };
+        LauncherEntries.Insert(sub, 0, LauncherEntry.Of(new LauncherAction { Type = RingActionTypes.Keys, Keys = ["Ctrl+Shift+T", "F5"] }));
+        LauncherEntries.Insert(sub, 1, LauncherEntry.Of(new LauncherAction { Type = RingActionTypes.Text, Text = "Merhaba\ndünya", Disabled = true }));
+        LauncherEntries.Insert(sub, 2, LauncherEntry.Of(JsonSerializer.Deserialize<LauncherAction>(
+            """{ "Id": "gelecek1", "Type": "gesture", "Path": "LRL", "PathsBefore": 0 }""", JsonFile.Options)!));
+        ring.Tabs.Add(sub);
+        var settings = new AppSettings { Paused = true, Widgets = [ring], RingWidgetId = ring.Id, RingHoldSelectOff = true };
+        settings.Hotkeys.Set(HotkeyAction.Ring, "Ctrl+Alt+R");
+        return settings;
+    }
+
+    [Fact]
+    public void Ring_actions_and_settings_survive_a_round_trip_through_21()
+    {
+        var original = RingSettings();
+        var json22 = JsonSerializer.Serialize(original, JsonFile.Options);
+
+        // 2.1 açar: sekme düzeyindeki Actions ve yeni ayarlar Extra'da durur.
+        var old = JsonSerializer.Deserialize<Settings21>(json22, JsonFile.Options)!;
+        var widget = Assert.Single(old.Widgets);
+        Assert.Equal(WidgetKind.Launcher, widget.Kind);
+        Assert.Equal("Halka menü", widget.Title);
+        Assert.True(widget.Tabs[0].Extra!.ContainsKey("Actions"));
+        Assert.True(widget.Tabs[1].Extra!.ContainsKey("Actions"));
+        Assert.True(old.Extra!.ContainsKey("RingWidgetId"));
+        Assert.True(old.Extra.ContainsKey("RingHoldSelectOff"));
+        Assert.Equal("Ctrl+Alt+R", old.Hotkeys.Extra!["Ring"].GetString());
+
+        // 2.1 Actions'ı bilmeden kutuyu düzenler: ilk yolu siler, sona yol ekler; sonra kaydeder.
+        widget.Tabs[0].Items = [@"C:\Users\x\Desktop\b.lnk", @"C:\Users\x\Desktop\c.lnk"];
+        var json21 = JsonSerializer.Serialize(old, JsonFile.Options);
+
+        // 2.2 yeniden açar: bozuk yok, hiçbir eylem kaybolmaz, alanları aynı.
+        var back = Load(json21);
+        Assert.Equal(0, BrokenBackups);
+        var ring = Assert.Single(back.Widgets);
+        Assert.Equal(WidgetVariants.Ring, WidgetVariants.Of(ring));
+        Assert.Equal(original.RingWidgetId, back.RingWidgetId);
+        Assert.True(back.RingHoldSelectOff);
+        Assert.Equal("Ctrl+Alt+R", back.Hotkeys.Get(HotkeyAction.Ring));
+        for (var t = 0; t < 2; t++)
+        {
+            var before = original.Widgets[0].Tabs[t].Actions!;
+            var after = ring.Tabs[t].Actions!;
+            Assert.Equal(before.Count, after.Count);
+            for (var i = 0; i < before.Count; i++)
+            {
+                before[i].PathsBefore = after[i].PathsBefore = 0;   // sıra yolların değişmesiyle kayabilir; içerik aynı kalmalı
+                Assert.Equal(JsonSerializer.Serialize(before[i], JsonFile.Options), JsonSerializer.Serialize(after[i], JsonFile.Options));
+            }
+        }
+        Assert.Equal(6 + 2, LauncherEntries.Count(ring.Tabs[0]));      // 4 uygulama + url + komut; b ve c
+        Assert.Equal("LRL", ring.Tabs[1].Actions![2].Extra!["Path"].GetString());   // tanınmayan tür alanlarıyla korunur
+        Assert.False(RingActions.IsRunnable(ring.Tabs[1].Actions![1]));           // onaylanmamış metin kapalı kalır
+    }
+
+    [Fact]
+    public void Ring_survives_clone_and_layout_snapshot()
+    {
+        var ring = RingSettings().Widgets[0];
+        var copy = LayoutSnapshot.Capture("Düzen", [ring]).Restore()[0];
+        Assert.Equal(JsonSerializer.Serialize(ring, JsonFile.Options), JsonSerializer.Serialize(copy, JsonFile.Options));
+        Assert.NotSame(ring.Tabs[0].Actions![0], copy.Tabs[0].Actions![0]);
+    }
+
+    [Fact]
+    public void Empty_ring_fields_are_not_written()
+    {
+        var action = JsonSerializer.Serialize(RingActions.ForApp(RingAppIds.NewNote), JsonFile.Options);
+        using (var doc = JsonDocument.Parse(action))
+            Assert.Equal(new[] { "App", "Id", "Type" }, doc.RootElement.EnumerateObject().Select(p => p.Name).Order());
+
+        var plain = JsonSerializer.Serialize(new AppSettings(), JsonFile.Options);
+        foreach (var name in new[] { "RingWidgetId", "RingHoldSelectOff", "\"Ring\"" })
+            Assert.DoesNotContain(name, plain);
+        var tab = JsonSerializer.Serialize(new LauncherTab { Name = "Uygulamalar", Items = ["a"] }, JsonFile.Options);
+        Assert.DoesNotContain("Actions", tab);
+
+        var hotkeys = new HotkeySettings();
+        hotkeys.Set(HotkeyAction.Ring, "Ctrl+Alt+R");
+        using (var written = JsonDocument.Parse(JsonSerializer.Serialize(hotkeys, JsonFile.Options)))
+            Assert.Equal("Ctrl+Alt+R", written.RootElement.GetProperty("Ring").GetString());
+        hotkeys.Set(HotkeyAction.Ring, "");
+        Assert.DoesNotContain("Ring", JsonSerializer.Serialize(hotkeys, JsonFile.Options));
+    }
+
+    [Fact]
+    public void Old_hotkey_file_leaves_the_ring_off()
+    {
+        var s = Load("""{ "Hotkeys": { "ToggleDesktop": "Ctrl+Alt+H", "NewNote": "Ctrl+Shift+N" } }""");
+        Assert.Null(s.Hotkeys.Ring);
+        Assert.Equal("", s.Hotkeys.Get(HotkeyAction.Ring));
+        Assert.False(s.Hotkeys.Accepts(HotkeyAction.Ring));
+        Assert.Equal("Ctrl+Shift+N", s.Hotkeys.NewNote);
+        Assert.Null(s.RingWidgetId);
+        Assert.False(s.RingHoldSelectOff);
+    }
 }

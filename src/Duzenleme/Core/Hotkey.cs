@@ -14,7 +14,14 @@ public enum HotkeyModifiers
 /// <summary>"Ctrl+Alt+H" biçiminde saklanan genel klavye kısayolu.</summary>
 public readonly record struct Hotkey(HotkeyModifiers Modifiers, string Key)
 {
-    public static bool TryParse(string? text, out Hotkey hotkey)
+    /// <summary>Genel kısayol: en az bir değiştirici tuş ister.</summary>
+    public static bool TryParse(string? text, out Hotkey hotkey) => TryParse(text, out hotkey, requireModifier: true);
+
+    /// <summary>
+    /// <paramref name="requireModifier"/> false ise tek tuş da olur ("F5"): halkanın gönderdiği tuş birleşimleri için. Genel
+    /// kısayol (RegisterHotKey) her zaman değiştiricili ayrıştırılır.
+    /// </summary>
+    public static bool TryParse(string? text, out Hotkey hotkey, bool requireModifier)
     {
         hotkey = default;
         if (string.IsNullOrWhiteSpace(text)) return false;
@@ -37,10 +44,20 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, string Key)
         }
 
         // Genel kısayol en az bir değiştirici tuş ister; yoksa normal yazmayı bozar.
-        if (key is null || mods == HotkeyModifiers.None) return false;
+        if (key is null || (requireModifier && mods == HotkeyModifiers.None)) return false;
         hotkey = new Hotkey(mods, key);
         return true;
     }
+
+    /// <summary>
+    /// Tuş adı biçimce geçerli mi: tek harf ya da rakam, ya da harfle başlayan harf/rakam dizisi ("F5", "OemPeriod").
+    /// Sayısal ad ("12") ve virgüllü ad ("A,B") reddedilir: Enum.TryParse bunları sayı/bayrak birleşimi olarak kabul edip
+    /// başka bir tuşa çevirirdi. Tuşun gerçekten çözülüp çözülmediğine kayıt/gönderme bakar.
+    /// </summary>
+    public static bool IsWellFormedKeyName(string? key) =>
+        !string.IsNullOrEmpty(key) && (key.Length == 1
+            ? char.IsAsciiLetterOrDigit(key[0])
+            : char.IsAsciiLetter(key[0]) && key.All(char.IsAsciiLetterOrDigit));
 
     public override string ToString()
     {
@@ -58,7 +75,8 @@ public readonly record struct Hotkey(HotkeyModifiers Modifiers, string Key)
 /// Kısayolun işi. Kalıcı değildir (ayarlarda her iş kendi metin özelliğinde durur); kayıt kimliği (int)eylem + 1 olduğundan
 /// yeni üye yalnızca SONA eklenir ve <see cref="HotkeySettings.Get"/>/<see cref="HotkeySettings.Set"/>'e kendi satırı yazılır.
 /// </summary>
-public enum HotkeyAction { ToggleDesktop, OrganizeNow, OpenApp, NewNote, PeekWidgets, QuickAdd, PeekDesktop }
+/// <remarks>Ring (2.2, id 8): halka menüyü imleçte açar; varsayılanı kapalı ve atanmamış (<see cref="HotkeySettings.Ring"/>).</remarks>
+public enum HotkeyAction { ToggleDesktop, OrganizeNow, OpenApp, NewNote, PeekWidgets, QuickAdd, PeekDesktop, Ring }
 
 public sealed class HotkeySettings
 {
@@ -89,6 +107,7 @@ public sealed class HotkeySettings
         HotkeyAction.NewNote => NewNote,
         HotkeyAction.QuickAdd => QuickAdd,
         HotkeyAction.PeekDesktop => PeekDesktop,
+        HotkeyAction.Ring => Ring ?? "",
         // Bilinmeyen eylem başka bir eylemin kısayolunu paylaşmasın (ikinci kayıt "başka uygulama kullanıyor" diye düşerdi).
         _ => "",
     };
@@ -104,6 +123,7 @@ public sealed class HotkeySettings
             case HotkeyAction.NewNote: NewNote = value; break;
             case HotkeyAction.QuickAdd: QuickAdd = value; break;
             case HotkeyAction.PeekDesktop: PeekDesktop = value; break;
+            case HotkeyAction.Ring: Ring = string.IsNullOrWhiteSpace(value) ? null : value; break;
             // Bilinmeyen eylem hiçbir kısayolun üzerine yazmaz.
         }
     }
@@ -112,4 +132,18 @@ public sealed class HotkeySettings
     /// <summary>Daha yeni sürümün yazdığı bilinmeyen kısayollar (aynen geri yazılır).</summary>
     [System.Text.Json.Serialization.JsonExtensionData]
     public Dictionary<string, System.Text.Json.JsonElement>? Extra { get; set; }
+
+    // 2.2 Halka
+    /// <summary>
+    /// Halka menüyü imleçte açar. null = kapalı ve atanmamış (varsayılan; Store koşulu: kullanıcı Ayarlar'da ne yaptığı
+    /// anlatılarak açar, bkz. <see cref="RingHotkey.Suggest"/>). Kapalıyken yazılmaz; eski dosyada yoksa kapalı kalır.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Ring { get; set; }
+
+    /// <summary>
+    /// Bu eylemin WM_HOTKEY iletisi işlensin mi? Kapalı (atanmamış) halka kısayolu yok sayılır: başka bir yoldan gelen
+    /// id 8 iletisi halkayı açmasın. Diğer eylemler her zaman işlenir (testler kısayolu iletiyle dener).
+    /// </summary>
+    public bool Accepts(HotkeyAction action) => action != HotkeyAction.Ring || !string.IsNullOrWhiteSpace(Ring);
 }

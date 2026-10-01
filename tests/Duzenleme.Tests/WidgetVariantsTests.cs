@@ -64,6 +64,8 @@ public class WidgetVariantsTests
     [InlineData(WidgetKind.Clock, WidgetVariants.World, WidgetVariants.World)]
     [InlineData(WidgetKind.Clock, WidgetVariants.System, WidgetVariants.System)]
     [InlineData(WidgetKind.Launcher, WidgetVariants.Recycle, WidgetVariants.Recycle)]
+    [InlineData(WidgetKind.Launcher, WidgetVariants.Ring, WidgetVariants.Ring)]
+    [InlineData(WidgetKind.Fence, WidgetVariants.Ring, null)]
     [InlineData(WidgetKind.Clock, WidgetVariants.Month, null)]      // temel türü uymayan (elle düzenlenmiş) alt tür yok sayılır
     [InlineData(WidgetKind.Date, "weather", null)]                  // daha yeni sürümün alt türü: temel tür gösterilir
     [InlineData(WidgetKind.Note, null, null)]

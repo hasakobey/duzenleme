@@ -9,6 +9,7 @@ This software incorporates the components listed below, distributed under their 
 3. WPF UI (WPF-UI, WPF-UI.Abstractions) — MIT License — https://github.com/lepoco/wpfui
 4. Anthropic C# SDK — MIT License — https://github.com/anthropics/anthropic-sdk-csharp
 5. SharpVectors (SharpVectors.Wpf) — BSD 3-Clause License — https://github.com/ElinamLLC/SharpVectors
+6. Kando (halka menü geometrisi ve ok tuşlarıyla gezinme; C#'a uyarlanmış kod / ring menu geometry and arrow-key navigation, ported to C#) — MIT License — https://github.com/kando-menu/kando
 
 ==============================================================================
 .NET Runtime ve Windows Desktop (WPF)
@@ -281,3 +282,31 @@ END OF microsoft/microsoft-ui-xaml NOTICES AND INFORMATION
 You may use the Segoe and icon fonts, or glyphs included in this file (“Software”) solely to design, develop and test your programs that run on a Microsoft Platform, a Microsoft Platform includes but is not limited to any hardware or software product or service branded by trademark, trade dress, copyright or some other recognized means, as a product or service of Microsoft. This license does not grant you the right to distribute or sublicense all or part of the Software to any third party.  By using the Software, you agree to these terms. If you do not agree to these terms, do not use the Software.
 =========================================
 END OF microsoft/segoe-fluent-icons-font NOTICES AND INFORMATION
+
+==============================================================================
+Kando
+https://github.com/kando-menu/kando
+(src/common/math/index.ts, src/menu-renderer/menu.ts → src/Duzenleme/Core/RingGeometry.cs)
+==============================================================================
+
+MIT License
+
+Copyright (c) Simon Schneegans <code@simonschneegans.de>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

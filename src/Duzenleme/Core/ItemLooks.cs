@@ -49,12 +49,16 @@ public static class ItemLooks
         return look;
     }
 
-    /// <summary>Alınan kaydı yeniden yazar.</summary>
+    /// <summary>Alınan kaydı yeniden yazar (daha yeni sürümün yazdığı alanlar da, kopyalanarak).</summary>
     public static void Restore(WidgetConfig config, string path, ItemLook? look)
     {
         if (look is null || look.IsEmpty) return;
         Reset(config, path);
-        (config.ItemLooks ??= [])[path] = new ItemLook { Name = look.Name, Icon = look.Icon };
+        (config.ItemLooks ??= [])[path] = new ItemLook
+        {
+            Name = look.Name, Icon = look.Icon,
+            Extra = look.Extra is { Count: > 0 } extra ? new Dictionary<string, System.Text.Json.JsonElement>(extra) : null,
+        };
     }
 
     /// <summary>

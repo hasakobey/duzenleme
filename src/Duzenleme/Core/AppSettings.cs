@@ -44,6 +44,85 @@ public sealed class LauncherTab
     /// <summary>Daha yeni sürümün yazdığı bilinmeyen alanlar (aynen geri yazılır).</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
+
+    // 2.2 Halka
+    /// <summary>
+    /// Yol olmayan öğeler (web adresi, komut, tuş kısayolu, metin, NestDesk eylemi); <see cref="Items"/> yalnızca yol kalır.
+    /// Sıra <see cref="LauncherAction.PathsBefore"/> ile tutulur (bkz. <see cref="LauncherEntries"/>). 2.1 bu alanı tanımaz,
+    /// <see cref="Extra"/> içinde aynen geri yazar; 2.0 kaydederse düşer ama ayarlar bozulmaz. Boşken yazılmaz.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<LauncherAction>? Actions { get; set; }
+}
+
+/// <summary>
+/// Halka menüdeki (ve kutudaki) yol olmayan öğe. Tür metindir, enum değil (<see cref="RingActionTypes"/>): bu sürümün
+/// tanımadığı tür korunur ve çalıştırılmaz. Boş alanlar yazılmaz.
+/// </summary>
+public sealed class LauncherAction
+{
+    /// <summary>Kutu içinde öğenin kimliği (8 onaltılık hane; sürükleme, menü ve liste farkı için).</summary>
+    public string Id { get; set; } = NewId();
+
+    /// <summary>"url", "command", "keys", "text", "app"; tanınmayan tür korunur.</summary>
+    public string Type { get; set; } = "";
+
+    /// <summary>Sekmede bu öğeden önce gelen yol (Items) sayısı; fazlası sona kısılır (bkz. <see cref="LauncherEntries"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int PathsBefore { get; set; }
+
+    /// <summary>Görünen ad; null ise türün varsayılanı.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
+
+    /// <summary>Simge (<see cref="IconRef"/> metni); null ise türün varsayılanı.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; set; }
+
+    /// <summary>url: mutlak, file: ve UNC olmayan adres (bkz. <see cref="RingActions.CheckUrl"/>).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Url { get; set; }
+
+    /// <summary>command: çalıştırılacak program ya da komut (yalnızca kullanıcıdan gelir).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Command { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Args { get; set; }
+
+    /// <summary>command: çalışma klasörü.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Dir { get; set; }
+
+    /// <summary>command: konsol penceresi gizlensin (öğe başına açık seçim; varsayılan görünür).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HideWindow { get; set; }
+
+    /// <summary>command: yönetici olarak ("runas"; Windows her seferinde sorar).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Admin { get; set; }
+
+    /// <summary>İçe aktarıldı ve henüz onaylanmadı: gösterilir ama çalışmaz.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Disabled { get; set; }
+
+    /// <summary>keys: en çok <see cref="RingActions.MaxChords"/> tuş birleşimi ("Ctrl+Shift+T", "F5").</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Keys { get; set; }
+
+    /// <summary>text: yapıştırılacak metin (en çok <see cref="RingActions.MaxTextLength"/> karakter). Günlüğe asla yazılmaz.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Text { get; set; }
+
+    /// <summary>app: NestDesk eyleminin kendi kimliği (<see cref="RingAppIds"/>; HotkeyAction adı değil).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? App { get; set; }
+
+    /// <summary>Daha yeni sürümün yazdığı bilinmeyen alanlar (aynen geri yazılır).</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
+
+    public static string NewId() => Guid.NewGuid().ToString("N")[..8];
 }
 
 public sealed class WidgetConfig
@@ -301,8 +380,9 @@ public sealed class ItemLook
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Icon { get; set; }
 
+    /// <summary>Ad ve simge yok; daha yeni sürümün yazdığı alan (<see cref="Extra"/>) da yoksa kayıt silinebilir.</summary>
     [JsonIgnore]
-    public bool IsEmpty => string.IsNullOrWhiteSpace(Name) && string.IsNullOrWhiteSpace(Icon);
+    public bool IsEmpty => string.IsNullOrWhiteSpace(Name) && string.IsNullOrWhiteSpace(Icon) && Extra is not { Count: > 0 };
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
@@ -488,6 +568,18 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CrashReportMode { get; set; }
+
+    // 2.2 Halka
+    /// <summary>Kısayolla imleçte açılan halka hangi halka widget'ı (kimlik); null ya da bulunamazsa ilk halka.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RingWidgetId { get; set; }
+
+    /// <summary>
+    /// "Tuşu bırakınca seç" kapatıldı: kısayolla açılan halka tuşlar bırakılınca seçim yapmaz, tıklama kipinde kalır.
+    /// Ters adlı: varsayılanı true olan bool WhenWritingDefault ile yanlış geri okunurdu.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RingHoldSelectOff { get; set; }
 }
 
 /// <summary><see cref="AppSettings.CrashReportMode"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>

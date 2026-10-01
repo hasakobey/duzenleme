@@ -31,14 +31,20 @@ public static class WidgetVariants
     /// <summary>Geri Dönüşüm Kutusu (Launcher; kutunun tek öğesi Geri Dönüşüm Kutusu'dur).</summary>
     public const string Recycle = "recycle";
 
-    public static IReadOnlyList<string> All => [Month, Countdown, Timer, World, System, Recycle];
+    /// <summary>
+    /// Halka menü (Launcher; 2.2). Yollar Items'ta, yol olmayan öğeler LauncherTab.Actions'ta; Tabs[0] kök halka, Tabs[1..]
+    /// tek düzey alt halkalar. 2.0 ve 2.1 bunu yollarıyla bir kısayol kutusu olarak gösterir (2.1 eylemleri korur).
+    /// </summary>
+    public const string Ring = "ring";
+
+    public static IReadOnlyList<string> All => [Month, Countdown, Timer, World, System, Recycle, Ring];
 
     /// <summary>Alt türün temel türü; tanınmayan alt türde null.</summary>
     public static WidgetKind? BaseKind(string? variant) => variant switch
     {
         Month or Countdown => WidgetKind.Date,
         Timer or World or System => WidgetKind.Clock,
-        Recycle => WidgetKind.Launcher,
+        Recycle or Ring => WidgetKind.Launcher,
         _ => null,
     };
 

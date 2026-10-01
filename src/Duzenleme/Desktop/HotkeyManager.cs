@@ -23,6 +23,9 @@ public sealed class HotkeyManager : IDisposable
     private readonly Action<HotkeyAction> _handler;
     private readonly List<int> _registered = [];
 
+    // Son uygulanan ayar: kapalı halka kısayolunun iletisi yok sayılır (HotkeySettings.Accepts).
+    private HotkeySettings? _applied;
+
     /// <summary>Kaydedilemeyen kısayollar (başka bir uygulama kullanıyor olabilir).</summary>
     public Dictionary<HotkeyAction, string> Failures { get; } = [];
 
@@ -73,10 +76,31 @@ public sealed class HotkeyManager : IDisposable
     public static bool TryGetVirtualKey(string key, out uint vk)
     {
         vk = 0;
+        // "12" ya da "A,B" gibi adları Enum.TryParse sayı/bayrak birleşimi olarak başka bir tuşa çevirirdi.
+        if (!Hotkey.IsWellFormedKeyName(key)) return false;
         if (key.Length == 1 && char.IsDigit(key[0])) key = "D" + key;
         if (!Enum.TryParse<Key>(key, ignoreCase: true, out var k) || k == Key.None) return false;
         vk = (uint)KeyInterop.VirtualKeyFromKey(k);
         return vk != 0;
+    }
+
+    /// <summary>
+    /// Kendinden önce kaydedilen (enum sırasında önce gelen) bir eylemle aynı kısayolu taşıyan eylemler ve o önceki eylem
+    /// (saf; testlenir). Aynı tuş iki adla da yazılabildiğinden ("Enter"/"Return") sanal tuşla karşılaştırılır. Örn. 2.1'de
+    /// başka bir eyleme verilen Ctrl+Alt+R, 2.2'nin halka kısayolunu (Extra'da duran) gölgeler: RegisterHotKey ikincisini
+    /// "başka bir uygulama" diye reddederdi; bunun yerine NestDesk'in kendi kısayoluyla aynı olduğu söylenir.
+    /// </summary>
+    public static Dictionary<HotkeyAction, HotkeyAction> Clashes(HotkeySettings settings)
+    {
+        var seen = new Dictionary<(HotkeyModifiers, uint), HotkeyAction>();
+        var clashes = new Dictionary<HotkeyAction, HotkeyAction>();
+        foreach (var action in Enum.GetValues<HotkeyAction>())
+        {
+            if (!Hotkey.TryParse(settings.Get(action), out var hk) || !TryGetVirtualKey(hk.Key, out var vk)) continue;
+            if (seen.TryGetValue((hk.Modifiers, vk), out var earlier)) clashes[action] = earlier;
+            else seen[(hk.Modifiers, vk)] = action;
+        }
+        return clashes;
     }
 
     public void Apply(HotkeySettings settings)
@@ -84,6 +108,8 @@ public sealed class HotkeyManager : IDisposable
         foreach (var id in _registered) UnregisterHotKey(_window.Handle, id);
         _registered.Clear();
         Failures.Clear();
+        _applied = settings;
+        var clashes = Clashes(settings);
 
         foreach (var action in Enum.GetValues<HotkeyAction>())
         {
@@ -92,6 +118,11 @@ public sealed class HotkeyManager : IDisposable
             if (!Hotkey.TryParse(text, out var hk) || !TryGetVirtualKey(hk.Key, out var vk))
             {
                 Failures[action] = L.T("Geçersiz kısayol");
+                continue;
+            }
+            if (clashes.ContainsKey(action))
+            {
+                Failures[action] = L.F("{0}'in başka bir kısayoluyla aynı", AppInfo.Name);
                 continue;
             }
             if (AltGrConflict(hk.Modifiers, vk) is { } character)
@@ -109,14 +140,23 @@ public sealed class HotkeyManager : IDisposable
     {
         if (msg == WM_HOTKEY)
         {
-            var action = (HotkeyAction)((int)wParam - 1);
-            if (Enum.IsDefined(action))
-            {
-                handled = true;
-                _handler(action);
-            }
+            var (ours, run) = Route((int)wParam, _applied);
+            if (ours) handled = true;
+            if (run is { } action) _handler(action);
         }
         return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// WM_HOTKEY kimliğinin eylemi (saf; testlenir): kimlik bizimse Ours, işlenecekse Run. Kapalı (atanmamış) halka
+    /// kısayolunun iletisi yok sayılır (<see cref="HotkeySettings.Accepts"/>); ayar henüz uygulanmadıysa halka da kapalıdır.
+    /// </summary>
+    public static (bool Ours, HotkeyAction? Run) Route(int id, HotkeySettings? applied)
+    {
+        var action = (HotkeyAction)(id - 1);
+        if (!Enum.IsDefined(action)) return (false, null);
+        var accepts = applied?.Accepts(action) ?? action != HotkeyAction.Ring;
+        return (true, accepts ? action : null);
     }
 
     public void Dispose()

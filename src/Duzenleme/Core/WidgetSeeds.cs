@@ -9,14 +9,17 @@ public static class WidgetSeeds
 {
     public const string Clock = "Clock", Date = "Date", Note = "Note", Checklist = "Checklist", Launcher = "Launcher",
         Calendar = "Calendar", Countdown = "Countdown", Timer = "Timer", Pomodoro = "Pomodoro", Stopwatch = "Stopwatch",
-        WorldClock = "WorldClock", SystemStatus = "SystemStatus", RecycleBin = "RecycleBin";
+        WorldClock = "WorldClock", SystemStatus = "SystemStatus", RecycleBin = "RecycleBin", Ring = "Ring";
 
     /// <summary>Geri Dönüşüm Kutusu'nun kabuk adı ("::{CLSID}"; bölme ve kutu öğelerindeki gibi).</summary>
     public const string RecycleBinItem = "::{645FF040-5081-101B-9F08-00AA002F954E}";
 
-    /// <summary>Tohumu olan bütün anahtarlar (portallar hariç: onlar klasör yolu ister).</summary>
+    /// <summary>
+    /// Tohumu olan bütün anahtarlar (portallar hariç: onlar klasör yolu ister). Yeni anahtar yalnızca SONA eklenir:
+    /// tools/compat/compat-probe.fsx tohumları sırasıyla (konumla) seçer.
+    /// </summary>
     public static IReadOnlyList<string> Keys =>
-        [Clock, Date, Note, Checklist, Launcher, Calendar, Countdown, Timer, Pomodoro, Stopwatch, WorldClock, SystemStatus, RecycleBin];
+        [Clock, Date, Note, Checklist, Launcher, Calendar, Countdown, Timer, Pomodoro, Stopwatch, WorldClock, SystemStatus, RecycleBin, Ring];
 
     /// <summary>Anahtarın yeni widget ayarı; tanınmayan anahtarda null.</summary>
     public static WidgetConfig? Create(string key) => key switch
@@ -51,6 +54,13 @@ public static class WidgetSeeds
             Kind = WidgetKind.Launcher, Variant = WidgetVariants.Recycle, Title = L.T("Geri Dönüşüm Kutusu"),
             Tabs = [new LauncherTab { Name = L.T("Geri Dönüşüm Kutusu"), Items = [RecycleBinItem] }],
         },
+        // Halka menü: başlık 2.0/2.1 için yazılır ("Kısayol kutusu · Halka menü"). Yalnızca NestDesk eylemleri; örnek komut
+        // yok (Store) ve "Şimdi düzenle" yok (Paused'u atlar, tuşu bırakınca yanlışlıkla seçilebilir).
+        Ring => new WidgetConfig
+        {
+            Kind = WidgetKind.Launcher, Variant = WidgetVariants.Ring, Title = L.T("Halka menü"),
+            Tabs = [new LauncherTab { Name = L.T("Uygulamalar"), Actions = RingAppIds.Seed.Select(RingActions.ForApp).ToList() }],
+        },
         _ => null,
     };
 
@@ -78,10 +88,14 @@ public static class WidgetSeeds
 
     /// <summary>
     /// Çoğaltılan widget'ın kopyası için: çalışan zamanlayıcı baştan başlar (iki widget aynı anda çalmasın), elle sıra ve
-    /// gizlenen öğeler korunur.
+    /// gizlenen öğeler korunur. Kutu/halka eylemleri yeni kimlik alır: kopyadan öteki halkaya taşınan öğe orada aynı kimlikli
+    /// bir öğeyle karışmasın.
     /// </summary>
     public static void PrepareDuplicate(WidgetConfig copy)
     {
         if (WidgetVariants.Is(copy, WidgetVariants.Timer) && copy.Timer is { } timer) copy.Timer = TimerLogic.Fresh(timer);
+        foreach (var tab in copy.Tabs)
+            foreach (var action in tab?.Actions ?? [])
+                if (action is not null) action.Id = LauncherAction.NewId();
     }
 }
