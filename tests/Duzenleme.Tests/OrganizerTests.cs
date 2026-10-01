@@ -152,7 +152,7 @@ public class OrganizerTests
         using var t = new TempDesktop();
         var pdfDir = t.Folder("PDF");
         using var watcher = new DesktopWatcher(t.Organizer, () => false);
-        watcher.Start();
+        await StartAndWait(watcher);
 
         t.File("yeni.pdf");
 
@@ -167,7 +167,7 @@ public class OrganizerTests
         using var t = new TempDesktop();
         var pdfDir = t.Folder("PDF");
         using var watcher = new DesktopWatcher(t.Organizer, () => false);
-        watcher.Start();
+        await StartAndWait(watcher);
 
         var partial = t.File("fatura.pdf.crdownload");
         await Task.Delay(300);
@@ -176,5 +176,85 @@ public class OrganizerTests
         var target = Path.Combine(pdfDir, "fatura.pdf");
         for (var i = 0; i < 100 && !File.Exists(target); i++) await Task.Delay(100);
         Assert.True(File.Exists(target));
+    }
+
+    /// <summary>İzleyici arka planda kurulur (ağdaki masaüstünde arayüz beklemesin): testte kurulana dek beklenir.</summary>
+    private static async Task StartAndWait(DesktopWatcher watcher)
+    {
+        watcher.Resume();
+        for (var i = 0; i < 100 && !watcher.IsRunning; i++) await Task.Delay(20);
+        Assert.True(watcher.IsRunning);
+    }
+
+    [Fact]
+    public async Task Paused_watcher_does_not_watch_and_resume_scans_after_the_watcher_is_up()
+    {
+        using var t = new TempDesktop();
+        t.Folder("PDF");
+        using var watcher = new DesktopWatcher(t.Organizer, () => false);
+        // Otomatik taşıma kapalıyken (yeni kullanıcının varsayılanı) izleyici hiç kurulmaz.
+        Assert.True(watcher.IsPaused);
+        Assert.False(watcher.IsRunning);
+
+        await StartAndWait(watcher);
+        watcher.Pause();
+        Assert.True(watcher.IsPaused);
+        Assert.False(watcher.IsRunning);
+
+        // Duraklatılmışken gelen dosya kendiliğinden taşınmaz (kapatılmakta olan izleyicinin geç olayı da yok sayılır).
+        var waiting = t.File("bekleyen.pdf");
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        Assert.True(File.Exists(waiting));
+
+        // Açılınca: önce izleyici kurulur, sonra (aradaki dosyalar kaçmasın diye) masaüstü taranır.
+        var runningWhenScanned = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        watcher.Resume(() => runningWhenScanned.TrySetResult(watcher.IsRunning));
+        Assert.True(await runningWhenScanned.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        // Zaten izlenirken yeniden açmak yeni izleyici kurmaz; tarama yine çalışır.
+        var again = false;
+        watcher.Resume(() => again = true);
+        Assert.True(again);
+        Assert.True(watcher.IsRunning);
+    }
+
+    [Fact]
+    public async Task Turning_auto_move_off_while_the_watcher_is_still_starting_skips_the_scan()
+    {
+        using var t = new TempDesktop();
+        using var release = new ManualResetEventSlim();
+        var paused = false;
+        var checks = 0;
+        // Ağdaki/OneDrive'daki masaüstü: klasöre bakmak saniyelerce sürer.
+        using var watcher = new DesktopWatcher(t.Organizer, () => Volatile.Read(ref paused), path =>
+        {
+            release.Wait(TimeSpan.FromSeconds(10));
+            try { return Directory.Exists(path); }
+            finally { Interlocked.Increment(ref checks); }
+        });
+
+        // Açıldı, kurulum beklerken yeniden kapatıldı: bekleyen kurulumun taraması yapılmamalı.
+        var scans = 0;
+        watcher.Resume(() => Interlocked.Increment(ref scans));
+        Volatile.Write(ref paused, true);
+        watcher.Pause();
+        release.Set();
+        for (var i = 0; i < 250 && Volatile.Read(ref checks) < 1; i++) await Task.Delay(20);
+        await Task.Delay(300);
+        Assert.Equal(0, Volatile.Read(ref scans));
+        Assert.False(watcher.IsRunning);
+
+        // Kapat-aç arka arkaya (ilk kurulum hâlâ beklerken): yalnızca son kurulum tarar, bir kez.
+        release.Reset();
+        Volatile.Write(ref paused, false);
+        watcher.Resume(() => Interlocked.Increment(ref scans));
+        watcher.Pause();
+        watcher.Resume(() => Interlocked.Increment(ref scans));
+        release.Set();
+        for (var i = 0; i < 250 && Volatile.Read(ref scans) < 1; i++) await Task.Delay(20);
+        for (var i = 0; i < 250 && Volatile.Read(ref checks) < 3; i++) await Task.Delay(20);
+        await Task.Delay(300);
+        Assert.Equal(1, Volatile.Read(ref scans));
+        Assert.True(watcher.IsRunning);
     }
 }

@@ -914,7 +914,7 @@ public sealed class WidgetWindow : Window
 
         // Shift basılıyken 20 piksellik ızgaraya hizalanır (widget'ları düzgün sıralamak için).
         const int VK_SHIFT = 0x10;
-        if (GetAsyncKeyState(VK_SHIFT) < 0)
+        if (NativeMethods.GetAsyncKeyState(VK_SHIFT) < 0)
         {
             var grid = (int)Math.Round(20 * VisualTreeHelper.GetDpi(this).DpiScaleX);
             x = work.Left + (int)Math.Round((x - work.Left) / (double)grid) * grid;
@@ -922,7 +922,7 @@ public sealed class WidgetWindow : Window
         }
         // Mıknatıs: komşunun altına/üstüne/yanına ve ekran kenarına aralıklı yapışır (Alt basılıyken kapalı).
         const int VK_MENU = 0x12;
-        if (AppHost.Settings.SnapWidgets && GetAsyncKeyState(VK_SHIFT) >= 0 && GetAsyncKeyState(VK_MENU) >= 0)
+        if (AppHost.Settings.SnapWidgets && NativeMethods.GetAsyncKeyState(VK_SHIFT) >= 0 && NativeMethods.GetAsyncKeyState(VK_MENU) >= 0)
         {
             var scale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             var m = MarginPixels;
@@ -956,7 +956,7 @@ public sealed class WidgetWindow : Window
             _nudge = 0;
             if (View.Resizable && !IsCollapsedNow) ApplyExpandedHeight();
             const int VK_MENU = 0x12;
-            if (GetAsyncKeyState(VK_MENU) >= 0) KeepBottomInside(remember: false);
+            if (NativeMethods.GetAsyncKeyState(VK_MENU) >= 0) KeepBottomInside(remember: false);
             ResolveOverlap();
         }
         _moved = false;
@@ -1133,15 +1133,12 @@ public sealed class WidgetWindow : Window
         QueueSave();
     }
 
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int key);
-
     /// <summary>Ctrl + tekerlek: bölme/kutuda simge boyutu, diğerlerinde widget ölçeği.</summary>
     private void OnWheel(object sender, MouseWheelEventArgs e)
     {
         // Widget etkin pencere değilken Keyboard.Modifiers güncel olmayabilir; tuşun o anki durumuna bakılır.
         const int VK_CONTROL = 0x11;
-        if (GetAsyncKeyState(VK_CONTROL) >= 0) return;
+        if (NativeMethods.GetAsyncKeyState(VK_CONTROL) >= 0) return;
         e.Handled = true;
         if (View.OnCtrlWheel(e.Delta)) return;
         var scale = Math.Round(Math.Clamp(Config.Scale + (e.Delta > 0 ? 0.1 : -0.1), MinScale, MaxScale), 2);

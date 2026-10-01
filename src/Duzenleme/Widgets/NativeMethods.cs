@@ -182,7 +182,7 @@ internal static class NativeMethods
     public static extern short GetAsyncKeyState(int key);
 
     [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int index);
+    public static extern int GetSystemMetrics(int index);
 
     /// <summary>Birincil ve ikincil fare düğmeleri değiştirilmiş mi (solak ayarı)? Bkz. <see cref="Core.PrimaryMouseButton"/>.</summary>
     public static bool MouseButtonsSwapped => GetSystemMetrics(Core.PrimaryMouseButton.SM_SWAPBUTTON) != 0;
@@ -264,4 +264,25 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern int GetSystemMetricsForDpi(int index, uint dpi);
+
+    // 2.2: önceden birden çok dosyada ayrı ayrı bildirilenler (tek bildirim).
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool AllowSetForegroundWindow(int processId);
+
+    /// <summary>Kabuğa değişiklik bildirir; yol gerektirmeyen olaylarda <paramref name="item1"/> null.</summary>
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern void SHChangeNotify(int eventId, uint flags, string? item1, IntPtr item2);
+
+    /// <summary>
+    /// Yoldan kabuk öğesi; <paramref name="item"/> istenen arayüzü (<paramref name="riid"/>) taşır ve çağıran onu kendi
+    /// [ComImport] arayüzüne çevirir. Başarısızsa HRESULT döner ve <paramref name="item"/> null olur.
+    /// </summary>
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHCreateItemFromParsingName(string path, IntPtr bindContext, [MarshalAs(UnmanagedType.LPStruct)] Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out object? item);
 }

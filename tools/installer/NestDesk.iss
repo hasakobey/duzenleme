@@ -161,6 +161,21 @@ Type: files; Name: "{app}\{#LegacyExe}"
 Type: files; Name: "{app}\Duzenleme.dll"
 Type: files; Name: "{app}\Duzenleme.deps.json"
 Type: files; Name: "{app}\Duzenleme.runtimeconfig.json"
+; 2.2.0: tepsi simgesi WinForms'suz. 2.1.1 ve öncesinin kurduğu WinForms dosyaları artık yüklenmez; kalmasınlar
+; (Core/LegacyFiles.WinFormsProgramFiles ile aynı liste; taşınabilir klasörde silinmez).
+Type: files; Name: "{app}\System.Windows.Forms.dll"
+Type: files; Name: "{app}\System.Windows.Forms.Primitives.dll"
+Type: files; Name: "{app}\System.Windows.Forms.Design.dll"
+Type: files; Name: "{app}\System.Windows.Forms.Design.Editors.dll"
+Type: files; Name: "{app}\System.Design.dll"
+Type: files; Name: "{app}\System.Drawing.Design.dll"
+Type: files; Name: "{app}\Microsoft.VisualBasic.Forms.dll"
+Type: files; Name: "{app}\WindowsFormsIntegration.dll"
+Type: files; Name: "{app}\tr\System.Windows.Forms.resources.dll"
+Type: files; Name: "{app}\tr\System.Windows.Forms.Primitives.resources.dll"
+Type: files; Name: "{app}\tr\System.Windows.Forms.Design.resources.dll"
+Type: files; Name: "{app}\tr\Microsoft.VisualBasic.Forms.resources.dll"
+Type: files; Name: "{app}\tr\WindowsFormsIntegration.resources.dll"
 ; "Widget ekle" kısayolunun adı kurulum diline bağlı: iki dildeki hâli de silinir, şimdiki dilinkini [Icons] yeniden oluşturur
 ; (öbür dilde kurulmuş eski sürümün kısayolu eski exe'yi gösterip kırık kalmasın).
 Type: files; Name: "{autoprograms}\{#AppName} - Widget ekle.lnk"

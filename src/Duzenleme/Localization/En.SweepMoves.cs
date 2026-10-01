@@ -109,7 +109,6 @@ internal static partial class En
         // Tepsi simgesi: menü, balonlar, ipucu
         new("Widget ekle…", "Add widget…"),
         new("Masaüstünü gizle", "Hide desktop"),
-        new("Son kaldırılan widget'ı geri getir", "Bring back the last removed widget"),
         new("Geri getir: {0}", "Bring back: {0}"),
         new("Çıkış", "Exit"),
         new("{0} dosya → {1}", "{0} file → {1}", "{0} files → {1}"),

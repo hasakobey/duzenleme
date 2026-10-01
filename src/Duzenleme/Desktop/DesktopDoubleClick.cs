@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
+using Duzenleme.Widgets;
+using Microsoft.Win32;
 
 namespace Duzenleme.Desktop;
 
@@ -96,10 +98,6 @@ public sealed class DesktopDoubleClick : IDisposable
     private static extern IntPtr DispatchMessage(ref MSG msg);
 
     [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PostMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
     private static extern void PostQuitMessage(int exitCode);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -121,9 +119,6 @@ public sealed class DesktopDoubleClick : IDisposable
     [DllImport("user32.dll")]
     private static extern uint GetDoubleClickTime();
 
-    [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int index);
-
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr GetModuleHandle(string? name);
 
@@ -137,6 +132,12 @@ public sealed class DesktopDoubleClick : IDisposable
         public uint LastTime;
         public POINT LastPoint;
         public bool HasLast;
+
+        // Windows'un çift tıklama ölçüleri (birincil düğme, süre, alan): her basışta sorulmaz, ayar değişince yeniden okunur.
+        public int MetricsVersion = -1;
+        public ushort PrimaryDown;
+        public uint DoubleClickTime;
+        public int DoubleClickWidth, DoubleClickHeight;
     }
 
     /// <summary>Bir fare olayının ham verisi (x64'te 48 bayt) için yeterli, oturum başına bir kez ayrılan tampon.</summary>
@@ -147,11 +148,18 @@ public sealed class DesktopDoubleClick : IDisposable
     private readonly Action _onDoubleClick;
     private Session? _session;
 
+    // Windows ayarı (WM_SETTINGCHANGE) her değiştiğinde artar; oturum çift tıklama ölçülerini buna göre yeniden okur.
+    // Yalnızca ileti alan pencere yayın almaz: bildirim SystemEvents'in kendi penceresinden gelir.
+    private int _settingsVersion;
+
     public DesktopDoubleClick(Dispatcher dispatcher, Action onDoubleClick)
     {
         _dispatcher = dispatcher;
         _onDoubleClick = onDoubleClick;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
+
+    private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e) => Interlocked.Increment(ref _settingsVersion);
 
     public bool Enabled => _session is not null;
 
@@ -178,7 +186,7 @@ public sealed class DesktopDoubleClick : IDisposable
         _session = null;
         Interlocked.Exchange(ref session.Stop, 1);
         var hwnd = Interlocked.CompareExchange(ref session.Hwnd, IntPtr.Zero, IntPtr.Zero);
-        if (hwnd != IntPtr.Zero) PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+        if (hwnd != IntPtr.Zero) NativeMethods.PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
     }
 
     private void Run(Session session)
@@ -259,27 +267,41 @@ public sealed class DesktopDoubleClick : IDisposable
     private static readonly int HeaderSize = Marshal.SizeOf<RAWINPUTHEADER>();
     private static readonly int ButtonFlagsOffset = HeaderSize + 4;
 
+    // Birincil düğme ham girişte ya sol ya sağ düğmeye basıştır (solak ayarına göre); başka olay çift tıklama olamaz.
+    private static readonly ushort AnyPrimaryDown =
+        (ushort)(Core.PrimaryMouseButton.RawInputDownFlag(false) | Core.PrimaryMouseButton.RawInputDownFlag(true));
+
     private void OnInput(Session session, IntPtr rawInput)
     {
-        var size = 0u;
-        GetRawInputData(rawInput, RID_INPUT, IntPtr.Zero, ref size, (uint)HeaderSize);
-        if (size == 0 || size > BufferSize) return;
-        if (GetRawInputData(rawInput, RID_INPUT, session.Buffer, ref size, (uint)HeaderSize) != size) return;
-        if ((uint)Marshal.ReadInt32(session.Buffer) != RIM_TYPEMOUSE || size < ButtonFlagsOffset + 2) return;
+        // Her fare hareketinde gelir (saniyede yüzlerce): tek çağrıyla, oturumun tamponuna okunur (sığmazsa -1 döner).
+        var size = (uint)BufferSize;
+        var read = GetRawInputData(rawInput, RID_INPUT, session.Buffer, ref size, (uint)HeaderSize);
+        if (read == uint.MaxValue || read < ButtonFlagsOffset + 2) return;
+        if ((uint)Marshal.ReadInt32(session.Buffer) != RIM_TYPEMOUSE) return;
         var buttons = (ushort)Marshal.ReadInt16(session.Buffer, ButtonFlagsOffset);
+        // Hareket, tekerlek, bırakma: Windows ayarlarına bakmadan çık.
+        if ((buttons & AnyPrimaryDown) == 0) return;
         // Ham giriş fiziksel düğmeyi bildirir: solak ayarında birincil düğme sağdadır (2.0'ın kancası WM_LBUTTONDOWN'a,
-        // yani değişimi uygulanmış düğmeye bakıyordu). Ayar her basışta okunur (ucuz); değiştirilince hemen geçerli.
-        var primary = Core.PrimaryMouseButton.RawInputDownFlag(GetSystemMetrics(Core.PrimaryMouseButton.SM_SWAPBUTTON) != 0);
-        if ((buttons & primary) == 0) return;
+        // yani değişimi uygulanmış düğmeye bakıyordu). Ayar değiştirilince (WM_SETTINGCHANGE) bir sonraki basışta geçerli.
+        var version = Volatile.Read(ref _settingsVersion);
+        if (session.MetricsVersion != version)
+        {
+            session.PrimaryDown = Core.PrimaryMouseButton.RawInputDownFlag(NativeMethods.MouseButtonsSwapped);
+            session.DoubleClickTime = GetDoubleClickTime();
+            session.DoubleClickWidth = NativeMethods.GetSystemMetrics(SM_CXDOUBLECLK);
+            session.DoubleClickHeight = NativeMethods.GetSystemMetrics(SM_CYDOUBLECLK);
+            session.MetricsVersion = version;
+        }
+        if ((buttons & session.PrimaryDown) == 0) return;
 
         // Olayın ekrandaki yeri ve zamanı (fiziksel piksel; sol monitörde eksi olabilir).
         var pos = GetMessagePos();
         var pt = new POINT { X = (short)(pos & 0xFFFF), Y = (short)((pos >> 16) & 0xFFFF) };
         var time = (uint)GetMessageTime();
         var isDouble = session.HasLast
-                       && time - session.LastTime <= GetDoubleClickTime()
-                       && Math.Abs(pt.X - session.LastPoint.X) <= GetSystemMetrics(SM_CXDOUBLECLK)
-                       && Math.Abs(pt.Y - session.LastPoint.Y) <= GetSystemMetrics(SM_CYDOUBLECLK);
+                       && time - session.LastTime <= session.DoubleClickTime
+                       && Math.Abs(pt.X - session.LastPoint.X) <= session.DoubleClickWidth
+                       && Math.Abs(pt.Y - session.LastPoint.Y) <= session.DoubleClickHeight;
         session.LastTime = time;
         session.LastPoint = pt;
         session.HasLast = !isDouble; // üçlü tıklama ikinci kez tetiklemesin
@@ -303,5 +325,9 @@ public sealed class DesktopDoubleClick : IDisposable
         }
     }
 
-    public void Dispose() => Disable();
+    public void Dispose()
+    {
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        Disable();
+    }
 }

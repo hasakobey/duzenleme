@@ -49,9 +49,6 @@ public static class FolderIconService
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHGetSetFolderCustomSettings(ref SHFOLDERCUSTOMSETTINGS pfcs, string pszPath, uint dwReadWrite);
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern void SHChangeNotify(int wEventId, uint uFlags, string? dwItem1, IntPtr dwItem2);
-
     static FolderIconService() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
     /// <summary>
@@ -273,7 +270,7 @@ public static class FolderIconService
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
         }
         // Simge önbelleği klasör başına değil, bir kez tazelenir.
-        if (removed.Count > 0) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
+        if (removed.Count > 0) Widgets.NativeMethods.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
         return (removed, failed);
     }
 
@@ -294,8 +291,8 @@ public static class FolderIconService
 
     private static void Refresh(string folder, bool iconCache = true)
     {
-        SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, folder, IntPtr.Zero);
-        SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATHW, Path.GetDirectoryName(folder), IntPtr.Zero);
-        if (iconCache) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
+        Widgets.NativeMethods.SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, folder, IntPtr.Zero);
+        Widgets.NativeMethods.SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATHW, Path.GetDirectoryName(folder), IntPtr.Zero);
+        if (iconCache) Widgets.NativeMethods.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
     }
 }

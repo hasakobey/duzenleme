@@ -56,10 +56,25 @@ public sealed class ResilientWatcher : IDisposable
     }
 
     /// <summary>Testler için: klasör var mı sorusu yerine verilen işlev (ör. ulaşılamayan ağ yolunda saniyelerce bekleyen).</summary>
-    internal static ResilientWatcher ForTests(string path, Func<string, bool> directoryExists, Action<FileSystemEventArgs>? onChange = null) =>
-        new(path, NotifyFilters.FileName, onChange ?? (_ => { }), null, null, rich: true, directoryExists);
+    internal static ResilientWatcher ForTests(string path, Func<string, bool> directoryExists, Action<FileSystemEventArgs>? onChange = null,
+        NotifyFilters filter = NotifyFilters.FileName) =>
+        new(path, filter, onChange ?? (_ => { }), null, null, rich: true, directoryExists);
 
+    /// <summary>İzleyiciyi çağıranın iş parçacığında kurar (klasöre bakar: arayüz iş parçacığında değil).</summary>
     public void Start() => TryStart();
+
+    /// <summary>
+    /// İzleyiciyi iş parçacığı havuzunda kurar ve hemen döner (2.2): ağdaki ya da OneDrive'daki klasöre bakmak saniyelerce
+    /// sürebilir; açılış ve "otomatik taşımayı aç" arayüzü beklemesin. <paramref name="started"/> kurulum denendikten sonra
+    /// (kurulamadıysa da; yeniden deneme kendi sürer) aynı iş parçacığında çağrılır.
+    /// </summary>
+    public void StartInBackground(Action? started = null) =>
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            // Havuzdaki beklenmedik hata süreci düşürmesin.
+            Safe(TryStart);
+            if (started is not null) Safe(started);
+        });
 
     /// <summary>
     /// İzleyiciyi (yeniden) kurar. Klasöre bakmak ve izleyiciyi açmak kilidin DIŞINDA yapılır: ulaşılamayan bir ağ klasöründe

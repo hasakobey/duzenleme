@@ -29,12 +29,13 @@ public static class ShellIcons
     /// <summary>
     /// Dosyanın/klasörün ya da kabuk nesnesinin simgesi. <paramref name="pixels"/> verilirse o boyutta keskin simge istenir;
     /// alınamazsa sistemin simge listesinden en yakın boyuta düşer. Kabuk çağrısı yapar: arayüz iş parçacığında değil,
-    /// <see cref="Request"/> ile arka planda kullanılmalı.
+    /// <see cref="Request"/> ile arka planda kullanılmalı. Klasör mü olduğu bilinmiyorsa (<paramref name="isDirectory"/>
+    /// null) diske bakılır.
     /// </summary>
-    public static ImageSource? For(string path, int pixels = 0, bool preview = false)
+    public static ImageSource? For(string path, int pixels = 0, bool preview = false, bool? isDirectory = null)
     {
-        // Arka plandaki yükleyiciden çağrılır (klasör mü diye diske burada bakılır, arayüzde değil).
-        var isDir = !TileItem.IsShellObject(path) && Directory.Exists(path);
+        // Arka plandaki yükleyiciden çağrılır (klasör mü diye gerekirse diske burada bakılır, arayüzde değil).
+        var isDir = !TileItem.IsShellObject(path) && (isDirectory ?? Directory.Exists(path));
         return Cache.GetOrAdd(Key(path, pixels, preview, isDir), _ => Load(path, pixels, preview, isDir));
     }
 
@@ -95,11 +96,21 @@ public static class ShellIcons
     /// Kabuk simgesi çıkarmak (özellikle ağ/OneDrive yollarında) yavaş olabilir; arayüz beklememeli.
     /// Art arda biten simgeler tek seferde bildirilir: 300 öğelik bölme 300 ayrı çizim yerine birkaç çizimle dolar.
     /// </summary>
-    public static void Request(string path, int pixels, bool preview, Action<ImageSource?> done)
+    public static void Request(string path, int pixels, bool preview, Action<ImageSource?> done) =>
+        Enqueue(path, pixels, preview, null, done);
+
+    /// <summary>
+    /// <see cref="Request(string, int, bool, Action{ImageSource?})"/>; klasör mü olduğunu çağıran biliyor (anlık görüntüden
+    /// ya da kutucuğun durumundan): yükleyici her simge için diske bakmaz (ağdaki ya da OneDrive'daki yolda yavaştır).
+    /// </summary>
+    public static void Request(string path, int pixels, bool preview, bool isDirectory, Action<ImageSource?> done) =>
+        Enqueue(path, pixels, preview, isDirectory, done);
+
+    private static void Enqueue(string path, int pixels, bool preview, bool? isDirectory, Action<ImageSource?> done)
     {
         EnsureWorker();
         // "::{CLSID}" kabuk nesneleri (Geri Dönüşüm Kutusu…) de burada, istenen boyutta yüklenir: arayüzde yavaş sürücüyü beklemesin.
-        Queue.Add((() => For(path, pixels, preview), done, Dispatcher.CurrentDispatcher));
+        Queue.Add((() => For(path, pixels, preview, isDirectory), done, Dispatcher.CurrentDispatcher));
     }
 
     // --- Kullanıcının seçtiği simgeler (kısayol kutusu öğesi: "res:" ve "img:", bkz. Core.IconRef) ---
@@ -266,10 +277,6 @@ public static class ShellIcons
         public uint dsOffset;
     }
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern int SHCreateItemFromParsingName(string path, IntPtr bindContext, [MarshalAs(UnmanagedType.LPStruct)] Guid riid,
-        [MarshalAs(UnmanagedType.Interface)] out IShellItemImageFactory? factory);
-
     [DllImport("gdi32.dll")]
     private static extern int GetObject(IntPtr handle, int size, out DIBSECTION section);
 
@@ -285,15 +292,16 @@ public static class ShellIcons
         const int SIIGBF_RESIZETOFIT = 0x0, SIIGBF_ICONONLY = 0x4;
         try
         {
-            if (SHCreateItemFromParsingName(path, IntPtr.Zero, typeof(IShellItemImageFactory).GUID, out var factory) != 0 || factory is null) return null;
+            if (NativeMethods.SHCreateItemFromParsingName(path, IntPtr.Zero, typeof(IShellItemImageFactory).GUID, out var item) != 0 || item is null) return null;
             try
             {
+                if (item is not IShellItemImageFactory factory) return null;
                 var flags = preview ? SIIGBF_RESIZETOFIT : SIIGBF_ICONONLY;
                 if (factory.GetImage(new NativeSize { Width = pixels, Height = pixels }, flags, out var bitmap) != 0 || bitmap == IntPtr.Zero) return null;
                 try { return FromDib(bitmap); }
                 finally { DeleteObject(bitmap); }
             }
-            finally { Marshal.ReleaseComObject(factory); }
+            finally { Marshal.ReleaseComObject(item); }
         }
         catch (Exception ex) when (ex is COMException or InvalidCastException or ArgumentException)
         {

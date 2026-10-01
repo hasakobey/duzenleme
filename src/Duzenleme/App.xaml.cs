@@ -20,10 +20,8 @@ public partial class App : Application
     private EventWaitHandle? _addSignal;
     private EventWaitHandle? _peekSignal;
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool AllowSetForegroundWindow(int processId);
     private MainWindow? _mainWindow;
-    private NewFolderWatcher? _newFolders;
+    private NewFolderSuggestions? _newFolders;
     private bool _exiting;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -124,7 +122,7 @@ public partial class App : Application
             {
                 // Çalışan örnek penceresini öne getirebilsin (yoksa Windows yalnızca görev çubuğunda yanıp söndürür).
                 const int ASFW_ANY = -1;
-                AllowSetForegroundWindow(ASFW_ANY);
+                Widgets.NativeMethods.AllowSetForegroundWindow(ASFW_ANY);
                 (args.Add ? _addSignal : _showSignal).Set();
             }
             Shutdown();
@@ -190,7 +188,10 @@ public partial class App : Application
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
 
-        AppHost.Tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
+        var tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
+        AppHost.Tray = tray;
+        // Gezgin yeniden başladı: widget'lar 3 sn'lik nöbetçiyi beklemeden yeni masaüstüne bağlansın.
+        tray.TaskbarCreated += AppHost.Widgets.OnShellRestarted;
         AppHost.Hotkeys = new HotkeyManager(OnHotkey);
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
         AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.OnDesktopDoubleClick);
@@ -204,13 +205,19 @@ public partial class App : Application
         }
         // Kutulara taşınan öğeler: önceki oturum yarıda kaldıysa ya da kutu dışarıdan silindiyse kayıtlar kutularla uzlaşır.
         Widgets.BoxMover.Reconcile();
-        _newFolders = new NewFolderWatcher(AppHost.DesktopDirectory, folder => Dispatcher.BeginInvoke(() =>
+        // Yeni klasöre "simge ver" önerisi: ayrı izleyici yok, masaüstünün anlık görüntüsünden; yalnızca öneri açıkken dinlenir.
+        _newFolders = new NewFolderSuggestions(AppHost.DesktopSnapshot, folder => Dispatcher.BeginInvoke(() =>
         {
             // Uygulamanın kendi açtığı klasör (bölme, "Klasörü oluştur", karşılama) için "simge ver" balonu çıkmaz.
             var quiet = AppHost.ConsumeQuietFolder(folder);
             if (AppHost.Settings.SuggestFolderIcons && !quiet) AppHost.Tray?.SuggestFolderIcon(folder);
-        }));
-        AppHost.Watcher.Start();
+        })) { Enabled = AppHost.Settings.SuggestFolderIcons };
+        AppHost.SettingsChanged += () =>
+        {
+            if (!_exiting && _newFolders is { } suggestions) suggestions.Enabled = AppHost.Settings.SuggestFolderIcons;
+        };
+        // Masaüstü yalnızca otomatik taşıma açıkken izlenir; izleyici arka planda kurulur (ağdaki masaüstünde açılış beklemez).
+        if (!AppHost.Settings.Paused) AppHost.Watcher.Resume();
         // İlk masaüstü taraması (otomatik taşıma açıksa) ve klasör simgesi onarımı: widget'lar göründükten sonra, düşük
         // disk önceliğiyle; Windows ile başlarken oturum açılışıyla yarışmasın diye daha geç.
         AppHost.StartDeferredWork(autostart: args.Minimized);

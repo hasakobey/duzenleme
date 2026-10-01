@@ -11,6 +11,21 @@ public static class LegacyFiles
         [AppInfo.LegacyExeName, "Duzenleme.dll", "Duzenleme.deps.json", "Duzenleme.runtimeconfig.json"];
 
     /// <summary>
+    /// 2.2.0'da tepsi simgesi WinForms'suz oldu: 2.1.1 ve öncesinin yanında kurulan WinForms dosyaları (bütün mimarilerde aynı,
+    /// program klasörüne göre). Yalnızca kurulum siler ([InstallDelete] ile aynı liste); taşınabilir klasörde silinmez: artık
+    /// yüklenmezler ve klasör başka programlarla paylaşılıyor olabilir.
+    /// </summary>
+    public static readonly string[] WinFormsProgramFiles =
+    [
+        "System.Windows.Forms.dll", "System.Windows.Forms.Primitives.dll", "System.Windows.Forms.Design.dll",
+        "System.Windows.Forms.Design.Editors.dll", "System.Design.dll", "System.Drawing.Design.dll", "Microsoft.VisualBasic.Forms.dll",
+        "WindowsFormsIntegration.dll",
+        @"tr\System.Windows.Forms.resources.dll", @"tr\System.Windows.Forms.Primitives.resources.dll",
+        @"tr\System.Windows.Forms.Design.resources.dll", @"tr\Microsoft.VisualBasic.Forms.resources.dll",
+        @"tr\WindowsFormsIntegration.resources.dll",
+    ];
+
+    /// <summary>
     /// Taşınabilir 2.0 klasörünün üzerine 2.1 açılınca eski exe yanında kalır ve eski Run değeri ya da sabitleme onu (eski
     /// sürümü) başlatır. Eski exe bu sürümden eskiyse silinecek dosyalar; değilse (ya da sürümü okunamazsa) hiçbiri.
     /// </summary>

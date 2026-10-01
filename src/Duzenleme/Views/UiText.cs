@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.IO;
 using Duzenleme.Core;
 
@@ -6,10 +5,6 @@ namespace Duzenleme.Views;
 
 public static class UiText
 {
-    /// <summary>Eski ad: arayüz diline göre biçim için <see cref="L.Culture"/>, sıralama için <see cref="L.Sorter"/>.</summary>
-    [Obsolete("L.Culture (biçim) ya da L.Sorter (sıralama) kullan: arayüz diline uyar.")]
-    public static CultureInfo Tr => L.Culture;
-
     /// <summary>Taşıma listesindeki zaman: "az önce", "5 dk önce", "bugün 14:05", "dün 09:30", "3 Eyl 18:20".</summary>
     public static string When(DateTime time)
     {

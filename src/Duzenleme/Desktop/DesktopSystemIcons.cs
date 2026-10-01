@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace Duzenleme.Desktop;
@@ -24,12 +23,6 @@ public static class DesktopSystemIcons
     private const int WM_KEYDOWN = 0x0100;
     private const int VK_F5 = 0x74;
     private const int SHCNE_ASSOCCHANGED = 0x08000000;
-
-    [DllImport("shell32.dll")]
-    private static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
-
-    [DllImport("user32.dll")]
-    private static extern bool PostMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
     public static readonly SystemIcon[] All =
     [
@@ -71,9 +64,9 @@ public static class DesktopSystemIcons
     /// <summary>Masaüstünü yeniler (F5 gibi) ki değişiklik hemen görünsün.</summary>
     public static void Refresh()
     {
-        SHChangeNotify(SHCNE_ASSOCCHANGED, 0, IntPtr.Zero, IntPtr.Zero);
+        Widgets.NativeMethods.SHChangeNotify(SHCNE_ASSOCCHANGED, 0, null, IntPtr.Zero);
         var lv = DesktopIcons.FindListView();
-        if (lv != IntPtr.Zero) PostMessage(lv, WM_KEYDOWN, VK_F5, IntPtr.Zero);
+        if (lv != IntPtr.Zero) Widgets.NativeMethods.PostMessage(lv, WM_KEYDOWN, VK_F5, IntPtr.Zero);
     }
 
     /// <summary>Kabuk yolu: Explorer'da açmak ve simgesini almak için.</summary>
