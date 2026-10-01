@@ -249,6 +249,16 @@ public sealed class WidgetConfig
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LookAccentColor { get; set; }
+
+    // 2.2 Kutu
+    // 2.1 tanımaz, Extra'da aynen geri yazar. Kapalıyken yazılmaz.
+
+    /// <summary>
+    /// Bölme ve kısayol kutusu: 1–9 (sayısal tuş takımı da) görünen n'inci öğeyi açar (<see cref="Duzenleme.Core.QuickKeys"/>). Varsayılan
+    /// kapalı: harfle arama rakamla başlayan adlarda da çalışsın. Rozet yok; ipucu Simgeler menüsünde.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool QuickKeys { get; set; }
 }
 
 /// <summary>Zamanlayıcı widget'ının kalıcı durumu. Zamanlar UTC: saat ve saat dilimi değişse de süre doğru kalır.</summary>

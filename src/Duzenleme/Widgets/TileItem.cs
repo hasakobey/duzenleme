@@ -68,11 +68,19 @@ public sealed class TileItem : INotifyPropertyChanged
     /// <summary>Dosyanın kendi görünen adı (kısayol kutusunda kullanıcı başka bir ad verdiyse <see cref="Name"/>'den farklı).</summary>
     public string OriginalName => DisplayName(Path);
 
-    /// <summary>Kullanıcı bu öğeye kendi adını vermiş mi (kısayol kutusu)?</summary>
-    public bool Renamed => !IsShellObject(Path) && !string.Equals(Name, OriginalName, StringComparison.Ordinal);
+    /// <summary>
+    /// Kullanıcı bu öğeye kendi adını vermiş mi (kısayol kutusu)? Başlat menüsü uygulamasının adı hep ItemLooks'tadır (bırakılırken
+    /// yazılır): yedek adından farklıysa adlı sayılır (simge seçerken ad korunur).
+    /// </summary>
+    public bool Renamed => StartApps.IsApp(Path)
+        ? !string.Equals(Name, ShellName(Path), StringComparison.Ordinal)
+        : !IsShellObject(Path) && !string.Equals(Name, OriginalName, StringComparison.Ordinal);
 
     public string Tooltip => (Renamed, Missing) switch
     {
+        // 2.2 Kutu: Başlat menüsü uygulamasının yolu (Uygulamalar klasörü + kimlik) ve bırakılan bağlantının dosyası (veri
+        // klasöründe, özetli ad) kullanıcıya bir şey söylemez: yalnızca ad.
+        (_, false) when StartApps.IsApp(Path) || LinkFiles.IsLinkFile(Path, AppHost.LinksDirectory) => Name,
         (true, true) => L.F("{0}\n(asıl adı: {1})\n{2}\n(bulunamadı)", Name, OriginalName, Path),
         (true, false) => L.F("{0}\n(asıl adı: {1})\n{2}", Name, OriginalName, Path),
         (false, true) => L.F("{0}\n{1}\n(bulunamadı)", Name, Path),
@@ -127,7 +135,7 @@ public sealed class TileItem : INotifyPropertyChanged
         if (IsShellObject(path))
         {
             var shell = Layout(config, path, label ?? ShellName(path), missing: false, pixelsPerDip);
-            shell._iconPath = path;
+            shell._iconPath = StartApps.ShellPath(path);
             shell._custom = IconRef.Parse(icon);
             shell.UpdateIconSize(pixelsPerDip, config.Scale);
             return shell;
@@ -325,13 +333,17 @@ public sealed class TileItem : INotifyPropertyChanged
     public static TileItem CreateShell(string parsingName, string name, WidgetConfig config, double pixelsPerDip = 0)
     {
         var item = Layout(config, parsingName, name, missing: false, pixelsPerDip);
-        item._iconPath = item.Path;
+        item._iconPath = StartApps.ShellPath(item.Path);
         item.UpdateIconSize(pixelsPerDip, config.Scale);
         return item;
     }
 
-    /// <summary>Kabuk nesnesinin görünen adı (bilinen masaüstü simgelerinden); bilinmiyorsa ayrıştırma adı.</summary>
+    /// <summary>
+    /// Kabuk nesnesinin görünen adı (bilinen masaüstü simgelerinden); Başlat menüsü uygulamasının kimliği (adı ItemLooks'ta
+    /// durur, bu yalnızca ad silinince görünür); bilinmiyorsa ayrıştırma adı.
+    /// </summary>
     public static string ShellName(string parsingName) =>
+        StartApps.IsApp(parsingName) ? DisplayName(parsingName) :
         Desktop.DesktopSystemIcons.All.FirstOrDefault(i => string.Equals("::" + i.Clsid, parsingName, StringComparison.OrdinalIgnoreCase))?.Name
         ?? parsingName;
 
@@ -368,9 +380,23 @@ public sealed class TileItem : INotifyPropertyChanged
         {
             try
             {
+                // 2.2 Kutu: Başlat menüsü uygulaması kabuğun ayrıştırdığı adla ("shell:AppsFolder\…") açılır; yol biçimli kimlikte
+                // boşluk olabilir, explorer.exe'ye bağımsız değişken olarak verilmez.
+                if (StartApps.IsApp(path))
+                {
+                    Process.Start(new ProcessStartInfo(StartApps.ShellPath(path)) { UseShellExecute = true })?.Dispose();
+                    return;
+                }
                 if (IsShellObject(path))
                 {
                     Process.Start(new ProcessStartInfo("explorer.exe", "shell:" + path) { UseShellExecute = true })?.Dispose();
+                    return;
+                }
+                // 2.2 Kutu: bırakılan bağlantının dosyası (veri klasöründe): adres okunup yeniden denetlenir, tarayıcıyla açılır.
+                if (LinkFiles.IsLinkFile(path, AppHost.LinksDirectory))
+                {
+                    if (LinkFiles.ReadUrl(path) is { } url) Views.Browser.Open(url);
+                    else dispatcher?.BeginInvoke(() => Views.Notice.Show(L.T("Bu bağlantı açılamıyor (yalnızca http, https ve mailto açılır)."), Views.NoticeKind.Warning));
                     return;
                 }
                 var native = NativePath(path);

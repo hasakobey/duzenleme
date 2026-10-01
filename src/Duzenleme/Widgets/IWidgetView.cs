@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 
 namespace Duzenleme.Widgets;
 
@@ -68,4 +69,12 @@ public interface IWidgetView
 
     /// <summary>Görünüm ▸ altındaki ipucunda Ctrl + tekerleğin ne yaptığı (null: widget'ın ölçeği / simge boyutu).</summary>
     string? CtrlWheelHint => null;
+
+    // 2.2 Kutu
+    /// <summary>
+    /// "Numara tuşlarıyla aç" (bölme, kısayol kutusu): 1–9 görünen n'inci öğeyi açar. Pencerenin PreviewKeyDown'ı çağırır (odak
+    /// kartta da olsa). Seçenek kapalıyken, yazı kutusunda, yeniden adlandırırken ya da öğe yokken false: tuş harfle aramaya ve
+    /// yazıya kalır. Açtıysa true.
+    /// </summary>
+    bool TryQuickOpen(KeyEventArgs e) => false;
 }

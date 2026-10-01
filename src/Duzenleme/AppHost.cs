@@ -767,6 +767,10 @@ public static class AppHost
     /// <summary>Kullanıcının seçtiği simge resimlerinin kopyaları (bkz. <see cref="IconFiles"/>).</summary>
     public static string IconsDirectory => Path.Combine(DataDirectory, IconFiles.FolderName);
 
+    // 2.2 Kutu
+    /// <summary>Kısayol kutusuna bırakılan bağlantıların .url dosyaları (bkz. <see cref="LinkFiles"/>; kendiliğinden silinmez).</summary>
+    public static string LinksDirectory => Path.Combine(DataDirectory, LinkFiles.FolderName);
+
     // --- Kutular ---
 
     /// <summary>

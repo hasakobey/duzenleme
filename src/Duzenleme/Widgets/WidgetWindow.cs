@@ -1332,6 +1332,8 @@ public sealed class WidgetWindow : Window
             return;
         }
         if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
+        // 2.2 Kutu: 1–9 görünen n'inci öğeyi açar (bölme/kutu, seçenek açıksa). Odak kartta olsa da gelsin diye pencerede.
+        else if (Keyboard.Modifiers == ModifierKeys.None && View.TryQuickOpen(e)) e.Handled = true;
     }
 
     /// <summary>Kartın ortası (fiziksel piksel): widget'tan açılan küçük pencereler bu monitörde açılsın.</summary>

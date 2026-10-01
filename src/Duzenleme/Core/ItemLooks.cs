@@ -94,6 +94,19 @@ public static class ItemLooks
         return removed > 0;
     }
 
+    /// <summary>
+    /// Dışarıdan gelen ad (sayfa başlığı, uygulama adı): denetim karakterleri boşluğa döner, art arda boşluklar teke iner,
+    /// <see cref="MaxName"/>'e kısaltılır; boş kalırsa null.
+    /// </summary>
+    public static string? CleanName(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var words = text.Select(c => char.IsControl(c) ? ' ' : c).ToArray();
+        var name = string.Join(' ', new string(words).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (name.Length > MaxName) name = name[..(char.IsHighSurrogate(name[MaxName - 1]) ? MaxName - 1 : MaxName)].TrimEnd();
+        return name.Length == 0 ? null : name;
+    }
+
     /// <summary>Kutudaki bütün kayıtlar, harf duyarsız (çizim sırasında tek arama tablosu).</summary>
     public static IReadOnlyDictionary<string, ItemLook> Lookup(WidgetConfig config) =>
         config.ItemLooks is { Count: > 0 } map

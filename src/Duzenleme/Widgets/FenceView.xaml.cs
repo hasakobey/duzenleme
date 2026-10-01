@@ -1104,6 +1104,11 @@ public partial class FenceView : UserControl, IWidgetView
         }
     }
 
+    // 2.2 Kutu
+    /// <summary>1–9: görünen (aramada bulunan) n'inci öğeyi açar; seçenek açıksa (Simgeler ▸ Numara tuşlarıyla aç).</summary>
+    public bool TryQuickOpen(KeyEventArgs e) =>
+        Menus.TryQuickOpen(e, _config, Items, editing: _titleEditor.IsEditing || _rename is { IsActive: true });
+
     private static bool IsInScrollBar(object? source)
     {
         for (var d = source as DependencyObject; d is not null; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))

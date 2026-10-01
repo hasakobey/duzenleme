@@ -153,7 +153,7 @@ public class ForwardCompatTests : IDisposable
         var json = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Note }, JsonFile.Options);
         foreach (var name in new[] { "Variant", "SortBy", "ItemOrder", "ChecklistDoneLast", "Clock12Hour", "FolderKnownId", "FirstDayOfWeek",
                      "TargetDate", "CountdownYearly", "Timer", "Zones", "StatusIntervalSeconds", "StatusDrive", "Extra",
-                     "LookTheme", "LookAccentColor" })
+                     "LookTheme", "LookAccentColor", "QuickKeys" })
             Assert.DoesNotContain($"\"{name}\"", json);
         var calendar = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Date, Variant = WidgetVariants.Month, CountdownYearly = true }, JsonFile.Options);
         Assert.Contains("\"Variant\": \"month\"", calendar);
@@ -234,6 +234,36 @@ public class ForwardCompatTests : IDisposable
         var back = again.RootElement.GetProperty("Widgets")[0];
         Assert.Equal("gelecek", back.GetProperty("LookTheme").GetString());
         Assert.Equal(7, back.GetProperty("LookGelecek").GetInt32());
+        Assert.Equal(0, BrokenBackups);
+    }
+
+    [Fact]
+    public void Quick_keys_and_dropped_links_from_22_round_trip()
+    {
+        // 2.2 Kutu: QuickKeys bool (2.1 Extra'da geri yazar). Bırakılan bağlantı ve uygulama sıradan kutu öğesidir: .url dosyası
+        // ve "::{…}" kabuk nesnesi; adları ItemLooks'ta. 2.1 ikisini de tanır (dosya / kabuk kutucuğu), hiçbir alan eklenmedi.
+        var app = StartApps.PathFor("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App")!;
+        const string link = @"C:\Users\ali\AppData\Roaming\NestDesk\links\example.com-0011aabb.url";
+        var s = Load($$"""
+            { "Paused": true, "Widgets": [ { "Kind": "Launcher", "QuickKeys": true, "GelecekKutu": [1, 2],
+              "Tabs": [ { "Name": "Uygulamalar", "Items": [ {{JsonSerializer.Serialize(app)}}, {{JsonSerializer.Serialize(link)}} ] } ],
+              "ItemLooks": { {{JsonSerializer.Serialize(app)}}: { "Name": "Hesap Makinesi" }, {{JsonSerializer.Serialize(link)}}: { "Name": "Örnek" } } },
+              { "Kind": "Fence" } ] }
+            """);
+        var box = s.Widgets[0];
+        Assert.True(box.QuickKeys);
+        Assert.False(s.Widgets[1].QuickKeys);
+        Assert.Equal([app, link], box.Tabs[0].Items);
+        Assert.Equal("Hesap Makinesi", ItemLooks.Get(box, app)!.Name);
+        Assert.True(TileItemPath.IsShellObject(app));
+
+        var saved = Path.Combine(_dir, "resaved.json");
+        JsonFile.Save(saved, s);
+        using var doc = JsonDocument.Parse(File.ReadAllText(saved));
+        var widgets = doc.RootElement.GetProperty("Widgets");
+        Assert.True(widgets[0].GetProperty("QuickKeys").GetBoolean());
+        Assert.Equal(2, widgets[0].GetProperty("GelecekKutu").GetArrayLength());
+        Assert.False(widgets[1].TryGetProperty("QuickKeys", out _));
         Assert.Equal(0, BrokenBackups);
     }
 
