@@ -257,7 +257,20 @@ public sealed class WidgetWindow : Window
         }, DispatcherPriority.Background);
     }
 
-    internal void EndPreview() => Preview(null);
+    /// <summary>
+    /// Menüdeki önizleme biter: kayıtlı görünüşe, renk seçici açıksa onun gösterdiği renge döner (seçici açıkken başka bir menü
+    /// açılıp kapanınca seçicinin önizlemesi kaybolmasın).
+    /// </summary>
+    internal void EndPreview() => Preview(_heldPreview);
+
+    // Renk seçicinin (Özel renk…) önizlemesi: seçici kapanana dek menü önizlemeleri bittiğinde buna dönülür.
+    private LookOverride? _heldPreview;
+
+    private void HoldPreview(LookOverride? look)
+    {
+        _heldPreview = look;
+        Preview(look);
+    }
 
     // --- Açık menüler ---
     // Widget'ın herhangi bir sağ tık menüsü açıkken (kart, dosya, not satırı, sekme) widget fare üstündeymiş gibi davranır:
@@ -511,8 +524,12 @@ public sealed class WidgetWindow : Window
     /// </summary>
     private void PickAccentColor() =>
         Views.ColorPickerDialog.ForWidget(this, WidgetLooks.CustomAccent(Config) ?? CurrentAccentHex(),
-            hex => Preview(hex is null ? null : new LookOverride(AccentColor: hex)),
-            hex => Update(() => WidgetLooks.SetAccentColor(Config, hex)));
+            hex => HoldPreview(hex is null ? null : new LookOverride(AccentColor: hex)),
+            hex =>
+            {
+                _heldPreview = null;
+                Update(() => WidgetLooks.SetAccentColor(Config, hex));
+            });
 
     /// <summary>Kayıtlı görünüşün vurgu rengi ("#RRGGBB"; önizlemesiz, yüksek karşıtlık yokmuş gibi): seçici bununla açılır.</summary>
     private string CurrentAccentHex() =>
@@ -535,7 +552,7 @@ public sealed class WidgetWindow : Window
     private void Update(Action change)
     {
         change();
-        _preview = _wantedPreview = null;
+        _preview = _wantedPreview = _heldPreview;
         ApplyStyle();
         AppHost.SaveSettings();
         ResolveOverlapAfterLayout(); // ölçek büyüdüyse komşusunun üstüne binmesin
@@ -1333,7 +1350,8 @@ public sealed class WidgetWindow : Window
         }
         if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
         // 2.2 Kutu: 1–9 görünen n'inci öğeyi açar (bölme/kutu, seçenek açıksa). Odak kartta olsa da gelsin diye pencerede.
-        else if (Keyboard.Modifiers == ModifierKeys.None && View.TryQuickOpen(e)) e.Handled = true;
+        // Elle ya da kendiliğinden katlanmış (AutoRollup) widget'ın gizli öğeleri açılmaz.
+        else if (Keyboard.Modifiers == ModifierKeys.None && !IsCollapsedNow && View.TryQuickOpen(e)) e.Handled = true;
     }
 
     /// <summary>Kartın ortası (fiziksel piksel): widget'tan açılan küçük pencereler bu monitörde açılsın.</summary>

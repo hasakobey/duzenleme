@@ -405,8 +405,13 @@ public partial class LauncherView : UserControl, IWidgetView
         rename.ToolTip = L.T("Yalnızca kutuda görünen ad değişir; dosyanın adı değişmez.");
         menu.Items.Add(rename);
         menu.Items.Add(Menus.Item(L.T("Simgeyi değiştir…"), () => PickItemIcon(item)));
-        if (ItemLooks.Get(_config, item.Path) is { IsEmpty: false })
-            menu.Items.Add(Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
+        // Başlat menüsü uygulamasının ve bırakılan bağlantının adı yalnızca kayıttadır (silinirse kimlik/özetli ad görünürdü):
+        // onlarda yalnızca simge varsayılana döner.
+        var keepName = TileItem.NameIsStored(item.Path);
+        if (ItemLooks.Get(_config, item.Path) is { IsEmpty: false } look && (!keepName || look.Icon is not null))
+            menu.Items.Add(keepName
+                ? Menus.Item(L.T("Varsayılan simge"), () => Change(() => ItemLooks.SetIcon(_config, item.Path, null)))
+                : Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
         menu.Items.Add(new Separator());
         var moved = BoxMover.IsMoved(item.Path);
         if (moved)
@@ -444,7 +449,9 @@ public partial class LauncherView : UserControl, IWidgetView
             var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
             if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
                 menu.Items.Add(Menus.Item(L.T("Yönetici olarak çalıştır"), () => TileItem.Launch(item.Path, asAdmin: true)));
-            menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(item.Path)));
+            // Bırakılan bağlantının dosyası uygulamanın veri klasöründedir (paketli sürümde Gezgin o yolu göremez).
+            if (!TileItem.IsDroppedLink(item.Path))
+                menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(item.Path)));
         }
 
         if (_config.Tabs.Count > 1)

@@ -288,6 +288,30 @@ public class ThemeTests
     }
 
     [Fact]
+    public void Theme_accent_is_not_shown_as_a_chosen_custom_color()
+    {
+        // Hazır tema kendi rengini LookAccentColor'a yazar; menüde "Özel renk…" işaretli görünmemeli (kullanıcı seçmedi).
+        var c = new WidgetConfig { Kind = WidgetKind.Fence };
+        Assert.False(WidgetLooks.CustomAccentChosen(c));
+        WidgetLooks.SetTheme(c, "neon", systemDark: true);
+        Assert.NotNull(WidgetLooks.CustomAccent(c));
+        Assert.False(WidgetLooks.CustomAccentChosen(c));
+        Assert.Null(WidgetLooks.ShownAccent(c)); // renk temanın: adlı renklerin hiçbiri işaretli değil
+
+        Assert.True(WidgetLooks.SetAccentColor(c, "#123456"));
+        Assert.True(WidgetLooks.CustomAccentChosen(c));
+        // Elle temanın rengini yazmak da (küçük harfle) temanın rengi sayılır.
+        Assert.True(WidgetLooks.SetAccentColor(c, "#22d3ee"));
+        Assert.False(WidgetLooks.CustomAccentChosen(c));
+
+        // Tema kaldırılınca (klasik arka plan) aynı renk artık kullanıcının özel rengidir.
+        WidgetLooks.SetStyle(c, WidgetStyle.Dark);
+        Assert.True(WidgetLooks.CustomAccentChosen(c));
+        WidgetLooks.SetTheme(c, "", systemDark: true);
+        Assert.False(WidgetLooks.CustomAccentChosen(c));
+    }
+
+    [Fact]
     public void Only_auto_and_two_variant_themes_follow_windows()
     {
         Assert.False(WidgetLooks.FollowsWindows(new WidgetConfig()));

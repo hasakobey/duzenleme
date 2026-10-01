@@ -69,7 +69,7 @@ internal static class LauncherDrop
             }
         }
         if (!Has(data, DataFormats.UnicodeText)) return (LinkKind.None, null, null);
-        var text = Read(() => data.GetData(DataFormats.UnicodeText)) as string;
+        var text = SmallUnicodeText(data);
         var textKind = LinkFiles.ClassifyText(text, out var textUrl);
         return (textKind, textUrl, null);
     }
@@ -108,6 +108,59 @@ internal static class LauncherDrop
         byte[] { Length: > 0 } bytes when bytes.Length <= max => bytes,
         _ => null,
     };
+
+    private const short CF_UNICODETEXT = 13;
+
+    /// <summary>
+    /// Bırakılan düz metin, en çok <see cref="MaxTextBytes"/> bayt ise (adres bundan çok kısadır). Başka uygulamanın büyük seçimi
+    /// (ör. 10 MB'lık metin) sürükleme sırasında arayüz iş parçacığında bütünüyle okunmasın diye önce boyutuna bakılır.
+    /// </summary>
+    internal static string? SmallUnicodeText(IDataObject data)
+    {
+        if (data is not System.Runtime.InteropServices.ComTypes.IDataObject com)
+            return Read(() => data.GetData(DataFormats.UnicodeText)) is string { Length: <= MaxTextBytes / 2 } plain ? plain : null;
+        var format = new System.Runtime.InteropServices.ComTypes.FORMATETC
+        {
+            cfFormat = CF_UNICODETEXT, dwAspect = System.Runtime.InteropServices.ComTypes.DVASPECT.DVASPECT_CONTENT, lindex = -1,
+            tymed = System.Runtime.InteropServices.ComTypes.TYMED.TYMED_HGLOBAL,
+        };
+        System.Runtime.InteropServices.ComTypes.STGMEDIUM medium;
+        try { com.GetData(ref format, out medium); }
+        catch (Exception ex) when (ex is ExternalException or InvalidOperationException or ArgumentException or NotSupportedException
+                                       or OutOfMemoryException)
+        {
+            return null;
+        }
+        try
+        {
+            if (medium.tymed != System.Runtime.InteropServices.ComTypes.TYMED.TYMED_HGLOBAL || medium.unionmember == IntPtr.Zero) return null;
+            var size = (long)GlobalSize(medium.unionmember);
+            if (size < 2 || size > MaxTextBytes) return null;
+            var memory = GlobalLock(medium.unionmember);
+            if (memory == IntPtr.Zero) return null;
+            try
+            {
+                var text = Marshal.PtrToStringUni(memory, (int)(size / 2));
+                var end = text.IndexOf('\0');
+                return end >= 0 ? text[..end] : text;
+            }
+            finally { GlobalUnlock(medium.unionmember); }
+        }
+        finally { ReleaseStgMedium(ref medium); }
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern UIntPtr GlobalSize(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalLock(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalUnlock(IntPtr memory);
+
+    [DllImport("ole32.dll")]
+    private static extern void ReleaseStgMedium(ref System.Runtime.InteropServices.ComTypes.STGMEDIUM medium);
 
     /// <summary>Başka uygulamanın verisi okunurken hata (biçim yok, kaynak reddetti) bırakmayı düşürmesin.</summary>
     private static object? Read(Func<object?> read)

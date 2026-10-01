@@ -184,6 +184,34 @@ public sealed record WidgetPalette(Brush Background, Brush BorderBrush, Brush Fo
 
     private static uint Argb(Color c) => (uint)c.A << 24 | (uint)c.R << 16 | (uint)c.G << 8 | c.B;
 
+    /// <summary>
+    /// Widget'ların baktığı Windows durumu: açık/koyu kip, yüksek karşıtlık ve (yüksek karşıtlıkta) Windows'un renkleri.
+    /// Bir yüksek karşıtlık temasından ötekine geçerken (Gece gökyüzü → Çöl) ilk ikisi değişmez, yalnızca renkler değişir.
+    /// </summary>
+    internal readonly record struct SystemLook(bool Dark, bool HighContrast, string HighContrastColors)
+    {
+        /// <summary>Şu anki durum (<see cref="SystemColors"/> okunur; yüksek karşıtlık kapalıyken renkler yok sayılır).</summary>
+        public static SystemLook Current(bool dark, bool highContrast) => new(dark, highContrast, highContrast
+            ? string.Join(",", new[]
+            {
+                SystemColors.WindowColor, SystemColors.WindowTextColor, SystemColors.HighlightColor, SystemColors.HighlightTextColor,
+                SystemColors.HotTrackColor, SystemColors.GrayTextColor,
+            }.Select(c => c.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            : "");
+
+        /// <summary>
+        /// <paramref name="before"/>'dan <paramref name="now"/>'a geçişte widget'lar yeniden çizilmeli mi, hepsi mi? İlk bakışta
+        /// hiçbiri (pencereler zaten şu anki durumla açılır). Yüksek karşıtlık açılıp kapanınca ya da açıkken renkleri değişince
+        /// hepsi; yalnızca açık/koyu değişince Windows'a uyanlar (<see cref="WidgetManager.RestyleAll"/>).
+        /// </summary>
+        public static (bool Restyle, bool All) Change(SystemLook? before, SystemLook now)
+        {
+            if (before is not { } b || b == now) return (false, false);
+            var all = b.HighContrast != now.HighContrast || now.HighContrast && b.HighContrastColors != now.HighContrastColors;
+            return (true, all);
+        }
+    }
+
     private static WidgetPalette? _highContrast;
     private static (Color, Color, Color, Color) _highContrastKey;
 

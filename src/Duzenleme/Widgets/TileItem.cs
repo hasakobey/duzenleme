@@ -80,7 +80,7 @@ public sealed class TileItem : INotifyPropertyChanged
     {
         // 2.2 Kutu: Başlat menüsü uygulamasının yolu (Uygulamalar klasörü + kimlik) ve bırakılan bağlantının dosyası (veri
         // klasöründe, özetli ad) kullanıcıya bir şey söylemez: yalnızca ad.
-        (_, false) when StartApps.IsApp(Path) || LinkFiles.IsLinkFile(Path, AppHost.LinksDirectory) => Name,
+        (_, false) when NameIsStored(Path) => Name,
         (true, true) => L.F("{0}\n(asıl adı: {1})\n{2}\n(bulunamadı)", Name, OriginalName, Path),
         (true, false) => L.F("{0}\n(asıl adı: {1})\n{2}", Name, OriginalName, Path),
         (false, true) => L.F("{0}\n{1}\n(bulunamadı)", Name, Path),
@@ -135,7 +135,7 @@ public sealed class TileItem : INotifyPropertyChanged
         if (IsShellObject(path))
         {
             var shell = Layout(config, path, label ?? ShellName(path), missing: false, pixelsPerDip);
-            shell._iconPath = StartApps.ShellPath(path);
+            shell._iconPath = path; // Başlat menüsü uygulaması da: ShellIcons kabuğun ayrıştırdığı ada kendisi çevirir (önbellek anahtarı yol)
             shell._custom = IconRef.Parse(icon);
             shell.UpdateIconSize(pixelsPerDip, config.Scale);
             return shell;
@@ -333,7 +333,7 @@ public sealed class TileItem : INotifyPropertyChanged
     public static TileItem CreateShell(string parsingName, string name, WidgetConfig config, double pixelsPerDip = 0)
     {
         var item = Layout(config, parsingName, name, missing: false, pixelsPerDip);
-        item._iconPath = StartApps.ShellPath(item.Path);
+        item._iconPath = item.Path;
         item.UpdateIconSize(pixelsPerDip, config.Scale);
         return item;
     }
@@ -355,6 +355,19 @@ public sealed class TileItem : INotifyPropertyChanged
     }
 
     public static bool IsShellObject(string path) => path.StartsWith("::", StringComparison.Ordinal);
+
+    /// <summary>
+    /// 2.2 Kutu: kısayol kutusuna tarayıcıdan bırakılan bağlantının dosyası mı (veri klasöründeki links\; başka bir veri
+    /// klasöründe yazılmış olsa da, bkz. <see cref="LinkFiles.LooksOwn"/>)? Uygulamanındır: açarken adresi yeniden denetlenir,
+    /// dosya konumu gösterilmez, bölmeye bırakılınca yerinden taşınmaz. Diske dokunmaz.
+    /// </summary>
+    public static bool IsDroppedLink(string path) => LinkFiles.IsLinkFile(path, AppHost.LinksDirectory) || LinkFiles.LooksOwn(path);
+
+    /// <summary>
+    /// Öğenin görünen adı yalnızca kutunun kaydında mı (bırakılırken yazılır: Başlat menüsü uygulaması, bırakılan bağlantı)?
+    /// Kendi adı (uygulama kimliği, özetli dosya adı) kullanıcıya bir şey söylemez.
+    /// </summary>
+    public static bool NameIsStored(string path) => StartApps.IsApp(path) || IsDroppedLink(path);
 
     /// <summary>Geri Dönüşüm Kutusu öğesi mi?</summary>
     public static bool IsRecycleBin(string path) => string.Equals(path, Core.WidgetSeeds.RecycleBinItem, StringComparison.OrdinalIgnoreCase);
@@ -393,7 +406,7 @@ public sealed class TileItem : INotifyPropertyChanged
                     return;
                 }
                 // 2.2 Kutu: bırakılan bağlantının dosyası (veri klasöründe): adres okunup yeniden denetlenir, tarayıcıyla açılır.
-                if (LinkFiles.IsLinkFile(path, AppHost.LinksDirectory))
+                if (IsDroppedLink(path))
                 {
                     if (LinkFiles.ReadUrl(path) is { } url) Views.Browser.Open(url);
                     else dispatcher?.BeginInvoke(() => Views.Notice.Show(L.T("Bu bağlantı açılamıyor (yalnızca http, https ve mailto açılır)."), Views.NoticeKind.Warning));

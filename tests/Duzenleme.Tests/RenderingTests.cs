@@ -381,6 +381,51 @@ public class RenderingTests
     });
 
     [Fact]
+    public void Windows_look_changes_decide_which_widgets_are_redrawn()
+    {
+        WidgetPalette.SystemLook light = new(false, false, ""), dark = new(true, false, "");
+        WidgetPalette.SystemLook nightSky = new(false, true, "#FF000000,#FFFFFFFF"), desert = new(false, true, "#FFFFFAEF,#FF3D3D3D");
+        Assert.Equal((false, false), WidgetPalette.SystemLook.Change(null, light));     // ilk bakış: pencereler zaten böyle açılır
+        Assert.Equal((false, false), WidgetPalette.SystemLook.Change(light, light));
+        Assert.Equal((true, false), WidgetPalette.SystemLook.Change(light, dark));      // yalnızca Windows'a uyanlar
+        Assert.Equal((true, true), WidgetPalette.SystemLook.Change(dark, nightSky));    // yüksek karşıtlık açıldı
+        Assert.Equal((true, true), WidgetPalette.SystemLook.Change(nightSky, light));   // kapandı
+        // Bir yüksek karşıtlık temasından ötekine: açık/koyu ve yüksek karşıtlık değişmez, yalnızca renkler; hepsi yeniden çizilir.
+        Assert.Equal((true, true), WidgetPalette.SystemLook.Change(nightSky, desert));
+        Assert.Equal((false, false), WidgetPalette.SystemLook.Change(desert, desert));
+
+        // Renkler yalnızca yüksek karşıtlıkta okunur (Windows'un sıradan renk değişikliği widget'ları yeniden çizdirmez).
+        Assert.Equal("", WidgetPalette.SystemLook.Current(true, false).HighContrastColors);
+        Assert.NotEqual("", WidgetPalette.SystemLook.Current(false, true).HighContrastColors);
+    }
+
+    [Fact]
+    public void Widget_chrome_is_swapped_as_one_dictionary_and_only_when_it_changed() => OnSta(() =>
+    {
+        var card = new System.Windows.Controls.Border();
+        var green = WidgetPalette.For(WidgetStyle.Dark, WidgetAccent.Green);
+        WidgetChrome.Apply(card.Resources, green);
+        var first = Assert.Single(card.Resources.MergedDictionaries);
+        Assert.Equal(WidgetChrome.Keys.Order(), first.Keys.Cast<string>().Order());
+        Assert.Empty(card.Resources.Keys); // kartın kendi kaynaklarına tek tek yazılmaz
+
+        WidgetChrome.Apply(card.Resources, WidgetPalette.For(WidgetStyle.Dark, WidgetAccent.Green));
+        Assert.Same(first, Assert.Single(card.Resources.MergedDictionaries)); // aynı değerler: dokunulmaz
+
+        WidgetChrome.Apply(card.Resources, WidgetPalette.HighContrast());
+        var hc = Assert.Single(card.Resources.MergedDictionaries);
+        Assert.NotSame(first, hc);
+        Assert.Equal(1.0, (double)card.Resources[WidgetChrome.GlyphRestOpacity]); // sönük × ve "+" yüksek karşıtlıkta tam görünür
+        WidgetChrome.Apply(card.Resources, green);
+        Assert.Equal(0.55, (double)card.Resources[WidgetChrome.GlyphRestOpacity]);
+
+        // Sönük × (TileStyles) ve "Yeni madde ekle" artısı (NoteView) saydamlığını buradan alır.
+        foreach (var file in new[] { "TileStyles.xaml", "NoteView.xaml" })
+            Assert.Contains("{DynamicResource WidgetGlyphRestOpacity}",
+                File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets", file)));
+    });
+
+    [Fact]
     public void High_contrast_overrides_themes_and_notes() => OnSta(() =>
     {
         var note = new WidgetConfig { Kind = WidgetKind.Note, NoteColor = NoteColor.Pink };

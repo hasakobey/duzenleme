@@ -25,6 +25,13 @@ public static class WidgetLooks
     /// <summary>Geçerli özel vurgu rengi ("#RRGGBB"); yoksa ya da okunamıyorsa null.</summary>
     public static string? CustomAccent(WidgetConfig c) => ThemeMath.NormalizeHex(c.LookAccentColor);
 
+    /// <summary>
+    /// Menüdeki "Özel renk…" işareti: kullanıcının seçtiği özel renk var mı? Hazır tema seçilince yazılan temanın kendi rengi
+    /// sayılmaz (kullanıcı özel renk seçmedi; o sırada adlı renklerin de hiçbiri işaretli değildir: renk temanınkidir).
+    /// </summary>
+    public static bool CustomAccentChosen(WidgetConfig c) =>
+        CustomAccent(c) is { } hex && !string.Equals(hex, ThemeAccent(ActiveTheme(c)), StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Temanın kendi vurgu rengi ("#RRGGBB"): yalnızca hazır temalarda; Klasik ve Otomatik'te null.</summary>
     public static string? ThemeAccent(string? theme) =>
         ThemePresets.Find(theme) is { } preset ? ThemeMath.ToHex(preset.Accent) : null;

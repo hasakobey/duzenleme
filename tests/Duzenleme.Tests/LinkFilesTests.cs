@@ -208,6 +208,54 @@ public sealed class LinkFilesTests : IDisposable
     }
 
     [Fact]
+    public void Link_files_written_under_another_data_folder_are_recognized()
+    {
+        // Taşınabilir sürümün sürücü harfi değişti ya da eski veri klasörü taşındı: ad ve "links" klasörü bizim biçimimizde.
+        Assert.True(LinkFiles.LooksOwn(@"E:\NestDesk\data\links\example.com-0011aabb.url"));
+        Assert.True(LinkFiles.LooksOwn(@"C:\Users\ali\AppData\Roaming\Duzenleme\links\mailto-0011aabb-2.url"));
+        Assert.True(LinkFiles.LooksOwn(@"D:\x\LINKS\Example.COM-0011AABB.URL"));
+        Assert.False(LinkFiles.LooksOwn(@"D:\x\linkler\example.com-0011aabb.url"));     // başka klasör
+        Assert.False(LinkFiles.LooksOwn(@"D:\x\links\Örnek sayfa.url"));                // kullanıcının kendi .url'si
+        Assert.False(LinkFiles.LooksOwn(@"D:\x\links\example.com-0011aab.url"));        // özet 8 hane değil
+        Assert.False(LinkFiles.LooksOwn(@"D:\x\links\example.com-0011aabb.lnk"));
+        Assert.False(LinkFiles.LooksOwn(@"::{4234D49B-0245-4DF3-B780-3893943456E1}\App"));
+        Assert.False(LinkFiles.LooksOwn(""));
+
+        var stale = @"E:\NestDesk\data\links\example.com-0011aabb.url";
+        Assert.Equal(Path.Combine(_dir, "example.com-0011aabb.url"), LinkFiles.Rebase(stale, _dir));
+        Assert.Null(LinkFiles.Rebase(Path.Combine(_dir, "example.com-0011aabb.url"), _dir)); // zaten burada
+        Assert.Null(LinkFiles.Rebase(@"C:\Users\ali\Desktop\x.url", _dir));
+        Assert.Null(LinkFiles.Rebase(stale, ""));
+    }
+
+    [Fact]
+    public void Box_links_from_another_data_folder_are_moved_to_this_one_with_their_names()
+    {
+        var old = @"E:\NestDesk\data\links\";
+        var box = new WidgetConfig
+        {
+            Kind = WidgetKind.Launcher,
+            Tabs =
+            [
+                new LauncherTab { Name = "A", Items = [old + "example.com-0011aabb.url", @"C:\Windows\notepad.exe", old + "mailto-22334455.url"] },
+                // Aynı bağlantı hem eski hem yeni yoluyla: eski çıkar, yineleme olmaz.
+                new LauncherTab { Name = "B", Items = [old + "example.com-0011aabb.url", Path.Combine(_dir, "example.com-0011aabb.url")] },
+            ],
+        };
+        ItemLooks.SetName(box, old + "example.com-0011aabb.url", "Örnek sayfa", "example.com-0011aabb");
+        var plain = new WidgetConfig { Kind = WidgetKind.Clock };
+
+        Assert.True(LinkFiles.RebaseAll([box, plain], _dir));
+
+        Assert.Equal([Path.Combine(_dir, "example.com-0011aabb.url"), @"C:\Windows\notepad.exe", Path.Combine(_dir, "mailto-22334455.url")],
+            box.Tabs[0].Items);
+        Assert.Equal([Path.Combine(_dir, "example.com-0011aabb.url")], box.Tabs[1].Items);
+        Assert.Equal("Örnek sayfa", ItemLooks.Get(box, Path.Combine(_dir, "example.com-0011aabb.url"))?.Name);
+        Assert.Null(ItemLooks.Get(box, old + "example.com-0011aabb.url"));
+        Assert.False(LinkFiles.RebaseAll([box, plain], _dir)); // ikinci kez: değişiklik yok
+    }
+
+    [Fact]
     public void Firefox_link_data_gives_address_and_title()
     {
         var (url, title) = LinkFiles.ParseMozUrl("https://example.com/\nÖrnek\0");

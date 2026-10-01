@@ -1219,6 +1219,8 @@ public partial class FenceView : UserControl, IWidgetView
         var folder = DesktopMode ? null : _folderPath;
         if (source is { FromBox: true })
         {
+            // 2.2 Kutu: bırakılan bağlantının dosyası uygulamanındır (öteki kutular da onu gösterebilir): yerinden taşınmaz.
+            if (TileItem.IsDroppedLink(source.Path)) return (DropKind.None, [], source);
             if (DesktopMode)
                 return BoxMover.IsMoved(source.Path) || OnDesktop(paths[0])
                     ? (DropKind.OutOfBox, [], source) : (DropKind.None, [], source);

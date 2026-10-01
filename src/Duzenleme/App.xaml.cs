@@ -357,8 +357,8 @@ public partial class App : Application
     private DispatcherTimer? _themeDelay;
     private static (ApplicationTheme Theme, bool HighContrast)? _appliedTheme;
 
-    // Widget'ların baktığı Windows durumu (açık/koyu kip, yüksek karşıtlık); uygulamanın kendi temasından ayrı izlenir.
-    private static (bool SystemDark, bool HighContrast)? _widgetLook;
+    // Widget'ların baktığı Windows durumu (açık/koyu kip, yüksek karşıtlık ve renkleri); uygulamanın kendi temasından ayrı izlenir.
+    private static Widgets.WidgetPalette.SystemLook? _widgetLook;
 
     private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
@@ -407,13 +407,14 @@ public partial class App : Application
         };
         // Widget'lar uygulamanın temasına değil Windows'a bakar ("Otomatik" ve iki hâlli temalar, yüksek karşıtlık): uygulamanın
         // teması Koyu/Açık'a sabitlenmiş olsa da (aşağıdaki erken dönüş) Windows değişince yeniden çizilirler.
-        if (_widgetLook != (systemDark, highContrast))
+        // Bir yüksek karşıtlık temasından ötekine geçiş de sayılır (yalnızca Windows'un renkleri değişir).
+        var look = Widgets.WidgetPalette.SystemLook.Current(systemDark, highContrast);
+        if (_widgetLook != look)
         {
-            var contrastChanged = _widgetLook is { } before && before.HighContrast != highContrast;
-            var first = _widgetLook is null;
-            _widgetLook = (systemDark, highContrast);
+            var (restyle, all) = Widgets.WidgetPalette.SystemLook.Change(_widgetLook, look);
+            _widgetLook = look;
             Widgets.WidgetPalette.SystemDark = systemDark;
-            if (!first) AppHost.Widgets?.RestyleAll(all: contrastChanged);
+            if (restyle) AppHost.Widgets?.RestyleAll(all);
         }
         if (onlyIfChanged && _appliedTheme == (resolved, highContrast)) return;
         _appliedTheme = (resolved, highContrast);

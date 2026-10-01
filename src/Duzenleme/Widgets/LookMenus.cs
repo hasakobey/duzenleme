@@ -44,7 +44,8 @@ internal static class LookMenus
 
     /// <summary>
     /// Görünüm ▸ Vurgu rengi ▸: beş adlı renk ve en sonda "Özel renk…" (renk seçiciyi açar; menü kapanır). Özel renk seçiliyken
-    /// adlı renklerin hiçbiri işaretli değildir, "Özel renk…" işaretlidir.
+    /// adlı renklerin hiçbiri işaretli değildir, "Özel renk…" işaretlidir. Hazır temanın kendi rengi kullanılırken hiçbiri işaretli
+    /// değildir (<see cref="WidgetLooks.CustomAccentChosen"/>).
     /// </summary>
     public static MenuItem Accent(WidgetConfig c, Action<Action> update, Action<LookOverride> preview, Action endPreview, Action pickCustom)
     {
@@ -53,7 +54,7 @@ internal static class LookMenus
              (WidgetAccent.Orange, L.T("Turuncu")), (WidgetAccent.Pink, L.T("Pembe"))],
             v => update(() => WidgetLooks.SetAccent(c, v!.Value)), v => preview(new LookOverride(Accent: v)), endPreview);
         item.Items.Add(new Separator());
-        item.Items.Add(Menus.Toggle(L.T("Özel renk…"), () => WidgetLooks.CustomAccent(c) is not null, pickCustom, staysOpen: false));
+        item.Items.Add(Menus.Toggle(L.T("Özel renk…"), () => WidgetLooks.CustomAccentChosen(c), pickCustom, staysOpen: false));
         return item;
     }
 }

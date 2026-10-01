@@ -16,8 +16,14 @@ public static class ShellIdList
     /// <summary>Bir bırakmada en çok kaç öğe ele alınır.</summary>
     public const int MaxItems = 64;
 
-    /// <summary>Okunacak verinin üst sınırı.</summary>
+    /// <summary>Okunacak verinin üst sınırı; çıkarılan tam kimlik listelerinin toplamı da bunu aşamaz.</summary>
     public const int MaxBytes = 1 << 20;
+
+    /// <summary>
+    /// Tek bir kimlik listesinin üst sınırı (gerçek listeler birkaç yüz bayttır). Uzaklıklar aynı yeri gösterebildiği için
+    /// sınırsız listeler 1 MB'lık veriden çok daha fazlasını ayırtabilirdi.
+    /// </summary>
+    public const int MaxListBytes = 64 * 1024;
 
     /// <summary>
     /// Öğelerin masaüstüne göre tam kimlik listeleri (üst klasörünkü + öğeninki + 2 baytlık sonlandırıcı): kabuğa
@@ -29,9 +35,12 @@ public static class ShellIdList
         var parent = List(cida, 0, count);
         if (parent is not { } p) return null;
         var items = new List<byte[]>(count);
+        var total = 0;
         for (var i = 1; i <= count; i++)
         {
             if (List(cida, i, count) is not { } child) return null;
+            total += p.Length + child.Length + 2;
+            if (total > MaxBytes) return null;
             var full = new byte[p.Length + child.Length + 2];
             cida.Slice(p.Start, p.Length).CopyTo(full);
             cida.Slice(child.Start, child.Length).CopyTo(full.AsSpan(p.Length));
@@ -79,7 +88,7 @@ public static class ShellIdList
             if (pos + 2 > cida.Length) return null;
             var cb = BinaryPrimitives.ReadUInt16LittleEndian(cida[pos..]);
             if (cb == 0) return (start, pos - start);
-            if (cb < 2 || pos + cb > cida.Length) return null;
+            if (cb < 2 || pos + cb > cida.Length || pos + cb - start > MaxListBytes) return null;
             pos += cb;
         }
     }

@@ -38,7 +38,7 @@ internal sealed class ColorPickerDialog : FluentWindow
     private const int Columns = 6;
     private const double SwatchSize = 40;
 
-    private readonly WidgetWindow _anchor;
+    private readonly Func<Box?> _cardBox;
     private readonly Action<string?> _preview;
     private readonly Action<string> _commit;
     private readonly TextBox _hex;
@@ -46,7 +46,7 @@ internal sealed class ColorPickerDialog : FluentWindow
     private readonly Button _save;
     private readonly List<(Border Face, TextBlock Check, uint Color)> _cells = [];
     private string? _chosen;
-    private bool _saved, _syncing;
+    private bool _syncing;
 
     /// <param name="current">Açılışta seçili renk ("#RRGGBB").</param>
     /// <param name="preview">Seçilen rengi widget'ta gösterir (null: kayıtlı renge döner).</param>
@@ -54,15 +54,24 @@ internal sealed class ColorPickerDialog : FluentWindow
     public static void ForWidget(WidgetWindow anchor, string current, Action<string?> preview, Action<string> commit)
     {
         _current?.Close();
-        var picker = new ColorPickerDialog(anchor, current, preview, commit);
+        var picker = new ColorPickerDialog(anchor.CenterPoint, () => anchor.VisibleCardBox, current, preview, commit);
         _current = picker;
-        picker.Closed += (_, _) => { if (_current == picker) _current = null; };
+        // Widget kapanırsa (kaldırıldı, Explorer yeniden başladı) seçici de kapanır: kapanmış pencereye ve kaldırılmış ayara yazılmaz.
+        void OnAnchorClosed(object? sender, EventArgs e) => picker.Close();
+        anchor.Closed += OnAnchorClosed;
+        picker.Closed += (_, _) =>
+        {
+            anchor.Closed -= OnAnchorClosed;
+            if (_current == picker) _current = null;
+        };
         picker.Show();
     }
 
-    private ColorPickerDialog(WidgetWindow anchor, string current, Action<string?> preview, Action<string> commit)
+    /// <param name="anchorPoint">Widget kartının ortası (fiziksel piksel): seçici bu monitörde, kartın yanında açılır.</param>
+    /// <param name="cardBox">Kartın ekrandaki dikdörtgeni (yerleşim için; bilinmiyorsa null).</param>
+    internal ColorPickerDialog(NativeMethods.POINT anchorPoint, Func<Box?> cardBox, string current, Action<string?> preview, Action<string> commit)
     {
-        _anchor = anchor;
+        _cardBox = cardBox;
         _preview = preview;
         _commit = commit;
         // WPF ilk açılan pencereyi Application.MainWindow yapar; tema değişikliği (WPF-UI) bu küçük pencereye bağlanmasın.
@@ -79,7 +88,6 @@ internal sealed class ColorPickerDialog : FluentWindow
         MinHeight = 0;
         AutomationProperties.SetAutomationId(this, "ColorPicker");
         // En baştan widget'ın monitöründe oluşur; yüklenince kartın yanına (önizleme görünür kalsın).
-        var anchorPoint = anchor.CenterPoint;
         WindowFit.FitChromeToContent(this);
         WindowFit.StartOn(this, anchorPoint);
 
@@ -153,7 +161,8 @@ internal sealed class ColorPickerDialog : FluentWindow
             if (selected >= 0 && grid.Children[selected] is UIElement cell) cell.Focus();
             else _hex.Focus();
         };
-        Closed += (_, _) => { if (!_saved) _preview(null); };
+        // Kaydedildiyse renk zaten yazıldı; önizleme yine de bırakılır (widget kayıtlı görünüşüne, yani aynı renge döner).
+        Closed += (_, _) => _preview(null);
     }
 
     private UIElement Swatch(uint color, int number)
@@ -217,7 +226,6 @@ internal sealed class ColorPickerDialog : FluentWindow
     private void Save()
     {
         if (_chosen is not { } hex) return;
-        _saved = true;
         _commit(hex);
         Close();
     }
@@ -253,7 +261,7 @@ internal sealed class ColorPickerDialog : FluentWindow
         if (!NativeMethods.GetWindowRect(hwnd, out var r)) return;
         var work = NativeMethods.WorkAreaAt(anchorPoint);
         var area = new Box(work.Left, work.Top, work.Right, work.Bottom);
-        var card = _anchor.VisibleCardBox ?? new Box(anchorPoint.X, anchorPoint.Y, anchorPoint.X, anchorPoint.Y);
+        var card = _cardBox() ?? new Box(anchorPoint.X, anchorPoint.Y, anchorPoint.X, anchorPoint.Y);
         var gap = (int)Math.Round(12 * NativeMethods.ScaleAt(anchorPoint));
         var (x, y) = AnchorPlacement.NextTo(card, r.Width, r.Height, area, gap);
         NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER);

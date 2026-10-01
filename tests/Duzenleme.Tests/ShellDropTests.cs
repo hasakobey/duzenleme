@@ -168,6 +168,87 @@ public sealed class ShellDropTests : IDisposable
         Assert.Null(StartApps.PathFor(new string('a', StartApps.MaxId + 1)));
     }
 
+    [Fact]
+    public void Overlapping_or_huge_id_lists_are_rejected()
+    {
+        // Bütün uzaklıklar aynı (büyük ama sınırın altındaki) listeyi gösterir: 64 kopya 1 MB'ı aşar, ayrılmadan reddedilir.
+        var big = new byte[ShellIdList.MaxListBytes - 4];
+        BinaryPrimitives.WriteUInt16LittleEndian(big, (ushort)Math.Min(big.Length, 0xFFFF));
+        var child = big.AsSpan(0, BinaryPrimitives.ReadUInt16LittleEndian(big)).ToArray();
+        var children = Enumerable.Repeat(child, ShellIdList.MaxItems).ToArray();
+        Assert.NotNull(ShellIdList.Parse(Cida([], child)));
+        var parentAt = 4 + 4 * (ShellIdList.MaxItems + 1);
+        var childAt = parentAt + 2; // boş üst klasör (masaüstü): yalnızca sonlandırıcı
+        var shared = new byte[childAt + child.Length + 2];
+        BinaryPrimitives.WriteUInt32LittleEndian(shared, ShellIdList.MaxItems);
+        child.CopyTo(shared, childAt);
+        BinaryPrimitives.WriteUInt32LittleEndian(shared.AsSpan(4), (uint)parentAt);
+        for (var i = 1; i <= ShellIdList.MaxItems; i++) BinaryPrimitives.WriteUInt32LittleEndian(shared.AsSpan(4 + 4 * i), (uint)childAt);
+        Assert.True(shared.Length < ShellIdList.MaxBytes);
+        Assert.Null(ShellIdList.Parse(shared));
+        Assert.NotNull(ShellIdList.Parse(Cida([], children.Take(4).ToArray())));
+
+        // Tek liste sınırı aşarsa (öğeleri geçerli olsa da) reddedilir.
+        var item = Item(new byte[60_000]);
+        Assert.NotNull(ShellIdList.Parse(Cida([], item)));
+        Assert.Null(ShellIdList.Parse(Cida([], [.. item, .. item])));
+    }
+
+    [Fact]
+    public void Start_app_icons_are_cached_by_app_not_by_extension()
+    {
+        // "shell:AppsFolder\MSEdge" ile uzantısız README, "…WINWORD.EXE.15" ile "…EXCEL.EXE.15" aynı simgeyi paylaşmamalı.
+        string[] paths =
+        [
+            StartApps.PathFor("MSEdge")!, StartApps.PathFor("Chrome")!, StartApps.PathFor("308046B0AF4A39CB")!,
+            StartApps.PathFor("Microsoft.Office.WINWORD.EXE.15")!, StartApps.PathFor("Microsoft.Office.EXCEL.EXE.15")!,
+            @"shell:AppsFolder\MSEdge", @"shell:AppsFolder\Chrome", Path.Combine(_dir, "README"), Path.Combine(_dir, "LICENSE"),
+        ];
+        var keys = paths.Select(p => ShellIcons.Key(p, 32, preview: false, isDir: false)).ToList();
+        Assert.Equal(keys.Count - 1, keys.Distinct(StringComparer.OrdinalIgnoreCase).Count()); // yalnızca README ile LICENSE (".|32") ortak
+        Assert.All(paths.Take(7), p => Assert.True(ShellIcons.IsShellName(p)));
+        Assert.False(ShellIcons.IsShellName(Path.Combine(_dir, "README")));
+    }
+
+    [Fact]
+    public void Start_app_icon_loads_from_the_shell()
+    {
+        // Gerçek kabukla: Ayarlar uygulamasının kutu yolu (kabuğun ayrıştıramadığı "::{…}\AUMID") simgeye çevrilir.
+        const string settings = "windows.immersivecontrolpanel_cw5n1h2txyewy!microsoft.windows.immersivecontrolpanel";
+        if (IdList(@"shell:AppsFolder\" + settings) is null) return; // bu Windows'ta yok
+        var icon = ShellIcons.For(StartApps.PathFor(settings)!, 32);
+        Assert.NotNull(icon);
+        Assert.True(ShellIcons.TryCached(StartApps.PathFor(settings)!, 32, preview: false, isDirectory: false, out var cached));
+        Assert.Same(icon, cached);
+    }
+
+    [Fact]
+    public void Dropped_text_is_read_only_when_small() => OnSta(() =>
+    {
+        var small = new System.Windows.DataObject(System.Windows.DataFormats.UnicodeText, "https://example.com/");
+        Assert.Equal("https://example.com/", LauncherDrop.SmallUnicodeText(small));
+        Assert.Equal(LinkKind.Allowed, LauncherDrop.ReadLink(small, withTitle: false).Kind);
+
+        var huge = new System.Windows.DataObject(System.Windows.DataFormats.UnicodeText, "https://example.com/" + new string('a', 100_000));
+        Assert.Null(LauncherDrop.SmallUnicodeText(huge));
+        Assert.Equal(LinkKind.None, LauncherDrop.ReadLink(huge, withTitle: false).Kind);
+        Assert.Null(LauncherDrop.SmallUnicodeText(new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { @"C:\x.txt" })));
+    });
+
+    private static void OnSta(Action body)
+    {
+        Exception? error = null;
+        var thread = new Thread(() =>
+        {
+            try { body(); }
+            catch (Exception ex) { error = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "STA testi zaman aşımına uğradı");
+        if (error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+    }
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHParseDisplayName(string name, IntPtr bindContext, out IntPtr pidl, uint attributesIn, out uint attributesOut);
 

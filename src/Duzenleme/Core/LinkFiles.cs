@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Duzenleme.Core;
 
@@ -209,6 +210,52 @@ public static class LinkFiles
         {
             return false;
         }
+    }
+
+    // Bu uygulamanın verdiği ad: FileStem + (çakışmada "-2"…"-9") + ".url".
+    private static readonly Regex OwnName = new(@"^[a-z0-9.-]{1,60}-[0-9a-f]{8}(-[2-9])?\.url$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Bu uygulamanın yazdığı bağlantı dosyasının biçiminde mi ("links" adlı bir klasörde "&lt;alan adı&gt;-&lt;özet8&gt;(-n).url")?
+    /// Veri klasörü başka yerdeyken yazılmış yollar da tanınır (taşınabilir sürümün sürücü harfi değişti, eski veri klasörü
+    /// taşındı): açarken onlar da yeniden denetlenir. Diske dokunmaz.
+    /// </summary>
+    public static bool LooksOwn(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !path.EndsWith(".url", StringComparison.OrdinalIgnoreCase)) return false;
+        var name = System.IO.Path.GetFileName(path);
+        var folder = System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? "");
+        return OwnName.IsMatch(name) && string.Equals(folder, FolderName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Başka bir veri klasöründe yazılmış bağlantı yolunun bu oturumdaki karşılığı; öyle bir yol değilse null.</summary>
+    public static string? Rebase(string path, string linksDirectory)
+    {
+        if (string.IsNullOrEmpty(linksDirectory) || !LooksOwn(path) || IsLinkFile(path, linksDirectory)) return null;
+        return System.IO.Path.Combine(linksDirectory, System.IO.Path.GetFileName(path));
+    }
+
+    /// <summary>
+    /// Kısayol kutularındaki, eski veri klasörünü gösteren bağlantı yollarını bu oturumun bağlantılar klasörüne çevirir; adı ve
+    /// simgesi (<see cref="ItemLooks"/>) de taşınır. Aynı sekmede yeni yol zaten varsa eskisi çıkar. Açılışta, widget'lar açılmadan
+    /// çağrılır; diske dokunmaz. Değiştiyse true.
+    /// </summary>
+    public static bool RebaseAll(IEnumerable<WidgetConfig> widgets, string linksDirectory)
+    {
+        var changed = false;
+        foreach (var config in widgets)
+            foreach (var tab in config.Tabs)
+                for (var i = tab.Items.Count - 1; i >= 0; i--)
+                {
+                    var old = tab.Items[i];
+                    if (Rebase(old, linksDirectory) is not { } moved) continue;
+                    if (tab.Items.Contains(moved, StringComparer.OrdinalIgnoreCase)) tab.Items.RemoveAt(i);
+                    else tab.Items[i] = moved;
+                    ItemLooks.Move(config, old, moved);
+                    changed = true;
+                }
+        return changed;
     }
 
     /// <summary>Firefox'un "text/x-moz-url" verisi: ilk satır adres, ikinci satır sayfa başlığı.</summary>

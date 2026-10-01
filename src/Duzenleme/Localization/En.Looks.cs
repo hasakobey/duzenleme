@@ -37,5 +37,6 @@ internal static partial class En
         new("Bu öğe kısayol kutusuna eklenemez.", "This item can't be added to the shortcut box."),
         new("Bağlantı kaydedilemedi.", "Couldn't save the link."),
         new("Bu bağlantı açılamıyor (yalnızca http, https ve mailto açılır).", "This link can't be opened (only http, https and mailto links open)."),
+        new("Varsayılan simge", "Default icon"),
     ]);
 }
