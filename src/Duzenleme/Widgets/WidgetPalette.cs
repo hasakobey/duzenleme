@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Media;
 using Duzenleme.Core;
 
@@ -37,18 +38,8 @@ public sealed record WidgetPalette(Brush Background, Brush BorderBrush, Brush Fo
         Gradient(0xFFFFFFFF, 0xFFF5F3FF), Solid(0x18000000), Solid(0xFF1C1C21), Solid(0xFF6B6B76),
         Solid(0xFF7C3AED), Solid(0xFFFFFFFF), TextShadow: false, IsLight: true);
 
-    /// <summary>Vurgu renkleri: koyu zeminde açık ton, açık zeminde koyu ton.</summary>
-    private static (uint OnDark, uint OnLight) AccentColors(WidgetAccent accent) => accent switch
-    {
-        WidgetAccent.Blue => (0xFF93C5FD, 0xFF2563EB),
-        WidgetAccent.Green => (0xFF86EFAC, 0xFF16A34A),
-        WidgetAccent.Orange => (0xFFFDBA74, 0xFFEA580C),
-        WidgetAccent.Pink => (0xFFF9A8D4, 0xFFDB2777),
-        _ => (0xFFC4B5FD, 0xFF7C3AED),
-    };
-
-    public static uint AccentArgb(WidgetAccent accent, bool light) =>
-        light ? AccentColors(accent).OnLight : AccentColors(accent).OnDark;
+    /// <summary>Vurgu renkleri (<see cref="ThemeMath.AccentArgb"/>): koyu zeminde açık ton, açık zeminde koyu ton.</summary>
+    public static uint AccentArgb(WidgetAccent accent, bool light) => ThemeMath.AccentArgb(accent, light);
 
     public static WidgetPalette For(WidgetStyle style, WidgetAccent accent = WidgetAccent.Violet)
     {
@@ -84,4 +75,151 @@ public sealed record WidgetPalette(Brush Background, Brush BorderBrush, Brush Fo
         GradientBrush g => g.Opacity >= 1 && g.GradientStops.Count > 0 && g.GradientStops.All(x => x.Color.A == 255),
         _ => false,
     };
+
+    // ---------------------------------------------------------------- 2.2 Tema
+
+    /// <summary>
+    /// Windows'un yüksek karşıtlık renkleriyle kurulmuş palet (<see cref="HighContrast()"/>): gölge, cam saydamlığı, yazı
+    /// gölgesi ve yarı saydam katmanlar kullanılmaz; widget'lar Windows'un renkleriyle çizilir.
+    /// </summary>
+    public bool IsHighContrast { get; init; }
+
+    /// <summary>
+    /// Windows'un uygulama kipi koyu mu ("Otomatik" tema ve iki hâlli temalar buna uyar). <c>App.ApplyTheme</c> günceller;
+    /// değişince <see cref="WidgetManager.RestyleAll"/> ilgili widget'ları yeniden çizer.
+    /// </summary>
+    public static bool SystemDark { get; set; }
+
+    /// <summary>
+    /// Widget'ın paleti için tek çözücü: yüksek karşıtlık her şeyi (temaları, notları) ezer; sonra tema ("auto" ya da hazır
+    /// tema), yoksa klasik arka plan; vurgu rengi özel renk ya da adlı renk. <paramref name="preview"/> menüde ya da renk
+    /// seçicide üstüne gelinen (kaydedilmemiş) seçimdir: arka plan önizlemesi temayı, adlı renk önizlemesi özel rengi yok sayar
+    /// (seçilseler öyle olacağı gibi). Not kağıdı burada değil, görünümün <c>AdjustPalette</c>'inde.
+    /// </summary>
+    internal static WidgetPalette Resolve(WidgetConfig config, LookOverride? preview, bool systemDark, bool highContrast)
+    {
+        if (highContrast) return HighContrast();
+        string? theme = config.LookTheme, hex = config.LookAccentColor;
+        var style = config.Style;
+        var accent = config.Accent;
+        if (preview is { } p)
+        {
+            if (p.Theme is { } t) theme = t;
+            if (p.Style is { } s)
+            {
+                style = s;
+                theme = null;
+            }
+            if (p.Accent is { } a)
+            {
+                accent = a;
+                hex = null;
+            }
+            if (p.AccentColor is { } h) hex = h;
+        }
+        var key = new PaletteKey(ThemePresets.Known(theme), style, accent, ThemeMath.NormalizeHex(hex), systemDark);
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(key, out var cached)) return cached;
+            var palette = Build(key);
+            if (Cache.Count > 256) Cache.Clear();
+            Cache[key] = palette;
+            return palette;
+        }
+    }
+
+    /// <summary>
+    /// Bir widget'ın kartı: <see cref="Resolve"/>, sonra görünümün düzeltmesi (<paramref name="adjust"/>: notun kağıt rengi) ya
+    /// da menüde önizlenen not rengi. Yüksek karşıtlıkta düzeltme yapılmaz: Windows'un renkleri notları da ezer.
+    /// </summary>
+    internal static WidgetPalette ForWidget(WidgetConfig config, LookOverride? preview, bool systemDark, bool highContrast,
+        Func<WidgetPalette, WidgetPalette> adjust)
+    {
+        var palette = Resolve(config, preview, systemDark, highContrast);
+        if (palette.IsHighContrast) return palette;
+        return preview?.Note is { } note ? ForNote(note) : adjust(palette);
+    }
+
+    private readonly record struct PaletteKey(string? Theme, WidgetStyle Style, WidgetAccent Accent, string? Hex, bool SystemDark);
+
+    private static readonly Dictionary<PaletteKey, WidgetPalette> Cache = [];
+
+    private static WidgetPalette Build(PaletteKey key)
+    {
+        uint? custom = ThemeMath.TryParse(key.Hex, out var argb) ? argb : null;
+        if (ThemePresets.Find(key.Theme) is { } preset)
+        {
+            var colors = preset.Variant(key.SystemDark);
+            // Temanın adlı vurgu rengi de onun zeminine göre okunur kılınır (kendi rengi doğrulanmıştır).
+            return FromColors(colors, custom ?? AccentArgb(key.Accent, colors.IsLight));
+        }
+        var basePalette = key.Theme == ThemePresets.Auto ? (key.SystemDark ? Dark : Light) : key.Style switch
+        {
+            WidgetStyle.Dark => Dark,
+            WidgetStyle.Light => Light,
+            _ => Glass,
+        };
+        if (custom is not { } color) return basePalette with { Accent = Solid(AccentArgb(key.Accent, basePalette.IsLight)) };
+        var shown = ThemeMath.EnsureContrast(color, StopsOf(basePalette.Background), ThemeMath.AccentContrast);
+        return basePalette with { Accent = Solid(shown), AccentForeground = Solid(ThemeMath.TextOn(shown)) };
+    }
+
+    /// <summary>
+    /// Tema renklerinden palet: iki duraklı dondurulmuş degrade zemin (resim yok, efekt yok). Vurgu rengi zemine karşı en az
+    /// 3:1 olacak biçimde gerekirse açılır/koyulaştırılır; üstündeki yazı beyaz ya da koyu, hangisi okunursa.
+    /// </summary>
+    public static WidgetPalette FromColors(ThemeColors colors, uint accent)
+    {
+        var shown = ThemeMath.EnsureContrast(accent, colors.Stops, ThemeMath.AccentContrast);
+        return new WidgetPalette(Gradient(colors.BackgroundFrom, colors.BackgroundTo), Solid(colors.Border), Solid(colors.Text),
+            Solid(colors.Secondary), Solid(shown), Solid(ThemeMath.TextOn(shown)), colors.TextShadow, colors.IsLight);
+    }
+
+    private static uint[] StopsOf(Brush background) => background switch
+    {
+        SolidColorBrush s => [Argb(s.Color)],
+        GradientBrush g => g.GradientStops.Select(x => Argb(x.Color)).ToArray(),
+        _ => [],
+    };
+
+    private static uint Argb(Color c) => (uint)c.A << 24 | (uint)c.R << 16 | (uint)c.G << 8 | c.B;
+
+    private static WidgetPalette? _highContrast;
+    private static (Color, Color, Color, Color) _highContrastKey;
+
+    /// <summary>
+    /// Yüksek karşıtlık paleti, Windows'un renklerinden (Pencere, Pencere yazısı, Vurgulama, Vurgulanan yazı): temaları ve
+    /// not renklerini ezer. Zemin opak ve düz; gölge ve yazı gölgesi yok.
+    /// </summary>
+    public static WidgetPalette HighContrast()
+    {
+        var key = (SystemColors.WindowColor, SystemColors.WindowTextColor, SystemColors.HighlightColor, SystemColors.HighlightTextColor);
+        if (_highContrast is { } cached && _highContrastKey == key) return cached;
+        var (window, text, highlight, highlightText) = key;
+        var palette = new WidgetPalette(Frozen(window), Frozen(text), Frozen(text), Frozen(text), Frozen(highlight), Frozen(highlightText),
+            TextShadow: false, IsLight: ThemeMath.Luminance(Argb(window)) > 0.5) { IsHighContrast = true };
+        (_highContrast, _highContrastKey) = (palette, key);
+        return palette;
+    }
+
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(color.R, color.G, color.B));
+        brush.Freeze();
+        return brush;
+    }
+
+    // ---------------------------------------------------------------- widget içi küçük yüzeyler
+
+    private static readonly Brush ClearBrush = Solid(0x00000000);
+    private static readonly Brush OverlayDefault = Solid(0x55100C20);
+
+    /// <summary>Hafif beyaz katman (sekme, simge düğmesi); yüksek karşıtlıkta yok (saydam).</summary>
+    public Brush Tint(byte alpha) => IsHighContrast ? ClearBrush : Solid((uint)alpha << 24 | 0xFFFFFF);
+
+    /// <summary>Arama kutusu gibi alanların zemini; yüksek karşıtlıkta kartın kendi zemini.</summary>
+    public Brush Field(byte alpha) => IsHighContrast ? Background : Solid((uint)alpha << 24 | 0xFFFFFF);
+
+    /// <summary>"Bırak, …" katmanının zemini; yüksek karşıtlıkta kartın opak zemini (yazı okunur kalır).</summary>
+    public Brush Overlay => IsHighContrast ? Background : OverlayDefault;
 }

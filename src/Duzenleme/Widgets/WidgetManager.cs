@@ -547,17 +547,43 @@ public sealed class WidgetManager
         if (_open.TryGetValue(id, out var window)) window.ApplyStyle();
     }
 
+    // 2.2 Tema
+    private bool _restyleQueued, _restyleEverything;
+
     /// <summary>
-    /// Arka planı (Cam/Koyu/Açık) ve/veya vurgu rengini bütün widget'lara uygular; null olan değişmez. Notlar atlanır:
-    /// kendi kağıt rengini kullanırlar.
+    /// Windows'un açık/koyu kipi ya da yüksek karşıtlığı değişti (<c>App.ApplyTheme</c>): Windows'a uyan widget'lar ("Otomatik"
+    /// ve iki hâlli temalar) yeniden çizilir; yüksek karşıtlık açılıp kapanınca (<paramref name="all"/>) notlar dahil hepsi.
+    /// Art arda gelen bildirimler tek çizimde birleşir (boşta, Background önceliğinde). Ayara hiçbir şey yazılmaz.
     /// </summary>
-    public void SetLookForAll(WidgetStyle? style, WidgetAccent? accent)
+    public void RestyleAll(bool all)
+    {
+        _restyleEverything |= all;
+        if (_restyleQueued) return;
+        _restyleQueued = true;
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            _restyleQueued = false;
+            var everything = _restyleEverything;
+            _restyleEverything = false;
+            if (_shuttingDown) return;
+            foreach (var window in _open.Values.ToList())
+                if (everything || WidgetLooks.FollowsWindows(window.Config)) window.ApplyStyle();
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Arka planı (Cam/Koyu/Açık), vurgu rengini ve/veya temayı bütün widget'lara uygular; null olan değişmez
+    /// (<paramref name="theme"/>: "" Klasik, "auto", tema adı). Öncelik kuralları menüdekiyle aynı (<see cref="WidgetLooks"/>):
+    /// klasik arka plan temayı kaldırır, adlı vurgu rengi özel rengi siler. Notlar atlanır: kendi kağıt rengini kullanırlar.
+    /// </summary>
+    public void SetLookForAll(WidgetStyle? style, WidgetAccent? accent, string? theme = null)
     {
         var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
         foreach (var config in targets)
         {
-            if (style is { } s) config.Style = s;
-            if (accent is { } a) config.Accent = a;
+            if (theme is not null) WidgetLooks.SetTheme(config, theme, WidgetPalette.SystemDark);
+            if (style is { } s) WidgetLooks.SetStyle(config, s);
+            if (accent is { } a) WidgetLooks.SetAccent(config, a);
         }
         AppHost.SaveSettings();
         foreach (var config in targets) Restyle(config.Id);

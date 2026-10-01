@@ -152,7 +152,8 @@ public class ForwardCompatTests : IDisposable
     {
         var json = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Note }, JsonFile.Options);
         foreach (var name in new[] { "Variant", "SortBy", "ItemOrder", "ChecklistDoneLast", "Clock12Hour", "FolderKnownId", "FirstDayOfWeek",
-                     "TargetDate", "CountdownYearly", "Timer", "Zones", "StatusIntervalSeconds", "StatusDrive", "Extra" })
+                     "TargetDate", "CountdownYearly", "Timer", "Zones", "StatusIntervalSeconds", "StatusDrive", "Extra",
+                     "LookTheme", "LookAccentColor" })
             Assert.DoesNotContain($"\"{name}\"", json);
         var calendar = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Date, Variant = WidgetVariants.Month, CountdownYearly = true }, JsonFile.Options);
         Assert.Contains("\"Variant\": \"month\"", calendar);
@@ -189,6 +190,50 @@ public class ForwardCompatTests : IDisposable
         Assert.True(doc.RootElement.GetProperty("CalmMotion").GetBoolean());
         Assert.Equal("yay", doc.RootElement.GetProperty("GelecekHareket").GetString());
         Assert.False(doc.RootElement.TryGetProperty("AnimationsOff", out _));
+        Assert.Equal(0, BrokenBackups);
+    }
+
+    [Fact]
+    public void Themes_from_22_leave_the_nearest_look_for_21()
+    {
+        // 2.1 LookTheme/LookAccentColor'u tanımaz: Style ve Accent'i okur. Tema ve özel renk seçilince ikisi de en yakın değerde
+        // yazılır; 2.1'in gördüğü widget aynı karakterde kalır (koyu/açık, renk tonu).
+        var neon = new WidgetConfig { Kind = WidgetKind.Fence, Style = WidgetStyle.Light, Accent = WidgetAccent.Pink };
+        WidgetLooks.SetTheme(neon, ThemePresets.Neon, systemDark: false);
+        var paper = new WidgetConfig { Kind = WidgetKind.Clock };
+        WidgetLooks.SetTheme(paper, ThemePresets.Kagit, systemDark: true);
+        var custom = new WidgetConfig { Kind = WidgetKind.Launcher };
+        WidgetLooks.SetAccentColor(custom, "#0D9488");
+        var path = Path.Combine(_dir, "settings.json");
+        JsonFile.Save(path, new AppSettings { Paused = true, Widgets = [neon, paper, custom] });
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var widgets = doc.RootElement.GetProperty("Widgets");
+        Assert.Equal("Dark", widgets[0].GetProperty("Style").GetString());
+        Assert.Equal("Blue", widgets[0].GetProperty("Accent").GetString());
+        Assert.Equal("Light", widgets[1].GetProperty("Style").GetString());
+        Assert.Equal("Orange", widgets[1].GetProperty("Accent").GetString());
+        Assert.Equal("Green", widgets[2].GetProperty("Accent").GetString());
+        // Yeni alanlar metin: 2.1'in JsonExtensionData'sı bunları aynen geri yazar (kalıcı enum'a üye eklenmedi).
+        Assert.Equal(JsonValueKind.String, widgets[0].GetProperty("LookTheme").ValueKind);
+        Assert.Equal("#22D3EE", widgets[0].GetProperty("LookAccentColor").GetString());
+        Assert.False(widgets[2].TryGetProperty("LookTheme", out _));
+
+        // Bu sürüm geri okur; daha yeni bir sürümün teması ve yanındaki bilinmeyen alan da korunur.
+        var s = Load("""
+            { "Paused": true, "Widgets": [ { "Kind": "Fence", "Style": "Dark", "LookTheme": "gelecek", "LookAccentColor": "#123ABC",
+                                             "LookGelecek": 7 } ] }
+            """);
+        var w = Assert.Single(s.Widgets);
+        Assert.Equal("gelecek", w.LookTheme);
+        Assert.Null(WidgetLooks.ActiveTheme(w)); // tanınmayan tema klasik çizilir
+        Assert.Equal("#123ABC", w.LookAccentColor);
+        var saved = Path.Combine(_dir, "resaved.json");
+        JsonFile.Save(saved, s);
+        using var again = JsonDocument.Parse(File.ReadAllText(saved));
+        var back = again.RootElement.GetProperty("Widgets")[0];
+        Assert.Equal("gelecek", back.GetProperty("LookTheme").GetString());
+        Assert.Equal(7, back.GetProperty("LookGelecek").GetInt32());
         Assert.Equal(0, BrokenBackups);
     }
 

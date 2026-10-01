@@ -1372,11 +1372,11 @@ public partial class FenceView : UserControl, IWidgetView
         SearchButton.Foreground = palette.Secondary;
         SearchBarIcon.Foreground = palette.Secondary;
         SearchBar.BorderBrush = palette.BorderBrush;
-        SearchBar.Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+        SearchBar.Background = palette.Field(0x22);
         SearchBox.Foreground = palette.Foreground;
         SearchBox.CaretBrush = palette.Foreground;
         DropOverlay.BorderBrush = palette.Accent;
-        DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
+        DropOverlay.Background = palette.Overlay;
         RemoveButton.Foreground = palette.Foreground;
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
         UpdateIconSizes(); // ölçek değiştiyse simgeler yeni piksel boyutunda

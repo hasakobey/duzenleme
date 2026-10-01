@@ -12,10 +12,12 @@ namespace Duzenleme.Widgets;
 
 /// <summary>
 /// Menüde üstüne gelinen görünüş seçeneği (bkz. <see cref="WidgetWindow.Preview"/>): yalnızca bellekte, hiç kaydedilmez.
-/// Boş alanlar kayıtlı değerde kalır.
+/// Boş alanlar kayıtlı değerde kalır. 2.2: <paramref name="Theme"/> ("" = Klasik) ve <paramref name="AccentColor"/>
+/// ("#RRGGBB", "" = özel renk yok); çözümü <see cref="WidgetPalette.Resolve"/>.
 /// </summary>
 internal readonly record struct LookOverride(
-    WidgetStyle? Style = null, WidgetAccent? Accent = null, CornerStyle? Corners = null, double? Opacity = null, NoteColor? Note = null);
+    WidgetStyle? Style = null, WidgetAccent? Accent = null, CornerStyle? Corners = null, double? Opacity = null, NoteColor? Note = null,
+    string? Theme = null, string? AccentColor = null);
 
 /// <summary>
 /// Masaüstüne yapışık, çerçevesiz ve yarı saydam widget penceresi.
@@ -185,17 +187,22 @@ public sealed class WidgetWindow : Window
     public void ApplyStyle()
     {
         var palette = CurrentPalette();
+        // Yüksek karşıtlık: gölge, saydamlık ve soluk durma yok (ApplyOpacity); renkler Windows'un (WidgetPalette.HighContrast).
+        _highContrast = palette.IsHighContrast;
         var radius = (_preview?.Corners ?? Config.Corners) switch { CornerStyle.Soft => 10, CornerStyle.Square => 3, _ => 20 };
         _card.Background = palette.Background;
         _card.BorderBrush = palette.BorderBrush;
         _card.CornerRadius = new CornerRadius(radius);
         TextElement.SetForeground(_card, palette.Foreground);
+        // Widget içi düğmelerin ve kutucukların renkleri (TileStyles.xaml şablonları DynamicResource ile buradan alır).
+        WidgetChrome.Apply(_card.Resources, palette);
         var scale = Math.Clamp(Config.Scale, MinScale, MaxScale);
         var unscaled = Math.Abs(scale - 1) < 0.01;
         _card.LayoutTransform = unscaled ? Transform.Identity : new ScaleTransform(scale, scale);
 
-        _shadow.Visibility = Config.Shadow ? Visibility.Visible : Visibility.Collapsed;
-        if (Config.Shadow) _shadow.Update(radius * scale, CardShadow.BaseOpacity * CardShadow.MeanAlpha(palette.Background));
+        var shadow = Config.Shadow && !_highContrast;
+        _shadow.Visibility = shadow ? Visibility.Visible : Visibility.Collapsed;
+        if (shadow) _shadow.Update(radius * scale, CardShadow.BaseOpacity * CardShadow.MeanAlpha(palette.Background));
 
         // Küçük yazılar (başlık, dosya adları, not) ölçeksiz widget'ta piksel ızgarasına oturan "Display" kipinde keskin
         // çizilir; ölçeklenmiş kartta (LayoutTransform) Display kipi bozulduğu için "Ideal" kalır. Saat/tarihin büyük
@@ -205,7 +212,7 @@ public sealed class WidgetWindow : Window
         // ClearType açılabilir. Cam yarı saydamdır: orada gri tonlama kalır. Kırpılan bir alanın (kaydırılan liste) içindeki
         // yazıda WPF ClearType'ı yeniden kapatır; görünümler oradaki yazılara aynı değeri görünümden alarak verir
         // (TileTemplate, tarih) — yalnızca yazının arkası opakken: yarı saydam katmanda ClearType renkli saçak bırakır.
-        var clearType = palette.IsOpaqueBackground && ShownOpacity >= 0.999 && !Config.FadeUntilHover;
+        var clearType = palette.IsOpaqueBackground && (_highContrast || ShownOpacity >= 0.999 && !Config.FadeUntilHover);
         var hint = clearType ? ClearTypeHint.Enabled : ClearTypeHint.Auto;
         RenderOptions.SetClearTypeHint(_card, hint);
         RenderOptions.SetClearTypeHint((UIElement)View, hint);
@@ -214,11 +221,15 @@ public sealed class WidgetWindow : Window
         View.ApplyPalette(palette);
     }
 
-    /// <summary>Kartın paleti: seçili (ya da menüde önizlenen) arka plan ve vurgu rengi; not kendi kağıt rengini seçer.</summary>
+    /// <summary>
+    /// Kartın paleti: seçili (ya da menüde önizlenen) tema, arka plan ve vurgu rengi (<see cref="WidgetPalette.Resolve"/>);
+    /// not kendi kağıt rengini seçer (<see cref="IWidgetView.AdjustPalette"/>). Yüksek karşıtlık hepsini, notları da ezer.
+    /// </summary>
     private WidgetPalette CurrentPalette() =>
-        _preview?.Note is { } note
-            ? WidgetPalette.ForNote(note)
-            : View.AdjustPalette(WidgetPalette.For(_preview?.Style ?? Config.Style, _preview?.Accent ?? Config.Accent));
+        WidgetPalette.ForWidget(Config, _preview, WidgetPalette.SystemDark, SystemParameters.HighContrast, View.AdjustPalette);
+
+    // Son ApplyStyle yüksek karşıtlık paletiyle mi çizdi?
+    private bool _highContrast;
 
     private double ShownOpacity => _preview?.Opacity ?? Config.Opacity;
 
@@ -323,6 +334,12 @@ public sealed class WidgetWindow : Window
 
     private void ApplyOpacity()
     {
+        // Yüksek karşıtlıkta pencere hep opak: yarı saydam kartta Windows'un renkleri duvar kağıdıyla karışırdı.
+        if (_highContrast)
+        {
+            Opacity = 1;
+            return;
+        }
         var opacity = Math.Clamp(ShownOpacity, 0.4, 1);
         Opacity = Config.FadeUntilHover && !IsMouseOver && !_revealing && _openMenus == 0 ? Math.Min(opacity, 0.35) : opacity;
     }
@@ -415,16 +432,13 @@ public sealed class WidgetWindow : Window
             foreach (var item in own.Appearance) look.Items.Add(item);
             look.Items.Add(new Separator());
         }
-        // Not kendi kağıt rengini kullanır: arka plan ve vurgu rengi orada etkisizdir, gösterilmez.
+        // Not kendi kağıt rengini kullanır: tema, arka plan ve vurgu rengi orada etkisizdir, gösterilmez. Seçimlerin öncelik
+        // kuralları WidgetLooks'ta (tema seçmek vurgu rengini de getirir, klasik arka plan temayı kaldırır…).
         if (View.UsesThemeColors)
         {
-            look.Items.Add(Menus.Choice(L.T("Arka plan"), () => Config.Style,
-                [(WidgetStyle.Glass, L.T("Cam")), (WidgetStyle.Dark, L.T("Koyu")), (WidgetStyle.Light, L.T("Açık"))],
-                v => Update(() => Config.Style = v), v => Preview(new LookOverride(Style: v)), EndPreview));
-            look.Items.Add(Menus.Choice(L.T("Vurgu rengi"), () => Config.Accent,
-                [(WidgetAccent.Violet, L.T("Mor")), (WidgetAccent.Blue, L.T("Mavi")), (WidgetAccent.Green, L.T("Yeşil")),
-                 (WidgetAccent.Orange, L.T("Turuncu")), (WidgetAccent.Pink, L.T("Pembe"))],
-                v => Update(() => Config.Accent = v), v => Preview(new LookOverride(Accent: v)), EndPreview));
+            look.Items.Add(LookMenus.Theme(Config, Update, v => Preview(v), EndPreview, SystemParameters.HighContrast));
+            look.Items.Add(LookMenus.Background(Config, Update, v => Preview(v), EndPreview));
+            look.Items.Add(LookMenus.Accent(Config, Update, v => Preview(v), EndPreview, PickAccentColor));
         }
         // Ölçek önizlenmez: pencere boyutu ve komşuların yeri değişir.
         look.Items.Add(Menus.Choice(L.T("Ölçek"), () => Math.Round(Config.Scale, 2),
@@ -490,6 +504,21 @@ public sealed class WidgetWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item(L.T("Kaldır"), () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
     }
+
+    /// <summary>
+    /// Görünüm ▸ Vurgu rengi ▸ Özel renk…: renk seçici kartın yanında açılır; seçilen renk widget'ta hemen önizlenir, Kaydet yazar
+    /// (adlı renk 2.1 için en yakın değere), Vazgeç kayıtlı renge döner.
+    /// </summary>
+    private void PickAccentColor() =>
+        Views.ColorPickerDialog.ForWidget(this, WidgetLooks.CustomAccent(Config) ?? CurrentAccentHex(),
+            hex => Preview(hex is null ? null : new LookOverride(AccentColor: hex)),
+            hex => Update(() => WidgetLooks.SetAccentColor(Config, hex)));
+
+    /// <summary>Kayıtlı görünüşün vurgu rengi ("#RRGGBB"; önizlemesiz, yüksek karşıtlık yokmuş gibi): seçici bununla açılır.</summary>
+    private string CurrentAccentHex() =>
+        WidgetPalette.Resolve(Config, null, WidgetPalette.SystemDark, highContrast: false).Accent is SolidColorBrush brush
+        ? ThemeMath.ToHex((uint)brush.Color.R << 16 | (uint)brush.Color.G << 8 | brush.Color.B)
+        : ThemeMath.ToHex(ThemeMath.AccentArgb(Config.Accent, onLight: true));
 
     private void ToggleAutoRollup()
     {

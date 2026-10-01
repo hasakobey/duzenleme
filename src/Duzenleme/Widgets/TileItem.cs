@@ -256,9 +256,11 @@ public sealed class TileItem : INotifyPropertyChanged
         UpdateIconSize(_pixelsPerDip, _widgetScale);
     }
 
-    /// <summary>Fluent simgesinin rengi: widget'ın vurgu rengi (başlık simgesiyle aynı).</summary>
+    /// <summary>Fluent simgesinin rengi: widget'ın vurgu rengi (başlık simgesiyle aynı; tema, özel renk ve yüksek karşıtlık dahil).</summary>
     public static Color GlyphColor(WidgetConfig config) =>
-        WidgetPalette.For(config.Style, config.Accent).Accent is SolidColorBrush brush ? brush.Color : Colors.White;
+        WidgetPalette.Resolve(config, null, WidgetPalette.SystemDark, SystemParameters.HighContrast).Accent is SolidColorBrush brush
+            ? brush.Color
+            : Colors.White;
 
     /// <summary>Kutucuğun yerleşimi (simge boyutu, yazı, aralık, liste/ızgara); simgesi yok.</summary>
     private static TileItem Layout(WidgetConfig config, string path, string name, bool missing, double pixelsPerDip)

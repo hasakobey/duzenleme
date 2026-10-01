@@ -208,7 +208,7 @@ public partial class LauncherView : UserControl, IWidgetView
             {
                 Style = (Style)FindResource("PillButton"),
                 ToolTip = L.T("Sağ tık: yeniden adlandır, taşı, sil"),
-                Background = active ? _palette.Accent : new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)),
+                Background = active ? _palette.Accent : _palette.Tint(0x1E),
                 Content = new TextBlock
                 {
                     Text = _config.Tabs[i].Name,
@@ -560,7 +560,7 @@ public partial class LauncherView : UserControl, IWidgetView
         EmptyText.Foreground = palette.Secondary;
         EmptyIcon.Foreground = palette.Secondary;
         DropOverlay.BorderBrush = palette.Accent;
-        DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
+        DropOverlay.Background = palette.Overlay;
         RemoveButton.Foreground = palette.Foreground;
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
         RenderTabs();

@@ -26,7 +26,9 @@ public sealed class ShadowText : TextBlock
         Visibility = Visibility.Collapsed;
     }
 
-    public void Show(bool visible) => Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>Gölgeyi açar/kapatır (Cam paletinde açık); yüksek karşıtlıkta hiç çizilmez.</summary>
+    public void Show(bool visible) =>
+        Visibility = visible && !SystemParameters.HighContrast ? Visibility.Visible : Visibility.Collapsed;
 
     protected override AutomationPeer? OnCreateAutomationPeer() => null;
 
