@@ -16,7 +16,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Sayfa geçişi: kayma yok; geçişler açıksa kısa solma (Views.Motion.ApplyTo koddan ayarlar), değilse hiçbiri. -->
+        <!-- Sayfa geçişi: WPF-UI'nin kendisi hep kapalı; sayfa koddan (Views.Motion.ApplyTo → PageEnter) girer. -->
         <ui:NavigationView x:Name="RootNavigation" Grid.Row="1"
                            PaneDisplayMode="Left"
                            IsBackButtonVisible="Collapsed"

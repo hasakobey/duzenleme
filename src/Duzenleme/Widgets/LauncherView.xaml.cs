@@ -110,6 +110,8 @@ public partial class LauncherView : UserControl, IWidgetView
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
+    public UIElement BodyElement => Body;
+
     private LauncherTab Current => _config.Tabs[Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1)];
 
     private static string DefaultTitle => L.T("Kısayol kutusu");

@@ -175,6 +175,24 @@ public class ForwardCompatTests : IDisposable
     }
 
     [Fact]
+    public void Motion_choice_from_22_round_trips()
+    {
+        // 2.2 Hareket: CalmMotion (Sakin) okunur ve aynen yazılır; yanındaki bilinmeyen alan da kalır. 2.1 CalmMotion'ı tanımaz,
+        // Extra'da geri yazar (sürüm öncesi tools/compat/compat-probe.fsx ile .bozuk=0 doğrulanır).
+        var s = Load("""{ "Paused": true, "CalmMotion": true, "GelecekHareket": "yay" }""");
+        Assert.True(s.CalmMotion);
+        Assert.False(s.AnimationsOff);
+        Assert.Equal(MotionLevel.Calm, MotionPolicy.Chosen(s.AnimationsOff, s.CalmMotion));
+        var saved = Path.Combine(_dir, "resaved.json");
+        JsonFile.Save(saved, s);
+        using var doc = JsonDocument.Parse(File.ReadAllText(saved));
+        Assert.True(doc.RootElement.GetProperty("CalmMotion").GetBoolean());
+        Assert.Equal("yay", doc.RootElement.GetProperty("GelecekHareket").GetString());
+        Assert.False(doc.RootElement.TryGetProperty("AnimationsOff", out _));
+        Assert.Equal(0, BrokenBackups);
+    }
+
+    [Fact]
     public void Copied_rules_keep_fields_written_by_a_newer_version()
     {
         // Daha yeni sürümün kurala eklediği bir alan: F2 ile klasör yeniden adlandırılıp "Kuralları güncelle" denince ya da

@@ -377,6 +377,11 @@ public sealed class WidgetWindow : Window
         Config.Collapsed = collapsed;
         ApplyLayoutMode();
         AppHost.SaveSettings();
+        // Kullanıcı açınca gövde kısa bir solmayla gelir (pencere boyu hemen değişir; katlanma ve fareyle açılıp katlanma hemen).
+        // Kart ClearType'la çiziliyorsa (opak zemin) gövde solmaz, hemen gelir: saydamlaşan katmandaki ClearType yazısı renkli
+        // saçak bırakır (bkz. ApplyStyle).
+        if (!collapsed && IsVisible && View.BodyElement is { } body && RenderOptions.GetClearTypeHint(_card) != ClearTypeHint.Enabled)
+            Views.Motion.Enter(body, MotionKind.Fade, MotionSurface.LayeredWidget, pixels: PixelArea);
     }
 
     /// <summary>
@@ -1164,11 +1169,11 @@ public sealed class WidgetWindow : Window
         NativeMethods.SetWindowPos(Handle, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
         DebugLog.Write($"[{Config.Kind}] Reveal exstyle=0x{NativeMethods.GetWindowLongPtr(Handle, NativeMethods.GWL_EXSTYLE).ToInt64():X}");
-        // Notun vurgusu kendi kağıt renginden gelir.
-        var palette = CurrentPalette();
-        _card.BorderBrush = palette.Accent;
+        // Notun vurgusu kendi kağıt renginden gelir; yüksek karşıtlıkta sistemin vurgu rengi (anlam ışımaya kalmasın).
+        _card.BorderBrush = SystemParameters.HighContrast ? SystemColors.HighlightBrush : CurrentPalette().Accent;
         _card.BorderThickness = new Thickness(3);
-        if (highlight && _glow is null) _glow = RevealGlow.Show(_card, palette.Accent, _card.CornerRadius.TopLeft);
+        // Işıma büyüme (Pop) bittikten sonra belirir: süsleyici kartın RenderTransform'unu izlemez.
+        if (highlight && _glow is null) Views.Motion.AfterEntry(this, ShowGlow);
 
         _revealTimer?.Stop();
         Deactivated -= DemoteWhenDeactivated;
@@ -1191,7 +1196,7 @@ public sealed class WidgetWindow : Window
         _revealing = false;
         // Vurgu ışıması kısa bir solmayla söner (geçişler kapalıysa hemen kalkar).
         if (_glow is { } glow)
-            Views.Motion.Disappear(glow, glow.Remove, milliseconds: MotionPolicy.GlowFadeMs, frameRate: MotionPolicy.WidgetFrameRate);
+            Views.Motion.Disappear(glow, glow.Remove, milliseconds: MotionPolicy.GlowMs, frameRate: MotionPolicy.WidgetFrameRate);
         _glow = null;
         _card.BorderThickness = new Thickness(1);
         ApplyStyle();
@@ -1199,6 +1204,72 @@ public sealed class WidgetWindow : Window
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
         AttachToDesktop(); // masaüstüne yeniden bağlan ve en alta dön
         AppHost.Widgets.BringToFront(this); // ama diğer widget'ların önünde kal
+    }
+
+    /// <summary>
+    /// Yeni widget'ın ışıması: öne getirme sürüyorsa kısa bir solmayla belirir. Saydamlık efektleri kapalıyken ve yüksek
+    /// karşıtlıkta çizilmez (<see cref="RevealGlow.Show"/>; 3 piksellik vurgu çerçevesi yeter).
+    /// </summary>
+    private void ShowGlow()
+    {
+        if (!_revealing || _glow is not null || _closed || !IsVisible) return;
+        _glow = RevealGlow.Show(_card, CurrentPalette().Accent, _card.CornerRadius.TopLeft);
+        if (_glow is not null) Views.Motion.FadeIn(_glow, MotionPolicy.GlowMs, MotionPolicy.WidgetFrameRate);
+    }
+
+    /// <summary>Kartın tamamı (gölgesiyle): büyüme, çıkış ve dikkat nabzı bunu dönüştürür (pencerenin kendisi dönüşmez).</summary>
+    internal UIElement Surface => (UIElement)Content;
+
+    /// <summary>
+    /// Pencerenin fiziksel piksel alanı: katmanlı pencere her karede bütünüyle yeniden çizildiği için büyük kart büyümez,
+    /// yalnızca solar (<see cref="MotionPolicy.MaxPopPixels"/>). Pencere henüz yokken (gösterilmeden önce ActualWidth 0)
+    /// kurucudaki boyuttan ve açılacağı ekranın ölçeğinden tahmin edilir.
+    /// </summary>
+    internal long PixelArea
+    {
+        get
+        {
+            if (Handle != IntPtr.Zero && NativeMethods.GetWindowRect(Handle, out var r) && r.Width > 0 && r.Height > 0)
+                return (long)r.Width * r.Height;
+            var scale = ExpectedPixelsPerDip(Config);
+            var width = double.IsNaN(Width) ? DefaultWidth : Width;
+            var height = double.IsNaN(Height) ? DefaultHeight : Height;
+            return (long)(width * scale * height * scale);
+        }
+    }
+
+    /// <summary>
+    /// Dikkat nabzı ("Bul", zamanlayıcı bitti): kart bir kez hafifçe küçülüp döner (Views.Motion; yalnızca Canlı). Kullanıcı
+    /// kartı sürükler ya da boyutlandırırken oynamaz.
+    /// </summary>
+    internal void Attention()
+    {
+        if (!Interacting) Views.Motion.Attention(this, MotionSurface.LayeredWidget, PixelArea);
+    }
+
+    /// <summary>Kullanıcı kartı sürüklüyor ya da boyutlandırıyor: bu sırada hiçbir şey oynamaz.</summary>
+    internal bool Interacting => _dragging || _resizing;
+
+    // 2.2 Hareket
+    /// <summary>Kaldırıldı, çıkış geçişi oynuyor: girdi kapalı (bkz. <see cref="BeginLeave"/>).</summary>
+    private bool _leaving;
+
+    /// <summary>
+    /// Kaldırılan widget'ın çıkışı başlıyor (WidgetManager.Leave): kapanana dek karta ne tıklanır ne de klavyeyle bir şey
+    /// yapılır (Enter dosya açmasın, Delete/F2 çalışmasın, nota yazılmasın). Girdiyi Motion değil burası kapatır.
+    /// </summary>
+    internal void BeginLeave()
+    {
+        if (_leaving) return;
+        _leaving = true;
+        Surface.IsHitTestVisible = false;
+        PreviewTextInput += (_, e) => e.Handled = true;
+    }
+
+    /// <summary>Kapatır (çıkış geçişi bittiğinde pencere bu arada kapanmış olabilir).</summary>
+    internal void CloseIfOpen()
+    {
+        if (!_closed) Close();
     }
 
     private void DemoteWhenDeactivated(object? sender, EventArgs e)
@@ -1226,6 +1297,11 @@ public sealed class WidgetWindow : Window
     /// </summary>
     private void OnPreviewKey(object sender, KeyEventArgs e)
     {
+        if (_leaving)
+        {
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
     }
 

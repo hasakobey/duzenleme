@@ -164,7 +164,8 @@ internal static class WidgetCatalog
     private static SymbolRegular KnownIcon(string? id) => WidgetIcons.ForKnownFolder(id);
 
     /// <summary>128×82 kutucuk: 26 px simge, etiket (CharacterEllipsis, MaxWidth 110; rozetsizse en çok iki satır), Badge varsa
-    /// altında 11 pt, Opacity 0.7. AutomationId "Add." + Key; AutomationProperties.Name = Label; HelpText = Tip; ToolTip = Tip.</summary>
+    /// altında 11 pt, Opacity 0.7. AutomationId "Add." + Key; AutomationProperties.Name = Label; HelpText = Tip; ToolTip = Tip.
+    /// Basınca içerik hafifçe küçülür (<see cref="Motion.PressProperty"/>).</summary>
     public static Button Tile(WidgetChoice choice, Action<WidgetChoice> onClick)
     {
         var content = new StackPanel();
@@ -197,6 +198,8 @@ internal static class WidgetCatalog
         System.Windows.Automation.AutomationProperties.SetAutomationId(button, "Add." + choice.Key);
         System.Windows.Automation.AutomationProperties.SetName(button, choice.Label);
         System.Windows.Automation.AutomationProperties.SetHelpText(button, choice.Tip);
+        // Basınca içerik hafifçe küçülür (yalnızca Canlı; kutucuğun yeri ve boyutu değişmez).
+        Motion.SetPress(button, true);
         button.Click += (_, _) => onClick(choice);
         return button;
     }

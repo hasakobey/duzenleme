@@ -9,12 +9,8 @@ internal static partial class En
     [ModuleInitializer]
     internal static void AddP7() => Add(
     [
-        // Ayarlar > Genel > Animasyonlar
+        // Ayarlar > Genel > Animasyonlar (seçenekler ve notlar En.Motion.cs'te)
         new("Animasyonlar", "Animations"),
-        new("Menüler, sayfalar ve widget'lar kısa bir solmayla açılıp kapanır; hiçbir şey kaymaz ya da büyümez. Windows'un animasyon ayarına uyar.",
-            "Menus, pages and widgets open and close with a short fade; nothing slides or grows. Follows the Windows animation setting."),
-        new("Windows'ta animasyon efektleri kapalı olduğu için şu an hiçbir şey solmuyor.",
-            "Nothing fades right now because animation effects are turned off in Windows."),
 
         // Karşılama: Windows simgeleri için Ayarlar'daki üç seçenek
         new("Windows masaüstü simgeleri", "Windows desktop icons"),

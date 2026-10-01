@@ -18,10 +18,9 @@ public partial class MainWindow : FluentWindow
         Title = AppInfo.Name;
         TitleBar.Title = AppInfo.Name;
         Views.WindowFit.Attach(this);
-        // Sayfa geçişi: kısa solma ya da hiçbiri (Ayarlar > Animasyonlar ve Windows'un ayarı değişince hemen).
+        // Sayfa geçişi (bir kez abone olunur): WPF-UI'nin kendi geçişi hep kapalı; sayfa Views.Motion ile aşağıdan kısa bir
+        // kaymayla ve solarak girer (Sakin: yalnızca solma, Kapalı: hemen). Düzey her geçişte yeniden okunur.
         Motion.ApplyTo(RootNavigation);
-        Motion.Changed += OnMotionChanged;
-        Closed += (_, _) => Motion.Changed -= OnMotionChanged;
         Loaded += (_, _) =>
         {
             RootNavigation.Navigate(_pendingPage ?? typeof(HomePage));
@@ -31,8 +30,6 @@ public partial class MainWindow : FluentWindow
         RootNavigation.Navigated += (_, _) => HideNotice();
         IsVisibleChanged += (_, e) => { if (e.NewValue is false) HideNotice(); };
     }
-
-    private void OnMotionChanged() => Motion.ApplyTo(RootNavigation);
 
     /// <summary>Sayfaya geçer; pencere henüz yüklenmediyse yüklenince geçer.</summary>
     public void NavigateTo(Type page)
@@ -60,12 +57,9 @@ public partial class MainWindow : FluentWindow
         _noticeAction = actionText is null ? null : action;
         NoticeAction.Content = actionText;
         NoticeAction.Visibility = _noticeAction is null ? Visibility.Collapsed : Visibility.Visible;
-        // Belirirken kısa solma; açık şeritteki bildirim yerinde değişir (oynamaz).
-        if (NoticeBar.Visibility != Visibility.Visible)
-        {
-            NoticeBar.Visibility = Visibility.Visible;
-            Motion.FadeIn(NoticeBar);
-        }
+        // Belirirken aşağıdan kısa bir yükselişle ve solarak gelir (Sakin: yalnızca solma); açık şeritteki bildirim yerinde
+        // değişir (oynamaz). × ile kapanmaktaysa çıkış her zaman iptal olur: yeni bildirim kaybolmaz.
+        Motion.Appear(NoticeBar, () => NoticeBar.Visibility = Visibility.Visible, MotionKind.Rise);
     }
 
     internal void HideNotice()
@@ -75,7 +69,12 @@ public partial class MainWindow : FluentWindow
         NoticeBar.Visibility = Visibility.Collapsed;
     }
 
-    private void NoticeClose_Click(object sender, RoutedEventArgs e) => HideNotice();
+    /// <summary>× ile kapatılan şerit kısa bir çıkışla gider (öbür kapanışlar hemen); bu arada gelen bildirim çıkışı iptal eder.</summary>
+    private void NoticeClose_Click(object sender, RoutedEventArgs e)
+    {
+        _noticeAction = null;
+        Motion.Exit(NoticeBar, () => NoticeBar.Visibility = Visibility.Collapsed, surface: MotionSurface.Window);
+    }
 
     private void NoticeAction_Click(object sender, RoutedEventArgs e)
     {
