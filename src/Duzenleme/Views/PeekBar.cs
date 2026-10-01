@@ -16,7 +16,7 @@ namespace Duzenleme.Views;
 
 /// <summary>
 /// Windows masaüstüne göz atarken ekranın üst ortasındaki küçük çubuk: "Windows masaüstü · 1:42 · [+5 dk] [NestDesk'e dön]".
-/// Katmanlı değil (ucuz; belirirken yalnızca içeriği kısa solar), hiç etkinleşmez (odağı çalmaz; tıklamalar yine çalışır) ve widget'lar gibi masaüstüne
+/// Katmanlı değil (ucuz; belirirken yalnızca içeriği kısa iner ve solar), hiç etkinleşmez (odağı çalmaz; tıklamalar yine çalışır) ve widget'lar gibi masaüstüne
 /// sahiplidir: Win+D'de kaybolmaz, masaüstünden açılan uygulamanın üstünde kalmaz. Süre dolunca, kullanıcı masaüstünde
 /// çalışmıyorsa (sürükleme, yazma) NestDesk'e dönülür.
 /// </summary>
@@ -139,8 +139,9 @@ internal sealed class PeekBar : Window
         Loaded += (_, _) =>
         {
             Place();
-            // İçerik kısa bir solmayla belirir (geçişler açıksa; pencere katmanlı değil, zemini hemen görünür).
-            Motion.FadeIn(border);
+            // İçerik yukarıdan kısa bir inişle ve solarak belirir (Canlı; Sakin'de yalnızca solma). Pencerenin sınırları sabit:
+            // yalnızca içindeki çerçeve kayar; pencere katmanlı değil, zemini hemen görünür.
+            Motion.Enter(border, MotionKind.Drop);
             if (_clock.AutoReturn) _tick.Start();
         };
         // Ölçeği farklı bir ekrana geçerse boyut değişir: ortalama yeniden yapılır.

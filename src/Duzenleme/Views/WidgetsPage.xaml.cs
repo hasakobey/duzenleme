@@ -88,6 +88,7 @@ public partial class WidgetsPage : Page
     private void Reload()
     {
         BuildFenceTiles();
+        _listed = null; // baştan kurulan liste oynamaz (sayfa zaten girerek gelir)
         OnWidgetsChanged();
         OnSettingsChanged();
     }
@@ -150,10 +151,34 @@ public partial class WidgetsPage : Page
     private void RefreshWidgets()
     {
         var rows = AppHost.Widgets.Configs.Select(c => new WidgetRow(c)).ToList();
+        var before = _listed;
+        _listed = rows.Select(r => r.Config.Id).ToHashSet();
         ActiveList.ItemsSource = rows;
         ActiveHeader.Text = L.F("Masaüstündekiler ({0})", rows.Count);
         ActiveEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         RevealAllButton.IsEnabled = ArrangeButton.IsEnabled = rows.Count > 0;
+        if (before is not null) EnterNewRows(rows.Where(r => !before.Contains(r.Config.Id)).ToList());
+    }
+
+    // 2.2 Hareket
+    /// <summary>Listedeki widget'ların kimlikleri (sayfa açıkken eklenenler ayırt edilsin); sayfa baştan kurulunca boş.</summary>
+    private HashSet<string>? _listed;
+
+    /// <summary>Bir güncellemede en çok bu kadar yeni satır girerek gelir; daha çoğunda (düzen uygulandı) hiçbiri oynamaz.</summary>
+    private const int MaxRowEnter = 5;
+
+    /// <summary>
+    /// Sayfa açıkken eklenen (ya da geri getirilen) widget'ın satırı aşağıdan kısa bir yükselişle gelir (Views.Motion; Sakin'de
+    /// yalnızca solma). Kaldırılan satır hemen gider.
+    /// </summary>
+    private void EnterNewRows(List<WidgetRow> added)
+    {
+        if (added.Count is 0 or > MaxRowEnter) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            var rows = added.Select(r => ActiveList.ItemContainerGenerator.ContainerFromItem(r)).OfType<UIElement>().ToList();
+            if (rows.Count > 0) Motion.Cascade(rows, MotionKind.Rise);
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void RefreshLayouts()

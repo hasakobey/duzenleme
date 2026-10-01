@@ -108,7 +108,7 @@ public partial class TimerView : UserControl, IWidgetView
 
     /// <summary>
     /// Süre doldu: tepside bildirim (ayar açıksa; Windows'un odak/rahatsız etme ayarlarına uyar), widget birkaç saniye öne
-    /// gelir (widget'lar gizli değilse) ve kartta durağan vurgu çerçevesi kalır.
+    /// gelir (widget'lar gizli değilse; Canlı'da bir kez nabız atarak) ve kartta durağan vurgu çerçevesi kalır.
     /// </summary>
     private void Alarm(TimerEnd end)
     {
@@ -125,7 +125,12 @@ public partial class TimerView : UserControl, IWidgetView
             var id = _config.Id;
             AppHost.Tray?.Notify(title, text, () => AppHost.Widgets.Reveal(id));
         }
-        if (Window.GetWindow(this) is WidgetWindow { IsVisible: true } window) window.Reveal(TimeSpan.FromSeconds(5));
+        if (Window.GetWindow(this) is WidgetWindow { IsVisible: true } window)
+        {
+            window.Reveal(TimeSpan.FromSeconds(5));
+            // Kart bir kez nabız atar (yanıp sönme yok; Sakin ve Kapalı'da yalnızca çerçeve).
+            window.Attention();
+        }
     }
 
     private void ClearAlert()

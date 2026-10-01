@@ -30,8 +30,9 @@ namespace Duzenleme.Views;
 /// <item>Fareyle yalnızca zemin rengi solar (<see cref="HoverFillProperty"/>); hiçbir öğe belirip kaybolmaz, büyümez, kaymaz.</item>
 /// </list>
 /// Başarım günlüğü (NESTDESK_PERF_LOG): "Motion.&lt;Kind&gt;" ve "Motion.Skip.&lt;neden&gt;" sayaçları.
+/// Ekli özellikleri (<see cref="HoverFillProperty"/>, <see cref="PressProperty"/>) XAML'deki stiller kullandığı için açıktır.
 /// </summary>
-internal static class Motion
+public static class Motion
 {
     private static bool _initialized;
     private static int _refreshQueued;
@@ -227,6 +228,9 @@ internal static class Motion
         /// <summary>Bu öğenin (pencerenin) saydamlığıyla birlikte dönüşen içerik: durdurulunca o da durur.</summary>
         public UIElement? Mover;
         public long LastAttention = long.MinValue / 2;
+        /// <summary>Giriş (Appear/Pop/Enter) oynuyor; bitince <see cref="AfterEntry"/> işleri çalışır.</summary>
+        public bool Entering;
+        public List<Action>? AfterEntry;
     }
 
     private static readonly ConditionalWeakTable<UIElement, State> States = [];
@@ -390,9 +394,26 @@ internal static class Motion
         else element.SetValue(property, old);
     }
 
+    /// <summary>Giriş bitti (ya da hemen son hâline geldi): bekleyen <see cref="AfterEntry"/> işleri çalışır.</summary>
+    private static void Settle(State state)
+    {
+        state.Entering = false;
+        if (state.AfterEntry is not { } actions) return;
+        state.AfterEntry = null;
+        foreach (var action in actions) action();
+    }
+
+    /// <summary>Giriş yerine çıkış geldi ya da durduruldu: bekleyen <see cref="AfterEntry"/> işleri atılır.</summary>
+    private static void Drop(State state)
+    {
+        state.Entering = false;
+        state.AfterEntry = null;
+    }
+
     /// <summary>Öğedeki bütün geçişleri durdurur: kendi saydamlığına ve dönüşümsüz hâline döner (bekleyen gizleme iptal).</summary>
     private static void StopCore(UIElement element, State state)
     {
+        state.Entering = false;
         state.Fading = false;
         state.Pressed = false;
         Uncount(state);
@@ -469,6 +490,7 @@ internal static class Motion
         if (lead is null)
         {
             if (group is not null && moverState is not null) Release(mover!, moverState);
+            Settle(state);
             return;
         }
         lead.Completed += (_, _) =>
@@ -478,7 +500,9 @@ internal static class Motion
             Uncount(state);
             if (group is not null && moverState is not null && moverState.Generation == moverGeneration) Release(mover!, moverState);
             if (ReferenceEquals(state.Mover, mover) && !ReferenceEquals(mover, primary)) state.Mover = null;
+            Settle(state);
         };
+        state.Entering = true;
         if (count) Count(state, plan);
         if (opacity is not null) primary.BeginAnimation(UIElement.OpacityProperty, opacity);
         foreach (var (target, property, animation) in moves) target.BeginAnimation(property, animation);
@@ -492,6 +516,7 @@ internal static class Motion
     {
         var generation = state.Generation;
         Uncount(state);
+        Drop(state);
 
         TransformGroup? group = null;
         if (mover is not null && plan.Moves)
@@ -527,20 +552,26 @@ internal static class Motion
         if (fromY != plan.OffsetY) move.BeginAnimation(TranslateTransform.YProperty, Animation(fromY, null, plan, plan.Ms, ease, FillBehavior.Stop));
     }
 
-    private static void AppearCore(UIElement fade, Action show, MotionPlan? plan, UIElement? mover)
+    /// <summary>
+    /// Gösterme: <paramref name="animate"/> ve geçişler açıksa plan <paramref name="decide"/>'dan istenir (yalnızca gerçekten
+    /// oynayacaksa: başarım sayaçları doğru kalsın). Görünen ve kaybolmayan öğede oynayan giriş (varsa) sürer, yenisi başlamaz;
+    /// kaybolmaktaysa (bekleyen gizleme) her zaman iptal olur.
+    /// </summary>
+    private static void AppearCore(UIElement fade, Action show, bool animate, Func<State, MotionPlan?> decide, UIElement? mover)
     {
         var state = StateOf(fade);
-        // Zaten görünüyor ve kaybolmuyor: oynayan giriş (varsa) sürsün.
-        if (plan is not null && fade.IsVisible && !state.Fading)
+        if (animate && Enabled && fade.IsVisible && !state.Fading)
         {
             show();
             return;
         }
+        var plan = animate ? decide(state) : null;
         state.Generation++;
         if (plan is null)
         {
             StopCore(fade, state);
             show();
+            Settle(state);
             return;
         }
         // Görünürken buraya yalnızca solarak kaybolurken gelinir: kaldığı yerden döner. Gizliyse ilk kare saydam çizilir.
@@ -552,6 +583,7 @@ internal static class Motion
     {
         var state = StateOf(fade);
         state.Generation++;
+        Drop(state);
         if (plan is null || !plan.Fade || !fade.IsVisible)
         {
             StopCore(fade, state);
@@ -567,6 +599,7 @@ internal static class Motion
         if (plan is null)
         {
             StopCore(element, state);
+            Settle(state);
             return;
         }
         BeginIn(element, state, MoverOf(element), plan, resume: false, travel, count);
@@ -592,6 +625,7 @@ internal static class Motion
         if (plan is null)
         {
             StopCore(element, state);
+            Settle(state);
             return;
         }
         BeginIn(element, state, null, plan, resume: false);
@@ -601,11 +635,9 @@ internal static class Motion
     /// Gizli öğeyi (pencereyi) <paramref name="show"/> ile gösterir; <paramref name="fade"/> ve geçişler açıksa saydamdan
     /// soldurarak (ilk kare saydam çizilir). Solarak kaybolmaktaysa kaldığı yerden geri gelir, gizleme yapılmaz.
     /// </summary>
-    public static void Appear(UIElement element, Action show, bool fade = true, int milliseconds = MotionPolicy.FadeMs, int? frameRate = null)
-    {
-        var plan = fade ? Decide(MotionKind.Fade, SurfaceFor(frameRate), state: StateOf(element)) : null;
-        AppearCore(element, show, Override(plan, milliseconds, frameRate), mover: null);
-    }
+    public static void Appear(UIElement element, Action show, bool fade = true, int milliseconds = MotionPolicy.FadeMs, int? frameRate = null) =>
+        AppearCore(element, show, fade,
+            state => Override(Decide(MotionKind.Fade, SurfaceFor(frameRate), state: state), milliseconds, frameRate), mover: null);
 
     /// <summary>
     /// Öğeyi soldurup bitince <paramref name="hide"/> ile gizler; geçişler kapalıysa, <paramref name="fade"/> false ise ya da
@@ -624,6 +656,23 @@ internal static class Motion
         var state = StateOf(element);
         state.Generation++;
         StopCore(element, state);
+        Drop(state);
+    }
+
+    /// <summary>
+    /// <paramref name="action"/> öğenin şu an oynayan girişi (Appear/Pop/Enter) bitince, giriş yoksa hemen çalışır. Giriş
+    /// hemen son hâline atlarsa da çalışır; yerine çıkış gelirse ya da durdurulursa çalışmaz. Ör. yeni widget'ın ışıması
+    /// Pop bitince belirir (süsleyici RenderTransform'u izlemez).
+    /// </summary>
+    public static void AfterEntry(UIElement element, Action action)
+    {
+        var state = StateOf(element);
+        if (!state.Entering)
+        {
+            action();
+            return;
+        }
+        (state.AfterEntry ??= []).Add(action);
     }
 
     // ---------------------------------------------------------------- 2.2 girişler ve çıkışlar
@@ -636,7 +685,7 @@ internal static class Motion
     /// <param name="batch">Birlikte gösterilen pencere sayısı (masaüstünü göster): çoksa büyüme solmaya, daha çoksa hemen gösterime düşer.</param>
     public static void Appear(UIElement fade, Action show, MotionKind kind, UIElement? transform = null,
                               MotionSurface surface = MotionSurface.Window, long pixels = 0, int batch = 1) =>
-        AppearCore(fade, show, Decide(kind, surface, pixels, batch, StateOf(fade)), transform ?? MoverOf(fade));
+        AppearCore(fade, show, animate: true, state => Decide(kind, surface, pixels, batch, state), transform ?? MoverOf(fade));
 
     /// <summary>
     /// Öğeyi <paramref name="kind"/> geçişiyle gizler; <paramref name="hide"/> geçiş bitince (plan yoksa hemen) çalışır. Arada
@@ -733,7 +782,7 @@ internal static class Motion
     public static void RingOpen(UIElement fade, Action show, UIElement? center, IReadOnlyList<UIElement> items, IReadOnlyList<Vector>? towardCenter = null)
     {
         var plan = Decide(MotionKind.RingOpen, MotionSurface.Ring, state: StateOf(fade));
-        AppearCore(fade, show, plan is null ? null : plan with { Scale = 1, OffsetY = 0, DelayMs = 0 }, mover: null);
+        AppearCore(fade, show, animate: plan is not null, _ => plan! with { Scale = 1, OffsetY = 0, DelayMs = 0 }, mover: null);
         // Sakin: pencerenin solması yeter, öğeler ayrıca solmaz (hemen yerinde).
         RingItems(plan is { Moves: true } ? plan : null, center, items, towardCenter);
     }
@@ -875,7 +924,8 @@ internal static class Motion
     // ---------------------------------------------------------------- fareyle zemin (ekli özellik)
 
     /// <summary>
-    /// Fareyle zemin rengi: hep yerinde duran, isabet testine katılmayan bir katmana (şablondaki Border/Panel/Shape) verilir.
+    /// Fareyle zemin rengi: hep yerinde duran, isabet testine katılmayan bir katmana (şablondaki Border/Panel/Shape; zeminle
+    /// birlikte renk değiştiren simgede TextBlock'un yazı rengi) verilir.
     /// Motion katmana kendi fırçasını koyar ve şablonun sahibi (ya da katmanın üst öğesi) fareyle üstüne gelinince fırçanın
     /// saydamlığını en çok <see cref="MotionPolicy.HoverMs"/>'de 0↔1 yapar; Sakin ve Kapalı'da hemen. Görünürlük hiç değişmez.
     /// </summary>
@@ -913,6 +963,8 @@ internal static class Motion
             case Panel panel: panel.Background = hover.Brush; break;
             case Shape shape: shape.Fill = hover.Brush; break;
             case Control control: control.Background = hover.Brush; break;
+            // Zeminle birlikte rengi değişen simge (×: kırmızı zeminde beyaz) aynı anda solar.
+            case TextBlock text: text.Foreground = hover.Brush; break;
             default: return;
         }
         Hovers.Add(layer, hover);

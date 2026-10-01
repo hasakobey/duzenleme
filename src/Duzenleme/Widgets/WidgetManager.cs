@@ -258,19 +258,48 @@ public sealed class WidgetManager
         return config;
     }
 
-    /// <summary>Widget'ı kaldırır. "Simgeler yalnızca bölmelerde" modu bu yüzden kapandıysa true.</summary>
-    public bool Remove(string id, bool notify = true)
+    /// <summary>Widget'ı kaldırır (hemen kapanır). "Simgeler yalnızca bölmelerde" modu bu yüzden kapandıysa true.</summary>
+    public bool Remove(string id, bool notify = true) => RemoveCore(id, notify, leave: false);
+
+    /// <param name="leave">Kullanıcı tek bir widget'ı kaldırdı (<see cref="RemoveWithUndo"/>): kart kısa bir çıkışla gider.
+    /// Toplu ve iç kaldırmalar hemen kapanır.</param>
+    private bool RemoveCore(string id, bool notify, bool leave)
     {
         if (_open.Remove(id, out var window))
         {
             _closingOnPurpose.Add(id);
-            window.Close();
+            if (leave) Leave(window);
+            else window.Close();
         }
         AppHost.Settings.Widgets.RemoveAll(w => w.Id == id);
         AppHost.SaveSettings();
         var modeOff = AppHost.EnsureNothingInvisible(notify);
         Changed?.Invoke();
         return modeOff;
+    }
+
+    /// <summary>
+    /// Kaldırılan widget'ın çıkışı: kart hafifçe küçülüp solar, sonra pencere kapanır (Views.Motion; Kapalı'da hemen). Pencere
+    /// listeden hemen çıkmıştır ("Geri al" aynı kimlikle yenisini açabilir); bu arada kartına tıklanamaz (girdiyi Motion değil
+    /// burası kapatır: dosya açılmasın, düğme çalışmasın).
+    /// </summary>
+    private static void Leave(WidgetWindow window)
+    {
+        if (!window.IsVisible)
+        {
+            window.Close();
+            return;
+        }
+        window.Surface.IsHitTestVisible = false;
+        Views.Motion.Exit(window, window.CloseIfOpen, window.Surface, MotionSurface.LayeredWidget, window.PixelArea);
+        // Çıkış herhangi bir nedenle bitmezse de pencere kapanır (görünmez bir pencere kalmasın).
+        var fallback = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(MotionPolicy.MaxMs * 3) };
+        fallback.Tick += (_, _) =>
+        {
+            fallback.Stop();
+            window.CloseIfOpen();
+        };
+        fallback.Start();
     }
 
     private readonly RemovedWidgets _removed = new();
@@ -292,7 +321,7 @@ public sealed class WidgetManager
         var copy = AppHost.Settings.Widgets[index].Clone();
         // Kutunun masaüstünden taşınmış öğeleri (başka kutuda yoksa) masaüstüne döner; "Geri al" onları yeniden taşır.
         var returning = BoxMover.MovedOnlyIn(AppHost.Settings.Widgets[index]);
-        var modeOff = Remove(id, notify: false);
+        var modeOff = RemoveCore(id, notify: false, leave: true);
         _removed.Add(new RemovedWidget(copy, index, modeOff));
         if (notify)
             AppHost.Tray?.Notify(L.T("Widget kaldırıldı"),
@@ -427,6 +456,8 @@ public sealed class WidgetManager
         // Ekran dışı kontrolü fiziksel pikselle yapılır: DIP konumları ölçeği farklı monitörlerde kayar.
         if (!window.IsOnScreen()) window.MoveToFreeSpot(WidgetPlacement.CornerNear(null));
         window.Reveal(RevealTime);
+        // Kart bir kez hafifçe nabız atar: hangisi olduğu görülsün (yeni beliriyorsa büyümesi yeter).
+        window.Attention();
     }
 
     public static string ArrangeBackupName => LayoutBackup.ArrangeName;
@@ -513,13 +544,19 @@ public sealed class WidgetManager
     {
         if (Hidden == hidden) return;
         Hidden = hidden;
-        // Kısa solma (Views.Motion): widget'lar yazılımla çizilen katmanlı pencerelerdir; çoksa solmadan gizlenip gösterilir.
+        // Views.Motion: gizlenirken solar, gösterilirken hafifçe büyüyerek gelir. Widget'lar yazılımla çizilen katmanlı
+        // pencerelerdir: MotionPolicy aynı anda en çok 3 büyümeye (fazlası yalnızca solar, büyük kart da) ve 8 solmaya izin
+        // verir; daha çoksa hepsi hemen gizlenip gösterilir.
         var windows = _open.Values.ToList();
-        var fade = Core.MotionPolicy.FadeWindows(Views.Motion.Enabled, windows.Count(w => hidden ? w.IsVisible : !w.IsVisible));
+        var batch = windows.Count(w => hidden ? w.IsVisible : !w.IsVisible);
         foreach (var window in windows)
         {
-            if (hidden) Views.Motion.Disappear(window, window.HideIfOpen, fade, frameRate: Core.MotionPolicy.WidgetFrameRate);
-            else Views.Motion.Appear(window, () => QuietShow.Show(window), fade, frameRate: Core.MotionPolicy.WidgetFrameRate);
+            if (hidden)
+                Views.Motion.Disappear(window, window.HideIfOpen, MotionKind.Fade, surface: MotionSurface.LayeredWidget,
+                    pixels: window.PixelArea, batch: batch);
+            else
+                Views.Motion.Appear(window, () => QuietShow.Show(window), MotionKind.Pop, window.Surface, MotionSurface.LayeredWidget,
+                    window.PixelArea, batch);
         }
     }
 
@@ -591,15 +628,19 @@ public sealed class WidgetManager
         }
     }
 
-    /// <param name="fadeIn">Tek tek eklenen/geri gelen widget solarak belirir (açılıştaki toplu açılış solmaz).</param>
+    /// <param name="fadeIn">Tek tek eklenen/geri gelen widget hafifçe büyüyerek ve solarak belirir (Views.Motion.Pop); açılıştaki
+    /// toplu açılışta hiçbir şey oynamaz.</param>
     private WidgetWindow Open(WidgetConfig config, WidgetPlacement? place = null, bool fadeIn = false)
     {
         var view = WidgetViews.Create(config);
         var window = new WidgetWindow(config, view) { PendingPlacement = place };
         window.Closed += (_, _) => OnWindowClosed(config);
         _open[config.Id] = window;
-        // Oluşurken etkinleşip kullanıcının yazdığı pencereden odağı almasın (bkz. QuietShow).
-        if (!Hidden) Views.Motion.Appear(window, () => QuietShow.Show(window), fadeIn, frameRate: Core.MotionPolicy.WidgetFrameRate);
+        // Oluşurken etkinleşip kullanıcının yazdığı pencereden odağı almasın (bkz. QuietShow). Pencere henüz gösterilmediği
+        // için alanı kayıtlı boyuttan tahmin edilir (büyük kart yalnızca solar).
+        if (Hidden) return window;
+        if (fadeIn) Views.Motion.Pop(window, () => QuietShow.Show(window), window.Surface, MotionSurface.LayeredWidget, window.PixelArea);
+        else Views.Motion.Appear(window, () => QuietShow.Show(window), fade: false);
         return window;
     }
 

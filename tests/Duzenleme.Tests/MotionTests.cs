@@ -449,6 +449,50 @@ public class MotionTests
     }
 
     [Fact]
+    public void Widget_buttons_change_on_hover_only_through_Motion()
+    {
+        // Widget düğmelerinde fareyle yalnızca zemin katmanı solar (Motion.HoverFill; Kapalı'da hemen) ve basınca içerik küçülür
+        // (Motion.Press): şablonda IsMouseOver tetikleyicisi (hemen değişen renk ya da saydamlık) kalmaz. Bölme kutucukları
+        // (TileContainer) bilerek hemen değişir.
+        var document = XDocument.Parse(XamlWithoutComments(Path.Combine(SourceRoot, "Widgets", "TileStyles.xaml")));
+        XElement Keyed(string key) => document.Root!.Elements().Single(e => (string?)e.Attributes().FirstOrDefault(a => a.Name.LocalName == "Key") == key);
+        foreach (var key in new[] { "WidgetCloseButton", "PillButton", "WidgetGlyphButtonTemplate", "WidgetTextButtonTemplate" })
+        {
+            var element = Keyed(key);
+            Assert.DoesNotContain(element.Descendants(), e => e.Name.LocalName is "Trigger" or "MultiTrigger" &&
+                e.Attributes().Any(a => a.Value.Contains("IsMouseOver", StringComparison.Ordinal)));
+            Assert.Contains(element.Descendants(), e => e.Attributes().Any(a => a.Name.LocalName == "Motion.HoverFill"));
+        }
+        foreach (var key in new[] { "PillButton", "WidgetGlyphButton" })
+            Assert.Contains(Keyed(key).Elements(), e => (string?)e.Attribute("Property") == "views:Motion.Press" && (string?)e.Attribute("Value") == "True");
+        Assert.Contains(Keyed("TileContainer").Descendants(), e => e.Name.LocalName == "Trigger" && (string?)e.Attribute("Property") == "IsMouseOver");
+    }
+
+    [Fact]
+    public void Exit_plays_only_when_the_user_removes_one_thing()
+    {
+        // Çıkış (küçülüp solma) yalnızca kullanıcının tek bir şeyi kaldırdığı yerde: widget'ı kaldırma (RemoveWithUndo →
+        // Leave) ve bildirim şeridinin ×'i. Toplu ve iç kaldırmalar (Remove, düzen uygulama) hemen kapanır.
+        var offenders = new List<string>();
+        foreach (var file in SourceFiles("*.cs"))
+        {
+            var relative = Path.GetRelativePath(SourceRoot, file);
+            if (relative == Path.Combine("Views", "Motion.cs")) continue;
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+                if (Regex.IsMatch(StripComment(lines[i]), @"\bMotion\.Exit\(") &&
+                    relative != Path.Combine("Widgets", "WidgetManager.cs") && relative != "MainWindow.xaml.cs")
+                    offenders.Add($"{relative}:{i + 1}: {lines[i].Trim()}");
+        }
+        Assert.True(offenders.Count == 0, "Çıkış yalnızca kullanıcının kaldırmasında:\n" + string.Join("\n", offenders));
+
+        var manager = File.ReadAllText(Path.Combine(SourceRoot, "Widgets", "WidgetManager.cs"));
+        Assert.Matches(@"public bool Remove\(string id, bool notify = true\) => RemoveCore\(id, notify, leave: false\);", manager);
+        Assert.Single(Regex.Matches(manager, @"leave: true"));
+        Assert.Matches(@"RemoveWithUndo[\s\S]*RemoveCore\(id, notify: false, leave: true\)", manager);
+    }
+
+    [Fact]
     public void Size_to_content_dialogs_fit_their_chrome()
     {
         // WPF-UI FluentWindow çerçevesini ilk ölçümden sonra kaldırır: içeriğe göre boyutlanan her pencere yeniden ölçülmeli

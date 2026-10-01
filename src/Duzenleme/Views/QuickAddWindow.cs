@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using Duzenleme.Core;
 using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
 using Button = Wpf.Ui.Controls.Button;
@@ -123,7 +124,14 @@ internal sealed class QuickAddWindow : FluentWindow
         root.Children.Add(footer);
         Content = root;
 
-        Loaded += (_, _) => PlaceNearAnchor();
+        Loaded += (_, _) =>
+        {
+            PlaceNearAnchor();
+            // Kutucuklar kısa bir kademeyle hafifçe büyüyerek gelir (Views.Motion: bütünü en çok 300 ms, Sakin'de birlikte
+            // solar, Kapalı'da hemen yerinde). Girdi beklemez: kutucuğa hemen basılabilir.
+            Motion.Cascade(new Panel[] { fences, tools, info }.SelectMany(p => p.Children.OfType<UIElement>())
+                .Where(t => t.Visibility == Visibility.Visible).ToList(), MotionKind.Pop);
+        };
         // Yine de ölçeği farklı bir monitöre geçerse (WPF boyutu değiştirir) yer yeni boyuta göre bir kez daha hesaplanır.
         DpiChanged += (_, _) => { if (IsLoaded) Dispatcher.BeginInvoke(PlaceNearAnchor); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };

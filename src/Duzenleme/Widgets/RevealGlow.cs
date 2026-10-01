@@ -6,8 +6,8 @@ namespace Duzenleme.Widgets;
 
 /// <summary>
 /// Yeni eklenen widget'ın kartının çevresinde durağan vurgu ışıması: kartın dışında, gölge payının içinde, saydamlığı dışa
-/// doğru azalan birkaç yuvarlak çerçeve. Efekt (DropShadowEffect) kullanılmaz ve durağandır; birkaç saniye sonra kısa bir
-/// solmayla (Views.Motion, geçişler açıksa) kaldırılır.
+/// doğru azalan birkaç yuvarlak çerçeve. Efekt (DropShadowEffect) kullanılmaz ve durağandır; kart büyüyerek belirdikten
+/// sonra kısa bir solmayla gelir, birkaç saniye sonra yine solarak (Views.Motion, geçişler açıksa) kaldırılır.
 /// </summary>
 internal sealed class RevealGlow : Adorner
 {
@@ -42,10 +42,13 @@ internal sealed class RevealGlow : Adorner
         }
     }
 
-    /// <summary>Kartın çevresine ışıma ekler; eklenemezse (süsleme katmanı yok) null.</summary>
+    /// <summary>
+    /// Kartın çevresine ışıma ekler; eklenemezse (süsleme katmanı yok) ya da Windows'ta Saydamlık efektleri kapalıyken veya
+    /// yüksek karşıtlıkta (<see cref="Views.Motion.EffectsAllowed"/>) null: vurgu yalnızca çerçeveyle verilir.
+    /// </summary>
     public static RevealGlow? Show(FrameworkElement card, Brush accent, double cornerRadius)
     {
-        if (AdornerLayer.GetAdornerLayer(card) is not { } layer) return null;
+        if (!Views.Motion.EffectsAllowed || AdornerLayer.GetAdornerLayer(card) is not { } layer) return null;
         var color = accent is SolidColorBrush solid ? solid.Color : Color.FromRgb(0xA7, 0x8B, 0xFA);
         var glow = new RevealGlow(card, color, cornerRadius);
         layer.Add(glow);

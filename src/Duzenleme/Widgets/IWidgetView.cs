@@ -25,6 +25,10 @@ public interface IWidgetView
     /// <summary>Katlanınca gizlenecek gövde.</summary>
     void SetBodyVisible(bool visible) { }
 
+    // 2.2 Hareket
+    /// <summary>Katlanınca gizlenen gövdenin kendisi: kullanıcı açınca kısa bir solmayla gelir (Views.Motion). Yoksa null.</summary>
+    UIElement? BodyElement => null;
+
     /// <summary>Kartın iç boşluğu. Kenarındaki ~9 piksellik şerit boyutlandırma tutamacıdır; bundan dar olmamalı.</summary>
     Thickness CardPadding => new(20, 16, 20, 18);
 

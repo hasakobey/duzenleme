@@ -117,6 +117,8 @@ public partial class FenceView : UserControl, IWidgetView
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
 
+    public UIElement BodyElement => Body;
+
     private string FolderName => _config.FolderName ?? "PDF";
 
     private bool DesktopMode => _config.Filter != DesktopFilter.None;
@@ -452,7 +454,12 @@ public partial class FenceView : UserControl, IWidgetView
             Items.ItemsSource = _view;
             if (shown.Count > FillChunk) FillLater(shown, token);
         }
-        else if (steps.Count > 0) ListDiff.Apply(_view, steps, _view.Move);
+        else if (steps.Count > 0)
+        {
+            ListDiff.Apply(_view, steps, _view.Move);
+            if (_filled && q.Length == 0) EnterArrivals(steps);
+        }
+        _filled = true;
 
         CountText.Text = (q.Length == 0 ? _all.Count + _more : shown.Count).ToString(L.Culture);
         // Sınırı aşan klasör: kalanlar klasörde açılır (aramada gizli: arama bütün klasörde arar).
@@ -492,6 +499,30 @@ public partial class FenceView : UserControl, IWidgetView
         Dispatcher.BeginInvoke(() =>
         {
             if (Items.ItemContainerGenerator.ContainerFromItem(item) is ListBoxItem container) container.Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
+    // 2.2 Hareket
+    /// <summary>Liste bir kez gösterildi: bundan sonra gelen birkaç kutucuk (yeni dosya, geri alınan taşıma) yerine oturarak girer.</summary>
+    private bool _filled;
+
+    /// <summary>Bir güncellemede en çok bu kadar yeni kutucuk girerek gelir; daha çoğunda (toplu değişiklik) hiçbiri oynamaz.</summary>
+    private const int MaxTileEnter = 6;
+
+    /// <summary>
+    /// Yalnızca eklenen (hiçbiri kalkmayan) birkaç kutucuk hafifçe büyüyerek yerine oturur (Views.Motion TileEnter: yalnızca ölçek,
+    /// yazının saydamlığı değişmez). İlk dolumda, aramada, yeniden kurulumda ve toplu değişiklikte hiçbir şey oynamaz.
+    /// </summary>
+    private void EnterArrivals(List<ListStep<TileItem>> steps)
+    {
+        if (steps.Any(s => s.Kind == ListStepKind.Remove)) return;
+        var arrived = steps.Where(s => s.Kind == ListStepKind.Insert).Select(s => s.Item!).ToList();
+        if (arrived.Count is 0 or > MaxTileEnter) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_detached || Window.GetWindow(this) is not WidgetWindow { IsVisible: true } window) return;
+            var tiles = arrived.Select(i => Items.ItemContainerGenerator.ContainerFromItem(i)).OfType<UIElement>().ToList();
+            if (tiles.Count > 0) Views.Motion.Cascade(tiles, MotionKind.TileEnter, MotionSurface.LayeredWidget, window.PixelArea);
         }, DispatcherPriority.Loaded);
     }
 
