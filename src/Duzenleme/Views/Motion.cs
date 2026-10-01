@@ -37,9 +37,6 @@ public static class Motion
     private static bool _initialized;
     private static int _refreshQueued;
 
-    /// <summary>Şu an oynayan katmanlı pencere geçişleri (MotionPolicy.MaxActiveLayered için).</summary>
-    private static int _activeLayered;
-
     /// <summary>Şu anki hareket düzeyi (açılıştan önce Kapalı).</summary>
     public static MotionLevel Level { get; private set; } = MotionLevel.Off;
 
@@ -126,6 +123,7 @@ public static class Motion
         var saver = ReadEnergySaver();
         var remote = ReadRemoteSession();
         var settings = AppHost.Settings;
+        _energyCheckedAt = Environment.TickCount64;
         WindowsAllows = windows;
         EnergySaver = saver;
         RemoteSession = remote;
@@ -151,6 +149,25 @@ public static class Motion
     {
         try { return Desktop.SystemStats.EnergySaverOn(); }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { return false; }
+    }
+
+    private static long _energyCheckedAt;
+
+    /// <summary>Enerji tasarrufuna bir geçiş istenirken en çok bu aralıkla yeniden bakılır (ms).</summary>
+    private const int EnergyPollMs = 5000;
+
+    /// <summary>
+    /// Enerji tasarrufunun açılıp kapanması her zaman bir güç bildirimi (PowerModeChanged) göndermez: bir geçiş istenirken
+    /// (en çok <see cref="EnergyPollMs"/>'de bir; GetSystemPowerStatus ucuzdur) yeniden bakılır, değiştiyse durum UI'da yeniden
+    /// okunur. O anki geçiş eski düzeyle oynar, sonrakiler yenisiyle.
+    /// </summary>
+    private static void PollEnergySaver()
+    {
+        if (!_initialized) return;
+        var now = Environment.TickCount64;
+        if (now - _energyCheckedAt < EnergyPollMs) return;
+        _energyCheckedAt = now;
+        if (ReadEnergySaver() != EnergySaver) Post();
     }
 
     private static bool ReadRemoteSession()
@@ -217,8 +234,6 @@ public static class Motion
         public int Generation;
         /// <summary>Solarak kayboluyor (gizleme bekliyor).</summary>
         public bool Fading;
-        /// <summary>Katmanlı pencere sayacında.</summary>
-        public bool Counted;
         public bool Pressed;
         public MotionPlan? PressPlan;
         /// <summary>Bu öğeye Motion'ın koyduğu RenderTransform ve ondan önceki yerel değerler (geri konur).</summary>
@@ -237,36 +252,69 @@ public static class Motion
 
     private static State StateOf(UIElement element) => States.GetOrCreateValue(element);
 
-    private static void Count(State state, MotionPlan plan)
+    /// <summary>
+    /// Şu an oynayan katmanlı pencere geçişleri (<see cref="MotionPolicy.MaxActiveLayered"/> ve kalabalık sınırları için):
+    /// durum → bitmesi beklenen an (+ pay). Bir tamamlanma kaçsa da (iptal edilen geçiş, kapanan pencere) kayıt süresi dolunca
+    /// düşer: sayaç kalıcı olarak kayamaz (kayarsa bütün widget hareketi sessizce hemen olurdu).
+    /// </summary>
+    private static readonly Dictionary<State, long> Layered = [];
+
+    /// <summary>Bitmesi beklenen andan sonra kaydın kendiliğinden düşmesi için pay (ms).</summary>
+    private const int LayeredSlackMs = 250;
+
+    /// <summary>Şu an oynayan katmanlı pencere geçişi sayısı (süresi dolmuş kayıtlar atılır). UI iş parçacığında.</summary>
+    internal static int ActiveLayered
     {
-        if (plan.Surface != MotionSurface.LayeredWidget || state.Counted) return;
-        state.Counted = true;
-        _activeLayered++;
+        get
+        {
+            if (Layered.Count == 0) return 0;
+            var now = Environment.TickCount64;
+            List<State>? expired = null;
+            foreach (var (state, until) in Layered)
+                if (until < now) (expired ??= []).Add(state);
+            if (expired is not null)
+                foreach (var state in expired) Layered.Remove(state);
+            return Layered.Count;
+        }
     }
 
-    private static void Uncount(State state)
+    /// <param name="ms">Geçişin beklemesiyle birlikte süresi: kayıt en geç bundan biraz sonra düşer.</param>
+    private static void Count(State state, MotionPlan plan, int ms)
     {
-        if (!state.Counted) return;
-        state.Counted = false;
-        _activeLayered = Math.Max(0, _activeLayered - 1);
+        if (plan.Surface != MotionSurface.LayeredWidget) return;
+        Layered[state] = Environment.TickCount64 + Math.Max(0, ms) + LayeredSlackMs;
     }
 
-    /// <summary>Planı ister ve başarım günlüğüne yazar. Katmanlı yüzeyde aynı anda oynayanlar (bu dahil) hesaba katılır.</summary>
+    private static void Uncount(State state) => Layered.Remove(state);
+
+    /// <summary>
+    /// Planı ister; atlama/düşürme nedenini başarım günlüğüne yazar ("Motion.&lt;Kind&gt;" geçiş gerçekten başlayınca yazılır,
+    /// bkz. <see cref="Played"/>). Katmanlı yüzeyde aynı anda oynayanlar (bu dahil) hesaba katılır; birlikte gösterilen
+    /// pencereler (<paramref name="batch"/> &gt; 1) tek karar gibidir: hepsi aynı sayıyla karar verir (sırayla sayaca
+    /// yazıldıkları ya da ilgisiz bir geçiş oynadığı için sondakiler başka plana düşmesin). Katmanlı bir geçiş oynarken
+    /// başlayan pencere geçişi de 30 kare/sn'dir (<see cref="MotionPolicy.Beside"/>).
+    /// </summary>
     private static MotionPlan? Decide(MotionKind kind, MotionSurface surface, long pixels = 0, int batch = 1, State? state = null)
     {
-        var active = surface == MotionSurface.LayeredWidget ? Math.Max(batch, _activeLayered + (state is { Counted: true } ? 0 : 1)) : 0;
+        PollEnergySaver();
+        var running = ActiveLayered;
+        var active = surface != MotionSurface.LayeredWidget ? 0
+            : batch > 1 ? batch
+            : running + (state is not null && Layered.ContainsKey(state) ? 0 : 1);
         var plan = MotionPolicy.Plan(Level, kind, surface, active, pixels, out var note);
-        if (PerfLog.Enabled)
-        {
-            if (note is not null) PerfLog.Count("Motion.Skip." + note);
-            if (plan is not null) PerfLog.Count("Motion." + plan.Kind);
-        }
-        return plan;
+        if (note is not null) Skip(note);
+        return plan is null ? null : MotionPolicy.Beside(plan, running);
     }
 
     private static void Skip(string reason)
     {
         if (PerfLog.Enabled) PerfLog.Count("Motion.Skip." + reason);
+    }
+
+    /// <summary>Başarım günlüğü: geçiş gerçekten başladı (zaman çizelgesi kuruldu; dönüşüm alınamayıp hiçbir şey oynamadıysa yazılmaz).</summary>
+    private static void Played(MotionPlan plan)
+    {
+        if (PerfLog.Enabled) PerfLog.Count("Motion." + plan.Kind);
     }
 
     /// <summary>Pencere dönüşmez (WPF desteklemez): onun yerine içeriği. Başka öğe kendisi.</summary>
@@ -437,16 +485,20 @@ public static class Motion
     /// </summary>
     /// <param name="resume">Solarak kaybolurken geri istendi: saydamlık ve dönüşüm kaldıkları yerden döner.</param>
     /// <param name="travel">Ek başlangıç kayması (halka öğeleri ortaya doğru yakından başlar).</param>
-    /// <param name="count">Katmanlı pencere sayacına yazılsın mı (kademede yalnızca ilk öğe).</param>
+    /// <param name="count">Katmanlı pencere sayacına ve başarım günlüğüne yazılsın mı (kademede yalnızca ilk öğe).</param>
     private static void BeginIn(UIElement primary, State state, UIElement? mover, MotionPlan plan, bool resume, Vector travel = default, bool count = true)
     {
         var generation = state.Generation;
+        var wasFading = state.Fading;
         Uncount(state);
         state.Fading = false;
 
         var opacity = plan.Fade
             ? Animation(resume ? primary.Opacity : 0, null, plan, plan.Ms, EaseOf(plan.Ease, opacity: true), FillBehavior.Stop)
             : null;
+        // Solarak kaybolurken saydamlığı oynamayan bir giriş geldi (kutucuk girişi, basma…): çıkışın son değerini (0) tutan
+        // solma kalkar, yoksa öğe görünür ama saydam kalırdı.
+        if (opacity is null && (wasFading || resume)) primary.BeginAnimation(UIElement.OpacityProperty, null);
 
         State? moverState = null;
         TransformGroup? group = null;
@@ -456,6 +508,9 @@ public static class Motion
             moverState = ReferenceEquals(mover, primary) ? state : StateOf(mover);
             if (!ReferenceEquals(moverState, state))
             {
+                // Taşıyıcının kendi geçişi (ör. kartın dikdörtgenindeki dikkat nabzı) iptal olur: sayaçtaki kaydı da düşer
+                // (tamamlanması artık çalışmaz).
+                Uncount(moverState);
                 moverGeneration = ++moverState.Generation;
                 state.Mover = mover;
             }
@@ -503,9 +558,11 @@ public static class Motion
             Settle(state);
         };
         state.Entering = true;
-        if (count) Count(state, plan);
         if (opacity is not null) primary.BeginAnimation(UIElement.OpacityProperty, opacity);
         foreach (var (target, property, animation) in moves) target.BeginAnimation(property, animation);
+        if (!count) return;
+        Count(state, plan, plan.TotalMs);
+        Played(plan);
     }
 
     /// <summary>
@@ -522,7 +579,12 @@ public static class Motion
         if (mover is not null && plan.Moves)
         {
             var moverState = ReferenceEquals(mover, primary) ? state : StateOf(mover);
-            if (!ReferenceEquals(moverState, state)) moverState.Generation++;
+            if (!ReferenceEquals(moverState, state))
+            {
+                // Taşıyıcının kendi geçişi iptal olur: sayaçtaki kaydı da düşer.
+                Uncount(moverState);
+                moverState.Generation++;
+            }
             group = Acquire(mover, moverState);
             if (group is null) Skip("Transform");
             else if (!ReferenceEquals(moverState, state)) state.Mover = mover;
@@ -536,8 +598,9 @@ public static class Motion
             finally { StopCore(primary, state); }
         };
         state.Fading = true;
-        Count(state, plan);
+        Count(state, plan, plan.TotalMs);
         primary.BeginAnimation(UIElement.OpacityProperty, opacity);
+        Played(plan);
         if (group is null) return;
 
         var scale = ScaleOf(group);
@@ -766,9 +829,10 @@ public static class Motion
             Release(target, state);
             Uncount(state);
         };
-        Count(state, plan);
+        Count(state, plan, plan.TotalMs);
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, x);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, y);
+        Played(plan);
     }
 
     // ---------------------------------------------------------------- halka (sözleşme)
@@ -800,12 +864,13 @@ public static class Motion
 
     private static void RingItems(MotionPlan? plan, UIElement? center, IReadOnlyList<UIElement> items, IReadOnlyList<Vector>? towardCenter)
     {
+        // Halka katmanlı değil (sayaç yok); başarım günlüğüne halka başına bir kez (ilk öğe) yazılır.
         if (center is not null)
-            EnterCore(center, StateOf(center), plan is { Moves: true } ? plan with { Scale = MotionPolicy.RingCenterScale, Fade = false } : null, default);
+            EnterCore(center, StateOf(center), plan is { Moves: true } ? plan with { Scale = MotionPolicy.RingCenterScale, Fade = false } : null, default, count: false);
         for (var i = 0; i < items.Count; i++)
         {
             var travel = plan is { Moves: true } && towardCenter is not null && i < towardCenter.Count ? towardCenter[i] * MotionPolicy.RingTravel : default;
-            EnterCore(items[i], StateOf(items[i]), plan is null ? null : MotionPolicy.Stagger(Level, plan, i), travel, count: false);
+            EnterCore(items[i], StateOf(items[i]), plan is null ? null : MotionPolicy.Stagger(Level, plan, i), travel, count: i == 0);
         }
     }
 
@@ -887,9 +952,10 @@ public static class Motion
         {
             if (state.Generation == generation) Uncount(state);
         };
-        Count(state, plan);
+        Count(state, plan, plan.Ms);
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, x);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, y);
+        Played(plan);
     }
 
     private static void PressUp(UIElement element, bool instant)
@@ -916,7 +982,7 @@ public static class Motion
             Release(target, state);
             Uncount(state);
         };
-        Count(state, plan);
+        Count(state, plan, plan.ReturnMs);
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, x);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, y);
     }
@@ -943,7 +1009,17 @@ public static class Motion
         public int Generation;
         public MouseEventHandler? OnMouse;
         public DependencyPropertyChangedEventHandler? OnEnabled;
+        /// <summary>Sahibine bağlandığı an (bkz. <see cref="HoverSettleMs"/>).</summary>
+        public long AttachedAt;
     }
+
+    /// <summary>
+    /// Yeni kurulan düğme (ör. sekmeye tıklayınca baştan kurulan sekme düğmeleri) duran imlecin altındaysa WPF fare girişini
+    /// birkaç ms sonra bildirir: bağlandıktan sonraki bu süre içinde zemin solmadan hemen gelir (her tıklamada yanıp sönmesin).
+    /// </summary>
+    private const int HoverSettleMs = 250;
+
+    private static bool Settling(HoverLayer hover) => Environment.TickCount64 - hover.AttachedAt < HoverSettleMs;
 
     private static readonly ConditionalWeakTable<FrameworkElement, HoverLayer> Hovers = [];
 
@@ -968,8 +1044,8 @@ public static class Motion
             default: return;
         }
         Hovers.Add(layer, hover);
-        hover.OnMouse = (_, _) => UpdateHover(layer, hover, instant: false);
-        hover.OnEnabled = (_, _) => UpdateHover(layer, hover, instant: false);
+        hover.OnMouse = (_, _) => UpdateHover(layer, hover, instant: Settling(hover));
+        hover.OnEnabled = (_, _) => UpdateHover(layer, hover, instant: Settling(hover));
         layer.Loaded += (_, _) => AttachHover(layer, hover);
         layer.Unloaded += (_, _) => DetachHover(layer, hover);
         if (layer.IsLoaded) AttachHover(layer, hover);
@@ -981,6 +1057,7 @@ public static class Motion
         if (host is null || ReferenceEquals(host, hover.Host)) return;
         DetachHover(layer, hover);
         hover.Host = host;
+        hover.AttachedAt = Environment.TickCount64;
         host.MouseEnter += hover.OnMouse;
         host.MouseLeave += hover.OnMouse;
         host.IsEnabledChanged += hover.OnEnabled;
@@ -1028,7 +1105,8 @@ public static class Motion
         {
             if (hover.Generation == generation) Uncount(state);
         };
-        Count(state, plan);
+        Count(state, plan, plan.Ms);
         brush.BeginAnimation(Brush.OpacityProperty, animation);
+        Played(plan);
     }
 }

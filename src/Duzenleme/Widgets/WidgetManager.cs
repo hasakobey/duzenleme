@@ -280,8 +280,8 @@ public sealed class WidgetManager
 
     /// <summary>
     /// Kaldırılan widget'ın çıkışı: kart hafifçe küçülüp solar, sonra pencere kapanır (Views.Motion; Kapalı'da hemen). Pencere
-    /// listeden hemen çıkmıştır ("Geri al" aynı kimlikle yenisini açabilir); bu arada kartına tıklanamaz (girdiyi Motion değil
-    /// burası kapatır: dosya açılmasın, düğme çalışmasın).
+    /// listeden hemen çıkmıştır ("Geri al" aynı kimlikle yenisini açabilir); bu arada kartına tıklanamaz ve klavye çalışmaz
+    /// (<see cref="WidgetWindow.BeginLeave"/>; girdiyi Motion değil burası kapatır: dosya açılmasın, düğme çalışmasın).
     /// </summary>
     private static void Leave(WidgetWindow window)
     {
@@ -290,7 +290,7 @@ public sealed class WidgetManager
             window.Close();
             return;
         }
-        window.Surface.IsHitTestVisible = false;
+        window.BeginLeave();
         Views.Motion.Exit(window, window.CloseIfOpen, window.Surface, MotionSurface.LayeredWidget, window.PixelArea);
         // Çıkış herhangi bir nedenle bitmezse de pencere kapanır (görünmez bir pencere kalmasın).
         var fallback = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(MotionPolicy.MaxMs * 3) };

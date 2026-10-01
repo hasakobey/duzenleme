@@ -142,8 +142,11 @@ public static class MotionPolicy
     /// <summary>Aşmalı yumuşatmanın (BackEase) genliği; yalnızca halka.</summary>
     public const double OvershootAmplitude = 0.3;
 
-    /// <summary>Kayma (DIP): şerit aşağıdan yükselir, sayfa aşağıdan gelir, göz atma çubuğu yukarıdan iner.</summary>
-    public const double RiseDip = 16, PageDip = 12, DropDip = 12;
+    /// <summary>
+    /// Kayma (DIP): şerit aşağıdan yükselir, sayfa aşağıdan gelir, göz atma çubuğunun içeriği yukarıdan iner (çubuk ~40 DIP
+    /// ve opak: iniş, içerik çerçevenin dolgusundan taşmayacak kadar kısa).
+    /// </summary>
+    public const double RiseDip = 16, PageDip = 12, DropDip = 6;
 
     // ---------------------------------------------------------------- düzey
 
@@ -211,6 +214,12 @@ public static class MotionPolicy
         if (layered && kind == MotionKind.Hover && !LayeredHoverFade)
         {
             note = "Hover";
+            return null;
+        }
+        // Çok büyük kartta fareyle zemin solması da bütün pencereyi birkaç kez yeniden çizdirir: renk hemen değişir.
+        if (layered && kind == MotionKind.Hover && pixels > MaxPopPixels)
+        {
+            note = "Large";
             return null;
         }
 
@@ -307,6 +316,14 @@ public static class MotionPolicy
     /// <summary>İstenen süre, sınır içinde (0..<see cref="MaxMs"/>).</summary>
     public static int Duration(int milliseconds) => Math.Clamp(milliseconds, 0, MaxMs);
 
-    /// <summary>Bu kadar widget penceresi birlikte gizlenip gösterilirken solsun mu?</summary>
-    public static bool FadeWindows(bool enabled, int count) => enabled && count is > 0 and <= MaxFadedWindows;
+    /// <summary>
+    /// Katmanlı bir widget geçişi oynarken (<paramref name="layeredActive"/> &gt; 0) başlayan pencere ya da halka geçişi de
+    /// <see cref="WidgetFrameRate"/> kare/sn'dir. WPF'te kare hızı kök zaman çizelgesi başınadır: yanında 60 kare isteyen bir
+    /// saat (eklerken basılan kutucuk, Widget'lar sayfasındaki yeni satır, göz atma çubuğu) yazılımla çizilen kartı gereğinden
+    /// sık yeniden çizdirmesin (perf-run "motion" ölçer). Katmanlı planın kendisi zaten 30'dur.
+    /// </summary>
+    public static MotionPlan Beside(MotionPlan plan, int layeredActive) =>
+        plan.Surface != MotionSurface.LayeredWidget && layeredActive > 0 && plan.Fps > WidgetFrameRate
+            ? plan with { Fps = WidgetFrameRate }
+            : plan;
 }

@@ -378,7 +378,9 @@ public sealed class WidgetWindow : Window
         ApplyLayoutMode();
         AppHost.SaveSettings();
         // Kullanıcı açınca gövde kısa bir solmayla gelir (pencere boyu hemen değişir; katlanma ve fareyle açılıp katlanma hemen).
-        if (!collapsed && IsVisible && View.BodyElement is { } body)
+        // Kart ClearType'la çiziliyorsa (opak zemin) gövde solmaz, hemen gelir: saydamlaşan katmandaki ClearType yazısı renkli
+        // saçak bırakır (bkz. ApplyStyle).
+        if (!collapsed && IsVisible && View.BodyElement is { } body && RenderOptions.GetClearTypeHint(_card) != ClearTypeHint.Enabled)
             Views.Motion.Enter(body, MotionKind.Fade, MotionSurface.LayeredWidget, pixels: PixelArea);
     }
 
@@ -1239,8 +1241,33 @@ public sealed class WidgetWindow : Window
         }
     }
 
-    /// <summary>Dikkat nabzı ("Bul", zamanlayıcı bitti): kart bir kez hafifçe küçülüp döner (Views.Motion; yalnızca Canlı).</summary>
-    internal void Attention() => Views.Motion.Attention(this, MotionSurface.LayeredWidget, PixelArea);
+    /// <summary>
+    /// Dikkat nabzı ("Bul", zamanlayıcı bitti): kart bir kez hafifçe küçülüp döner (Views.Motion; yalnızca Canlı). Kullanıcı
+    /// kartı sürükler ya da boyutlandırırken oynamaz.
+    /// </summary>
+    internal void Attention()
+    {
+        if (!Interacting) Views.Motion.Attention(this, MotionSurface.LayeredWidget, PixelArea);
+    }
+
+    /// <summary>Kullanıcı kartı sürüklüyor ya da boyutlandırıyor: bu sırada hiçbir şey oynamaz.</summary>
+    internal bool Interacting => _dragging || _resizing;
+
+    // 2.2 Hareket
+    /// <summary>Kaldırıldı, çıkış geçişi oynuyor: girdi kapalı (bkz. <see cref="BeginLeave"/>).</summary>
+    private bool _leaving;
+
+    /// <summary>
+    /// Kaldırılan widget'ın çıkışı başlıyor (WidgetManager.Leave): kapanana dek karta ne tıklanır ne de klavyeyle bir şey
+    /// yapılır (Enter dosya açmasın, Delete/F2 çalışmasın, nota yazılmasın). Girdiyi Motion değil burası kapatır.
+    /// </summary>
+    internal void BeginLeave()
+    {
+        if (_leaving) return;
+        _leaving = true;
+        Surface.IsHitTestVisible = false;
+        PreviewTextInput += (_, e) => e.Handled = true;
+    }
 
     /// <summary>Kapatır (çıkış geçişi bittiğinde pencere bu arada kapanmış olabilir).</summary>
     internal void CloseIfOpen()
@@ -1273,6 +1300,11 @@ public sealed class WidgetWindow : Window
     /// </summary>
     private void OnPreviewKey(object sender, KeyEventArgs e)
     {
+        if (_leaving)
+        {
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
     }
 

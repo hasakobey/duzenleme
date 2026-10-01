@@ -388,6 +388,18 @@ public partial class SettingsPage : Page
         Motion.Attention(MotionIcon);
     }
 
+    /// <summary>
+    /// Windows'taki seçim düğmesi grupları gibi: grubun içinde oklarla gelinen bölüm seçilir (Sekme tuşu grupta bir kez durur,
+    /// en son odaklanan bölümde; fareyle ve Sekme'yle gelinen odak seçimi değiştirmez).
+    /// </summary>
+    private void MotionChoice_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        var fromSibling = ReferenceEquals(e.OldFocus, MotionLively) || ReferenceEquals(e.OldFocus, MotionCalm) || ReferenceEquals(e.OldFocus, MotionOff);
+        var arrows = Keyboard.IsKeyDown(Key.Left) || Keyboard.IsKeyDown(Key.Right) || Keyboard.IsKeyDown(Key.Up) || Keyboard.IsKeyDown(Key.Down);
+        if (!_loading && fromSibling && arrows && ReferenceEquals(sender, e.NewFocus) && sender is System.Windows.Controls.Primitives.ToggleButton { IsChecked: not true } segment)
+            segment.IsChecked = true;
+    }
+
     /// <summary>Seçim neden şu an oynamıyor ya da sakin oynuyor: Windows'un ayarı (bağlantısıyla), enerji tasarrufu, uzak masaüstü.</summary>
     private void UpdateAnimationsNote()
     {

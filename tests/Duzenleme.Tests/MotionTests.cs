@@ -192,6 +192,7 @@ public class MotionTests
             Assert.InRange(scale, MotionPolicy.MinRingScale, 1.0);
         foreach (var offset in new[] { MotionPolicy.RiseDip, MotionPolicy.PageDip, MotionPolicy.DropDip })
             Assert.InRange(offset, 1, 16);
+        Assert.InRange(MotionPolicy.DropDip, 1, 6);                                         // göz atma çubuğunun dolgusunda kalır
         Assert.InRange(MotionPolicy.RingTravel, 0, 0.5);
     }
 
@@ -276,13 +277,29 @@ public class MotionTests
         Assert.Equal(expected, MotionPolicy.MenuFade(levelAtLeastCalm, menuAnimation));
 
     [Fact]
-    public void Only_a_few_widget_windows_fade_at_once()
+    public void Window_motion_beside_a_widget_runs_at_the_widget_frame_rate()
     {
-        Assert.False(MotionPolicy.FadeWindows(true, 0));
-        Assert.True(MotionPolicy.FadeWindows(true, 1));
-        Assert.True(MotionPolicy.FadeWindows(true, MotionPolicy.MaxFadedWindows));
-        Assert.False(MotionPolicy.FadeWindows(true, MotionPolicy.MaxFadedWindows + 1));
-        Assert.False(MotionPolicy.FadeWindows(false, 1));
+        // Katmanlı bir geçiş oynarken başlayan pencere/halka geçişi 30 kare/sn (yazılımla çizilen kart sık yeniden çizilmesin).
+        var page = MotionPolicy.Plan(MotionLevel.Lively, MotionKind.Page, MotionSurface.Window)!;
+        Assert.Equal(MotionPolicy.WindowFrameRate, MotionPolicy.Beside(page, 0).Fps);
+        Assert.Equal(page with { Fps = MotionPolicy.WidgetFrameRate }, MotionPolicy.Beside(page, 1));      // yalnızca kare hızı
+        var ring = MotionPolicy.Plan(MotionLevel.Lively, MotionKind.RingOpen, MotionSurface.Ring)!;
+        Assert.Equal(MotionPolicy.WidgetFrameRate, MotionPolicy.Beside(ring, 2).Fps);
+        var pop = MotionPolicy.Plan(MotionLevel.Lively, MotionKind.Pop, MotionSurface.LayeredWidget, 1)!;
+        Assert.Same(pop, MotionPolicy.Beside(pop, 5));
+        foreach (var (_, _, _, _, _, plan) in AllPlans())
+            Assert.InRange(MotionPolicy.Beside(plan, 1).Fps, 1, MotionPolicy.WidgetFrameRate);
+    }
+
+    [Fact]
+    public void Hover_on_a_large_widget_is_instant()
+    {
+        Assert.Null(MotionPolicy.Plan(MotionLevel.Lively, MotionKind.Hover, MotionSurface.LayeredWidget, 1, MotionPolicy.MaxPopPixels + 1, out var note));
+        Assert.Equal(MotionPolicy.LayeredHoverFade ? "Large" : "Hover", note);
+        Assert.Equal(MotionPolicy.LayeredHoverFade,
+            MotionPolicy.Plan(MotionLevel.Lively, MotionKind.Hover, MotionSurface.LayeredWidget, 1, MotionPolicy.MaxPopPixels) is not null);
+        // Donanımla çizilen pencerede piksel sınırı yok.
+        Assert.NotNull(MotionPolicy.Plan(MotionLevel.Lively, MotionKind.Hover, MotionSurface.Window, 1, 40_000_000));
     }
 
     // ---------------------------------------------------------------- ayar

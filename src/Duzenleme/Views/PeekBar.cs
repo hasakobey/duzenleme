@@ -139,9 +139,10 @@ internal sealed class PeekBar : Window
         Loaded += (_, _) =>
         {
             Place();
-            // İçerik yukarıdan kısa bir inişle ve solarak belirir (Canlı; Sakin'de yalnızca solma). Pencerenin sınırları sabit:
-            // yalnızca içindeki çerçeve kayar; pencere katmanlı değil, zemini hemen görünür.
-            Motion.Enter(border, MotionKind.Drop);
+            // İçerik yukarıdan kısa bir inişle ve solarak belirir (Canlı; Sakin'de yalnızca solma). Pencerenin sınırları ve
+            // çerçevesi sabit: yalnızca çerçevenin içindeki satır birkaç DIP kayar (dolgunun içinde kalır, kırpılmaz); pencere
+            // katmanlı değil, zemini hemen görünür.
+            Motion.Enter(row, MotionKind.Drop);
             if (_clock.AutoReturn) _tick.Start();
         };
         // Ölçeği farklı bir ekrana geçerse boyut değişir: ortalama yeniden yapılır.

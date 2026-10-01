@@ -392,6 +392,7 @@ public partial class FenceView : UserControl, IWidgetView
         _fillToken++;
         _view = [];
         Items.ItemsSource = _view;
+        _filled = false; // klasör yeniden okunabilince gelen liste ilk dolum sayılır (kutucuklar girerek gelmez)
         ApplyParts(); // sayı rozeti gizlenir (_stamp yok): başlık yeniden sığdırılır
         ShowEmpty(icon, text, showCreate, showPick);
     }
@@ -444,6 +445,9 @@ public partial class FenceView : UserControl, IWidgetView
         }
 
         var token = ++_fillToken;
+        // Aramadan çıkılınca listeye geri gelenler yeni kutucuk değildir: girerek gelmez.
+        var wasSearching = _shownQuery.Length > 0;
+        _shownQuery = q;
         var steps = ListDiff.Plan(_view, shown);
         if (steps.Count > Math.Max(12, shown.Count / 2))
         {
@@ -457,7 +461,7 @@ public partial class FenceView : UserControl, IWidgetView
         else if (steps.Count > 0)
         {
             ListDiff.Apply(_view, steps, _view.Move);
-            if (_filled && q.Length == 0) EnterArrivals(steps);
+            if (_filled && q.Length == 0 && !wasSearching) EnterArrivals(steps);
         }
         _filled = true;
 
@@ -503,15 +507,22 @@ public partial class FenceView : UserControl, IWidgetView
     }
 
     // 2.2 Hareket
-    /// <summary>Liste bir kez gösterildi: bundan sonra gelen birkaç kutucuk (yeni dosya, geri alınan taşıma) yerine oturarak girer.</summary>
+    /// <summary>
+    /// Liste bir kez gösterildi: bundan sonra gelen birkaç kutucuk (yeni dosya, geri alınan taşıma) yerine oturarak girer.
+    /// "Klasör yok/okunamıyor" durumu bunu sıfırlar.
+    /// </summary>
     private bool _filled;
+
+    /// <summary>Son gösterilen listenin (katlanmış) arama metni; boşsa arama yoktu.</summary>
+    private string _shownQuery = "";
 
     /// <summary>Bir güncellemede en çok bu kadar yeni kutucuk girerek gelir; daha çoğunda (toplu değişiklik) hiçbiri oynamaz.</summary>
     private const int MaxTileEnter = 6;
 
     /// <summary>
     /// Yalnızca eklenen (hiçbiri kalkmayan) birkaç kutucuk hafifçe büyüyerek yerine oturur (Views.Motion TileEnter: yalnızca ölçek,
-    /// yazının saydamlığı değişmez). İlk dolumda, aramada, yeniden kurulumda ve toplu değişiklikte hiçbir şey oynamaz.
+    /// yazının saydamlığı değişmez). İlk dolumda, aramada ve aramadan çıkınca, yeniden kurulumda, toplu değişiklikte ve kullanıcı
+    /// kartı sürükler ya da boyutlandırırken hiçbir şey oynamaz.
     /// </summary>
     private void EnterArrivals(List<ListStep<TileItem>> steps)
     {
@@ -520,7 +531,7 @@ public partial class FenceView : UserControl, IWidgetView
         if (arrived.Count is 0 or > MaxTileEnter) return;
         Dispatcher.BeginInvoke(() =>
         {
-            if (_detached || Window.GetWindow(this) is not WidgetWindow { IsVisible: true } window) return;
+            if (_detached || Window.GetWindow(this) is not WidgetWindow { IsVisible: true, Interacting: false } window) return;
             var tiles = arrived.Select(i => Items.ItemContainerGenerator.ContainerFromItem(i)).OfType<UIElement>().ToList();
             if (tiles.Count > 0) Views.Motion.Cascade(tiles, MotionKind.TileEnter, MotionSurface.LayeredWidget, window.PixelArea);
         }, DispatcherPriority.Loaded);

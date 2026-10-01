@@ -156,7 +156,7 @@
                 <ui:SymbolIcon x:Name="MotionIcon" Symbol="SlideTransition24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Animasyonlar'}" />
+                    <TextBlock x:Name="MotionTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Animasyonlar'}" />
                     <TextBlock Style="{StaticResource Muted}"
                                Text="{l:T 'Canlı: widget\'lar ve sayfalar hafifçe büyüyerek ya da kayarak açılır. Sakin: yalnızca kısa solmalar. Kapalı: hiçbir şey oynamaz. Windows\'un animasyon ayarına her zaman uyar.'}" />
                     <TextBlock x:Name="AnimationsNote" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="Collapsed"
@@ -167,13 +167,22 @@
                 </StackPanel>
                 <Border Grid.Column="2" Margin="16,0,0,0" Padding="2" VerticalAlignment="Center" CornerRadius="6" BorderThickness="1"
                         Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
-                    <StackPanel Orientation="Horizontal" AutomationProperties.Name="{l:T 'Animasyonlar'}">
+                    <!-- Seçim düğmesi grubu: Sekme tuşu grupta bir kez durur, oklar bölümler arasında gezer ve seçer;
+                         ekran okuyucu her bölümü satırın başlığıyla (LabeledBy) okur. -->
+                    <StackPanel x:Name="MotionChoices" Orientation="Horizontal"
+                                KeyboardNavigation.TabNavigation="Once" KeyboardNavigation.DirectionalNavigation="Cycle">
                         <RadioButton x:Name="MotionLively" Style="{StaticResource Segment}" GroupName="SettingsMotion" Content="{l:T 'Canlı'}"
-                                     Checked="MotionChoice_Checked" AutomationProperties.AutomationId="Settings.Motion.Lively" />
+                                     Checked="MotionChoice_Checked" GotKeyboardFocus="MotionChoice_GotKeyboardFocus"
+                                     AutomationProperties.AutomationId="Settings.Motion.Lively"
+                                     AutomationProperties.LabeledBy="{Binding ElementName=MotionTitle}" />
                         <RadioButton x:Name="MotionCalm" Style="{StaticResource Segment}" GroupName="SettingsMotion" Content="{l:T 'Sakin'}"
-                                     Checked="MotionChoice_Checked" AutomationProperties.AutomationId="Settings.Motion.Calm" />
+                                     Checked="MotionChoice_Checked" GotKeyboardFocus="MotionChoice_GotKeyboardFocus"
+                                     AutomationProperties.AutomationId="Settings.Motion.Calm"
+                                     AutomationProperties.LabeledBy="{Binding ElementName=MotionTitle}" />
                         <RadioButton x:Name="MotionOff" Style="{StaticResource Segment}" GroupName="SettingsMotion" Content="{l:T 'Kapalı'}"
-                                     Checked="MotionChoice_Checked" AutomationProperties.AutomationId="Settings.Motion.Off" />
+                                     Checked="MotionChoice_Checked" GotKeyboardFocus="MotionChoice_GotKeyboardFocus"
+                                     AutomationProperties.AutomationId="Settings.Motion.Off"
+                                     AutomationProperties.LabeledBy="{Binding ElementName=MotionTitle}" />
                     </StackPanel>
                 </Border>
             </Grid>
