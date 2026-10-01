@@ -26,7 +26,7 @@ powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenari
 | `-Seconds` | 40 (`scale`: 10) | Senaryo süresi (`startup` ve `bigfence` hep 5 sn) |
 | `-Widgets` | 5 | Yalnızca `scale`: 1, 5 ya da 15 widget |
 | `-Set` | yok | Test örneğinin `settings.json`'ına eklenecek ayarlar: `Ad=değer` (değer JSON: `true`, `5`, `"metin"`), virgülle ayrılır |
-| `-Out` | `%TEMP%\nestdesk-perf` | Çıktı kökü |
+| `-Out` | `%TEMP%\nestdesk-perf` | Çıktı kökü (göreli yol PowerShell'in o anki klasörüne göre çözülür) |
 
 **Çıktı:** `<Out>\<Name>\result.json` (ekrana da basılır), `perf.log` (NESTDESK_PERF_LOG), `desktop\` (test masaüstü),
 `data\` (test verisi). Klasör her çalıştırmada silinip yeniden kurulur.
@@ -114,7 +114,10 @@ Notlar:
 
 ## 5. Sonuçlar
 
-Her hücreye üç çalıştırmanın ortancası; tarih ve derleme (sürüm, commit) "Not" sütununa.
+Her hücreye üç çalıştırmanın ortancası; tarih ve derleme "Not" sütununa: `ExeVersion`, `ExeBuild` (DLL özeti; geliştirme
+derlemeleri sürüm çıkana dek eski sürüm numarasını taşır) ve commit.
+
+> Henüz ölçülmedi: taban (2.1.1) ve 2.2 satırları arayüz doğrulaması sırasında, ölçümler sırayla çalıştırılarak doldurulur.
 
 **Açılış ve boşta**
 
@@ -141,7 +144,7 @@ Her hücreye üç çalıştırmanın ortancası; tarih ve derleme (sürüm, comm
 
 | Alan | Anlamı |
 |---|---|
-| `ExeVersion`, `Settings` | Ölçülen derlemenin sürümü; `-Set` ile verilen ayarlar |
+| `ExeVersion`, `ExeBuild`, `Settings` | Ölçülen derlemenin sürümü; yönetilen DLL'in adı, SHA-256 özetinin ilk 12 hanesi ve yazılma zamanı (aynı sürüm numaralı derlemeleri ayırır); `-Set` ile verilen ayarlar |
 | `FirstWidgetMs`, `AllWidgetsVisibleMs` | Süreç başlatıldıktan sonra ilk / bütün widget pencerelerinin görünmesi |
 | `StartupIdleMs` | Arayüz iş parçacığının ilk boşa düşüşü (-1: 60 sn'de düşmedi) |
 | `StartupPings`, `StartupLongestPingMs` | Açılıştaki yoklamalar (n, ortanca, p99, en uzun, >50 ms, >100 ms) |
@@ -152,8 +155,8 @@ Her hücreye üç çalıştırmanın ortancası; tarih ve derleme (sürüm, comm
 | `Toggles`, `UiMsPerToggle`, `HotkeyMisses` | `motion`: gönderilen gizle/göster sayısı, geçiş başına arayüz ms'si, kısayol penceresinin bulunamadığı sayı |
 | `AfterCpuPercentOfOneCore`, `AfterUiThreadPercent`, `AfterPings` | `motion`: geçişler bittikten sonraki 5 sn |
 | `MotionCounters`, `MotionEvents` | `perf.log`'daki `Motion.X=n` sayaçları ve tek tek yazılan `Motion.X` olayları (2.2 Hareket ile) |
-| `Marks` | `perf.log`'daki açılış işaretleri, süreç başından ms (§7) |
-| `GcAtExit` | Çıkıştaki yönetilen bellek: `gcHeapKB`, `gcCommittedKB`, `gcFragmentedKB`, `managedKB`, `gc0..2`, `gcPauseMs` |
+| `Marks`, `MarkDetails` | `perf.log`'daki açılış işaretleri, süreç başından ms (her işaretin ilki; §7) ve ayrıntıları (`load=`, `widgets=`, açılıştaki GC) |
+| `GcAtExit` | Çıkıştaki yönetilen bellek: `gcHeapKB`, `gcCommittedKB`, `gcFragmentedKB`, `managedKB`, `gc0..2`, `gcPauseMs` (yalnızca çıkıştaki sayaç satırından; örnek sonlandırıldıysa boş) |
 | `FenceUpdatesLogged` | Bölme güncellemesi sayısı |
 | `Killed` | Örnek `--exit` ile kapanmadı, sonlandırıldı (sonucu şüpheli say) |
 | `RealDesktopIcons` | Gerçek masaüstü simgelerinin başta → sonda durumu (yalnızca okunur) |
@@ -167,7 +170,7 @@ Açılış işaretleri (`PerfLog.Mark`, 2.2), biçim `mark <ad> <süreç başın
 
 | İşaret | Nerede |
 |---|---|
-| `App.resources` | `App.OnStartup` başı: App.xaml kaynakları (WPF-UI sözlükleri, QuietStyles) yüklendi |
+| `App.resources` | `App.OnStartup` başı: App.xaml kaynakları (WPF-UI sözlükleri, QuietStyles) yüklendi. Zaman orada alınır, işaret tek örnek denetiminden sonra yazılır: yardımcı süreçler (`--exit`, `--peek`, ikinci açılış) işaret koymaz |
 | `Settings.loaded` | `AppHost.Initialize`: `settings.json` okundu (`load=` okuma süresi) |
 | `AppHost.initialized` | `AppHost.Initialize` sonu |
 | `Tray.created` | Tepsi simgesi kuruldu |

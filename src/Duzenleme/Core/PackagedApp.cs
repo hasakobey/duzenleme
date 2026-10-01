@@ -49,6 +49,15 @@ public static class PackagedApp
     }
 
     /// <summary>
+    /// Gezgin'de ya da tarayıcıda açılacak bir dosya/klasörün diskteki yeri, YOL BAŞINA çözülür: Windows'un yönlendirdiği
+    /// kopya (<paramref name="redirected"/>, bkz. <see cref="RedirectedRoamingPath"/>) varsa o, yoksa asıl yol. Veri klasörünün
+    /// tamamı için tek karar (<see cref="DataFolderToShow"/>) yetmez: eski kurulumdan gelen kullanıcıda ayarlar gerçek
+    /// %AppData%'da dururken yeni oluşan <c>logs\</c> pakete özel LocalCache'e yazılır. Paketsizken <paramref name="redirected"/> null.
+    /// </summary>
+    public static string PathToShow(string path, string? redirected, Func<string, bool> exists) =>
+        redirected is not null && exists(redirected) ? redirected : path;
+
+    /// <summary>
     /// Başlat'taki "NestDesk – Add widget" girişi ayrı bir uygulama kimliğidir (PFN!AddWidget). Uygulama kapalıyken oradan
     /// açılan süreç tek örnek olursa tepsi, bildirimler ve görev çubuğu oturum boyunca o kimlikle çalışırdı. Süreç bu kimlikle
     /// açıldıysa ana uygulamanın kimliği (PFN!NestDesk; onu "--add" ile başlatıp kapanır), değilse null.

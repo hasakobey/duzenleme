@@ -202,7 +202,7 @@ public class IdentityTests
     [Fact]
     public void Scripts_that_contain_turkish_text_have_bom()
     {
-        foreach (var script in new[] { "publish.ps1", "package-msix.ps1", "make-icon.ps1" })
+        foreach (var script in new[] { "publish.ps1", "package-msix.ps1", "make-icon.ps1", @"perf\perf-run.ps1" })
         {
             var bytes = File.ReadAllBytes(Path.Combine(RepoRoot(), "tools", script));
             Assert.True(bytes.Length > 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF, $"{script} BOM'lu UTF-8 olmalı");

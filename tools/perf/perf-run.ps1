@@ -60,6 +60,9 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not ('PerfNative' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'PerfNative.cs') }
 $Exe = (Resolve-Path $Exe).Path
+# Göreli -Out PowerShell'in klasörüne göre çözülür: .NET çağrıları ([IO.File]) ve exe'ye verilen --desktop/--data
+# sürecin kendi klasörünü kullanırdı.
+$Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out)
 if ($Files -lt 0) {
     $Files = switch ($Scenario) { 'startup' { 600 } 'bigfence' { 1500 } default { 60 } }
 }
@@ -325,16 +328,24 @@ function Longest($list) {
 $perfLog = Join-Path $run 'perf.log'
 $fenceUpdates = $null
 $marks = [ordered]@{}
+$markDetails = [ordered]@{}
 $gcAtExit = [ordered]@{}
 $motionCounters = [ordered]@{}
 $motionEvents = [ordered]@{}
 if (Test-Path $perfLog) {
     $fenceUpdates = @(Select-String -Path $perfLog -Pattern 'bölme güncellendi' -Encoding UTF8).Count
-    foreach ($hit in @(Select-String -Path $perfLog -Pattern 'mark (\S+) (-?\d+) ms' -Encoding UTF8)) {
-        $marks[$hit.Matches[0].Groups[1].Value] = [int]$hit.Matches[0].Groups[2].Value
+    # Her işaretin ilki geçerli (asıl örneğin açılışı); ayrıntı (load=, widgets=, açılıştaki gc...) ayrıca.
+    foreach ($hit in @(Select-String -Path $perfLog -Pattern 'mark (\S+) (-?\d+) ms(?: (.+))?$' -Encoding UTF8)) {
+        $groups = $hit.Matches[0].Groups
+        $markName = $groups[1].Value
+        if ($marks.Contains($markName)) { continue }
+        $marks[$markName] = [int]$groups[2].Value
+        if ($groups[3].Success) { $markDetails[$markName] = $groups[3].Value.Trim() }
     }
-    # Çıkıştaki sayaç satırı (PerfLog.Summary): sayaçlar ve yönetilen yığın; son satır geçerli.
-    $summary = @(Select-String -Path $perfLog -Pattern 'gcHeapKB=' -Encoding UTF8) | Select-Object -Last 1
+    # Çıkıştaki sayaç satırı (PerfLog.Summary): sayaçlar ve yönetilen yığın; son satır geçerli. "mark ..." satırları
+    # (RestoreAll.end açılıştaki yığını taşır) sayılmaz: süreç öldürüldüyse (Killed) GcAtExit boş kalır.
+    $summary = @(Select-String -Path $perfLog -Pattern 'gcHeapKB=' -Encoding UTF8 |
+        Where-Object { $_.Line -notmatch '\bmark \S+ -?\d+ ms' }) | Select-Object -Last 1
     if ($summary) {
         foreach ($kv in [regex]::Matches($summary.Line, '\b(gc\w+|managedKB)=(\d+)')) { $gcAtExit[$kv.Groups[1].Value] = [long]$kv.Groups[2].Value }
     }
@@ -350,9 +361,22 @@ if (Test-Path $perfLog) {
 }
 $exeVersion = $null
 try { $exeVersion = (Get-Item $Exe).VersionInfo.ProductVersion } catch { }
+# Sürüm numarası geliştirme derlemelerinde değişmez (2.2 dalı da sürüm çıkana dek "2.1.1" der): yönetilen DLL'in özeti ve
+# yazılma zamanı hangi derlemenin ölçüldüğünü ayırır (docs/perf.md §5'e sürümle birlikte yazılır).
+$exeBuild = $null
+foreach ($dllName in 'NestDesk.dll', 'Duzenleme.dll') {
+    $dll = Join-Path (Split-Path $Exe) $dllName
+    if (Test-Path $dll) {
+        try {
+            $exeBuild = '{0} sha256:{1} {2:yyyy-MM-dd HH:mm}' -f $dllName, (Get-FileHash $dll -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant(),
+                (Get-Item $dll).LastWriteTime
+        } catch { }
+        break
+    }
+}
 
 $result = [pscustomobject]@{
-    Name = $Name; Scenario = $Scenario; Exe = $Exe; ExeVersion = $exeVersion; Settings = ($Set -join ',')
+    Name = $Name; Scenario = $Scenario; Exe = $Exe; ExeVersion = $exeVersion; ExeBuild = $exeBuild; Settings = ($Set -join ',')
     DesktopFiles = $Files; Widgets = $layout.Count
     FirstWidgetMs = [math]::Round($firstMs); AllWidgetsVisibleMs = [math]::Round($allVisibleMs); StartupIdleMs = [math]::Round($idleMs)
     StartupPings = (Stats $startPings); StartupLongestPingMs = (Longest $startPings); StartupSettingsWrites = $startupWrites
@@ -367,7 +391,7 @@ $result = [pscustomobject]@{
     AfterCpuPercentOfOneCore = $afterCpu; AfterUiThreadPercent = $afterUi
     AfterPings = $(if ($Scenario -eq 'motion') { Stats $afterPings } else { $null })
     MotionCounters = $motionCounters; MotionEvents = $motionEvents
-    Marks = $marks; GcAtExit = $gcAtExit
+    Marks = $marks; MarkDetails = $markDetails; GcAtExit = $gcAtExit
     FenceUpdatesLogged = $fenceUpdates; TotalSettingsWrites = $totalWrites; Killed = $killed
     RealDesktopIcons = "$iconsBefore -> $([PerfNative]::DesktopIconsState())"
 }

@@ -214,45 +214,72 @@ public class GoldenSettingsTests : IDisposable
         Assert.Equal(NoteColor.Yellow, s.Widgets[2].NoteColor);
         Assert.Equal(WidgetKind.Clock, s.Widgets[3].Kind);
 
-        // Bilinmeyen alanlar her düzeyde Extra'da.
-        Assert.True(s.Extra!.ContainsKey("CalmMotion"));
-        Assert.True(s.Extra.ContainsKey("CrashReportMode"));
-        Assert.True(s.Extra.ContainsKey("GelecekNesne"));
-        Assert.Equal("Ctrl+Alt+R", s.Hotkeys.Extra!["Ring"].GetString());
-        Assert.Equal("daily", s.Rules[0].Extra!["Schedule"].GetString());
+        // Bilinmeyen alanlar her düzeyde Extra'da. Burada yalnızca hiçbir sürümün gerçek alanı olmayacak adlar ("Zz_")
+        // denetlenir: 2.2'nin planlanan alanları (CalmMotion, CrashReportMode, Hotkeys.Ring, sekme Actions, LookTheme…)
+        // eklendikçe Extra'dan çıkar; onlar aşağıda yalnızca kaydedilen çıktıdan denetlenir (alan varken de yokken de doğru).
+        Assert.True(s.Extra!.ContainsKey("Zz_GelecekNesne"));
+        Assert.Equal("Ctrl+Alt+Q", s.Hotkeys.Extra!["Zz_Hologram"].GetString());
+        Assert.Equal("daily", s.Rules[0].Extra!["Zz_Schedule"].GetString());
         var ring = s.Widgets[0];
         Assert.Equal("ring", ring.Variant);
-        Assert.Null(WidgetVariants.Of(ring));                       // bu sürüm tanımaz: temel tür (kutu) gösterilir
-        Assert.Equal("neon", ring.Extra!["LookTheme"].GetString());
-        Assert.True(ring.Extra["QuickKeys"].GetBoolean());
-        Assert.Equal(2, ring.Tabs[0].Extra!["Actions"].GetArrayLength());
-        Assert.True(ring.Tabs[0].Extra!.ContainsKey("Color"));
-        Assert.Equal(1, ring.Tabs[1].Extra!["Actions"].GetArrayLength());
-        Assert.True(ring.ItemLooks!.Values.Single().Extra!.ContainsKey("Color"));
-        Assert.True(s.Widgets[1].Extra!.ContainsKey("Virtualize"));
+        Assert.True(ring.Extra!["Zz_Gelecek"].GetProperty("Halka").GetBoolean());
+        Assert.Equal("#336699", ring.Tabs[0].Extra!["Zz_Color"].GetString());
+        Assert.Equal("#FF0000", ring.ItemLooks!.Values.Single().Extra!["Zz_Color"].GetString());
+        Assert.True(s.Widgets[1].Extra!.ContainsKey("Zz_Virtualize"));
         Assert.Equal("hologram", s.Widgets[3].Variant);
-        Assert.True(s.Widgets[3].Extra!.ContainsKey("Projection"));
-        Assert.Equal("bell", s.Widgets[4].Timer!.Extra!["Sound"].GetString());
-        Assert.Equal(2, s.Widgets[4].Zones![0].Extra!["Order"].GetInt32());
-        Assert.Equal("mavi", s.Layouts[0].Extra!["Renk"].GetString());
-        Assert.Equal("gece", s.Layouts[0].Widgets[0].Extra!["LookTheme"].GetString());
+        Assert.Equal(3, s.Widgets[3].Extra!["Zz_Projection"].GetArrayLength());
+        Assert.Equal("bell", s.Widgets[4].Timer!.Extra!["Zz_Sound"].GetString());
+        Assert.Equal(2, s.Widgets[4].Zones![0].Extra!["Zz_Order"].GetInt32());
+        Assert.Equal("mavi", s.Layouts[0].Extra!["Zz_Renk"].GetString());
+        Assert.Equal(1, s.Layouts[0].Widgets[0].Extra!["Zz_Gelecek"].GetInt32());
 
-        // Kaydedince de korunur (2.1'e dönüp yeniden 2.2'ye geçen kullanıcı kaybetmez).
+        // Kaydedince de korunur (2.1'e dönüp yeniden 2.2'ye geçen kullanıcı kaybetmez): bilinmeyenler ve 2.2'nin alanları.
         using var doc = JsonDocument.Parse(JsonFile.Serialize(s));
         var root = doc.RootElement;
         Assert.Equal("9.1.0", root.GetProperty("SavedWithAppVersion").GetString());
+        Assert.Equal("ç", root.GetProperty("Zz_GelecekNesne").GetProperty("c").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("Zz_GelecekNesne").GetProperty("a")[2].GetProperty("b").ValueKind);
+        Assert.True(root.GetProperty("CalmMotion").GetBoolean());
         Assert.Equal("always", root.GetProperty("CrashReportMode").GetString());
-        Assert.Equal("ç", root.GetProperty("GelecekNesne").GetProperty("c").GetString());
-        Assert.Equal(JsonValueKind.Null, root.GetProperty("GelecekNesne").GetProperty("a")[2].GetProperty("b").ValueKind);
-        Assert.Equal("Ctrl+Alt+R", root.GetProperty("Hotkeys").GetProperty("Ring").GetString());
+        Assert.True(root.GetProperty("ErrorLogOff").GetBoolean());
+        Assert.Equal("90000000000000000000000000000001", root.GetProperty("RingWidgetId").GetString());
+        var hotkeys = root.GetProperty("Hotkeys");
+        Assert.Equal("Ctrl+Alt+R", hotkeys.GetProperty("Ring").GetString());
+        Assert.Equal("Ctrl+Alt+Q", hotkeys.GetProperty("Zz_Hologram").GetString());
+        Assert.Equal("daily", root.GetProperty("Rules")[0].GetProperty("Zz_Schedule").GetString());
+
         var saved = root.GetProperty("Widgets")[0];
         Assert.Equal("ring", saved.GetProperty("Variant").GetString());
+        Assert.Equal("neon", saved.GetProperty("LookTheme").GetString());
         Assert.Equal("#12AB34", saved.GetProperty("LookAccentColor").GetString());
-        var action = saved.GetProperty("Tabs")[0].GetProperty("Actions")[0];
+        Assert.True(saved.GetProperty("QuickKeys").GetBoolean());
+        Assert.True(saved.GetProperty("Zz_Gelecek").GetProperty("Halka").GetBoolean());
+        var tabs = saved.GetProperty("Tabs");
+        Assert.Equal(2, tabs[0].GetProperty("Actions").GetArrayLength());
+        var action = tabs[0].GetProperty("Actions")[0];
+        Assert.Equal("url", action.GetProperty("Kind").GetString());
         Assert.Equal("https://example.com/", action.GetProperty("Url").GetString());
         Assert.Equal(7, action.GetProperty("Extra1").GetInt32());
-        Assert.True(saved.GetProperty("Tabs")[0].GetProperty("Actions")[1].GetProperty("Disabled").GetBoolean());
-        Assert.Equal("Web", saved.GetProperty("ItemLooks").EnumerateObject().Single().Value.GetProperty("Name").GetString());
+        var unknownAction = tabs[0].GetProperty("Actions")[1];
+        Assert.Equal("teleport", unknownAction.GetProperty("Kind").GetString());     // tanınmayan eylem türü de korunur
+        Assert.Equal("mars", unknownAction.GetProperty("Target").GetString());
+        Assert.True(unknownAction.GetProperty("Disabled").GetBoolean());
+        Assert.Equal("#336699", tabs[0].GetProperty("Zz_Color").GetString());
+        Assert.Equal("new-note", tabs[1].GetProperty("Actions")[0].GetProperty("App").GetString());
+        var look = saved.GetProperty("ItemLooks").EnumerateObject().Single().Value;
+        Assert.Equal("Web", look.GetProperty("Name").GetString());
+        Assert.Equal("#FF0000", look.GetProperty("Zz_Color").GetString());
+
+        var widgets = root.GetProperty("Widgets");
+        Assert.Equal(150, widgets[1].GetProperty("Zz_Virtualize").GetProperty("From").GetInt32());
+        Assert.Equal("kagit", widgets[2].GetProperty("LookTheme").GetString());
+        Assert.Equal(3, widgets[3].GetProperty("Zz_Projection").GetArrayLength());
+        Assert.Equal("bell", widgets[4].GetProperty("Timer").GetProperty("Zz_Sound").GetString());
+        Assert.Equal(2, widgets[4].GetProperty("Zones")[0].GetProperty("Zz_Order").GetInt32());
+        var layout = root.GetProperty("Layouts")[0];
+        Assert.Equal("mavi", layout.GetProperty("Zz_Renk").GetString());
+        Assert.Equal("gece", layout.GetProperty("Widgets")[0].GetProperty("LookTheme").GetString());
+        Assert.Equal(1, layout.GetProperty("Widgets")[0].GetProperty("Zz_Gelecek").GetInt32());
     }
 }
 

@@ -156,4 +156,207 @@ public class SettingsVersionTests
         var stamped = System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(new AppSettings { SavedWithAppVersion = "2.2.0" }));
         Assert.Contains("\"SavedWithAppVersion\": \"2.2.0\"", stamped);
     }
+
+    [Fact]
+    public void Prune_never_deletes_the_copy_just_taken()
+    {
+        // Saat geri alınmış ya da daha eski bir yedeğin adında gelecekten bir zaman var: az önce alınan kopya adına göre en
+        // eskisi olsa da kalır ve kalan üç yedekten biri sayılır.
+        string[] names =
+        [
+            "before-2.3.0-from-2.2.0-20301231-235959.json",   // gelecekten
+            "before-2.2.1-from-2.3.0-20261106-080000.json",
+            "before-2.3.0-from-2.2.1-20261107-080000.json",
+            "before-2.2.0-from-2.3.0-20261001-090000.json",   // az önce alınan (saat geri alınmış)
+        ];
+        var deleted = SettingsVersion.Prune(names, justTaken: names[3]);
+        Assert.Equal(["before-2.2.1-from-2.3.0-20261106-080000.json"], deleted);
+        Assert.DoesNotContain(names[3], SettingsVersion.Prune(names, keep: 1, justTaken: names[3]));
+        Assert.Equal(3, SettingsVersion.Prune(names, keep: 1, justTaken: names[3]).Count);
+        // Alınamayan (listede olmayan) kopya yer tutmaz.
+        Assert.Single(SettingsVersion.Prune(names, justTaken: "before-9.9.9-from-2.2.0-20261001-090000.json"));
+    }
+
+    [Theory]
+    [InlineData("2.3.0", "2.3.0")]
+    [InlineData("2.3", "2.3.0")]
+    [InlineData("v3", "3.0.0")]
+    [InlineData("2.3.0-beta <b>uydurma</b>", "2.3.0")]   // elle düzenlenmiş damganın son eki gösterilmez
+    [InlineData("gelecek", "?")]
+    [InlineData(null, "?")]
+    public void Display_shows_only_the_parsed_numbers(string? stamp, string expected) =>
+        Assert.Equal(expected, SettingsVersion.Display(stamp));
+
+    // --- Dosya işleri (geçici klasörde) ---
+
+    private static string TempDir() =>
+        Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "nd-version-" + Guid.NewGuid().ToString("N"))).FullName;
+
+    private static readonly DateTime At = new(2026, 10, 2, 9, 30, 0);
+
+    [Fact]
+    public void Backup_before_change_copies_the_file_byte_for_byte()
+    {
+        var dir = TempDir();
+        try
+        {
+            var settings = Path.Combine(dir, "settings.json");
+            var bytes = System.Text.Encoding.UTF8.GetBytes("{\n  \"Paused\": true,\n  \"Theme\": \"Sepia\"\n}\n");
+            File.WriteAllBytes(settings, bytes);
+            var backups = Path.Combine(dir, SettingsVersion.BackupFolder);
+
+            var name = SettingsVersion.BackupBeforeChange(settings, backups, SettingsVersion.Check("2.1.1", "2.2.0"), "2.2.0", At);
+            Assert.Equal("before-2.2.0-from-2.1.1-20261002-093000.json", name);
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(backups, name!)));
+            Assert.Equal(bytes, File.ReadAllBytes(settings));   // asıl dosyaya dokunulmaz
+
+            var unstamped = SettingsVersion.BackupBeforeChange(settings, backups, SettingsVersion.Check(null, "2.2.0"), "2.2.0", At.AddSeconds(1));
+            Assert.Equal("before-2.2.0-from-eski-20261002-093001.json", unstamped);
+            var newer = SettingsVersion.BackupBeforeChange(settings, backups, SettingsVersion.Check("2.3.0", "2.2.0"), "2.2.0", At.AddSeconds(2));
+            Assert.Equal("before-2.2.0-from-2.3.0-20261002-093002.json", newer);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Same_version_or_missing_settings_take_no_backup()
+    {
+        var dir = TempDir();
+        try
+        {
+            var settings = Path.Combine(dir, "settings.json");
+            var backups = Path.Combine(dir, SettingsVersion.BackupFolder);
+            var log = new List<string>();
+
+            // Yeni kullanıcı: dosya yok, klasör de açılmaz.
+            Assert.Null(SettingsVersion.BackupBeforeChange(settings, backups, SettingsVersion.Check(null, "2.2.0"), "2.2.0", At, log.Add));
+            Assert.False(Directory.Exists(backups));
+
+            File.WriteAllText(settings, "{}");
+            Assert.Null(SettingsVersion.BackupBeforeChange(settings, backups, SettingsVersion.Check("2.2.0", "2.2.0"), "2.2.0", At, log.Add));
+            Assert.False(Directory.Exists(backups));
+            Assert.Empty(log);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Failed_backup_returns_null_and_startup_goes_on()
+    {
+        var dir = TempDir();
+        try
+        {
+            var settings = Path.Combine(dir, "settings.json");
+            File.WriteAllText(settings, "{}");
+            // Yedek klasörünün yerinde bir dosya var: klasör oluşturulamaz.
+            var backups = Path.Combine(dir, SettingsVersion.BackupFolder);
+            File.WriteAllText(backups, "dosya");
+            var log = new List<string>();
+            Assert.Null(SettingsVersion.BackupBeforeChange(settings, backups, SettingsVersion.Check("2.1.1", "2.2.0"), "2.2.0", At, log.Add));
+            Assert.Single(log);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Prune_on_disk_keeps_three_and_touches_nothing_else()
+    {
+        var dir = TempDir();
+        try
+        {
+            string[] versions =
+            [
+                "before-2.1.1-from-eski-20260901-100000.json",
+                "before-2.2.0-from-2.1.1-20261001-100000.json",
+                "before-2.2.1-from-2.2.0-20261020-100000.json",
+                "before-2.3.0-from-2.2.1-20261101-100000.json",
+                "before-2.2.1-from-2.3.0-20261102-100000.json",
+            ];
+            string[] others = ["settings-2026-10-01.json", "settings-2026-10-02.json", "before-notlarim.json", "notlar.txt"];
+            foreach (var name in versions.Concat(others)) File.WriteAllText(Path.Combine(dir, name), name);
+
+            Assert.Equal(2, SettingsVersion.PruneBackups(dir, justTaken: versions[4]));
+            var left = Directory.GetFiles(dir).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToList();
+            Assert.Equal(versions[2..].Concat(others).Order(StringComparer.Ordinal), left);
+            Assert.All(others, name => Assert.Equal(name, File.ReadAllText(Path.Combine(dir, name))));
+
+            Assert.Equal(0, SettingsVersion.PruneBackups(Path.Combine(dir, "yok"), justTaken: null));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Clearing_the_key_rewrites_only_version_backups_and_keeps_the_rest()
+    {
+        var dir = TempDir();
+        try
+        {
+            var original = new AppSettings
+            {
+                Paused = true,
+                AiKeyProtected = "QUJDREVGR0g=",
+                SavedWithAppVersion = "2.2.0",
+                Widgets = [new WidgetConfig { Id = Guid.NewGuid().ToString("N"), Kind = WidgetKind.Note, NoteText = "AiKeyProtected not ç" }],
+            };
+            var json = JsonFile.Serialize(original);
+            var withKey = "before-2.2.0-from-2.1.1-20261001-100000.json";
+            var withoutKey = "before-2.2.1-from-2.2.0-20261020-100000.json";
+            var broken = "before-2.2.2-from-2.2.1-20261021-100000.json";
+            File.WriteAllBytes(Path.Combine(dir, withKey), json);
+            var keyless = JsonFile.Serialize(new AppSettings { Paused = true });
+            File.WriteAllBytes(Path.Combine(dir, withoutKey), keyless);
+            File.WriteAllText(Path.Combine(dir, broken), "{ \"AiKeyProtected\": \"QUJD\", yarım");
+            File.WriteAllBytes(Path.Combine(dir, "settings-2026-10-01.json"), json);      // günlük yedek: kendi sırasıyla döner
+            File.WriteAllBytes(Path.Combine(dir, "before-notlarim.json"), json);          // kullanıcının dosyası
+
+            Assert.Equal(2, SettingsVersion.ClearPropertyInBackups(dir, nameof(AppSettings.AiKeyProtected)));
+
+            var scrubbed = File.ReadAllText(Path.Combine(dir, withKey));
+            Assert.DoesNotContain("QUJDREVGR0g=", scrubbed);
+            var restored = JsonFile.Load(Path.Combine(dir, withKey), () => new AppSettings());
+            Assert.Null(restored.AiKeyProtected);
+            Assert.True(restored.Paused);
+            Assert.Equal("2.2.0", restored.SavedWithAppVersion);
+            Assert.Equal("AiKeyProtected not ç", Assert.Single(restored.Widgets).NoteText);   // notun içindeki aynı söz kalır
+            Assert.Equal(original.Widgets[0].Id, restored.Widgets[0].Id);
+
+            Assert.Equal(keyless, File.ReadAllBytes(Path.Combine(dir, withoutKey)));      // anahtarsız yedek değişmez
+            Assert.False(File.Exists(Path.Combine(dir, broken)));                           // temizlenemeyen yedek silinir
+            Assert.Equal(json, File.ReadAllBytes(Path.Combine(dir, "settings-2026-10-01.json")));
+            Assert.Equal(json, File.ReadAllBytes(Path.Combine(dir, "before-notlarim.json")));
+            Assert.Empty(Directory.GetFiles(dir, "*.tmp"));
+
+            // İkinci kez: yapılacak bir şey yok.
+            Assert.Equal(0, SettingsVersion.ClearPropertyInBackups(dir, nameof(AppSettings.AiKeyProtected)));
+            Assert.Equal(0, SettingsVersion.ClearPropertyInBackups(Path.Combine(dir, "yok"), nameof(AppSettings.AiKeyProtected)));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void Startup_backs_up_settings_before_anything_can_save_them()
+    {
+        // AppHost.Initialize'ın sırası (arayüzsüz sınanamaz): yükle → sürüm yedeği → kayıt deposu ve ilk kayıt. Yedek kayıttan
+        // sonraya kayarsa daha eski sürüm, tanımadığı enum değerlerini yedek alınmadan ezerdi.
+        var text = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "AppHost.cs"));
+        var start = text.IndexOf("public static void Initialize(", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var body = text[start..text.IndexOf("\n    }\n", start, StringComparison.Ordinal)];
+        var load = body.IndexOf("JsonFile.Load(SettingsPath", StringComparison.Ordinal);
+        var backup = body.IndexOf("SettingsVersion.BackupBeforeChange(SettingsPath", StringComparison.Ordinal);
+        var store = body.IndexOf("new SettingsStore(", StringComparison.Ordinal);
+        var stamp = body.IndexOf("Settings.SavedWithAppVersion = AppInfo.Version", StringComparison.Ordinal);
+        var firstSave = body.IndexOf("SaveSettings", StringComparison.Ordinal);
+        Assert.True(load >= 0 && backup > load, "yedek, dosya yüklendikten sonra alınmalı");
+        Assert.True(store > backup && firstSave > backup && stamp > backup, "yedek, ilk kayıttan ve damgadan önce alınmalı");
+    }
+
+    private static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "Duzenleme.sln"))) return dir.FullName;
+        }
+        throw new DirectoryNotFoundException("Duzenleme.sln bulunamadı: " + AppContext.BaseDirectory);
+    }
 }

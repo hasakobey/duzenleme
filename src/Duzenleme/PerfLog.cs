@@ -23,21 +23,28 @@ public static class PerfLog
         if (Path is null) return;
         lock (Lock)
         {
+            // Yazılamayan yol (izin, geçersiz ad) uygulamayı düşürmesin: bu günlük yalnızca ölçüm içindir.
             try { File.AppendAllText(Path, $"{DateTime.Now:HH:mm:ss.fff} [{Environment.CurrentManagedThreadId}] {message}{Environment.NewLine}"); }
-            catch (IOException) { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
+                                           or System.Security.SecurityException or ArgumentException) { }
         }
     }
 
     /// <summary>
     /// Açılış işareti: "mark &lt;ad&gt; &lt;süreç başından ms&gt; ms [ayrıntı]". Ad ASCII'dir (perf-run.ps1 okur):
     /// App.resources, Settings.loaded, AppHost.initialized, Tray.created, Widget.firstRendered, RestoreAll.end, StartServices.end.
+    /// Yalnızca asıl örnek yazar (yardımcı süreçler --exit, --peek, ikinci açılış tek örnek denetiminden önce işaret koymaz):
+    /// zamanı daha önce alınan işaret <paramref name="atMs"/> ile (<see cref="Now"/>) sonradan yazılır.
     /// </summary>
-    public static void Mark(string name, string? detail = null)
+    public static void Mark(string name, string? detail = null, double? atMs = null)
     {
         if (Path is null) return;
-        var since = SinceProcessStart();
+        var since = atMs ?? SinceProcessStart();
         Write(string.Create(CultureInfo.InvariantCulture, $"mark {name} {since:0} ms") + (detail is null ? "" : " " + detail));
     }
+
+    /// <summary>Süreç başından bu yana geçen ms (<see cref="Mark"/> için); kapalıyken -1 ve maliyetsiz.</summary>
+    public static double Now() => Path is null ? -1 : SinceProcessStart();
 
     /// <summary>Sayacı artırır (yalnızca açıkken); <see cref="Summary"/> ile yazılır.</summary>
     public static void Count(string name, long by = 1)

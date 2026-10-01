@@ -4,7 +4,7 @@
       "TargetFolder": "PDF",
       "Extensions": [ "pdf" ],
       "Enabled": true,
-      "Schedule": "daily"
+      "Zz_Schedule": "daily"
     },
     {
       "TargetFolder": "Resimler",
@@ -41,7 +41,7 @@
             { "Kind": "url", "Url": "https://example.com/", "Title": "\u00D6rnek", "PathsBefore": 1, "Extra1": 7 },
             { "Kind": "teleport", "Target": "mars", "Disabled": true }
           ],
-          "Color": "#336699"
+          "Zz_Color": "#336699"
         },
         {
           "Name": "Alt halka",
@@ -50,11 +50,12 @@
         }
       ],
       "ItemLooks": {
-        "C:\\Users\\ali\\Desktop\\Taray\u0131c\u0131.lnk": { "Name": "Web", "Icon": "sym:Globe24", "Color": "#FF0000" }
+        "C:\\Users\\ali\\Desktop\\Taray\u0131c\u0131.lnk": { "Name": "Web", "Icon": "sym:Globe24", "Zz_Color": "#FF0000" }
       },
       "LookTheme": "neon",
       "LookAccentColor": "#12AB34",
       "QuickKeys": true,
+      "Zz_Gelecek": { "Halka": true },
       "Z": 30
     },
     {
@@ -65,7 +66,7 @@
       "IconSize": "Huge",
       "Width": 400,
       "Height": 300,
-      "Virtualize": { "From": 150, "To": 120 },
+      "Zz_Virtualize": { "From": 150, "To": 120 },
       "Z": 31
     },
     {
@@ -80,15 +81,15 @@
       "Id": "90000000000000000000000000000004",
       "Kind": "Hologram",
       "Variant": "hologram",
-      "Projection": [ 1, 2, 3 ],
+      "Zz_Projection": [ 1, 2, 3 ],
       "Z": 33
     },
     {
       "Id": "90000000000000000000000000000005",
       "Kind": "Clock",
       "Variant": "timer",
-      "Timer": { "Mode": "interval", "Minutes": 20, "Sound": "bell", "EndsUtc": null },
-      "Zones": [ { "Id": "Tokyo Standard Time", "Label": "Ofis", "Order": 2 } ],
+      "Timer": { "Mode": "interval", "Minutes": 20, "Zz_Sound": "bell", "EndsUtc": null },
+      "Zones": [ { "Id": "Tokyo Standard Time", "Label": "Ofis", "Zz_Order": 2 } ],
       "Z": 34
     }
   ],
@@ -100,15 +101,16 @@
     "PeekWidgets": "Ctrl+Alt+W",
     "QuickAdd": "Ctrl+Alt+B",
     "PeekDesktop": "Ctrl+Alt+G",
-    "Ring": "Ctrl+Alt+R"
+    "Ring": "Ctrl+Alt+R",
+    "Zz_Hologram": "Ctrl+Alt+Q"
   },
   "Layouts": [
     {
       "Name": "Gelecek d\u00FCzeni",
       "Created": "2027-01-02T03:04:05Z",
-      "Renk": "mavi",
+      "Zz_Renk": "mavi",
       "Widgets": [
-        { "Id": "90000000000000000000000000000006", "Kind": "Note", "NoteText": "d\u00FCzen", "LookTheme": "gece" }
+        { "Id": "90000000000000000000000000000006", "Kind": "Note", "NoteText": "d\u00FCzen", "LookTheme": "gece", "Zz_Gelecek": 1 }
       ]
     }
   ],
@@ -122,5 +124,5 @@
   "CrashReportMode": "always",
   "ErrorLogOff": true,
   "RingWidgetId": "90000000000000000000000000000001",
-  "GelecekNesne": { "a": [ 1, 2, { "b": null } ], "c": "\u00E7" }
+  "Zz_GelecekNesne": { "a": [ 1, 2, { "b": null } ], "c": "\u00E7" }
 }
