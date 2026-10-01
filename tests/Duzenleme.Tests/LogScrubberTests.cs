@@ -157,9 +157,45 @@ public class LogScrubberTests
     [Theory]
     [InlineData("An item with the same key has already been added. Key: Faturalar", "An item with the same key has already been added. Key: <text>")]
     [InlineData("Key: C:\\Users\\Zeynep\\Desktop\\x.lnk", "Key: <text>")]
-    [InlineData("duplicate key: abc def\nline 2", "duplicate Key: <text>\nline 2")]
+    [InlineData("duplicate key: abc def\nline 2", "duplicate key: <text>\nline 2")]
+    [InlineData("ApiKey: sk-ant-api03-Gizli", "ApiKey: <text>")]
+    [InlineData("x-api-key=Gizli123 sent", "x-api-key= <text>")]
+    [InlineData("KEY : Gizli", "KEY: <text>")]
     public void Everything_after_key_is_removed(string input, string expected) =>
         Assert.Equal(expected, Scrubber().Text(input));
+
+    [Theory]
+    [InlineData("token sk-ant-api03-AbCdEf_123-xyz9 rejected", "token <secret> rejected")]
+    [InlineData("'sk-ant-admin01-ZZZZZZZZZZZZ'", "'<secret>'")]
+    [InlineData("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.e30.abc", "Authorization: Bearer <secret>")]
+    public void Api_keys_and_tokens_are_removed_anywhere(string input, string expected)
+    {
+        var output = Scrubber().Text(input);
+        Assert.Equal(expected, output);
+        Assert.DoesNotContain("sk-ant", output, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(output, Scrubber().Text(output));
+    }
+
+    // ------------------------------------------------------------------ adlarda geçerli karakterler
+
+    [Theory]
+    [InlineData(Profile + @"\Desktop\“Gizli” rapor maaş.pdf")]
+    [InlineData(Profile + @"\Desktop\«Gizli» rapor maaş.pdf")]
+    [InlineData(Profile + @"\Desktop\‘Gizli’ rapor maaş.pdf")]
+    [InlineData(Profile + @"\Desktop\Ali's rapor maaş.pdf")]
+    public void Unquoted_path_with_quote_like_characters_never_leaks_the_rest_of_the_name(string path)
+    {
+        var output = Scrubber().Text("Failed " + path);
+        Assert.StartsWith("Failed <path:desktop>", output);
+        foreach (var secret in new[] { "Gizli", "rapor", "maaş", "pdf" }) Assert.DoesNotContain(secret, output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Single_quoted_path_ends_at_the_closing_quote_even_with_an_apostrophe_inside()
+    {
+        Assert.Equal("Could not find '<path:desktop>'.", Scrubber().Text($"Could not find '{Profile}\\Desktop\\Ali's rapor.pdf'."));
+        Assert.Equal("a '<path:other>' and '<path:other>'", Scrubber().Text(@"a 'D:\x\y.txt' and 'E:\z\w.txt'"));
+    }
 
     // ------------------------------------------------------------------ istisnalar
 
@@ -177,7 +213,27 @@ public class LogScrubberTests
         new ArgumentNullException("path", "Gizli boş"),
         new ArgumentOutOfRangeException("index", "Gizli değer", "Gizli aralık"),
         new KeyNotFoundException("The given key 'Gizli' was not present in the dictionary."),
+        new AggregateException("Gizli toplu"),
     };
+
+    [Fact]
+    public void Aggregate_message_never_repeats_inner_messages()
+    {
+        // Gözlenmemiş görev hatası hep AggregateException'dır ve iletisi iç iletileri olduğu gibi tekrarlar.
+        var aggregate = Thrown(new AggregateException(
+            Thrown(new IOException("Disk full writing Maaş Bordrosu 2026 for Zeynep")),
+            Thrown(new ArgumentOutOfRangeException("index", "GizliDeğer", "aralık dışı")),
+            Thrown(new InvalidOperationException("Cannot open 'Faturalar' now"))));
+        var error = Scrubber().Error(aggregate);
+        Assert.Null(error.Message);
+        Assert.Equal(3, error.Inner.Count);
+        Assert.Null(error.Inner[0].Message);
+        Assert.Null(error.Inner[1].Message);
+        Assert.Equal("index", error.Inner[1].ParamName);
+        Assert.Equal("Cannot open '<text>' now", error.Inner[2].Message);
+        var json = Json(error);
+        foreach (var secret in new[] { "Maaş", "Bordrosu", "Zeynep", "GizliDeğer", "Faturalar" }) Assert.DoesNotContain(secret, json);
+    }
 
     [Theory]
     [MemberData(nameof(MessageDroppingExceptions))]

@@ -65,14 +65,29 @@ if ($isPlaceholder) {
     Write-Warning $placeholderMessage
 }
 
+# --- Yayın kapısı (2.2 tanılama): hata günlüğü varsayılan açık; Store ilkesi (10.5.1) ve gizlilik sözü bunu ancak PRIVACY.md
+# (TR ve EN) ve Store metinleri (tools/store/listing.md) anlatırsa karşılar. -Strict ile durur, yoksa uyarır (deneme paketi).
+function Assert-DiagnosticsDisclosed([switch]$WarnOnly) {
+    $problems = @()
+    $privacy = [IO.File]::ReadAllText((Join-Path $root 'PRIVACY.md'), [Text.Encoding]::UTF8)
+    if ([regex]::Matches($privacy, 'logs/nestdesk-').Count -lt 2) { $problems += 'PRIVACY.md, TR ve EN bölümlerinde logs/nestdesk-… hata günlüğü dosyalarını anlatmıyor' }
+    if ($privacy -notmatch 'Hata günlüğü') { $problems += 'PRIVACY.md (TR) "Hata günlüğü"nü anmıyor' }
+    if ($privacy -notmatch 'error log') { $problems += 'PRIVACY.md (EN) "error log"u anmıyor' }
+    $listing = [IO.File]::ReadAllText((Join-Path $storeSrc 'listing.md'), [Text.Encoding]::UTF8)
+    if ($listing -notmatch 'error log') { $problems += 'tools/store/listing.md (EN gizlilik özeti, runFullTrust gerekçesi) hata günlüğünü anmıyor' }
+    if ($listing -notmatch 'hata günlüğü') { $problems += 'tools/store/listing.md (TR gizlilik özeti) hata günlüğünü anmıyor' }
+    if ($problems.Count -eq 0) { return }
+    $message = "Tanılama gizlilik metinlerinde anlatılmadan Store paketi gönderilmez:`n  " + ($problems -join "`n  ")
+    if ($WarnOnly) { Write-Warning ($message + "`n  (-Strict olmadan: yalnızca deneme paketi)") } else { throw $message }
+}
+Assert-DiagnosticsDisclosed -WarnOnly:(-not $Strict)
+
 $work = Join-Path ([IO.Path]::GetTempPath()) ('nestdesk-msix-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Force $work | Out-Null
 # Çıktılar burada toplanır; $outDir'e yalnızca her şey bitince taşınır.
 $staging = Join-Path $work 'cikti'
 New-Item -ItemType Directory -Force $staging | Out-Null
 
-# Yerel aracı çalıştırır. makeappx paketlediği her dosyayı yazdığı için çıktı yalnızca hata olursa gösterilir;
-# uyarılar görünür kalır. (makepri UTF-16 yazar: araya giren NUL karakterleri atılır.)
 # 2.2 tanılama: NestDesk.dll'in gömülü taşınabilir PDB'si (DebugType=embedded) ReadyToRun'dan sonra da yerinde mi? Çökme
 # raporlarındaki yığın karelerinin satır numarası buna bağlı. Gömülü PDB, PE hata ayıklama dizininde "MPDB" imzalı bir blob'dur.
 function Assert-EmbeddedPdb([string]$folder) {
@@ -85,6 +100,8 @@ function Assert-EmbeddedPdb([string]$folder) {
     }
 }
 
+# Yerel aracı çalıştırır. makeappx paketlediği her dosyayı yazdığı için çıktı yalnızca hata olursa gösterilir;
+# uyarılar görünür kalır. (makepri UTF-16 yazar: araya giren NUL karakterleri atılır.)
 function Invoke-Tool([string]$exe, [string[]]$arguments) {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'

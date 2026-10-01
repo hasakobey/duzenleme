@@ -92,6 +92,9 @@ public static class CrashReports
     /// </summary>
     public static string? WriteHang(string logsDirectory, string? mode, bool logOff, SessionState previous, DateTime utcNow)
     {
+        // Donup sonra çöken oturumun çökme raporu zaten var (bekleyen ya da kaydedilmiş): aynı oturum için ikinci rapor ve
+        // ikinci soru olmasın.
+        if (HasReportFor(Path.Combine(logsDirectory, FolderName), previous.Session)) return null;
         IReadOnlyList<LogEntry> tail = logOff || CrashReportModes.Normalize(mode) == CrashReportModes.Never
             ? []
             : LogFiles.Read(logsDirectory, previous.StartUtc).Where(e => e.Session == previous.Session).ToList();
@@ -192,6 +195,12 @@ public static class CrashReports
     /// <summary>Bekleyen (<paramref name="pending"/>) ya da kaydedilmiş raporlar, eskiden yeniye.</summary>
     public static IReadOnlyList<CrashReport> List(string crashesDirectory, bool pending) =>
         Files(crashesDirectory, pending ? PendingPrefix : SavedPrefix).Select(Read).OfType<CrashReport>().ToList();
+
+    /// <summary>Bu oturum için bekleyen ya da kaydedilmiş bir rapor var mı?</summary>
+    public static bool HasReportFor(string crashesDirectory, string session) =>
+        session.Length > 0
+        && List(crashesDirectory, pending: true).Concat(List(crashesDirectory, pending: false))
+            .Any(r => string.Equals(r.Session, session, StringComparison.Ordinal));
 
     /// <summary>Henüz sorulmamış bekleyen raporlar (açılıştaki şerit yalnızca bunları sorar; tepsi balonu her açılışta çıkmasın).</summary>
     public static IReadOnlyList<CrashReport> ToAsk(string crashesDirectory) =>
@@ -343,6 +352,23 @@ public sealed record SessionState(string Session, string Version, DateTime Start
 public static class SessionMarker
 {
     public const string FileName = "session.json";
+
+    /// <summary>Oturum kapanışı işaretlendikten sonra bu süre içinde başlayan yanıtsızlık kapanışın kendisidir (bkz. <see cref="WithHang"/>).</summary>
+    public static readonly TimeSpan EndingGrace = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Arayüz nöbetçisinin donma (true) ya da toparlanma (false) bildirimini nöbetçiye işler. Toparlanma "kapanıyor" işaretine
+    /// dokunmaz. Donma, oturum kapanışı işaretlendikten (<paramref name="sinceEnding"/>) sonraki <see cref="EndingGrace"/> içinde
+    /// geldiyse kapanışın kendisidir (SessionEnding'deki eşzamanlı yazmalar arayüzü birkaç saniye tutabilir): "kapanıyor" kalır ve
+    /// sonraki açılış bunu olağan kapanış sayar. Daha sonra gelirse kapanış iptal edilmiş sayılır, işaret kalkar ve gerçek donma
+    /// yine bildirilir.
+    /// </summary>
+    public static SessionState WithHang(SessionState state, bool hung, TimeSpan? sinceEnding)
+    {
+        if (!hung) return state.Hang ? state with { Hang = false } : state;
+        var keepEnding = state.Ending && sinceEnding is { } since && since < EndingGrace;
+        return state.Hang && state.Ending == keepEnding ? state : state with { Hang = true, Ending = keepEnding };
+    }
 
     public static void Write(string logsDirectory, SessionState state) =>
         DurableFile.WriteAtomic(Path.Combine(logsDirectory, FileName), JsonSerializer.SerializeToUtf8Bytes(state, JsonFile.Options), keepBackup: false);

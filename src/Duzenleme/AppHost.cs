@@ -1018,22 +1018,33 @@ public static class AppHost
         }
     }
 
-    /// <summary>Arayüz uzun süre yanıt vermedi (true) ya da toparlandı (false): nöbetçiye işlenir (UiWatchdog, arka planda).</summary>
+    /// <summary>
+    /// Arayüz uzun süre yanıt vermedi (true) ya da toparlandı (false): nöbetçiye işlenir (UiWatchdog, arka planda). Oturum
+    /// kapanırken (SessionEnding'deki eşzamanlı yazmalar arayüzü birkaç saniye tutabilir) gelen donma "kapanıyor" işaretini
+    /// silmez; toparlanma hiç silmez (bkz. <see cref="SessionMarker.WithHang"/>).
+    /// </summary>
     public static void SetSessionHang(bool hung)
     {
         lock (_sessionGate)
         {
-            if (!_sessionOwned || _session is null || (_session.Hang == hung && !_session.Ending)) return;
-            _session = _session with { Hang = hung, Ending = false };
+            if (!_sessionOwned || _session is null) return;
+            TimeSpan? sinceEnding = _session.Ending ? TimeSpan.FromMilliseconds(Environment.TickCount64 - _sessionEndingAtMs) : null;
+            var next = SessionMarker.WithHang(_session, hung, sinceEnding);
+            if (ReferenceEquals(next, _session)) return;
+            _session = next;
         }
         WriteSessionMarker();
     }
+
+    // Son SessionEnding'in anı (Environment.TickCount64): iptal edilen kapanıştan sonraki ikinci kapanış da yeni süre alır.
+    private static long _sessionEndingAtMs;
 
     /// <summary>Windows oturumu kapanıyor: nöbetçi silinmez (kapanış iptal edilebilir), "kapanıyor" işaretlenir.</summary>
     public static void MarkSessionEnding()
     {
         lock (_sessionGate)
         {
+            _sessionEndingAtMs = Environment.TickCount64;
             if (!_sessionOwned || _session is null || _session.Ending) return;
             _session = _session with { Ending = true };
         }

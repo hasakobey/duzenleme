@@ -672,7 +672,7 @@
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Hata günlüğü tut'}" />
                             <TextBlock Style="{StaticResource Muted}"
-                                       Text="{l:T 'Hata türleri, programın kendi yığın kareleri ve her açılışta oturum bilgileri (Windows derlemesi, ekran sayısı ve ölçeği, dil, tema) yazılır. Dosya ve klasör adların, notların ve yazdıkların asla yazılmaz. Günlük bu bilgisayarda kalır: en çok 4 MB, 14 gün.'}" />
+                                       Text="{l:T 'Hata türü ve kodu, temizlenmiş hata iletisi, yığın kareleri ve her açılışta oturum bilgileri (Windows derlemesi, ekran sayısı ve ölçeği, dil, tema) yazılır. Yollar yer tutucuyla değiştirilir; dosya ve klasör adların, notların ve yazdıkların asla yazılmaz. Günlük bu bilgisayarda kalır: en çok 4 MB, 14 gün.'}" />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="ErrorLogToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                                          Checked="ErrorLogToggle_Changed" Unchecked="ErrorLogToggle_Changed"
@@ -686,7 +686,7 @@
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Çökme olunca'}" />
                             <TextBlock Style="{StaticResource Muted}"
-                                       Text="{l:T 'Rapor yalnızca sürümü, hata türünü ve programın kendi yığın karelerini içerir; bu bilgisayarda kalır.'}" />
+                                       Text="{l:T 'Rapor sürümü, hata türünü ve yığın karelerini (hata günlüğü açıksa günlüğün son satırlarını da) içerir ve bu bilgisayarda kalır. &quot;Kaydetme&quot; seçiliyse rapor yazılmaz; hata yalnızca hata günlüğü açıksa oraya girer.'}" />
                         </StackPanel>
                         <ComboBox x:Name="CrashModeBox" Grid.Column="1" Width="200" Margin="16,0,0,0" VerticalAlignment="Center"
                                   SelectionChanged="CrashModeBox_SelectionChanged"

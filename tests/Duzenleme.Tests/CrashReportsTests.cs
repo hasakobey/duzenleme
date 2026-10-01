@@ -274,8 +274,32 @@ public class CrashReportsTests : IDisposable
         Assert.Equal(["ui-unresponsive"], report.LogTail.Select(e => e.Message));
 
         // Günlük kapalıysa günlük satırı eklenmez; "Kaydetme" hiçbir şey yazmaz.
+        CrashReports.DeleteAll(Dir);
         Assert.Empty(CrashReports.Read(CrashReports.WriteHang(logs, CrashReportModes.Always, logOff: true, previous, _now.AddSeconds(1))!)!.LogTail);
+        CrashReports.DeleteAll(Dir);
         Assert.Null(CrashReports.WriteHang(logs, CrashReportModes.Never, logOff: false, previous, _now.AddSeconds(2)));
+    }
+
+    [Fact]
+    public void Hang_then_crash_in_the_same_session_gives_a_single_report()
+    {
+        var logs = Path.Combine(_root, "logs");
+        var previous = new SessionState("abc123", "2.2.0", _now.AddHours(-1), 7, Hang: true);
+        // Oturum donmuş, sonra çökmüş: çökme raporu (bekleyen ya da kaydedilmiş) zaten var, donma raporu yazılmaz.
+        Assert.NotNull(Write(null));
+        Assert.True(CrashReports.HasReportFor(Dir, "abc123"));
+        Assert.Null(CrashReports.WriteHang(logs, null, logOff: false, previous, _now.AddMinutes(1)));
+        Assert.Single(Names());
+
+        CrashReports.Save(Directory.GetFiles(Dir).Single(), _now);
+        Assert.Null(CrashReports.WriteHang(logs, CrashReportModes.Always, logOff: false, previous, _now.AddMinutes(2)));
+        Assert.Single(Names());
+
+        // Başka oturumun donması ayrı rapor olur.
+        Assert.False(CrashReports.HasReportFor(Dir, "other1"));
+        Assert.NotNull(CrashReports.WriteHang(logs, null, logOff: false, previous with { Session = "other1" }, _now.AddMinutes(3)));
+        Assert.Equal(2, Names().Length);
+        Assert.False(CrashReports.HasReportFor(Dir, ""));
     }
 
     [Fact]

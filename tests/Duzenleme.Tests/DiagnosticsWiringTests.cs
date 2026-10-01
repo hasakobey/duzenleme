@@ -1,5 +1,8 @@
 using System.Text.RegularExpressions;
 using Duzenleme.Core;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Wpf.Ui.Controls;
 
 namespace Duzenleme.Tests;
@@ -251,6 +254,82 @@ public class DiagnosticsWiringTests : IDisposable
             Assert.False(Allowed(name), name);
         Assert.Contains("50MB", text);
         Assert.DoesNotContain("Invoke-Expression", text);
+        // Çıkarırken gerçekten yazılan bayt sayılır (bildirilen boyuta güvenilmez).
+        Assert.Contains("$entryWritten -gt $entry.Length", text);
+        Assert.Contains("$written -gt $maxBytes", text);
+        // Sayfa yalnızca -Open ile ve denetimden geçince açılır; tek Start-Process o dalda.
+        Assert.Contains("[switch]$Open", text);
+        Assert.DoesNotContain("NoOpen", text);
+        Assert.Single(Regex.Matches(text, "Start-Process"));
+        Assert.Matches(new Regex(@"elseif \(\$Open\) \{\s*Start-Process"), text);
+    }
+
+    /// <summary>open-package.ps1'in rapor.html denetimi (PowerShell -match = .NET düzenli ifadesi, harf duyarsız).</summary>
+    private static (List<(string Name, Regex Pattern)> Forbidden, string Csp) ReportCheck()
+    {
+        var text = File.ReadAllText(Path.Combine(RepoRoot(), "tools", "diag", "open-package.ps1"));
+        var block = Regex.Match(text, @"\$forbidden = \[ordered\]@\{(?<body>[\s\S]*?)\n\s*\}").Groups["body"].Value;
+        var forbidden = Regex.Matches(block, @"'(?<name>[^']+)'\s*=\s*'(?<p>(?:[^']|'')*)'")
+            .Select(m => (m.Groups["name"].Value, new Regex(m.Groups["p"].Value.Replace("''", "'"), RegexOptions.IgnoreCase)))
+            .ToList();
+        var csp = Regex.Match(text, @"\$csp = '(?<v>(?:[^']|'')*)'").Groups["v"].Value.Replace("''", "'");
+        return (forbidden, csp);
+    }
+
+    private static List<string> ReportProblems(string html)
+    {
+        var (forbidden, csp) = ReportCheck();
+        var problems = forbidden.Where(f => f.Pattern.IsMatch(html)).Select(f => f.Name).ToList();
+        var head = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+        var at = html.IndexOf(csp, StringComparison.Ordinal);
+        if (head < 0 || at < head + 6 || Regex.IsMatch(html[(head + 6)..at], "<(?!meta charset)", RegexOptions.IgnoreCase)) problems.Add("csp");
+        // Etiket ve öznitelik beyaz listesi ve <style> içeriği (betikteki düzenli ifadelerle).
+        var script = File.ReadAllText(Path.Combine(RepoRoot(), "tools", "diag", "open-package.ps1"));
+        var styleForbidden = new Regex(Regex.Match(script, @"\$styleForbidden = '([^']*)'").Groups[1].Value, RegexOptions.IgnoreCase);
+        foreach (Match style in Regex.Matches(html, "(?is)<style[^>]*>(.*?)</style>"))
+            if (styleForbidden.IsMatch(style.Groups[1].Value)) problems.Add("style");
+        var tags = new Regex("^(" + Regex.Match(script, @"\$tags = '([^']*)'").Groups[1].Value + ")$", RegexOptions.IgnoreCase);
+        var attributes = new Regex("^(" + Regex.Match(script, @"\$attributes = '([^']*)'").Groups[1].Value + ")$", RegexOptions.IgnoreCase);
+        if (Regex.Matches(html, "<!").Count != 1 || !html.StartsWith("<!DOCTYPE html>", StringComparison.Ordinal)) problems.Add("doctype");
+        foreach (Match tag in Regex.Matches(html, @"<\s*(/?)\s*([A-Za-z][^\s>/]*)([^>]*)>"))
+        {
+            if (!tags.IsMatch(tag.Groups[2].Value)) { problems.Add("tag " + tag.Groups[2].Value); continue; }
+            foreach (Match attribute in Regex.Matches(tag.Groups[3].Value, @"([^\s=/>""']+)\s*(?:=\s*(?:""[^""]*""|'[^']*'|[^\s>]+))?"))
+                if (!attributes.IsMatch(attribute.Groups[1].Value)) problems.Add("attribute " + attribute.Groups[1].Value);
+        }
+        return problems;
+    }
+
+    [Fact]
+    public void Open_package_report_check_accepts_our_report_and_rejects_crafted_ones()
+    {
+        var (forbidden, csp) = ReportCheck();
+        Assert.Equal(7, forbidden.Count);
+        Assert.StartsWith("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'sha256-", csp);
+
+        // Uygulamanın ürettiği sayfa, günlükte düşmanca metin olsa da (hepsi kaçışlanır) geçer.
+        const string hostile = "<script>alert(1)</script> <img src=x onerror=alert(2)> javascript:alert(3) data:text/html,x url(x) href=x";
+        var error = new ScrubbedError(hostile, "0x1", null, hostile, [hostile], []);
+        var html = DiagnosticReport.Render(new ReportInput
+        {
+            Snapshot = DiagnosticSnapshot.From(new AppSettings()),
+            Lines = [new LogEntry(DateTime.UtcNow, AppLogLevel.Error, hostile, hostile, error, "aaaaaaaa", 1, "s", "v")],
+            NowUtc = DateTime.UtcNow,
+        });
+        Assert.Empty(ReportProblems(html));
+
+        // Elle değiştirilmiş paketler reddedilir.
+        Assert.Contains("betik", ReportProblems(html.Replace("<body>", "<body><script>alert(1)</script>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<body>", "<body onload=alert(1)>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<header>", "<header><a href=\"https://example.com\">x</a>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<header>", "<header><a href='javascript:alert(1)'>x</a>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<header>", "<header><iframe></iframe>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<header>", "<header><a href=\"#x\" ping=\"https://example.com\">x</a>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<header>", "<header><marquee>x</marquee>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("<header>", "<header><div style=\"x\">x</div>")));
+        Assert.NotEmpty(ReportProblems(html.Replace("</style>", "@import 'x';</style>")));
+        Assert.Contains("csp", ReportProblems(html.Replace("default-src 'none'", "default-src *")));
+        Assert.Contains("csp", ReportProblems(html.Replace("<meta charset=\"utf-8\">", "<meta charset=\"utf-8\"><meta name=\"x\" content=\"y\">")));
     }
 
     // ------------------------------------------------------------------ kaynak taramaları
@@ -280,20 +359,124 @@ public class DiagnosticsWiringTests : IDisposable
         Assert.Matches(new Regex(@"IsTestDesktop\s*\|\|\s*AppEnvironment\.Get\(""TEST_CRASH""\)|!AppHost\.IsTestDesktop\s*\|\|\s*AppEnvironment\.Get\(""TEST_CRASH""\)"), app);
     }
 
-    [Fact]
-    public void Pressed_keys_are_never_logged()
+    /// <summary>
+    /// Günlüğe giden çağrılarda (DebugLog.Write, PerfLog.Write, AppLog.*, AppLog.Channel.*) basılan tuş, yazılan metin ya da pano:
+    /// bağımsız değişkenin herhangi bir yerinde (ara değer, birleştirme, birden çok satır) <c>.Key</c>, <c>.SystemKey</c>,
+    /// <c>.Text</c>, <c>.SelectedText</c>, <c>.Password</c> ya da <c>Clipboard</c>. Sorunlu çağrılar (dosya:satır).
+    /// </summary>
+    internal static List<string> KeyLogCalls(string rel, string code)
     {
-        // Not yazarken basılan tuşlar hiçbir günlüğe (DebugLog dahil) girmez.
+        var problems = new List<string>();
+        var root = CSharpSyntaxTree.ParseText(code, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview)).GetRoot();
+        foreach (var call in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            if (call.Expression is not MemberAccessExpressionSyntax access) continue;
+            var target = access.Expression.ToString().Replace(" ", "");
+            var last = target.Split('.').Last();
+            var isLog = (last is "DebugLog" or "PerfLog" && access.Name.Identifier.Text == "Write")
+                        || last == "AppLog" || target.EndsWith("AppLog.Channel", StringComparison.Ordinal);
+            if (!isLog) continue;
+            var leaks = call.ArgumentList.DescendantNodes().Any(n => n switch
+            {
+                MemberAccessExpressionSyntax m => m.Name.Identifier.Text is "Key" or "SystemKey" or "ImeProcessedKey" or "DeadCharProcessedKey"
+                    or "Text" or "SelectedText" or "Password" or "PasswordChars",
+                IdentifierNameSyntax id => id.Identifier.Text == "Clipboard",
+                _ => false,
+            });
+            if (leaks) problems.Add($"{rel}:{call.GetLocation().GetLineSpan().StartLinePosition.Line + 1}");
+        }
+        return problems;
+    }
+
+    [Fact]
+    public void Pressed_keys_typed_text_and_clipboard_are_never_logged()
+    {
+        // Not yazarken basılan tuşlar, yazılan metin ve pano hiçbir günlüğe (DebugLog ve PerfLog dahil) girmez.
         var src = Path.Combine(RepoRoot(), "src", "Duzenleme");
         var offenders = new List<string>();
         foreach (var file in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
         {
             var rel = Path.GetRelativePath(src, file);
             if (rel.StartsWith(@"obj\", StringComparison.OrdinalIgnoreCase) || rel.StartsWith(@"bin\", StringComparison.OrdinalIgnoreCase)) continue;
-            foreach (var (line, number) in File.ReadLines(file).Select((l, i) => (l, i + 1)))
-                if (Regex.IsMatch(line, @"(DebugLog\.Write|AppLog\.\w+)\(.*\{e\.(Key|SystemKey|Text)\b")) offenders.Add($"{rel}:{number}");
+            offenders.AddRange(KeyLogCalls(rel, File.ReadAllText(file)));
         }
         Assert.True(offenders.Count == 0, string.Join("\n", offenders));
+    }
+
+    [Fact]
+    public void Key_scanner_finds_any_receiver_concatenation_and_multiline_calls()
+    {
+        const string code = """
+            class A
+            {
+                void M(KeyEventArgs args, TextBox box, string path)
+                {
+                    DebugLog.Write($"tuş {args.Key}");
+                    DebugLog.Write("tuş " +
+                        args.SystemKey.ToString());
+                    AppLog.Info("a", "b" + box.Text);
+                    PerfLog.Write("p " + Clipboard.GetText());
+                    AppLog.Channel.Write(AppLogLevel.Warn, "a", box.SelectedText, 1);
+                    DebugLog.Write("yol " + path);
+                    Other.Write(box.Text);
+                }
+            }
+            """;
+        var problems = KeyLogCalls("A.cs", code);
+        Assert.Equal(["A.cs:5", "A.cs:6", "A.cs:8", "A.cs:9", "A.cs:10"], problems);
+    }
+
+    // ------------------------------------------------------------------ yayın kapısı
+
+    [Fact]
+    public void Release_scripts_refuse_to_ship_until_the_error_log_is_disclosed()
+    {
+        // Hata günlüğü varsayılan açık: PRIVACY.md (TR+EN), kurulumun "verileri sil" sorusu ve Store metinleri anlatmadan yayın yok.
+        var publish = File.ReadAllText(Path.Combine(RepoRoot(), "tools", "publish.ps1"));
+        Assert.Contains("function Assert-DiagnosticsDisclosed", publish);
+        Assert.Contains("Assert-DiagnosticsDisclosed -WarnOnly:$Draft", publish);
+        Assert.Contains("logs/nestdesk-", publish);
+        Assert.Contains("english\\.DeleteDataPrompt=", publish);
+        Assert.Contains("turkish\\.DeleteDataPrompt=", publish);
+        // Kapı, dist/ silinmeden ve derleme başlamadan önce.
+        Assert.True(publish.IndexOf("Assert-DiagnosticsDisclosed -WarnOnly", StringComparison.Ordinal) < publish.IndexOf("Remove-Item $dist", StringComparison.Ordinal));
+
+        var msix = File.ReadAllText(Path.Combine(RepoRoot(), "tools", "package-msix.ps1"));
+        Assert.Contains("function Assert-DiagnosticsDisclosed", msix);
+        Assert.Contains("Assert-DiagnosticsDisclosed -WarnOnly:(-not $Strict)", msix);
+        Assert.Contains("listing.md", msix);
+        Assert.True(msix.IndexOf("Assert-DiagnosticsDisclosed -WarnOnly", StringComparison.Ordinal) < msix.IndexOf("dotnet publish", StringComparison.Ordinal));
+        // Gömülü PDB denetimi kendi açıklamasının altında, Invoke-Tool'unki onun üstünde.
+        Assert.True(msix.IndexOf("function Assert-EmbeddedPdb", StringComparison.Ordinal) < msix.IndexOf("# Yerel aracı çalıştırır.", StringComparison.Ordinal));
+    }
+
+    // ------------------------------------------------------------------ oturum nöbetçisi: kapanış ve donma
+
+    [Fact]
+    public void Hang_during_logoff_keeps_the_ending_flag_and_recovery_never_clears_it()
+    {
+        var state = new SessionState("s1", "2.2.0", DateTime.UtcNow, 1, Hang: false);
+        var ending = state with { Ending = true };
+        // Kapanıştan hemen sonra (FlushAll arayüzü tutarken) gelen donma: olağan kapanış sayılmaya devam eder.
+        var during = SessionMarker.WithHang(ending, hung: true, sinceEnding: TimeSpan.FromSeconds(6));
+        Assert.True(during.Hang);
+        Assert.True(during.Ending);
+        Assert.Equal(PreviousSession.Clean, SessionMarker.Assess(during, "2.2.0"));
+        // Toparlanma "kapanıyor" işaretini silmez.
+        var recovered = SessionMarker.WithHang(during, hung: false, sinceEnding: TimeSpan.FromSeconds(7));
+        Assert.False(recovered.Hang);
+        Assert.True(recovered.Ending);
+        Assert.Same(recovered, SessionMarker.WithHang(recovered, hung: false, sinceEnding: null));
+        // İptal edilmiş kapanıştan çok sonra gelen gerçek donma yine bildirilir.
+        var later = SessionMarker.WithHang(ending, hung: true, sinceEnding: TimeSpan.FromMinutes(5));
+        Assert.True(later.Hang);
+        Assert.False(later.Ending);
+        Assert.Equal(PreviousSession.Hang, SessionMarker.Assess(later, "2.2.0"));
+        // Kapanış yokken donma.
+        var plain = SessionMarker.WithHang(state, hung: true, sinceEnding: null);
+        Assert.True(plain.Hang);
+        Assert.False(plain.Ending);
+        Assert.Same(plain, SessionMarker.WithHang(plain, hung: true, sinceEnding: null));
     }
 
     private static string RepoRoot()

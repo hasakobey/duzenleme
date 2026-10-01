@@ -8,8 +8,8 @@ namespace Duzenleme;
 /// Arayüz nöbetçisi: iş parçacığı havuzundaki zamanlayıcı 2 sn'de bir, önceki yoklama çalıştıysa, arayüz iş parçacığına Input
 /// önceliğinde boş bir iş gönderir. 1 sn'den geç çalışan yoklama yalnızca sayaçtır (<c>ui.stall</c>); 5 sn'den uzun
 /// çalışmazsa günlüğe <c>ui-unresponsive</c> yazılır ve oturum nöbetçisine "donma" işlenir (süreç o hâlde kapatılırsa
-/// sonraki açılış "hang" raporunu sorar). Arayüz toparlanınca işaret kalkar. Uyku ve kilit sırasında sayılmaz
-/// (<see cref="WidgetTicker.SystemActive"/>). Kararlar <see cref="StallTracker"/>'da.
+/// sonraki açılış "hang" raporunu sorar). Arayüz toparlanınca işaret kalkar. Uyku ve kilit sırasında zamanlayıcı durur, hiçbir
+/// şey uyanmaz (<see cref="WidgetTicker.SystemActive"/>). Kararlar <see cref="StallTracker"/>'da.
 /// </summary>
 internal sealed class UiWatchdog : IDisposable
 {
@@ -28,11 +28,23 @@ internal sealed class UiWatchdog : IDisposable
         _dispatcher = dispatcher;
         _hangChanged = hangChanged;
         _systemActive = WidgetTicker.SystemActive;
+        var period = _systemActive ? StallTracker.ProbeIntervalMs : Timeout.Infinite;
+        _timer = new Timer(_ => Tick(), null, period, period);
         WidgetTicker.SystemActiveChanged += OnSystemActiveChanged;
-        _timer = new Timer(_ => Tick(), null, StallTracker.ProbeIntervalMs, StallTracker.ProbeIntervalMs);
     }
 
-    private void OnSystemActiveChanged() => _systemActive = WidgetTicker.SystemActive;
+    /// <summary>Uyku/kilitte zamanlayıcı durur (boşta uyanma yok); sistem etkinleşince yeniden başlar.</summary>
+    private void OnSystemActiveChanged()
+    {
+        var active = WidgetTicker.SystemActive;
+        _systemActive = active;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            var period = active ? StallTracker.ProbeIntervalMs : Timeout.Infinite;
+            _timer.Change(period, period);
+        }
+    }
 
     private void Tick()
     {

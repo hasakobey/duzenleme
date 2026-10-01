@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -18,12 +19,34 @@ public class NetworkUseTests
         "HttpClient", "HttpClientHandler", "SocketsHttpHandler", "HttpMessageHandler", "DelegatingHandler", "HttpRequestMessage",
         "HttpResponseMessage", "WebClient", "WebRequest", "HttpWebRequest", "FtpWebRequest", "Socket", "TcpClient", "TcpListener",
         "UdpClient", "Dns", "Ping", "ClientWebSocket", "AnthropicClient", "NetworkStream", "HttpListener",
+        // XML'in dış kaynak çözücüsü (DTD/şema indirir) ve vekil sunucu.
+        "XmlUrlResolver", "XmlSecureResolver", "WebProxy",
     ];
 
     private static readonly string[] NetworkNamespaces =
     [
         "System.Net.Http", "System.Net.Sockets", "System.Net.WebSockets", "System.Net.NetworkInformation", "System.Net.Mail",
+        // WinRT ağ API'leri (projeksiyonsuz COM ile de erişilebilir; ad alanı geçerse yakalanır).
+        "Windows.Web", "Windows.Networking",
     ];
+
+    // Adresten içerik yükleyen WPF türleri: bunlara http(s) adresi verilirse uygulama ağa çıkar (bağlantıyı tarayıcıda açmak
+    // ağ kullanımı sayılmaz; Browser.Open'a giden adresler serbest).
+    private static readonly HashSet<string> RemoteLoaders =
+    [
+        "BitmapImage", "BitmapDecoder", "BitmapFrame", "ImageBrush", "MediaPlayer", "MediaElement", "XmlDocument", "XDocument",
+        "XmlReader", "SvgViewbox", "SvgCanvas", "FileSvgReader",
+    ];
+
+    private static bool HasHttpLiteral(SyntaxNode node) => node.DescendantNodesAndSelf().OfType<LiteralExpressionSyntax>()
+        .Any(l => l.IsKind(SyntaxKind.StringLiteralExpression) && l.Token.ValueText.TrimStart().StartsWith("http", StringComparison.OrdinalIgnoreCase));
+
+    private static string? TypeName(SyntaxNode node) => node switch
+    {
+        ObjectCreationExpressionSyntax o => o.Type.ToString().Split('.').Last(),
+        InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax m } => m.Expression.ToString().Split('.').Last(),
+        _ => null,
+    };
 
     /// <summary>Kaynakta geçen ağ türü ve ad alanı kullanımları (yorumlar ve metinler sayılmaz).</summary>
     internal static List<string> NetworkUses(string rel, string code)
@@ -47,7 +70,40 @@ public class NetworkUseTests
             if (NetworkNamespaces.Any(ns => text.StartsWith(ns + ".", StringComparison.Ordinal)))
                 uses.Add($"{Where(access)}: {text}");
         }
+        // Resim/ortam/XML yükleyicisine http(s) adresi: new BitmapImage(new Uri("https://…")), BitmapDecoder.Create(…),
+        // x.UriSource = new Uri("http…"), x.Source = "http…".
+        foreach (var node in root.DescendantNodes().Where(n => n is ObjectCreationExpressionSyntax or InvocationExpressionSyntax))
+        {
+            if (TypeName(node) is { } type && RemoteLoaders.Contains(type) && HasHttpLiteral(node))
+                uses.Add($"{Where(node)}: {type} http");
+        }
+        foreach (var assignment in root.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+        {
+            var left = assignment.Left.ToString();
+            if ((left.EndsWith("UriSource", StringComparison.Ordinal) || left.EndsWith("Source", StringComparison.Ordinal)) && HasHttpLiteral(assignment.Right))
+                uses.Add($"{Where(assignment)}: {left} http");
+        }
         return uses;
+    }
+
+    /// <summary>XAML'da adresten yüklenen kaynak (Image Source="https://…", ImageBrush ImageSource, MediaElement Source).</summary>
+    internal static List<string> XamlRemoteSources(string rel, string xaml) =>
+        Regex.Matches(xaml, @"\b(?:Source|UriSource|ImageSource)\s*=\s*""\s*https?:", RegexOptions.IgnoreCase)
+            .Select(m => $"{rel}:{xaml[..m.Index].Count(c => c == '\n') + 1}: {m.Value}").ToList();
+
+    [Fact]
+    public void Xaml_never_loads_from_the_network()
+    {
+        var src = Path.Combine(RepoRoot(), "src", "Duzenleme");
+        var uses = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(src, "*.xaml", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(src, file);
+            if (rel.StartsWith(@"obj\", StringComparison.OrdinalIgnoreCase) || rel.StartsWith(@"bin\", StringComparison.OrdinalIgnoreCase)) continue;
+            uses.AddRange(XamlRemoteSources(rel, File.ReadAllText(file)));
+        }
+        Assert.True(uses.Count == 0, "XAML ağdan kaynak yüklememeli:\n" + string.Join("\n", uses));
+        Assert.Single(XamlRemoteSources("A.xaml", "<Image Source=\"https://x/y.png\" />\n<Hyperlink NavigateUri=\"https://x\" />"));
     }
 
     [Fact]
@@ -86,10 +142,20 @@ public class NetworkUseTests
                     var h = System.Net.Dns.GetHostName();
                     var p = new System.Net.NetworkInformation.Ping();
                     var u = new Uri("https://example.com");
+                    var img = new BitmapImage(new Uri("https://example.com/a.png"));
+                    img.UriSource = new Uri("http://example.com/b.png");
+                    var d = System.Windows.Media.Imaging.BitmapDecoder.Create(new Uri("https://x/c.png"), default, default);
+                    var r = new XmlUrlResolver();
+                    var local = new BitmapImage(new Uri(@"C:\a.png"));
                 }
             }
             """;
         var uses = NetworkUses("A.cs", code);
+        Assert.Contains(uses, u => u.StartsWith("A.cs:12:") && u.EndsWith("BitmapImage http"));
+        Assert.Contains(uses, u => u.StartsWith("A.cs:13:") && u.Contains("UriSource http"));
+        Assert.Contains(uses, u => u.StartsWith("A.cs:14:") && u.EndsWith("BitmapDecoder http"));
+        Assert.Contains(uses, u => u.StartsWith("A.cs:15:") && u.EndsWith("XmlUrlResolver"));
+        Assert.DoesNotContain(uses, u => u.StartsWith("A.cs:16:"));
         Assert.Contains(uses, u => u.StartsWith("A.cs:1:") && u.EndsWith("System.Net.Http"));
         Assert.Contains(uses, u => u.StartsWith("A.cs:8:") && u.EndsWith("HttpClient"));
         Assert.Contains(uses, u => u.StartsWith("A.cs:9:") && u.EndsWith("Dns"));

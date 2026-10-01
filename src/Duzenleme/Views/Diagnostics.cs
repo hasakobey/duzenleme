@@ -84,24 +84,40 @@ internal static class Diagnostics
         var text = reports.All(r => r.Kind == CrashReports.KindHang)
             ? L.F("{0} geçen sefer bir süre yanıt vermedi ve düzgün kapanmadı. Rapor bu bilgisayara kaydedilsin mi? Rapor kişisel bilgi içermez ve hiçbir yere gönderilmez.", AppInfo.Name)
             : L.F("{0} geçen sefer beklenmeyen bir hatayla kapandı. Rapor bu bilgisayara kaydedilsin mi? Rapor kişisel bilgi içermez ve hiçbir yere gönderilmez.", AppInfo.Name);
+        // Bir kez sorulur (her açılışta balon çıkmasın). Pencere gizliyse balondaki soru bu oturumda bekler: pencere açılınca
+        // şeritte gösterilir; yanıtlanmayan rapor Ayarlar'da durur.
         Queue(() => paths.ForEach(CrashReports.MarkAsked));
         Notice.Ask(text, NoticeKind.Warning,
-            new NoticeChoice(L.T("Kaydet"), () => SavePending(paths)),
-            new NoticeChoice(L.T("Kaydetme"), () => DiscardPending(paths)),
-            new NoticeChoice(L.T("Hep kaydet"), SaveAlways));
+            [
+                new NoticeChoice(L.T("Kaydet"), () => SavePending(paths)),
+                new NoticeChoice(L.T("Kaydetme"), () => DiscardPending(paths)),
+                new NoticeChoice(L.T("Hep kaydet"), SaveAlways),
+            ],
+            trayHint: L.T("Yanıtlamak için tıkla."));
     }
 
-    /// <summary>Bekleyen raporları kaydeder (çökme şeridi ve Ayarlar'daki "Kaydet").</summary>
+    /// <summary>
+    /// Bekleyen raporları kaydeder (çökme şeridi ve Ayarlar'daki "Kaydet"). Hiçbiri kaydedilemediyse (dosya kilitli ya da bu
+    /// arada silinmiş) "kaydedildi" denmez.
+    /// </summary>
     public static void SavePending(IReadOnlyList<string>? paths = null)
     {
         var crashes = AppHost.CrashesDirectory;
+        var saved = 0;
         Queue(() =>
         {
             var now = DateTime.UtcNow;
-            foreach (var path in paths ?? CrashReports.List(crashes, pending: true).Select(r => r.Path).ToList()) CrashReports.Save(path, now);
-            AppLog.Info("diagnostics", "crash-report-saved");
-        }, () => Notice.Show(L.T("Rapor bu bilgisayara kaydedildi. Tanılama sayfasında görebilirsin."), NoticeKind.Success,
-            L.T("Tanılama sayfasını aç"), OpenPage));
+            foreach (var path in paths ?? CrashReports.List(crashes, pending: true).Select(r => r.Path).ToList())
+                if (CrashReports.Save(path, now) is not null) saved++;
+            if (saved > 0) AppLog.Info("diagnostics", "crash-report-saved");
+            else AppLog.Warn("diagnostics", "crash-report-save-failed");
+        }, () =>
+        {
+            if (saved > 0)
+                Notice.Show(L.T("Rapor bu bilgisayara kaydedildi. Tanılama sayfasında görebilirsin."), NoticeKind.Success,
+                    L.T("Tanılama sayfasını aç"), OpenPage);
+            else Notice.Show(L.T("Rapor kaydedilemedi."), NoticeKind.Warning);
+        });
     }
 
     /// <summary>Bekleyen raporları siler (çökme şeridindeki "Kaydetme", Ayarlar'daki "Sil").</summary>
@@ -334,9 +350,10 @@ internal static class Diagnostics
                 var (html, perf) = source.Render(now);
                 return DiagnosticPackage.Plan(source.Logs, now, html, source.Snapshot.ToJson(source.Environment, perf, now));
             });
-            var saved = package.Entries.Count(e => e.Name.StartsWith(CrashReports.FolderName + "/", StringComparison.Ordinal));
-            var message = L.F("Pakete girecekler: tanılama sayfası, son 7 günün hata günlükleri, kaydedilmiş çökme raporları ({0}), ayarların özeti (yalnızca açık/kapalı seçenekler ve sayılar). Girmeyecekler: dosya ve klasör adların, notların, kuralların, API anahtarın. GitHub sorun kayıtları herkese açıktır.",
-                saved);
+            // İçerik kaydetmeden önce dosya dosya gösterilir (etiket ve boyut; aynı günün günlükleri tek satır).
+            var contents = string.Join("\n", package.Preview().Select(p => "• " + p.Label + " (" + MeasureText.Bytes(p.Size) + ")"));
+            var message = L.F("Pakete girecekler:\n{0}\nToplam: {1}\n\nGirmeyecekler: dosya ve klasör adların, notların, kuralların, API anahtarın. GitHub sorun kayıtları herkese açıktır.",
+                contents, MeasureText.Bytes(package.TotalSize));
             if (!Confirm.Ask(owner, L.T("Tanılama paketi oluşturulsun mu?"), message, L.T("Kaydet…"), danger: false)) return;
 
             var dialog = new SaveFileDialog

@@ -51,6 +51,13 @@ public sealed class DiagnosticPackage
 
     public long TotalSize => Entries.Sum(e => e.Size);
 
+    /// <summary>
+    /// Kaydetmeden önce gösterilecek içerik listesi: öğe başına etiket ve boyut, plandaki sırayla. Aynı etiketli öğeler (aynı
+    /// günün döndürülmüş günlük dosyaları) tek satırda toplanır.
+    /// </summary>
+    public IReadOnlyList<(string Label, long Size)> Preview() =>
+        Entries.GroupBy(e => e.Label, StringComparer.Ordinal).Select(g => (g.Key, g.Sum(e => e.Size))).ToList();
+
     /// <summary>Kaydetme penceresinin önerdiği ad (yerel saat; masaüstü kuralı taşımasın diye varsayılan klasör Belgeler).</summary>
     public static string SuggestedFileName(DateTime localNow) =>
         $"{AppInfo.Name}-diagnostics-{localNow.ToString("yyyyMMdd-HHmm", CultureInfo.InvariantCulture)}.zip";

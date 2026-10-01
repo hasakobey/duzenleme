@@ -456,8 +456,10 @@ public sealed class AppSettings
     // (bool ve metin: eski sürüm bilmediği alanları Extra'da korur. Kalıcı enum'a üye eklenmedi. Varsayılanken yazılmaz.)
 
     /// <summary>
-    /// Ayarlar'daki "Hata günlüğü tut" kapatıldı: <c>logs\</c> klasörüne hiçbir şey yazılmaz (bellekteki son kayıtlar ve
-    /// sayaçlar sürer), çökme raporuna günlüğün son satırları eklenmez. Varsayılan: günlük açık (içeriği temizlenir).
+    /// Ayarlar'daki "Hata günlüğü tut" kapatıldı: hata günlüğü dosyaları (<c>logs\nestdesk-*.jsonl</c>) yazılmaz (bellekteki son
+    /// kayıtlar ve sayaçlar sürer), çökme raporuna günlüğün son satırları eklenmez. <c>logs\</c> altına yine de yazılabilenler:
+    /// oturum işareti (<c>session.json</c>), çökme/donma raporları (<see cref="CrashReportMode"/>'a göre) ve kullanıcının açtığı
+    /// tanılama sayfası (<c>tanilama.html</c>). Varsayılan: günlük açık (içeriği temizlenir).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ErrorLogOff { get; set; }

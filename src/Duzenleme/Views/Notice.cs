@@ -35,30 +35,46 @@ public static class Notice
     /// <summary>
     /// Soru şeridi: 2–3 seçenek düğmesi (ilki birincil), metnin altında. Düğmeler hep görünür (fareyle belirmez); şerit bir
     /// seçenek seçilene, kapatılana, yenisi gelene, sayfa değişene ya da pencere gizlenene dek durur. Ana pencere görünmüyorsa
-    /// tepsi balonu çıkar; balona tıklanınca ana pencere açılır ve aynı şerit gösterilir.
+    /// tepsi balonu çıkar (<paramref name="trayHint"/> ile, ör. "Yanıtlamak için tıkla.") ve soru bu oturumda bekler: balona
+    /// tıklanınca ya da ana pencere başka bir yoldan (tepsi menüsü, sonraki bir balon) açılınca aynı şerit gösterilir.
     /// </summary>
-    public static void Ask(string text, NoticeKind kind, params NoticeChoice[] choices) => Ask(text, kind, choices, allowTray: true);
-
-    private static void Ask(string text, NoticeKind kind, NoticeChoice[] choices, bool allowTray)
+    public static void Ask(string text, NoticeKind kind, IReadOnlyList<NoticeChoice> choices, string? trayHint = null)
     {
         if (Application.Current is not { } app) return;
         if (!app.Dispatcher.CheckAccess())
         {
-            app.Dispatcher.BeginInvoke(() => Ask(text, kind, choices, allowTray));
+            app.Dispatcher.BeginInvoke(() => Ask(text, kind, choices, trayHint));
             return;
         }
+        var ask = new WaitingAsk(text, kind, choices.Take(3).ToList());
         if (VisibleMainWindow() is { } window)
         {
-            window.ShowNotice(text, kind, choices.Take(3).ToList(), primary: true);
+            _waitingAsk = null;
+            window.ShowNotice(ask.Text, ask.Kind, ask.Choices, primary: true);
             return;
         }
-        if (!allowTray) return;
-        AppHost.Tray?.Notify(AppInfo.Name, text, () =>
+        _waitingAsk = ask;
+        AppHost.Tray?.Notify(AppInfo.Name, trayHint is null ? text : text + " " + trayHint, () => (app as App)?.ShowMainWindow());
+    }
+
+    private sealed record WaitingAsk(string Text, NoticeKind Kind, IReadOnlyList<NoticeChoice> Choices);
+
+    // Pencere gizliyken balonla sorulmuş, henüz şeritte gösterilmemiş soru (yalnızca arayüz iş parçacığında).
+    private static WaitingAsk? _waitingAsk;
+
+    /// <summary>
+    /// Ana pencere göründü ya da simge durumundan çıktı (MainWindow): bekleyen soru şeritte gösterilir. Pencere açılırken ilk
+    /// sayfaya geçiş şeridi kapattığı için ApplicationIdle'da.
+    /// </summary>
+    internal static void ShowWaitingAsk()
+    {
+        if (_waitingAsk is null || Application.Current is not { } app) return;
+        app.Dispatcher.BeginInvoke(() =>
         {
-            (app as App)?.ShowMainWindow();
-            // Pencere yüklenip ilk sayfaya geçtikten sonra (sayfa değişince şerit kalkar).
-            app.Dispatcher.BeginInvoke(() => Ask(text, kind, choices, allowTray: false), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        });
+            if (_waitingAsk is not { } ask || VisibleMainWindow() is not { } window) return;
+            _waitingAsk = null;
+            window.ShowNotice(ask.Text, ask.Kind, ask.Choices, primary: true);
+        }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>

@@ -29,7 +29,13 @@ public partial class MainWindow : FluentWindow
         };
         // Bildirim o sayfanın işine aittir: sayfa değişince ya da pencere gizlenince kalkar.
         RootNavigation.Navigated += (_, _) => HideNotice();
-        IsVisibleChanged += (_, e) => { if (e.NewValue is false) HideNotice(); };
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is false) HideNotice();
+            // Pencere gizliyken balonla sorulan soru (ör. çökme raporu) pencere açılınca şeritte.
+            else Notice.ShowWaitingAsk();
+        };
+        StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) Notice.ShowWaitingAsk(); };
     }
 
     private void OnMotionChanged() => Motion.ApplyTo(RootNavigation);

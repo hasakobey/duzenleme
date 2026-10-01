@@ -343,20 +343,40 @@ public class AppLogTests : IDisposable
 
     // ------------------------------------------------------------------ kaynak taraması
 
-    /// <summary>AppLog.Error/Warn/Info çağrısında alan ve ileti metin sabiti mi? Sorunlu çağrılar (dosya:satır).</summary>
+    private static readonly HashSet<string> AppLogNames = ["AppLog", "Core.AppLog", "Duzenleme.Core.AppLog", "global::Duzenleme.Core.AppLog"];
+
+    /// <summary>
+    /// Hata günlüğüne giden çağrılarda ad metinleri sabit mi? AppLog.Error/Warn/Info (alan ve ileti), AppLog.Count (sayaç adı: o da
+    /// tanılama sayfasına ve ozet.json'a girer) ve kanala doğrudan yazan AppLog.Channel.Write (alan ve ileti) / .Count (ad).
+    /// Sorunlu çağrılar (dosya:satır).
+    /// </summary>
     internal static List<string> NonLiteralLogCalls(string rel, string code)
     {
         var problems = new List<string>();
         var root = CSharpSyntaxTree.ParseText(code, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview)).GetRoot();
+        static bool Literal(ArgumentSyntax a) => a.Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression);
         foreach (var call in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            if (call.Expression is not MemberAccessExpressionSyntax { Name.Identifier.Text: "Error" or "Warn" or "Info" } access) continue;
-            var target = access.Expression.ToString();
-            if (target is not ("AppLog" or "Core.AppLog" or "Duzenleme.Core.AppLog" or "global::Duzenleme.Core.AppLog")) continue;
+            if (call.Expression is not MemberAccessExpressionSyntax access) continue;
+            var method = access.Name.Identifier.Text;
+            var target = access.Expression.ToString().Replace(" ", "");
+            var onAppLog = AppLogNames.Contains(target);
+            var onChannel = AppLogNames.Any(n => target == n + ".Channel");
+            // Kaç sabit bağımsız değişken gerekir, hangisinden başlayarak (Channel.Write'ın ilki düzeydir).
+            (int Skip, int Take)? need = (method, onAppLog, onChannel) switch
+            {
+                ("Error" or "Warn" or "Info", true, _) => (0, 2),
+                ("Count", true, _) => (0, 1),
+                ("Write", _, true) => (1, 2),
+                ("Count", _, true) => (0, 1),
+                _ => null,
+            };
+            if (need is not { } n) continue;
             var args = call.ArgumentList.Arguments;
             var line = call.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-            if (args.Count < 2 || args.Take(2).Any(a => a.NameColon is not null && a.NameColon.Name.Identifier.Text is not ("area" or "message")
-                                                         || a.Expression is not LiteralExpressionSyntax lit || !lit.IsKind(SyntaxKind.StringLiteralExpression)))
+            if (args.Count < n.Skip + n.Take
+                || args.Skip(n.Skip).Take(n.Take).Any(a => a.NameColon is not null && a.NameColon.Name.Identifier.Text is not ("area" or "message" or "counter" or "name")
+                                                          || !Literal(a)))
                 problems.Add($"{rel}:{line}: {call}");
         }
         return problems;
@@ -392,12 +412,19 @@ public class AppLogTests : IDisposable
                     AppLog.Error("box", path, ex);
                     Other.Error("box", path);
                     AppLog.Count(path);
+                    AppLog.Count("box.locked");
+                    AppLog.Channel.Write(AppLogLevel.Warn, "box", path, ex);
+                    AppLog.Channel.Write(AppLogLevel.Warn, "box", "ok", 5);
+                    AppLog.Channel.Count("x." + path);
+                    Other.Channel.Write(AppLogLevel.Warn, "box", path, ex);
                 }
             }
             """;
         var problems = NonLiteralLogCalls("A.cs", code);
-        Assert.Equal(4, problems.Count);
-        Assert.DoesNotContain(problems, p => p.StartsWith("A.cs:5:"));
+        Assert.Equal(7, problems.Count);
+        // Sabitli çağrılar ve başka sınıflar sayılmaz.
+        foreach (var ok in new[] { 5, 10, 12, 14, 16 }) Assert.DoesNotContain(problems, p => p.StartsWith($"A.cs:{ok}:"));
+        foreach (var bad in new[] { 6, 7, 8, 9, 11, 13, 15 }) Assert.Contains(problems, p => p.StartsWith($"A.cs:{bad}:"));
     }
 
     private static string RepoRoot()

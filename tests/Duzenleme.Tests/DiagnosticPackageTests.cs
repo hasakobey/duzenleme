@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Duzenleme.Core;
+using Duzenleme.Localization;
 
 namespace Duzenleme.Tests;
 
@@ -138,6 +139,21 @@ public class DiagnosticPackageTests : IDisposable
         Assert.Contains("TR", readme);
         Assert.Contains("EN", readme);
         Assert.DoesNotContain("{0}", readme);
+    }
+
+    [Fact]
+    public void Preview_lists_every_entry_with_its_size_and_merges_rotated_files_of_a_day()
+    {
+        CreateDataFolder();
+        Touch("logs/nestdesk-20261001-1.jsonl", "{}\n{}\n");
+        var plan = Plan();
+        var preview = plan.Preview();
+        // Aynı günün iki dosyası tek satır; başka her öğe kendi satırında, plandaki sırayla.
+        Assert.Equal(plan.Entries.Count - 1, preview.Count);
+        Assert.Equal(plan.Entries.Select(e => e.Label).Distinct(), preview.Select(p => p.Label));
+        Assert.Equal(plan.TotalSize, preview.Sum(p => p.Size));
+        Assert.All(preview, p => Assert.True(p.Size > 0));
+        Assert.Equal(L.T("Tanılama sayfası"), preview[0].Label);
     }
 
     [Fact]
