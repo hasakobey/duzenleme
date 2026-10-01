@@ -6,8 +6,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <!-- Yalnızca tepsi simgesi (NotifyIcon) için. -->
-    <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- Program dosyası NestDesk.exe (2.1.0; 2.0 ve öncesi Duzenleme.exe). Proje, ad alanı ve çözüm adı bilerek eski kalır
          (RootNamespace proje adından: Duzenleme). Kurulum eski exe'yi siler; Run değeri ve veri klasörü açılışta taşınır
@@ -30,14 +28,9 @@
     <!-- Yalnızca Türkçe ve İngilizce kaynaklar: paket küçülür. -->
     <SatelliteResourceLanguages>tr;en</SatelliteResourceLanguages>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- WFAC010 WinForms uygulamaları içindir; DPI ayarını WPF manifest'ten okur. -->
-    <NoWarn>$(NoWarn);WFAC010;WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- WPF ile çakışan WinForms/Drawing adlarını global using'den çıkar. -->
-    <Using Remove="System.Windows.Forms" />
-    <Using Remove="System.Drawing" />
     <!-- Arayüz metinleri her dosyada L.T/L.F/L.P ile çevrilir (Localization/L.cs). -->
     <Using Include="Duzenleme.Localization" />
   </ItemGroup>
