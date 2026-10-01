@@ -360,6 +360,27 @@ public class DiagnosticsWiringTests : IDisposable
     }
 
     /// <summary>
+    /// Çökme sorusu bir sonraki açılışta sorulur ve görünür kalır: açılış denetimi bu oturumun kendi raporunu sormaz
+    /// (açılıştan hemen sonra çöken süreç, kapanmadan önce kendi raporunu "soruldu" işaretleyebiliyordu) ve ana pencere ilk
+    /// kez açılırken gösterilen şerit ilk sayfaya geçişle kalkmaz (--minimized ya da Windows ile başlarken balondan açılan
+    /// pencerede bekleyen soru kayboluyordu).
+    /// </summary>
+    [Fact]
+    public void Crash_question_reaches_the_next_start_and_survives_the_first_page()
+    {
+        var host = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "AppHost.cs"));
+        Assert.Contains("CrashReports.ToAsk(crashes, currentSession: AppLog.Channel.Session)", host);
+
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "MainWindow.xaml.cs"));
+        var start = window.IndexOf("RootNavigation.Navigated +=", StringComparison.Ordinal);
+        Assert.True(start > 0);
+        var handler = window[start..(window.IndexOf("};", start, StringComparison.Ordinal) + 2)];
+        Assert.Matches(new Regex(@"if\s*\(\s*_firstPageShown\s*\)\s*HideNotice\(\);"), handler);
+        Assert.Contains("_firstPageShown = true;", handler);
+        Assert.Single(Regex.Matches(window, @"RootNavigation\.Navigated\s*\+="));
+    }
+
+    /// <summary>
     /// Günlüğe giden çağrılarda (DebugLog.Write, PerfLog.Write, AppLog.*, AppLog.Channel.*) basılan tuş, yazılan metin ya da pano:
     /// bağımsız değişkenin herhangi bir yerinde (ara değer, birleştirme, birden çok satır) <c>.Key</c>, <c>.SystemKey</c>,
     /// <c>.Text</c>, <c>.SelectedText</c>, <c>.Password</c> ya da <c>Clipboard</c>. Sorunlu çağrılar (dosya:satır).
