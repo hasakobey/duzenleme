@@ -181,6 +181,25 @@ public class RingPopupTests
         Assert.Null(RingTargets.Pick([note, box], null));
     }
 
+    [Fact]
+    public void Widget_menu_option_is_checked_only_on_the_ring_the_shortcut_opens()
+    {
+        var first = new WidgetConfig { Kind = WidgetKind.Launcher, Variant = WidgetVariants.Ring };
+        var second = new WidgetConfig { Kind = WidgetKind.Launcher, Variant = WidgetVariants.Ring };
+        var box = new WidgetConfig { Kind = WidgetKind.Launcher };
+        var widgets = new[] { box, first, second };
+        Assert.True(RingTargets.Opens(widgets, null, first));            // seçilmemişse ilk halka
+        Assert.False(RingTargets.Opens(widgets, null, second));
+        Assert.True(RingTargets.Opens(widgets, second.Id, second));
+        Assert.False(RingTargets.Opens(widgets, second.Id, first));
+        Assert.False(RingTargets.Opens(widgets, box.Id, box));           // halka olmayan widget hiç
+        // Menüdeki seçenek bu halkaya bakar; başka halkayı açan kısayolu kapatmaz, bu halkayı hedef yapar.
+        var shortcut = Code("Widgets", "RingShortcut.cs");
+        Assert.Matches(@"public static bool Opens\(WidgetConfig config\) =>\s*IsOn && RingTargets\.Opens\(", shortcut);
+        Assert.Matches(@"if \(Opens\(config\)\)\s*\{\s*TurnOff\(\);", shortcut);
+        Assert.Contains("() => RingShortcut.Opens(_config)", Code("Widgets", "RingWidgetView.cs"));
+    }
+
     // ---------------------------------------------------------------- NestDesk eylemleri
 
     [Fact]
@@ -283,7 +302,44 @@ public class RingPopupTests
         Assert.Matches(@"Motion\.RingClose\(_root, HideNow", popup);
         Assert.Matches(@"private void HideNow\(\)[\s\S]*?Hide\(\);[\s\S]*?after\?\.Invoke\(\);", popup);
         var runner = Code("Widgets", "RingRunner.cs");
-        Assert.Matches(@"SetForegroundWindow\(target\);\s*await KeySender\.WaitForKeysReleasedAsync\(hotkeyKeys, KeySender\.MaxWait\);", runner);
+        Assert.Matches(@"SetForegroundWindow\(target\);[\s\S]*?await KeySender\.WaitForKeysReleasedAsync\(hotkeyKeys, KeySender\.MaxWait\);[\s\S]*?KeySender\.SendToAsync\(", runner);
+        // Öğe çalışamasa da odak önceki pencereye döner (önce öne getirme, sonra denetim); hata çağırana (beklenmeyen görev) kaçmaz.
+        Assert.Matches(@"SetForegroundWindow\(target\);\s*if \(!Runnable\(action\)\) return;\s*try", runner);
+    }
+
+    [Fact]
+    public void Clicking_the_invisible_aim_zone_closes_instead_of_running_an_item()
+    {
+        var popup = Code("Views", "RingPopup.cs");
+        // Diskin dışındaki tıklama (nişan alanı) Dismiss; vurgulanan öğeyi seçmez.
+        Assert.Matches(@"_root\.MouseLeftButtonUp \+= \(_, e\) =>\s*\{[^}]*Dismiss\(\);\s*\};", popup);
+        Assert.DoesNotMatch(@"_root\.MouseLeftButtonUp[^}]*CommitHighlight", popup);
+        // Nişan alanında yalnızca "tuşu bırakınca seç" ya da basıp sürükleme vurgular.
+        Assert.Matches(@"private void OnPointerMove\(\)[\s\S]*?if \(_armed\)[\s\S]*?else if \(_ring\.IsMouseCaptured\)", popup);
+    }
+
+    [Fact]
+    public void A_ring_that_could_not_come_to_the_front_closes_by_itself()
+    {
+        var popup = Code("Views", "RingPopup.cs");
+        // Öne gelemezse öndeki pencere izlenir: başka pencere öne gelince ya da süre dolunca (imleç üstünde değilse) kapanır.
+        Assert.Matches(@"if \(ForegroundInfo\.Window\(\) != hwnd\) StartWatch\(\);", popup);
+        Assert.Matches(@"foreground != IntPtr\.Zero && foreground != _previous\) CloseWith\(restore: false", popup);
+        Assert.Matches(@"expired && !IsMouseOver\) CloseWith\(restore: false", popup);
+        Assert.Matches(@"Activated \+= [\s\S]*?StopWatch\(\);", popup);
+        // Gizli pencere ölçeğe geçmezse yeniden kurulur (bir kez).
+        Assert.Matches(@"if \(!Place\(requireScale: mayRecreate\)\)\s*\{\s*Recreate\(", popup);
+        Assert.Contains("fresh.Open(pressedAt, previous, mayRecreate: false);", popup);
+        // Kısayol halka açıkken kapatıldıysa kapanınca bütünüyle kapanır.
+        Assert.Matches(@"if \(!Enabled\)\s*\{\s*Sync\(\);", popup);
+    }
+
+    [Fact]
+    public void Ctrl_shift_from_a_held_shortcut_does_not_run_as_administrator()
+    {
+        var popup = Code("Views", "RingPopup.cs");
+        Assert.Contains("var admin = Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && !_hotkeyHeld;", popup);
+        Assert.Matches(@"_hotkeyHeld = _hotkeyKeys\.Count > 0 && !AllReleased\(\);", popup);
     }
 
     [Fact]
@@ -299,6 +355,11 @@ public class RingPopupTests
         Assert.Contains("Checked=\"RingHoldToggle_Changed\" Unchecked=\"RingHoldToggle_Changed\"", xaml);
         // Halka adı ComboBox'ta düz metin (DisplayMemberPath → TextBlock; "_" erişim tuşu olmaz).
         Assert.Contains("DisplayMemberPath=\"Name\"", xaml);
+        // Kısayol listesinden açılan halka da ne yaptığını anlatır (Store matrisi 2b; widget menüsüyle aynı metin).
+        Assert.Matches(@"row\.Action == HotkeyAction\.Ring && !ringWasOn[^
+]*
+\s*Notice\.Show\(RingShortcut\.TurnedOnText\(", page);
+        Assert.Contains("TurnedOnText(hotkey)", Code("Widgets", "RingShortcut.cs"));
     }
 
     // ---------------------------------------------------------------- yardımcılar

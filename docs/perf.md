@@ -81,7 +81,10 @@ Windows'un "Animasyon efektleri" açık olmalı (kapalıysa üçü de "Kapalı" 
 **Halka:** `NESTDESK_TEST_RING=1` yalnızca test masaüstünde (`--desktop`) geçerlidir: halka kısayolu atanmamışken de
 `WM_HOTKEY` id 8 işlenir ve açılır halka boşta önceden kurulur; genel kısayol kaydedilmez (gerçek tuş kapılmaz). Her açılış
 `perf.log`'a `mark Ring.hotkey` (iletinin işlenmeye başladığı an) ve `mark Ring.firstFrame` (gösterildikten sonraki ilk kare)
-yazar; betik bunları sırayla eşler. İlk açılış **soğuk** sayılır (pencere önceden kurulu ama ilk kez gösteriliyor), sonrakiler
+yazar; betik bunları sırayla eşler. Not: `Motion.RingOpen` saydamlıktan başladığından (Canlı/Sakin) ilk kare henüz neredeyse
+saydamdır; ölçülen süre "pencere ekranda ve çizildi" anıdır, halkanın tam görünmesi buna en çok açılış hareketinin süresini
+(≤ 200 ms) ekler. Kullanıcının gördüğü açılışı karşılaştırmak için `-Set AnimationsOff=true` ile de çalıştır (ilk kare tam görünür).
+İlk açılış **soğuk** sayılır (pencere önceden kurulu ama ilk kez gösteriliyor), sonrakiler
 **sıcak**. Kalıcı maliyet: `ring` ile `ring -RingOff` çalıştırmalarının `MemoryAtStartupIdle.PrivateMB` farkı (açılır halka
 ölçülen açılışta boşa düşülürken kurulur). `RingMemoryDelta`: açılışlar boyunca artış (sızıntı olmamalı).
 

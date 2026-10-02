@@ -137,4 +137,32 @@ public class RingInputTests
         Assert.Null(RingInput.NumberIndex(0, 12));
         Assert.Null(RingInput.NumberIndex(10, 12));
     }
+
+    [Theory]
+    [InlineData(false, true, 4, 0, true)]     // widget, yol öğesi, eşiği geçti: dışarı sürüklenir
+    [InlineData(false, true, 1, 1, false)]    // eşiğin altında: tıklama
+    [InlineData(false, false, 4, 0, false)]   // eylem / alt halka / soluk yol: biraz kayan tıklama seçmeye devam eder
+    [InlineData(false, false, 40, 30, false)]
+    [InlineData(true, true, 40, 0, false)]    // açılır halkadan dışarı sürüklenmez
+    public void Only_draggable_items_turn_a_moving_press_into_a_drag(bool popup, bool canDrag, double dx, double dy, bool expected) =>
+        Assert.Equal(expected, RingInput.StartsDragOut(popup, canDrag, dx, dy, 4, 4));
+
+    [Fact]
+    public void A_press_that_slides_a_little_on_an_action_or_sub_ring_still_selects_it()
+    {
+        var item = new RingGeometry.Hit(RingGeometry.HitKind.Item, 2);
+        var other = new RingGeometry.Hit(RingGeometry.HitKind.Item, 3);
+        var none = RingGeometry.Hit.None;
+        // Basış sürüklemeye dönmedi (sürüklenemeyen öğe): aynı öğede bırakınca o seçilir.
+        Assert.False(RingInput.StartsDragOut(false, canDragOut: false, 4, 3, 4, 4));
+        Assert.Equal(item, RingInput.ReleaseTarget(item, item, isPopup: false));
+        // Widget'ta başka öğede bırakmak bir şey seçmez; açılır halkada o öğeyi seçer (pasta menüsü).
+        Assert.Null(RingInput.ReleaseTarget(item, other, isPopup: false));
+        Assert.Equal(other, RingInput.ReleaseTarget(item, other, isPopup: true));
+        // Ortaya basıp bırakmak (alt halkada geri) yerinde kalır; basılmamışsa hiçbir şey.
+        var center = new RingGeometry.Hit(RingGeometry.HitKind.Center, 0);
+        Assert.Equal(center, RingInput.ReleaseTarget(center, center, isPopup: false));
+        Assert.Null(RingInput.ReleaseTarget(center, item, isPopup: false));
+        Assert.Null(RingInput.ReleaseTarget(none, item, isPopup: true));
+    }
 }

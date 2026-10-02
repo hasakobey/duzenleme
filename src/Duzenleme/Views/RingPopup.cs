@@ -17,28 +17,40 @@ namespace Duzenleme.Views;
 /// öğelerini aynı çizimle (<see cref="RingView"/>) gösterir.
 /// <para>Pencere: düz, kenarlıksız, saydam zeminli, en üstte, görev çubuğunda ve Alt+Tab'da görünmez (WS_EX_TOOLWINDOW);
 /// masaüstüne sahipli değildir ve etkinleşir (klavye 1–9, oklar, Esc). Boyutu 2 × (çember + nişan alanı); nişan alanının zemini
-/// neredeyse saydamdır (#01000000): oraya gelen fare de halkanındır, dışarı tıklamak halkayı kapatır. Gölge degrade ile
-/// çizilir (Effect yok); renkler hedef widget'ın paletinden. Alt bırakılınca menü kipine girilmez (SC_KEYMENU yutulur).</para>
+/// neredeyse saydamdır (#01000000): "tuşu bırakınca seç" ve basıp sürükleme orada da yön verir; görünen halkanın dışına
+/// (nişan alanına) tıklamak halkayı kapatır. Gölge degrade ile çizilir (Effect yok); renkler hedef widget'ın paletinden. Alt
+/// bırakılınca menü kipine girilmez (SC_KEYMENU yutulur).</para>
 /// <para>Hız: kısayol açıksa pencere açılıştan sonra boşta önceden kurulur (tutamaç, halka, simgeler); kapatınca yalnızca
 /// gizlenir. Ayar, kutu taşıması ya da ad değişikliği içeriği eskitir; yeniden kurulum kısayol yolunda değil boşta yapılır.
 /// Açılış: önceki pencere ve imleç okunur (yalnızca bellekte), pencere gizliyken imlecin monitörüne (önce taşınıp ölçeği
-/// düzeltilerek) <see cref="RingPlacement.ForPopup"/> ile yerleştirilir, gösterilir ve öne getirilir; hareket
-/// <see cref="Motion.RingOpen"/>. Girdi hareketi beklemez (isabet testi açıyla).</para>
-/// <para>Kapanma: kısayol yeniden, Esc, sağ tık ya da kökte ortaya basmak kapatır ve önceki pencereyi öne getirir; öğe seçmek
-/// kapatır (öğe kendi penceresini açar); dışarı tıklamak (etkinlik kaybı) yalnızca kapatır. Tuş ve metin öğeleri halka gerçekten
+/// düzeltilerek; WPF gizli pencerede ölçeğe geçmezse pencere o monitörde yeniden kurulur) <see cref="RingPlacement.ForPopup"/>
+/// ile yerleştirilir, gösterilir ve öne getirilir; hareket <see cref="Motion.RingOpen"/>. Girdi hareketi beklemez (isabet
+/// testi açıyla).</para>
+/// <para>Kapanma: kısayol yeniden, Esc, sağ tık, nişan alanına tıklama ya da kökte ortaya basmak kapatır ve önceki pencereyi
+/// öne getirir; öğe seçmek kapatır (öğe kendi penceresini açar); başka pencereye tıklamak (etkinlik kaybı) yalnızca kapatır.
+/// Halka öne gelemediyse (ör. kısayol iletisi öne geçme izni getirmedi) öndeki pencere kısa aralıkla izlenir: başka bir pencere
+/// öne gelince ya da 10 sn içinde halkaya dokunulmazsa (imleç üstünde değilse) kapanır. Tuş ve metin öğeleri halka gerçekten
 /// kapandıktan sonra (<see cref="Motion.RingClose"/> geri çağırması) önceki pencereye gönderilir (<see cref="RingRunner.SendToTargetAsync"/>).</para>
 /// <para>"Tuşu bırakınca seç" (<see cref="AppSettings.RingHoldSelectOff"/> kapalıyken): kısayolun tuşları açılışta hâlâ basılıysa
-/// halka kurulur; bırakılınca imleç en az <see cref="RingGeometry.DragThresholdDip"/> kadar gittiyse ve bir öğe vurguluysa o
-/// seçilir, yoksa halka tıklama kipinde kalır. Bırakma WPF'in KeyUp'ından anlaşılır; yalnızca halka öne gelemediyse ve halka
-/// açıkken, en çok 10 sn ve yalnızca kısayolun tuşları GetAsyncKeyState ile yoklanır (kanca yok).</para>
+/// halka kurulur; vurgu imlecin açılıştan bu yana gittiği yöndendir (halka ekran kenarında kaydırılmış olabilir); bırakılınca
+/// imleç en az <see cref="RingGeometry.DragThresholdDip"/> kadar gittiyse ve bir öğe vurguluysa o seçilir, yoksa halka tıklama
+/// kipinde kalır. Bırakma WPF'in KeyUp'ından anlaşılır; yalnızca halka öne gelemediyse ve halka açıkken, en çok 10 sn ve
+/// yalnızca kısayolun tuşları GetAsyncKeyState ile yoklanır (kanca yok). Kısayolun tuşları hâlâ basılıyken Ctrl+Shift ile
+/// seçmek "yönetici olarak" sayılmaz (kısayolun kendisi Ctrl+Shift içerebilir).</para>
 /// </summary>
 internal sealed class RingPopup : Window
 {
-    /// <summary>Çemberin dışındaki nişan alanı (DIP): fare oraya da gidebilir, tıklamak vurgulanan öğeyi seçer.</summary>
+    /// <summary>
+    /// Çemberin dışındaki nişan alanı (DIP): "tuşu bırakınca seç" ve basıp sürükleme orada da yön verir; oraya tıklamak
+    /// halkayı kapatır (görünen halkanın dışı).
+    /// </summary>
     public const double AimDip = 72;
 
-    /// <summary>"Tuşu bırakınca seç" için yoklama sınırı (yalnızca halka öne gelemediyse).</summary>
-    private static readonly TimeSpan HoldPollLimit = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Halka öne gelemediyse: "tuşu bırakınca seç" için kısayolun tuşlarının yoklanma sınırı ve dokunulmayan halkanın en çok
+    /// açık kalma süresi.
+    /// </summary>
+    private static readonly TimeSpan InactiveLimit = TimeSpan.FromSeconds(10);
 
     private static RingPopup? _instance;
     private static bool _syncQueued, _exiting;
@@ -55,11 +67,11 @@ internal sealed class RingPopup : Window
     private IntPtr _previous;
     private NativeMethods.POINT _anchor, _openCursor;
     private double _scale = 1;
-    private bool _closing, _armed, _rootPressed;
+    private bool _closing, _armed, _hotkeyHeld, _rootPressed;
     private Action? _afterClose;
     private List<int> _hotkeyKeys = [];
-    private DispatcherTimer? _poll;
-    private long _pollUntil;
+    private DispatcherTimer? _watch;
+    private long _watchUntil;
 
     // ---------------------------------------------------------------- dışarıya açık (arayüz iş parçacığında)
 
@@ -152,21 +164,22 @@ internal sealed class RingPopup : Window
         _ring.CloseRequested += Dismiss;
         _ring.Navigated += () => Motion.RingSwap(_ring.CenterElement, _ring.ItemElements, _ring.TowardCenter);
 
-        PreviewMouseMove += (_, e) => { if (!_closing) _ring.HighlightAt(e.GetPosition(_ring)); };
+        PreviewMouseMove += (_, _) => OnPointerMove();
         PreviewMouseDown += (_, e) =>
         {
             // Fareyle seçen kullanıcı tıklama kipindedir.
             Disarm();
             if (e.ChangedButton == MouseButton.Right) e.Handled = true;
         };
+        // Diskin içindeki her tıklamayı halka (RingView) alır; buraya gelen tıklama görünen halkanın dışında, nişan alanındadır:
+        // halka kapanır (görünmeyen bir alana tıklamak bir öğeyi, ör. bir komutu, çalıştırmasın).
         _root.MouseLeftButtonDown += (_, e) => { _rootPressed = true; e.Handled = true; };
-        // Nişan alanına (ya da diskin basılmamış yerine) tıklamak vurgulanan öğeyi seçer.
         _root.MouseLeftButtonUp += (_, e) =>
         {
             if (!_rootPressed || e.Handled || _closing) return;
             _rootPressed = false;
             e.Handled = true;
-            _ring.CommitHighlight();
+            Dismiss();
         };
         // Sağ tık kapatır (bırakınca: bırakma alttaki pencerede menü açmasın).
         PreviewMouseRightButtonUp += (_, e) =>
@@ -175,17 +188,22 @@ internal sealed class RingPopup : Window
             Dismiss();
         };
         PreviewKeyDown += OnPreviewKeyDown;
-        PreviewKeyUp += (_, _) => { if (_armed && AllReleased()) Released(); };
+        PreviewKeyUp += (_, _) =>
+        {
+            if ((!_armed && !_hotkeyHeld) || !AllReleased()) return;
+            _hotkeyHeld = false;
+            if (_armed) Released();
+        };
         Activated += (_, _) =>
         {
-            // Sonradan (ör. halkaya tıklayınca) öne geldi: klavye halkada, yoklamaya gerek kalmaz.
-            StopPolling();
+            // Sonradan (ör. halkaya tıklayınca) öne geldi: klavye halkada, izlemeye ve yoklamaya gerek kalmaz.
+            StopWatch();
             if (IsVisible && !_closing) FocusRing();
         };
         // Dışarı tıklandı (başka pencere öne geldi): yalnızca kapanır.
         Deactivated += (_, _) => { if (IsVisible && !_closing) CloseWith(restore: false, after: null); };
         // Açıkken ekranın ölçeği değişti: yeniden yerleşir (simgeler RingView'de yeniden istenir).
-        DpiChanged += (_, _) => { if (IsVisible && !_closing) Dispatcher.BeginInvoke(Place); };
+        DpiChanged += (_, _) => { if (IsVisible && !_closing) Dispatcher.BeginInvoke(() => Place(requireScale: false)); };
 
         AppHost.SettingsChanged += OnSettingsChanged;
         AppHost.Widgets.Changed += OnSettingsChanged;
@@ -255,7 +273,8 @@ internal sealed class RingPopup : Window
         _signature = Signature(config);
         _builtHighContrast = SystemParameters.HighContrast;
         var palette = RingView.PaletteFor(config);
-        _ring.ApplyPalette(palette);
+        // Önce renkler (eski halka yeniden kurulmaz), sonra halka bir kez: simgeler yeni renkle istenir.
+        _ring.ApplyPalette(palette, rebuild: false);
         _ring.CenterShowsIcon = !config.Shows(WidgetNameLine.PartKey);
         _ring.SetRing(config, 0);
         _backdrop.Apply(palette, _ring.Metrics.OuterRadius);
@@ -330,12 +349,14 @@ internal sealed class RingPopup : Window
         return cursor;
     }
 
-    private void Open(double pressedAt)
+    /// <param name="previousOverride">Pencere yeniden kurulduysa eskisinin okuduğu önceki pencere.</param>
+    /// <param name="mayRecreate">Gizli pencere imlecin monitörünün ölçeğine geçmezse yeniden kurulabilir mi (bir kez).</param>
+    private void Open(double pressedAt, IntPtr? previousOverride = null, bool mayRecreate = true)
     {
         // Önceki pencere ve imleç yalnızca şimdi okunur ve yalnızca bellekte tutulur. Kapanırken yeniden açıldıysa öndeki
         // pencere halkanın kendisidir: önceki hedef korunur.
         var foreground = ForegroundInfo.Window();
-        var previous = foreground == Handle ? _previous : foreground;
+        var previous = previousOverride ?? (foreground == Handle ? _previous : foreground);
         NativeMethods.GetCursorPos(out _openCursor);
         _anchor = AnchorNow();
         if (_closing)
@@ -366,13 +387,31 @@ internal sealed class RingPopup : Window
             return;
         }
 
-        Place();
+        if (!Place(requireScale: mayRecreate))
+        {
+            Recreate(pressedAt, previous);
+            return;
+        }
         PerfLog.Mark("Ring.hotkey", atMs: pressedAt);
         if (PerfLog.Enabled) CompositionTarget.Rendering += OnFirstFrame;
         _ring.ClearHighlight();
         _rootPressed = false;
         Arm();
         Motion.RingOpen(_root, ShowAndActivate, _ring.CenterElement, _ring.ItemElements, _ring.TowardCenter);
+    }
+
+    /// <summary>
+    /// WPF gizli pencerede imlecin monitörünün ölçeğine geçmedi (WM_DPICHANGED gelmedi): halka yanlış ölçekte çizilmesin diye
+    /// pencere o monitörde yeniden kurulur (kurucu imlecin ekranında oluşturur) ve oradan açılır; eskisi kapanır.
+    /// </summary>
+    private void Recreate(double pressedAt, IntPtr previous)
+    {
+        DebugLog.Write("RingPopup: gizli pencere ekranın ölçeğine geçmedi; yeniden kuruluyor");
+        _previous = IntPtr.Zero;
+        var fresh = new RingPopup();
+        if (ReferenceEquals(_instance, this)) _instance = fresh;
+        CloseForRealCore();
+        fresh.Open(pressedAt, previous, mayRecreate: false);
     }
 
     private static void OnFirstFrame(object? sender, EventArgs e)
@@ -385,15 +424,20 @@ internal sealed class RingPopup : Window
     /// Gizli pencereyi yerleştirir: ölçeği imlecin monitöründen farklıysa önce o monitöre taşınır (WPF yeni ölçeğe geçer), sonra
     /// pencerenin gerçek ölçeğiyle <see cref="RingPlacement.ForPopup"/>; halka pencerede o noktaya çizilir.
     /// </summary>
-    private void Place()
+    /// <param name="requireScale">true: taşıdıktan sonra ölçek hâlâ farklıysa yerleştirmeden false döner (pencere yeniden
+    /// kurulur); false: pencerenin ölçeğiyle yine de yerleşir.</param>
+    private bool Place(bool requireScale)
     {
         var hwnd = Handle;
-        if (hwnd == IntPtr.Zero) return;
+        if (hwnd == IntPtr.Zero) return true;
         var work = NativeMethods.WorkAreaAt(_anchor);
         var target = NativeMethods.ScaleAt(_anchor);
-        if (!IsVisible && Math.Abs(VisualTreeHelper.GetDpi(this).PixelsPerDip - target) > 0.001)
+        if (!IsVisible && !ScaleIs(target))
+        {
             NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, work.Left, work.Top, 0, 0,
                 NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            if (requireScale && !ScaleIs(target)) return false;
+        }
         _scale = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var monitor = NativeMethods.MonitorAreaAt(_anchor);
         var popup = RingPlacement.ForPopup(new Box(monitor.Left, monitor.Top, monitor.Right, monitor.Bottom),
@@ -402,11 +446,14 @@ internal sealed class RingPopup : Window
         Arrange(popup.CenterXDip, popup.CenterYDip);
         NativeMethods.SetWindowPos(hwnd, NativeMethods.HWND_TOPMOST, popup.Place.Left, popup.Place.Top, popup.SidePx, popup.SidePx,
             NativeMethods.SWP_NOACTIVATE);
+        return true;
     }
+
+    private bool ScaleIs(double scale) => Math.Abs(VisualTreeHelper.GetDpi(this).PixelsPerDip - scale) <= 0.001;
 
     /// <summary>
     /// Gösterir ve öne getirir: WM_HOTKEY'i alan süreç öne geçebilir; olmazsa SetForegroundWindow (iş parçacığı girdisi
-    /// bağlanmaz). Yine olmazsa fare çalışır, "tuşu bırakınca seç" kısayolun tuşlarını sınırlı süre yoklar.
+    /// bağlanmaz). Yine olmazsa fare çalışır ve halka öndeki pencereyi sınırlı süre izler (<see cref="StartWatch"/>).
     /// </summary>
     private void ShowAndActivate()
     {
@@ -415,7 +462,7 @@ internal sealed class RingPopup : Window
         var hwnd = Handle;
         if (ForegroundInfo.Window() != hwnd) NativeMethods.SetForegroundWindow(hwnd);
         FocusRing();
-        if (_armed && ForegroundInfo.Window() != hwnd) StartPolling();
+        if (ForegroundInfo.Window() != hwnd) StartWatch();
     }
 
     private void FocusRing()
@@ -426,21 +473,53 @@ internal sealed class RingPopup : Window
 
     // ---------------------------------------------------------------- "tuşu bırakınca seç"
 
-    /// <summary>Kısayolun tuşları hâlâ basılıysa (ve ayar kapalı değilse) bırakınca seçmeye hazırlanır.</summary>
+    /// <summary>
+    /// Kısayolun tuşları hâlâ basılı mı (bırakılınca, halkanın kendi tuş olaylarıyla anlaşılır); basılıysa (ve ayar kapalı
+    /// değilse) bırakınca seçmeye hazırlanır. Basılı tuşlar Ctrl+Shift ile "yönetici olarak" seçmeyi de engeller.
+    /// </summary>
     private void Arm()
     {
         Disarm();
         _hotkeyKeys = Hotkey.TryParse(AppHost.Settings.Hotkeys.Ring, out var hotkey) ? KeySender.VirtualKeysOf(hotkey) : [];
-        _armed = !AppHost.Settings.RingHoldSelectOff && _hotkeyKeys.Count > 0 && !AllReleased();
+        _hotkeyHeld = _hotkeyKeys.Count > 0 && !AllReleased();
+        _armed = !AppHost.Settings.RingHoldSelectOff && _hotkeyHeld;
+        // Bırakınca seç sürerken vurgu imlecin gittiği yönden (OnPointerMove).
+        _ring.PointerFromOwner = _armed;
     }
 
     private void Disarm()
     {
         _armed = false;
-        StopPolling();
+        _ring.PointerFromOwner = false;
     }
 
     private bool AllReleased() => _hotkeyKeys.All(vk => NativeMethods.GetAsyncKeyState(vk) >= 0);
+
+    /// <summary>
+    /// Fare halkanın penceresinde gitti: "tuşu bırakınca seç" sürerken vurgu imlecin açılıştan bu yana gittiği yönden (nişan
+    /// alanında da); öğeye basılıp sürüklenirken imlecin yerinden. Öteki durumlarda halka (RingView) yalnızca diskin üstünde
+    /// vurgular: nişan alanı tıklamayla kapatır, bir öğeyi vurgulamaz.
+    /// </summary>
+    private void OnPointerMove()
+    {
+        if (_closing || !IsVisible) return;
+        if (_armed)
+        {
+            NativeMethods.GetCursorPos(out var now);
+            _ring.HighlightAt(ArmedPoint(now));
+        }
+        else if (_ring.IsMouseCaptured) _ring.HighlightAt(Mouse.GetPosition(_ring));
+    }
+
+    /// <summary>
+    /// İmlecin açılıştan bu yana gittiği yön, halkanın kendi koordinatında (orta + yer değiştirme): halka ekran kenarında
+    /// imleçten kaydırılmış olsa da küçük bir hareket o yöndeki öğeyi seçer.
+    /// </summary>
+    private Point ArmedPoint(NativeMethods.POINT now)
+    {
+        var c = _ring.Metrics.OuterRadius;
+        return new Point(c + (now.X - _openCursor.X) / _scale, c + (now.Y - _openCursor.Y) / _scale);
+    }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -460,41 +539,77 @@ internal sealed class RingPopup : Window
 
     /// <summary>
     /// Kısayol bırakıldı: imleç yeterince gittiyse ve bir öğeye bakıyorsa o seçilir (imleç pencerenin dışına çıkmış olabilir:
-    /// yön imlecin şimdiki yerinden), yoksa halka tıklama kipinde kalır.
+    /// yön imlecin açılıştan bu yana gittiği yönden), yoksa halka tıklama kipinde kalır.
     /// </summary>
     private void Released()
     {
         Disarm();
+        _hotkeyHeld = false;
         if (!IsVisible || _closing) return;
         NativeMethods.GetCursorPos(out var now);
         var dx = now.X - _openCursor.X;
         var dy = now.Y - _openCursor.Y;
-        if (Math.Sqrt((double)dx * dx + (double)dy * dy) < RingGeometry.DragThresholdDip * _scale) return;
-        _ring.HighlightAt(_ring.PointFromScreen(new Point(now.X, now.Y)));
+        if (Math.Sqrt((double)dx * dx + (double)dy * dy) < RingGeometry.DragThresholdDip * _scale)
+        {
+            // Tıklama kipi: imlecin yönünden kalan vurgu silinir (halka fareyle vurgular).
+            _ring.ClearHighlight();
+            return;
+        }
+        _ring.HighlightAt(ArmedPoint(now));
         if (_ring.HighlightedSlot is not null) _ring.CommitHighlight();
     }
 
-    /// <summary>Yalnızca halka öne gelemediyse: kısayolun tuşları (başka tuş değil) halka açıkken en çok 10 sn yoklanır.</summary>
-    private void StartPolling()
+    /// <summary>
+    /// Yalnızca halka öne gelemediyse (klavye olayları halkaya gelmez, Deactivated hiç gelmez): öndeki pencere kısa aralıkla
+    /// izlenir; başka bir pencere öne gelince ya da en çok 10 sn içinde halkaya dokunulmazsa (imleç üstünde değilse) halka
+    /// kapanır. "Tuşu bırakınca seç" sürüyorsa aynı sürede yalnızca kısayolun tuşları (başka tuş değil) yoklanır. Halka öne
+    /// gelince (tıklanınca) izleme biter.
+    /// </summary>
+    private void StartWatch()
     {
-        _pollUntil = Environment.TickCount64 + (long)HoldPollLimit.TotalMilliseconds;
-        if (_poll is null)
+        _watchUntil = Environment.TickCount64 + (long)InactiveLimit.TotalMilliseconds;
+        if (_watch is null)
         {
-            _poll = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(30) };
-            _poll.Tick += (_, _) =>
-            {
-                if (!_armed || !IsVisible || _closing || Environment.TickCount64 > _pollUntil)
-                {
-                    Disarm();
-                    return;
-                }
-                if (AllReleased()) Released();
-            };
+            _watch = new DispatcherTimer(DispatcherPriority.Input);
+            _watch.Tick += OnWatchTick;
         }
-        _poll.Start();
+        _watch.Interval = TimeSpan.FromMilliseconds(_armed ? 30 : 100);
+        _watch.Start();
     }
 
-    private void StopPolling() => _poll?.Stop();
+    private void StopWatch() => _watch?.Stop();
+
+    private void OnWatchTick(object? sender, EventArgs e)
+    {
+        var hwnd = Handle;
+        if (!IsVisible || _closing || hwnd == IntPtr.Zero)
+        {
+            StopWatch();
+            return;
+        }
+        var foreground = ForegroundInfo.Window();
+        if (foreground == hwnd)
+        {
+            // Öne geldi: klavye ve Deactivated halkada.
+            StopWatch();
+            return;
+        }
+        var expired = Environment.TickCount64 > _watchUntil;
+        if (_armed)
+        {
+            if (expired) Disarm();
+            else if (AllReleased())
+            {
+                Released();
+                if (_closing || !IsVisible) return;
+            }
+            if (!_armed && _watch is { } watch) watch.Interval = TimeSpan.FromMilliseconds(100);
+        }
+        // Başka bir pencere öne geldi (kullanıcı oraya geçti ya da tıkladı): halka yalnızca kapanır.
+        if (foreground != IntPtr.Zero && foreground != _previous) CloseWith(restore: false, after: null);
+        // Süre doldu ve imleç halkada değil: etkin olmayan en üstteki halka ekranda kalmasın.
+        else if (expired && !IsMouseOver) CloseWith(restore: false, after: null);
+    }
 
     // ---------------------------------------------------------------- seçim ve kapanış
 
@@ -510,7 +625,8 @@ internal sealed class RingPopup : Window
             return;
         }
         // Öbürleri halka hâlâ öndeyken başlar (açılan pencere öne gelebilsin); Ctrl+Shift: yönetici olarak (Windows sorar).
-        var admin = Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift);
+        // Kısayolun tuşları hâlâ basılıysa Ctrl+Shift onlardan olabilir (ör. Ctrl+Shift+Boşluk): yanlışlıkla yönetici olmasın.
+        var admin = Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && !_hotkeyHeld;
         RingRunner.RunFromPopup(slot, admin);
         CloseWith(restore: false, after: null);
     }
@@ -523,6 +639,7 @@ internal sealed class RingPopup : Window
         if (!IsVisible || _closing) return;
         _closing = true;
         Disarm();
+        StopWatch();
         var previous = _previous;
         _afterClose = () =>
         {
@@ -541,8 +658,15 @@ internal sealed class RingPopup : Window
         _closing = false;
         _previous = IntPtr.Zero;
         _rootPressed = false;
+        _hotkeyHeld = false;
         _ring.ClearHighlight();
         after?.Invoke();
+        // Kısayol halka açıkken kapatıldı (Sync açık pencereye dokunmaz): şimdi bütünüyle kapanır.
+        if (!Enabled)
+        {
+            Sync();
+            return;
+        }
         // Açıkken gelen değişiklik ya da alt halka: sonraki açılış için boşta.
         if (_ring.InSubRing) _dirty = true;
         if (_dirty) MarkDirty();
@@ -555,7 +679,7 @@ internal sealed class RingPopup : Window
         AppHost.Widgets.Changed -= OnSettingsChanged;
         BoxMover.Changed -= OnPathsChanged;
         AppHost.PathRenamed -= OnPathRenamed;
-        StopPolling();
+        StopWatch();
         Motion.Stop(_root);
         CompositionTarget.Rendering -= OnFirstFrame;
         _ring.Release();

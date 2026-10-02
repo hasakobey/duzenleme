@@ -140,6 +140,7 @@ internal static partial class En
         new("Halka menün boş. Masaüstündeki halkaya bir uygulama, dosya ya da klasör sürükle.",
             "Your ring menu is empty. Drag an app, file or folder onto the ring on your desktop."),
         new("Halka menü kısayolu kapatıldı.", "The ring menu shortcut is turned off."),
+        new("{0} artık bu halkayı imlecin yanında açar.", "{0} now opens this ring next to the pointer."),
         new("Halka menü artık {0} ile imlecin yanında açılır. Tıkla ya da 1–9'a bas; Esc kapatır. {1} klavyeni izlemez: yalnızca bu kısayol Windows'a kaydedilir.",
             "The ring menu now opens next to the pointer with {0}. Click or press 1–9; Esc closes it. {1} doesn't monitor your keyboard: only this shortcut is registered with Windows."),
         new("Ayarları aç", "Open Settings"),

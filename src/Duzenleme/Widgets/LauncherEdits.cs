@@ -121,12 +121,16 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         return new Removed(tab, index, entry, look);
     }
 
-    /// <summary>Çıkarılanı aynı sıraya (kısılır) geri koyar, adını ve simgesini geri verir. Zaten sekmedeyse eklenmez.</summary>
+    /// <summary>
+    /// Çıkarılanı aynı sıraya (kısılır) geri koyar, adını ve simgesini geri verir. Zaten sekmedeyse eklenmez ve o arada verilmiş
+    /// ad/simge ezilmez.
+    /// </summary>
     public static bool Put(WidgetConfig config, Removed removed)
     {
         var at = LauncherEntries.Insert(removed.Tab, Math.Min(removed.Index, LauncherEntries.Count(removed.Tab)), removed.Entry);
+        if (at < 0) return false;
         if (removed.Entry.Path is { } path) ItemLooks.Restore(config, path, removed.Look);
-        return at >= 0;
+        return true;
     }
 
     /// <summary>

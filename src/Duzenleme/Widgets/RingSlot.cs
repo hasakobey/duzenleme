@@ -119,14 +119,15 @@ internal sealed class RingSlot
                 if (uri.Scheme == "mailto") return Shorten(Uri.UnescapeDataString(uri.AbsoluteUri["mailto:".Length..]));
                 return Shorten(string.IsNullOrEmpty(uri.Host) ? uri.AbsoluteUri : uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host);
             case RingActionTypes.Command:
-                var program = (action.Command ?? "").Trim().Trim('"');
+                // Komut satırının program parçası (diske dokunmadan): "ping 8.8.8.8" → "ping".
+                var program = RingActions.SplitCommand(action.Command).Program;
                 var file = program.Length == 0 ? "" : System.IO.Path.GetFileNameWithoutExtension(program.Replace('/', '\\').Split('\\')[^1]);
                 return file.Length > 0 ? Shorten(file) : L.T("Komut");
             case RingActionTypes.Keys:
                 return action.Keys is { Count: > 0 } keys ? Shorten(string.Join(", ", keys)) : L.T("Tuş kısayolu");
             case RingActionTypes.Text:
-                var line = (action.Text ?? "").Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
-                return line is null ? L.T("Metin") : Shorten(line);
+                // Metnin kendisi (ilk satırı bile) ad olmaz: masaüstünde, ekran okuyucuda ve bildirimde görünürdü.
+                return L.T("Metin");
             case RingActionTypes.App:
                 return RingAppIds.Label(action.App) ?? L.F("{0} eylemi", AppInfo.Name);
             default:

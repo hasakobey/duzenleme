@@ -67,6 +67,24 @@ public class LauncherEditsTests
     }
 
     [Fact]
+    public void Undo_does_not_overwrite_a_newer_look_when_the_item_is_already_back()
+    {
+        var box = Box(@"C:\a.exe", @"C:\b.exe");
+        var tab = box.Tabs[0];
+        ItemLooks.SetName(box, @"C:\b.exe", "Eski ad", "b");
+        ItemLooks.SetIcon(box, @"C:\b.exe", "sym:Rocket24");
+        var removed = LauncherEdits.Take(box, tab, 1)!;
+        // Arada aynı öğe yeniden eklendi ve yeni bir ad/simge aldı: "Geri al" eklemez ve onları ezmez.
+        tab.Items.Add(@"C:\b.exe");
+        ItemLooks.SetName(box, @"C:\b.exe", "Yeni ad", "b");
+        ItemLooks.SetIcon(box, @"C:\b.exe", "sym:Games24");
+        Assert.False(LauncherEdits.Put(box, removed));
+        Assert.Equal("Yeni ad", ItemLooks.Get(box, @"C:\b.exe")!.Name);
+        Assert.Equal("sym:Games24", ItemLooks.Get(box, @"C:\b.exe")!.Icon);
+        Assert.Equal(2, tab.Items.Count);
+    }
+
+    [Fact]
     public void Insert_appends_new_paths_only_and_gives_a_moved_look()
     {
         var box = Box(@"C:\a.exe");

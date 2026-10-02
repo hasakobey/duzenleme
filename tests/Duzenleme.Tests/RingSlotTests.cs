@@ -118,6 +118,10 @@ public class RingSlotTests
     [InlineData(RingActionTypes.Command, "\"C:\\Program Files\\App\\app.exe\"", "app")]
     [InlineData(RingActionTypes.Command, "notepad.exe", "notepad")]
     [InlineData(RingActionTypes.Command, "  ", "Komut")]
+    [InlineData(RingActionTypes.Command, "ping 8.8.8.8", "ping")]
+    [InlineData(RingActionTypes.Command, "\"C:\\Program Files\\App\\app.exe\" --flag", "app")]
+    [InlineData(RingActionTypes.Command, "C:\\Program Files\\App\\app.exe", "app")]
+    [InlineData(RingActionTypes.Command, "%windir%\\system32\\cmd.exe /c dir", "cmd")]
     public void Default_names_per_type(string type, string value, string expected)
     {
         var action = new LauncherAction { Type = type };
@@ -131,8 +135,9 @@ public class RingSlotTests
     {
         Assert.Equal("Ctrl+Shift+T, F5", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Keys, Keys = ["Ctrl+Shift+T", "F5"] }));
         Assert.Equal("Tuş kısayolu", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Keys }));
-        Assert.Equal("Merhaba", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Text, Text = "\n  Merhaba \r\ndünya" }));
-        Assert.Equal(new string('a', 31) + "…", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Text, Text = new string('a', 50) }));
+        // Metnin kendisi (ilk satırı bile) ad olmaz: masaüstünde, ekran okuyucuda ve bildirimde görünürdü.
+        Assert.Equal("Metin", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Text, Text = "\n  Merhaba \r\ndünya" }));
+        Assert.Equal("Metin", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Text, Text = "parola123" }));
         Assert.Equal("Metin", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.Text }));
         Assert.Equal("NestDesk'i aç", RingSlot.DefaultName(RingActions.ForApp(RingAppIds.OpenApp)));
         Assert.Equal("NestDesk eylemi", RingSlot.DefaultName(new LauncherAction { Type = RingActionTypes.App, App = "x" }));

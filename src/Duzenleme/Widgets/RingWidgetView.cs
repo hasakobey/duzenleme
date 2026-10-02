@@ -68,6 +68,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         _ring.SetRing(config);
         _rendered = true;
         _ring.ItemInvoked += RingRunner.RunFromWidget;
+        // Yalnızca yol öğeleri dışarı sürüklenir; öbürlerinde biraz kayan tıklama yine seçer.
+        _ring.CanDragOut = CanDragOut;
         _ring.DragOutRequested += DragOut;
         _ring.Navigated += ApplyParts;
         AutomationProperties.SetAutomationId(_ring, "Ring.View");
@@ -84,7 +86,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         AllowDrop = true;
         DragEnter += OnDragOver;
         DragOver += OnDragOver;
-        DragLeave += (_, _) => _ring.ShowDrop(null, null, null);
+        DragLeave += (_, _) => EndDrag();
         Drop += OnDrop;
         // Öğeler masaüstünden kutuya taşınınca ya da geri konunca yolları değişir; bir bölmede yeniden adlandırılınca da.
         BoxMover.Changed += OnOutsideChange;
@@ -183,33 +185,37 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             menu.Primary.Add(Menus.Item(undo, UndoRemove));
             menu.Primary.Add(new Separator());
         }
-        menu.Primary.Add(AddMenu(_ring.TabIndex, null));
+        menu.Primary.Add(AddMenu(CurrentTab, () => null));
         if (_ring.InSubRing) menu.Primary.Add(Menus.Item(L.T("Ana halkaya dön"), _ring.GoBack, KeyNames.Backspace));
         menu.Primary.Add(_name.MenuItem());
         menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.ClosePart], ApplyParts));
-        // Kısayolla imleçte açılan halka (bkz. RingShortcut): açarken ne yaptığı bildirimde anlatılır; menü kapanır.
-        menu.More.Add(Menus.Toggle(L.T("Kısayolla imleçte açılsın"), () => RingShortcut.IsOn, () => RingShortcut.ToggleFromMenu(_config),
+        // Kısayolla imleçte açılan halka (bkz. RingShortcut): yalnızca kısayolun açtığı halkada işaretli; açarken ne yaptığı
+        // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır.
+        menu.More.Add(Menus.Toggle(L.T("Kısayolla imleçte açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
             staysOpen: false));
     }
 
-    /// <summary>"Öğe ekle ▸": <paramref name="tab"/> sekmesine, <paramref name="at"/> sırasına (yoksa sona).</summary>
-    private MenuItem AddMenu(int tab, int? at)
+    /// <summary>
+    /// "Öğe ekle ▸": <paramref name="tab"/> sekmesine, <paramref name="where"/> sırasına (yoksa sona). Sıra seçilince
+    /// hesaplanır (menü açıkken halka yeniden kurulmuş olabilir).
+    /// </summary>
+    private MenuItem AddMenu(LauncherTab tab, Func<int?> where)
     {
         var add = new MenuItem { Header = L.T("Öğe ekle") };
-        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), () => AddFiles(tab, at)));
-        add.Items.Add(Menus.Item(L.T("Klasör…"), () => AddFolders(tab, at)));
+        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), () => AddFiles(tab, where)));
+        add.Items.Add(Menus.Item(L.T("Klasör…"), () => AddFolders(tab, where)));
         add.Items.Add(new Separator());
-        add.Items.Add(Menus.Item(L.T("Web adresi…"), () => AddAction(RingActionTypes.Url, tab, at)));
-        add.Items.Add(Menus.Item(L.T("Komut…"), () => AddAction(RingActionTypes.Command, tab, at)));
-        add.Items.Add(Menus.Item(L.T("Tuş kısayolu gönder…"), () => AddAction(RingActionTypes.Keys, tab, at)));
-        add.Items.Add(Menus.Item(L.T("Metin yapıştır…"), () => AddAction(RingActionTypes.Text, tab, at)));
+        add.Items.Add(Menus.Item(L.T("Web adresi…"), () => AddAction(RingActionTypes.Url, tab, where)));
+        add.Items.Add(Menus.Item(L.T("Komut…"), () => AddAction(RingActionTypes.Command, tab, where)));
+        add.Items.Add(Menus.Item(L.T("Tuş kısayolu gönder…"), () => AddAction(RingActionTypes.Keys, tab, where)));
+        add.Items.Add(Menus.Item(L.T("Metin yapıştır…"), () => AddAction(RingActionTypes.Text, tab, where)));
         var app = new MenuItem { Header = L.F("{0} eylemi", AppInfo.Name) };
         foreach (var id in RingAppIds.All)
-            app.Items.Add(Menus.Item(Menus.Literal(RingAppIds.Label(id) ?? id), () => AddApp(id, tab, at)));
+            app.Items.Add(Menus.Item(Menus.Literal(RingAppIds.Label(id) ?? id), () => AddApp(id, tab, where())));
         add.Items.Add(app);
         // Alt halka tek düzey: yalnızca kök halkaya eklenir.
-        if (tab == 0)
+        if (ReferenceEquals(tab, _config.Tabs[0]))
         {
             add.Items.Add(new Separator());
             add.Items.Add(Menus.Item(L.T("Alt halka…"), AddSubRing));
@@ -255,44 +261,61 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         }
         if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None && _ring.HighlightedSlot is { } slot)
         {
-            Remove(slot);
+            Remove(CurrentTab, slot);
             e.Handled = true;
         }
     }
 
     private int IndexOf(RingSlot slot) => _ring.Slots.ToList().IndexOf(slot);
 
+    /// <summary>
+    /// Öğenin <paramref name="tab"/> sekmesindeki şimdiki sırası (yoksa -1): menü ya da pencere açıkken halka yeniden kurulmuş
+    /// olabilir (kutu taşıması, ad değişikliği), iş anında yolu ya da eylemin kimliğiyle yeniden bulunur.
+    /// </summary>
+    private int EntryNow(LauncherTab tab, RingSlot slot) =>
+        !_config.Tabs.Contains(tab) ? -1
+        : slot.Path is { } path ? LauncherEntries.IndexOfPath(tab, path)
+        : slot.Action is { } action ? LauncherEntries.IndexOfAction(tab, action.Id)
+        : -1;
+
+    /// <summary>Sekme hâlâ halkadaysa kendisi, değilse gösterilen sekme.</summary>
+    private LauncherTab Live(LauncherTab tab) => _config.Tabs.Contains(tab) ? tab : CurrentTab;
+
     private void FillItemMenu(ContextMenu menu, RingSlot slot)
     {
-        // Menü açıkken halka yeniden kurulmuş olabilir (dışarıdan değişiklik): iş yerin kendi bilgisiyle yapılır.
+        // Menü açıkken halka yeniden kurulmuş olabilir (dışarıdan değişiklik): iş, menü açılırken yakalanan sekme ve öğenin
+        // kendisiyle (yolu ya da kimliği) iş anında yeniden bulunarak yapılır.
+        var tab = CurrentTab;
+        var sub = slot.Kind == RingSlotKind.SubRing;
+        var subTab = sub ? Tab(slot.TabIndex) : null;
         menu.Items.Add(Menus.Item(L.T("Aç"), () =>
         {
-            if (slot.Kind == RingSlotKind.SubRing) _ring.OpenSubRing(slot.TabIndex);
+            if (subTab is not null) { if (_config.Tabs.IndexOf(subTab) is > 0 and var t) _ring.OpenSubRing(t); }
             else RingRunner.RunFromWidget(slot);
         }, KeyNames.Enter));
-        var sub = slot.Kind == RingSlotKind.SubRing;
         // Öğe: arkasına eklenir; alt halka: içine.
-        menu.Items.Add(sub ? AddMenu(slot.TabIndex, null) : AddMenu(_ring.TabIndex, slot.EntryIndex + 1));
+        menu.Items.Add(subTab is not null ? AddMenu(subTab, () => null)
+            : AddMenu(tab, () => EntryNow(tab, slot) is >= 0 and var i ? i + 1 : null));
         menu.Items.Add(new Separator());
         if (!sub)
         {
-            if (LauncherEntries.Count(CurrentTab) > 1)
+            if (LauncherEntries.Count(tab) > 1)
             {
-                menu.Items.Add(Menus.Item(L.T("Saat yönünde taşı"), () => Step(slot, clockwise: true)));
-                menu.Items.Add(Menus.Item(L.T("Ters yönde taşı"), () => Step(slot, clockwise: false)));
+                menu.Items.Add(Menus.Item(L.T("Saat yönünde taşı"), () => Step(tab, slot, clockwise: true)));
+                menu.Items.Add(Menus.Item(L.T("Ters yönde taşı"), () => Step(tab, slot, clockwise: false)));
             }
-            var targets = new List<(int Tab, string Name)>();
-            if (_ring.InSubRing) targets.Add((0, L.T("Ana halka")));
+            var targets = new List<(LauncherTab Tab, string Name)>();
+            if (_ring.InSubRing) targets.Add((_config.Tabs[0], L.T("Ana halka")));
             for (var t = 1; t < _config.Tabs.Count; t++)
-                if (t != _ring.TabIndex) targets.Add((t, Menus.Literal(RingSlot.SubRingName(_config.Tabs[t]))));
+                if (t != _ring.TabIndex) targets.Add((_config.Tabs[t], Menus.Literal(RingSlot.SubRingName(_config.Tabs[t]))));
             if (targets.Count > 0)
             {
                 var move = new MenuItem { Header = _ring.InSubRing ? L.T("Başka halkaya taşı") : L.T("Alt halkaya taşı") };
-                foreach (var (tab, name) in targets) move.Items.Add(Menus.Item(name, () => MoveToTab(slot, tab)));
+                foreach (var (target, name) in targets) move.Items.Add(Menus.Item(name, () => MoveToTab(tab, slot, target)));
                 menu.Items.Add(move);
             }
         }
-        menu.Items.Add(Menus.Item(L.T("Düzenle…"), () => Edit(slot)));
+        menu.Items.Add(Menus.Item(L.T("Düzenle…"), () => Edit(slot, subTab)));
         if (slot is { Kind: RingSlotKind.Path, Path: { } path } && !TileItem.IsShellObject(path))
         {
             if (BoxMover.IsMoved(path))
@@ -306,28 +329,28 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(path)));
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item(L.T("Halkadan kaldır"), () => Remove(slot), KeyNames.Delete));
+        menu.Items.Add(Menus.Item(L.T("Halkadan kaldır"), () => Remove(tab, slot, subTab), KeyNames.Delete));
     }
 
-    private void Step(RingSlot slot, bool clockwise)
+    private void Step(LauncherTab tab, RingSlot slot, bool clockwise)
     {
-        var tab = CurrentTab;
-        if (RingInput.StepTarget(slot.EntryIndex, LauncherEntries.Count(tab), clockwise) is not { } to) return;
-        _edits.Change(() => LauncherEntries.Move(tab, slot.EntryIndex, to));
+        var from = EntryNow(tab, slot);
+        if (from < 0 || RingInput.StepTarget(from, LauncherEntries.Count(tab), clockwise) is not { } to) return;
+        _edits.Change(() => LauncherEntries.Move(tab, from, to));
         // Taşınan öğe vurgulu kalır (vurgu yeni yerine geçer): art arda taşınabilsin.
-        _ring.Highlight(to);
+        if (ReferenceEquals(tab, CurrentTab)) _ring.Highlight(to);
     }
 
-    private void MoveToTab(RingSlot slot, int target)
+    private void MoveToTab(LauncherTab from, RingSlot slot, LauncherTab to)
     {
-        var from = CurrentTab;
-        var to = Tab(target);
+        var index = EntryNow(from, slot);
+        if (index < 0 || !_config.Tabs.Contains(to)) return;
         var moved = false;
-        _edits.Change(() => moved = LauncherEntries.MoveTo(from, slot.EntryIndex, to, int.MaxValue));
+        _edits.Change(() => moved = LauncherEntries.MoveTo(from, index, to, int.MaxValue));
         if (!moved) Views.Notice.Show(L.F("\"{0}\" o halkada zaten var.", slot.Name), Views.NoticeKind.Info);
     }
 
-    private void Edit(RingSlot slot)
+    private void Edit(RingSlot slot, LauncherTab? subTab)
     {
         switch (slot.Kind)
         {
@@ -342,8 +365,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
                     ItemLooks.SetIcon(_config, path, look.Icon);
                 });
                 break;
-            case RingSlotKind.SubRing:
-                var tab = Tab(slot.TabIndex);
+            case RingSlotKind.SubRing when (subTab ?? Tab(slot.TabIndex)) is { } tab && _config.Tabs.IndexOf(tab) > 0:
                 if (Views.RingActionDialog.AskSubRing(tab.Name, Owner) is { } name) _edits.Change(() => tab.Name = name);
                 break;
         }
@@ -351,7 +373,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- ekleme
 
-    private void AddFiles(int tab, int? at)
+    private void AddFiles(LauncherTab tab, Func<int?> where)
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -361,10 +383,10 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             Filter = L.T("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*"),
             InitialDirectory = AppHost.DesktopDirectory,
         };
-        if (dialog.ShowDialog() == true) AddPaths(Tab(tab), dialog.FileNames, null, null, at);
+        if (dialog.ShowDialog() == true) AddPaths(tab, dialog.FileNames, null, null, where());
     }
 
-    private void AddFolders(int tab, int? at)
+    private void AddFolders(LauncherTab tab, Func<int?> where)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
@@ -372,7 +394,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             Multiselect = true,
             InitialDirectory = AppHost.DesktopDirectory,
         };
-        if (dialog.ShowDialog() == true) AddPaths(Tab(tab), dialog.FolderNames, null, null, at);
+        if (dialog.ShowDialog() == true) AddPaths(tab, dialog.FolderNames, null, null, where());
     }
 
     /// <summary>Yolları ekler (kısayol kutusuyla aynı yoldan); hepsi zaten oradaysa söyler.</summary>
@@ -381,14 +403,15 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             duplicate: () => Views.Notice.Show(paths.Count == 1
                 ? L.F("\"{0}\" zaten halkada.", RingSlot.DefaultPathName(paths[0])) : L.T("Bu öğeler zaten halkada."), Views.NoticeKind.Info));
 
-    private void AddAction(string type, int tab, int? at)
+    private void AddAction(string type, LauncherTab tab, Func<int?> where)
     {
-        if (Views.RingActionDialog.Create(type, _config, Owner) is { } action) Insert(Tab(tab), at, action);
+        // Sıra pencere kapanınca hesaplanır (pencere açıkken halka değişmiş olabilir).
+        if (Views.RingActionDialog.Create(type, _config, Owner) is { } action) Insert(Live(tab), where(), action);
     }
 
-    private void AddApp(string id, int tab, int? at)
+    private void AddApp(string id, LauncherTab tab, int? at)
     {
-        var target = Tab(tab);
+        var target = Live(tab);
         if (LauncherEntries.Ordered(target).Any(e => e.Action is { Type: RingActionTypes.App } a && a.App == id))
         {
             Views.Notice.Show(L.F("\"{0}\" zaten halkada.", RingAppIds.Label(id) ?? id), Views.NoticeKind.Info);
@@ -408,14 +431,17 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- kaldırma ve geri alma
 
-    private void Remove(RingSlot slot)
+    /// <summary>Öğeyi <paramref name="tab"/> sekmesinden çıkarır (iş anında yeniden bulunur); alt halkayı kaldırır.</summary>
+    private void Remove(LauncherTab tab, RingSlot slot, LauncherTab? subTab = null)
     {
         if (slot.Kind == RingSlotKind.SubRing)
         {
-            RemoveSubRing(slot);
+            if ((subTab ?? Tab(slot.TabIndex)) is { } sub) RemoveSubRing(sub, slot.Name);
             return;
         }
-        var returning = _edits.Remove(CurrentTab, slot.EntryIndex);
+        var index = EntryNow(tab, slot);
+        if (index < 0) return;
+        var returning = _edits.Remove(tab, index);
         if (returning is null) return;
         _removedSubRing = null;
         Views.Notice.Show(returning == true
@@ -428,20 +454,22 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     /// Alt halkayı (sekmeyi) içindekilerle birlikte kaldırır; doluysa önce sorar. Masaüstünden taşınmış öğeleri başka kutuda
     /// yoksa masaüstüne döner; bildirimdeki ve menüdeki "Geri al" alt halkayı yerine koyar.
     /// </summary>
-    private void RemoveSubRing(RingSlot slot)
+    private void RemoveSubRing(LauncherTab tab, string name)
     {
-        if (slot.TabIndex <= 0 || slot.TabIndex >= _config.Tabs.Count) return;
-        var tab = _config.Tabs[slot.TabIndex];
+        if (_config.Tabs.IndexOf(tab) <= 0) return;
         var count = LauncherEntries.Count(tab);
-        if (count > 0 && !Views.Confirm.Ask(null, L.F("\"{0}\" alt halkası kaldırılsın mı?", slot.Name),
+        if (count > 0 && !Views.Confirm.Ask(null, L.F("\"{0}\" alt halkası kaldırılsın mı?", name),
                 L.P(count, "İçindeki {0} öğe de halkadan kalkar. Dosyalara dokunulmaz; bildirimden geri alabilirsin."), L.T("Kaldır"),
                 near: DialogPoint))
             return;
-        if (_ring.TabIndex == slot.TabIndex) _ring.GoBack();
+        // Soru açıkken değişmiş olabilir: yeri şimdi bulunur.
+        var index = _config.Tabs.IndexOf(tab);
+        if (index <= 0) return;
+        if (_ring.TabIndex == index) _ring.GoBack();
         var looks = new Dictionary<string, ItemLook>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in tab.Items)
             if (!LauncherEdits.Elsewhere(_config, tab, path) && ItemLooks.Get(_config, path) is { } look) looks[path] = look;
-        _removedSubRing = (tab, slot.TabIndex, looks);
+        _removedSubRing = (tab, index, looks);
         _edits.ForgetRemoved();
         _edits.Change(() =>
         {
@@ -451,7 +479,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         });
         // Alt halkadaki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
         BoxMover.Reconcile();
-        Views.Notice.Show(L.F("\"{0}\" alt halkası kaldırıldı.", slot.Name), Views.NoticeKind.Info, L.T("Geri al"), UndoRemove,
+        Views.Notice.Show(L.F("\"{0}\" alt halkası kaldırıldı.", name), Views.NoticeKind.Info, L.T("Geri al"), UndoRemove,
             L.T("Geri almak için buraya tıkla."));
     }
 
@@ -489,10 +517,14 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- sürükle-bırak
 
+    /// <summary>Dışarı sürüklenebilen öğe: bulunabilen yol (kabuk nesnesi değil). Eylemler ve alt halkalar sürüklenmez.</summary>
+    private static bool CanDragOut(RingSlot slot) =>
+        slot is { Kind: RingSlotKind.Path, Path: { } path } && !slot.Dimmed && !TileItem.IsShellObject(path);
+
     /// <summary>Yol öğesi dışarı (Gezgin'e, bölmeye, başka kutuya) sürüklenir: yalnızca bağlantıdır, dosya yerinden oynamaz.</summary>
     private void DragOut(RingSlot slot)
     {
-        if (slot is not { Kind: RingSlotKind.Path, Path: { } path } || slot.Dimmed || TileItem.IsShellObject(path)) return;
+        if (!CanDragOut(slot) || slot.Path is not { } path) return;
         var tab = CurrentTab;
         var source = new WidgetDragSource(_config.Id, path, FromBox: true, () => _edits.TakeOut(tab, path), ItemLooks.Get(_config, path));
         var native = TileItem.NativePath(path);
@@ -523,7 +555,28 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             if (!source.FromBox) return (DropKind.Add, index, sub, null);
             return (e.KeyStates.HasFlag(DragDropKeyStates.ControlKey) ? DropKind.Add : DropKind.MoveHere, index, sub, null);
         }
-        return DroppedUrl(e.Data) is { } url ? (DropKind.Url, index, sub, url) : (DropKind.None, index, null, null);
+        return UrlOf(e.Data) is { } url ? (DropKind.Url, index, sub, url) : (DropKind.None, index, null, null);
+    }
+
+    // Sürüklenen metin her fare hareketinde başka süreçten yeniden okunmasın: sürükleme başına bir kez.
+    private IDataObject? _urlData;
+    private string? _url;
+
+    private string? UrlOf(IDataObject data)
+    {
+        if (!ReferenceEquals(data, _urlData))
+        {
+            _urlData = data;
+            _url = DroppedUrl(data);
+        }
+        return _url;
+    }
+
+    private void EndDrag()
+    {
+        _ring.ShowDrop(null, null, null);
+        _urlData = null;
+        _url = null;
     }
 
     /// <summary>Bırakılan metin bir http(s) adresiyse o (ilk satır); değilse null.</summary>
@@ -558,8 +611,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     private void OnDrop(object sender, DragEventArgs e)
     {
-        _ring.ShowDrop(null, null, null);
         var (kind, index, sub, url) = PlanDrop(e);
+        EndDrag();
         var source = WidgetDrag.For(e.Data);
         if (source is not null) WidgetDrag.MarkDropped();
         e.Handled = true;

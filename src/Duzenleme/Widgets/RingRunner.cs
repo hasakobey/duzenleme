@@ -102,23 +102,37 @@ internal static class RingRunner
         return false;
     }
 
-    /// <summary>Komutu arka planda başlatır (kabuk çağrısı arayüzü bekletmez). Yönetici onayından vazgeçmek sessizdir.</summary>
+    /// <summary>
+    /// Komutu arka planda başlatır (kabuk çağrısı ve dosya denetimi arayüzü bekletmez). "Program ya da komut" alanı bütün bir
+    /// komut satırı da olabilir ("notepad C:\a.txt", "\"C:\Program Files\x.exe\" -f"): program ve bağımsız değişkenler
+    /// <see cref="RingActions.SplitCommand"/> ile ayrılır, Bağımsız değişkenler alanı sona eklenir. Yönetici onayından vazgeçmek
+    /// sessizdir.
+    /// </summary>
     private static void StartCommand(LauncherAction action)
     {
-        var info = new ProcessStartInfo(Environment.ExpandEnvironmentVariables(action.Command!.Trim().Trim('"')))
-        {
-            UseShellExecute = true,
-            Arguments = action.Args?.Trim() ?? "",
-            // Konsolu gizlemek öğe başına açık bir seçimdir (varsayılan görünür).
-            WindowStyle = action.HideWindow ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal,
-        };
-        if (!string.IsNullOrWhiteSpace(action.Dir)) info.WorkingDirectory = Environment.ExpandEnvironmentVariables(action.Dir.Trim().Trim('"'));
-        if (action.Admin) info.Verb = "runas";
+        var command = Environment.ExpandEnvironmentVariables(action.Command!.Trim());
+        var extra = action.Args?.Trim() ?? "";
+        var hide = action.HideWindow;
+        var admin = action.Admin;
+        var dir = string.IsNullOrWhiteSpace(action.Dir) ? null : Environment.ExpandEnvironmentVariables(action.Dir.Trim().Trim('"'));
         // Başlatılan program öne gelebilsin.
         NativeMethods.AllowSetForegroundWindow(-1);
         Task.Run(() =>
         {
-            try { Process.Start(info)?.Dispose(); }
+            try
+            {
+                var (program, inline) = RingActions.SplitCommand(command, File.Exists);
+                var info = new ProcessStartInfo(program)
+                {
+                    UseShellExecute = true,
+                    Arguments = string.Join(" ", new[] { inline, extra }.Where(a => a.Length > 0)),
+                    // Konsolu gizlemek öğe başına açık bir seçimdir (varsayılan görünür).
+                    WindowStyle = hide ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal,
+                };
+                if (dir is not null) info.WorkingDirectory = dir;
+                if (admin) info.Verb = "runas";
+                Process.Start(info)?.Dispose();
+            }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
             {
                 // Kullanıcı yönetici onayını iptal etti.
@@ -145,21 +159,32 @@ internal static class RingRunner
     /// <param name="hotkeyKeys">Halkayı açan kısayolun sanal tuşları (bırakılmaları beklenir; boşsa beklenmez).</param>
     public static async Task SendToTargetAsync(LauncherAction action, IntPtr target, IReadOnlyCollection<int> hotkeyKeys)
     {
-        if (!Runnable(action)) return;
+        // Halka geri getirmeden kapandı: öğe çalışamasa da odak önceki pencereye döner (Windows'un seçtiği yerde kalmasın).
         if (target != IntPtr.Zero) NativeMethods.SetForegroundWindow(target);
-        await KeySender.WaitForKeysReleasedAsync(hotkeyKeys, KeySender.MaxWait);
-        switch (action.Type)
+        if (!Runnable(action)) return;
+        try
         {
-            case RingActionTypes.Keys when action.Keys is { } keys:
-                var sent = await KeySender.SendToAsync(target, keys);
-                if (sent == SendResult.Elevated) Show(KeysNotice(sent, await ElevatedAsync(target)));
-                else Show(KeysNotice(sent, elevated: null));
-                break;
-            case RingActionTypes.Text when action.Text is { } text:
-                var pasted = await SnippetPaste.PasteAsync(target, text);
-                if (pasted == SnippetPaste.Outcome.Elevated) Show(TextNotice(pasted, await ElevatedAsync(target)));
-                else Show(TextNotice(pasted, elevated: null));
-                break;
+            await KeySender.WaitForKeysReleasedAsync(hotkeyKeys, KeySender.MaxWait);
+            switch (action.Type)
+            {
+                case RingActionTypes.Keys when action.Keys is { } keys:
+                    var sent = await KeySender.SendToAsync(target, keys);
+                    if (sent == SendResult.Elevated) Show(KeysNotice(sent, await ElevatedAsync(target)));
+                    else Show(KeysNotice(sent, elevated: null));
+                    break;
+                case RingActionTypes.Text when action.Text is { } text:
+                    var pasted = await SnippetPaste.PasteAsync(target, text);
+                    if (pasted == SnippetPaste.Outcome.Elevated) Show(TextNotice(pasted, await ElevatedAsync(target)));
+                    else Show(TextNotice(pasted, elevated: null));
+                    break;
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Çağıran beklemez (kapanış geri çağırması): hata burada kalır. Günlüğe yalnızca türü.
+            DebugLog.Write($"RingRunner: {ex.GetType().Name}");
+            Views.Notice.Show(action.Type == RingActionTypes.Keys ? L.T("Tuşlar gönderilemedi.")
+                : L.T("Metin yapıştırılamadı; pano şu an kullanılamıyor olabilir."), Views.NoticeKind.Warning);
         }
     }
 

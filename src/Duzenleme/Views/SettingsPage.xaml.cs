@@ -731,8 +731,12 @@ public partial class SettingsPage : Page
         if (mods == HotkeyModifiers.None) return;
 
         var keyName = key is >= Key.D0 and <= Key.D9 ? ((int)(key - Key.D0)).ToString() : key.ToString();
+        var ringWasOn = RingShortcut.IsOn;
         AppHost.Settings.Hotkeys.Set(row.Action, new Hotkey(mods, keyName).ToString());
         ApplyHotkeys();
+        // Halka kısayolu listeden açıldı: ne yaptığı anlatılır (widget menüsünden açılınca olduğu gibi; Store matrisi 2b).
+        if (row.Action == HotkeyAction.Ring && !ringWasOn && RingShortcut.Current is { } ring && RingShortcut.Failure is null)
+            Notice.Show(RingShortcut.TurnedOnText(ring), NoticeKind.Info);
     }
 
     private void ResetHotkeys_Click(object sender, RoutedEventArgs e)

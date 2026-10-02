@@ -88,6 +88,22 @@ internal static class RingInput
         if (count < 2 || index < 0 || index >= count) return null;
         return clockwise ? (index < count - 1 ? index + 1 : 0) : (index > 0 ? index - 1 : count - 1);
     }
+
+    /// <summary>
+    /// Basılı öğe (<paramref name="dx"/>, <paramref name="dy"/>) kadar gidince dışarı sürüklenmeye başlar mı: yalnızca
+    /// masaüstündeki widget'ta, dışarı sürüklenebilen öğede (yol) ve Windows'un sürükleme eşiğini geçince. Sürüklenemeyen öğede
+    /// (eylem, alt halka, soluk ya da kabuk nesnesi) basış sürer: biraz kayan tıklama (dokunmatik yüzey, kalem) yine seçer.
+    /// </summary>
+    public static bool StartsDragOut(bool isPopup, bool canDragOut, double dx, double dy, double minX, double minY) =>
+        !isPopup && canDragOut && (Math.Abs(dx) >= minX || Math.Abs(dy) >= minY);
+
+    /// <summary>
+    /// Bırakınca seçilen yer: basılan yerin üstünde bırakılırsa o; açılır halkada basıp başka bir öğeye götürüp bırakmak o öğe
+    /// (pasta menülerindeki gibi). Yoksa hiçbiri (null).
+    /// </summary>
+    public static RingGeometry.Hit? ReleaseTarget(RingGeometry.Hit pressed, RingGeometry.Hit released, bool isPopup) =>
+        pressed.Kind == RingGeometry.HitKind.None ? null
+        : released == pressed || (isPopup && released.Kind == RingGeometry.HitKind.Item) ? released : null;
 }
 
 /// <summary>
@@ -137,6 +153,8 @@ internal sealed class RingView : FrameworkElement
         FocusVisualStyle = null;
         _children = new VisualCollection(this);
         _center = new RingCenterVisual(this);
+        // Klavyeyle vurgulanan öğenin adı ortada yazar: ekran okuyucusu da söylesin (bkz. Announce).
+        AutomationProperties.SetLiveSetting(_center, AutomationLiveSetting.Polite);
         _children.Add(_center);
         _back = new RingItemVisual(this, -1);
         AutomationProperties.SetAutomationId(_back, "Ring.Back");
@@ -153,6 +171,18 @@ internal sealed class RingView : FrameworkElement
     /// Açılır halka kendi boyutunda çizilebilir.
     /// </summary>
     public bool StableSize { get; set; } = true;
+
+    /// <summary>
+    /// Öğe dışarı sürüklenebilir mi (masaüstündeki widget: yalnızca yol öğeleri). Yoksa ya da false dönerse basış sürer ve
+    /// bırakınca öğe seçilir (biraz kayan tıklama kaybolmaz).
+    /// </summary>
+    public Func<RingSlot, bool>? CanDragOut { get; set; }
+
+    /// <summary>
+    /// Vurguyu sahibi (açılır halka, "tuşu bırakınca seç" sürerken) imlecin yönünden verir: görünüm fareyle vurgulamaz ve
+    /// fare dışarı çıkınca vurguyu silmez.
+    /// </summary>
+    public bool PointerFromOwner { get; set; }
 
     /// <summary>Kökte boşken orta dairede ad yerine widget'ın simgesi ("Göster ▸ Ad" kapalıyken).</summary>
     public bool CenterShowsIcon
@@ -278,7 +308,9 @@ internal sealed class RingView : FrameworkElement
     }
 
     /// <summary>Palet (widget'ın arka planı ve vurgu rengi); yüksek karşıtlıkta sistem renkleri.</summary>
-    public void ApplyPalette(WidgetPalette palette)
+    /// <param name="rebuild">false: yalnızca renkler (hemen ardından <see cref="SetRing"/> çağrılacak; eski halka boşuna
+    /// yeniden kurulmasın, simgeler yeni renkle SetRing'de istenir).</param>
+    public void ApplyPalette(WidgetPalette palette, bool rebuild = true)
     {
         var highContrast = SystemParameters.HighContrast;
         _colors = RingColors.From(palette, highContrast);
@@ -287,6 +319,7 @@ internal sealed class RingView : FrameworkElement
         _glyphColor = glyph;
         _paletteApplied = true;
         BuildBrushes();
+        if (!rebuild) return;
         // Fluent simgeli öğeler vurgu renginde çizilir: renk değiştiyse yerler yeniden kurulur (simgeler önbellekten gelir).
         if (recolor && _config is not null && _slots.Count > 0) Rebuild();
         else
@@ -510,7 +543,40 @@ internal sealed class RingView : FrameworkElement
         InvalidateFor(hit);
         InvalidateVisual();
         _center.InvalidateVisual();
+        if (_keyboardHighlight) Announce();
         HighlightChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Klavyeyle vurgulanan yeri ekran okuyucusu söyler: orta daire nazik canlı bölgedir (adı vurgulanan öğenin adı), değişince
+    /// bildirilir. Dinleyen yoksa bir şey yapılmaz.
+    /// </summary>
+    private void Announce()
+    {
+        if (!AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged)) return;
+        var peer = UIElementAutomationPeer.FromElement(_center) ?? UIElementAutomationPeer.CreatePeerForElement(_center);
+        peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+    }
+
+    // Odak çerçevesi (orta dairenin kenarı vurgu renginde): klavyeyle odaklanınca ya da tuşa basınca; fareyle basınca kalkar.
+    private bool _focusCue;
+
+    /// <summary>Orta dairenin kenarı odak çerçevesi olarak çizilsin mi (klavye odağı görünümde ve son girdi klavyeden)?</summary>
+    internal bool ShowsFocusCue => _focusCue && IsKeyboardFocused;
+
+    private void SetFocusCue(bool on)
+    {
+        if (_focusCue == on) return;
+        _focusCue = on;
+        _center.InvalidateVisual();
+    }
+
+    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    {
+        base.OnGotKeyboardFocus(e);
+        // Fareyle tıklanınca odaklanan widget çerçeve göstermez; kısayolla açılan halka (fare basılı değil) gösterir.
+        SetFocusCue(Mouse.LeftButton != MouseButtonState.Pressed && Mouse.RightButton != MouseButtonState.Pressed);
+        _center.InvalidateVisual();
     }
 
     private void InvalidateFor(RingGeometry.Hit hit)
@@ -705,30 +771,32 @@ internal sealed class RingView : FrameworkElement
         base.OnMouseMove(e);
         var point = e.GetPosition(this);
         // Açılır halkadan dışarı sürüklenmez: basıp başka öğeye götürmek oradaki öğeyi seçer (bkz. OnMouseLeftButtonUp).
-        if (!IsPopup && _pressed.Kind == RingGeometry.HitKind.Item && e.LeftButton == MouseButtonState.Pressed && IsMouseCaptured)
+        // Sürüklenemeyen öğede basış sürer: biraz kayan tıklama yine seçer.
+        if (_pressed.Kind == RingGeometry.HitKind.Item && e.LeftButton == MouseButtonState.Pressed && IsMouseCaptured &&
+            _pressed.Index < _slots.Count && _slots[_pressed.Index] is var pressedSlot)
         {
             var delta = point - _pressPoint;
-            if (Math.Abs(delta.X) >= SystemParameters.MinimumHorizontalDragDistance ||
-                Math.Abs(delta.Y) >= SystemParameters.MinimumVerticalDragDistance)
+            if (RingInput.StartsDragOut(IsPopup, CanDragOut?.Invoke(pressedSlot) == true, delta.X, delta.Y,
+                    SystemParameters.MinimumHorizontalDragDistance, SystemParameters.MinimumVerticalDragDistance))
             {
-                var slot = _pressed.Index < _slots.Count ? _slots[_pressed.Index] : null;
                 EndPress();
-                if (slot is not null) DragOutRequested?.Invoke(slot);
+                DragOutRequested?.Invoke(pressedSlot);
                 return;
             }
         }
-        if (_pressed.Kind == RingGeometry.HitKind.None) HighlightAt(point);
+        if (_pressed.Kind == RingGeometry.HitKind.None && !PointerFromOwner) HighlightAt(point);
     }
 
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-        if (!_keyboardHighlight && _pressed.Kind == RingGeometry.HitKind.None) ClearHighlight();
+        if (!_keyboardHighlight && !PointerFromOwner && _pressed.Kind == RingGeometry.HitKind.None) ClearHighlight();
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        SetFocusCue(false); // fareyle kullanan: odak çerçevesi yalnızca klavyeden sonra
         var hit = HitAt(e.GetPosition(this));
         // Widget'ta kökün ortası ve diskin dışı widget'ı taşımaya kalır (olay karta geçer).
         var actionable = hit.Kind is RingGeometry.HitKind.Item or RingGeometry.HitKind.Parent ||
@@ -756,8 +824,7 @@ internal sealed class RingView : FrameworkElement
         EndPress();
         e.Handled = true;
         // Açılır halkada basıp bir öğeye doğru götürüp bırakmak o öğeyi seçer (pasta menülerindeki gibi).
-        if (hit != pressed && !(IsPopup && hit.Kind == RingGeometry.HitKind.Item)) return;
-        Commit(hit);
+        if (RingInput.ReleaseTarget(pressed, hit, IsPopup) is { } target) Commit(target);
     }
 
     protected override void OnLostMouseCapture(MouseEventArgs e)
@@ -793,6 +860,7 @@ internal sealed class RingView : FrameworkElement
         base.OnKeyDown(e);
         if (e.Handled) return;
         var (kind, number, arrow) = RingInput.Map(e.Key == Key.System ? e.SystemKey : e.Key, Keyboard.Modifiers);
+        if (kind != RingKey.None) SetFocusCue(true);
         switch (kind)
         {
             case RingKey.Number:
@@ -851,6 +919,7 @@ internal sealed class RingView : FrameworkElement
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnLostKeyboardFocus(e);
+        _center.InvalidateVisual();
         _commitKey = null;
         if (_keyboardHighlight && !IsMouseOver) ClearHighlight();
     }
@@ -872,7 +941,7 @@ internal sealed record RingColors(
     Pen Separator, Pen Rim, Pen RimHot, Pen Marker,
     Brush Chip, Pen ChipBorder, Brush ChipHot, Pen ChipBorderHot, Brush ChipPressed,
     Brush Center, Pen CenterBorder, Brush CenterHot, Brush Text, Brush TextHot, Brush Secondary,
-    Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot)
+    Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot, Pen FocusBorder)
 {
     public static RingColors From(WidgetPalette palette, bool highContrast)
     {
@@ -886,7 +955,7 @@ internal sealed record RingColors(
                 Line(text, 1), Line(text, 2), Line(highlight, 4), Line(highlight, 3),
                 Solid(window), Line(text, 1.5), Solid(highlight), Line(highlightText, 2), Solid(highlight),
                 Solid(window), Line(text, 1.5), Solid(highlight), Solid(text), Solid(highlightText), Solid(text),
-                Solid(window), Line(text, 1), Solid(text), Solid(highlight), Solid(highlightText), Solid(text));
+                Solid(window), Line(text, 1), Solid(text), Solid(highlight), Solid(highlightText), Solid(text), Line(highlight, 2));
         }
         var fg = (palette.Foreground as SolidColorBrush)?.Color ?? Colors.White;
         var accent = (palette.Accent as SolidColorBrush)?.Color ?? Colors.White;
@@ -903,7 +972,8 @@ internal sealed record RingColors(
             Center: Solid(light ? A(white, 0xF2) : A(fg, 0x14)), CenterBorder: Line(A(fg, light ? 0x22 : 0x2E), 1),
             CenterHot: Solid(A(accent, light ? 0x3A : 0x4D)), Text: palette.Foreground, TextHot: palette.Foreground, Secondary: palette.Secondary,
             Badge: Solid(light ? white : Color.FromArgb(0xE6, 0x1E, 0x1C, 0x28)), BadgeBorder: Line(A(fg, light ? 0x2A : 0x38), 1),
-            BadgeText: palette.Foreground, BadgeHot: palette.Accent, BadgeTextHot: accentText, Dot: Solid(A(fg, light ? 0x70 : 0x8C)));
+            BadgeText: palette.Foreground, BadgeHot: palette.Accent, BadgeTextHot: accentText, Dot: Solid(A(fg, light ? 0x70 : 0x8C)),
+            FocusBorder: Line(accent, 2));
     }
 
     private static Color A(Color color, int alpha) => RingView.WithAlpha(color, (byte)alpha);
@@ -1068,7 +1138,10 @@ internal sealed class RingCenterVisual : FrameworkElement
         var r = _ring.Metrics.CenterRadius;
         var c = new Point(r, r);
         var hot = _ring.CenterHot;
-        dc.DrawEllipse(_ring.CenterPressed ? colors.ChipPressed : hot ? colors.CenterHot : colors.Center, colors.CenterBorder, c, r - 0.5, r - 0.5);
+        // Odak çerçevesi: klavye odağı halkadayken orta dairenin kenarı vurgu renginde (yalnızca kalemin rengi değişir).
+        var focus = _ring.ShowsFocusCue;
+        dc.DrawEllipse(_ring.CenterPressed ? colors.ChipPressed : hot ? colors.CenterHot : colors.Center,
+            focus ? colors.FocusBorder : colors.CenterBorder, c, focus ? r - 1 : r - 0.5, focus ? r - 1 : r - 0.5);
 
         var top = c.Y - r * 0.62;
         var bottom = c.Y + r * 0.62;
