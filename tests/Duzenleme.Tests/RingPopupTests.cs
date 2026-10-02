@@ -112,12 +112,19 @@ public class RingPopupTests
     public void Test_ring_is_wired_only_through_the_test_desktop_check()
     {
         var app = Source("App.xaml.cs");
-        Assert.Matches(@"new HotkeyManager\(OnHotkey\)\s*\{\s*TestRing = Views\.RingPopup\.TestRing\s*\}", app);
+        // Test masaüstü hiçbir genel kısayolu kaydetmez (NESTDESK_TEST_HOTKEYS=1 değilse); halka testi iletiyle açılır.
+        Assert.Matches(@"new HotkeyManager\(OnHotkey\)\s*\{\s*TestDesktop = AppHost\.IsTestDesktop,\s*" +
+            @"TestHotkeys = HotkeyManager\.TestOverride\(AppHost\.IsTestDesktop, AppEnvironment\.Get\(""TEST_HOTKEYS""\)\),\s*" +
+            @"TestRing = Views\.RingPopup\.TestRing,\s*\}", app);
         var popup = Source("Views", "RingPopup.cs");
         Assert.Matches(@"TestRing => RingHotkey\.TestOverride\(AppHost\.IsTestDesktop, AppEnvironment\.Get\(""TEST_RING""\)\)", popup);
-        // Ortam değişkeni başka yerden okunmaz.
+        // Ortam değişkenleri başka yerden okunmaz.
         foreach (var file in SourceFiles().Where(f => !f.EndsWith("RingPopup.cs", StringComparison.Ordinal)))
             Assert.DoesNotContain("\"TEST_RING\"", File.ReadAllText(file));
+        foreach (var file in SourceFiles().Where(f => !f.EndsWith("App.xaml.cs", StringComparison.Ordinal)))
+            Assert.DoesNotContain("\"TEST_HOTKEYS\"", File.ReadAllText(file));
+        // Kayıt kararı tek yerde: RegistersWithWindows test masaüstünü ve isteği birlikte alır.
+        Assert.Contains("RegistersWithWindows(action, TestDesktop, TestHotkeys, TestRing)", Source("Desktop", "HotkeyManager.cs"));
     }
 
     // ---------------------------------------------------------------- yerleşim ve hedef
@@ -364,8 +371,29 @@ public class RingPopupTests
         Assert.Equal(moved, Views.RingPopup.Signature(config));
 
         var popup = Code("Views", "RingPopup.cs");
-        Assert.Contains("_builtSystemDark = WidgetPalette.SystemDark;", popup);
-        Assert.Matches(@"\|\| _builtSystemDark != WidgetPalette\.SystemDark\) Build\(config\);", popup);
+        Assert.Contains("_builtLook = LookNow();", popup);
+        Assert.Matches(@"\|\| _builtLook != LookNow\(\)\) Build\(config\);", popup);
+        Assert.Contains("WidgetPalette.SystemLook.Current(WidgetPalette.SystemDark, SystemParameters.HighContrast)", popup);
+        Assert.DoesNotContain("_builtHighContrast", popup);
+        Assert.DoesNotContain("_builtSystemDark", popup);
+    }
+
+    /// <summary>
+    /// Windows'un görünüşü değişince (açık/koyu kip, yüksek karşıtlık, bir yüksek karşıtlık temasından ötekine: Gece gökyüzü →
+    /// Çöl'de HighContrast hep true kalır, yalnızca renkler değişir) önceden kurulmuş açılır halka boşta yeniden kurulur:
+    /// App.ApplyTheme widget'ları yeniden çizdiği dalda halkaya da bildirir. Eskiden yalnızca iki bayrağa açılışta (kısayol
+    /// yolunda) bakılıyordu; YK temaları arasında halka ve zemini eski Windows renklerinde kalıyordu.
+    /// </summary>
+    [Fact]
+    public void Popup_rebuilds_at_idle_when_the_windows_look_changes()
+    {
+        var app = Code("App.xaml.cs");
+        Assert.Matches(@"if \(_widgetLook != look\)\s*\{[\s\S]*?if \(restyle\)\s*\{\s*AppHost\.Widgets\?\.RestyleAll\(all\);\s*Views\.RingPopup\.SystemLookChanged\(\);\s*\}", app);
+        var popup = Code("Views", "RingPopup.cs");
+        Assert.Matches(@"public static void SystemLookChanged\(\)\s*\{[\s\S]*?popup\.MarkDirty\(\);\s*\}", popup);
+        // MarkDirty gizli pencereyi boşta kurar, açık pencereyi kapanınca.
+        Assert.Matches(@"private void MarkDirty\(\)[\s\S]*?if \(IsVisible \|\| _rebuildQueued \|\| _forReal\) return;[\s\S]*?DispatcherPriority\.ApplicationIdle", popup);
+        Assert.Matches(@"if \(_dirty\) MarkDirty\(\);", popup);
     }
 
     [Fact]
