@@ -39,8 +39,8 @@ internal static partial class En
         new("Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir.",
             "Double-click the desktop again or click here to bring them back. You can turn this off in Settings."),
         new("Masaüstü simgeleri yeniden gösteriliyor", "Desktop icons are showing again"),
-        new("Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç.",
-            "A panel was removed, so some desktop items weren't showing in any panel. You can turn this back on from the Widgets page."),
+        new("Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Ayarlar'dan yeniden aç.",
+            "A panel was removed, so some desktop items weren't showing in any panel. You can turn this back on in Settings."),
 
         // AppInfo
         new("Masaüstün için derli toplu bir yuva.", "A tidy home for your desktop."),

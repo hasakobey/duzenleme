@@ -10,7 +10,6 @@ internal static partial class En
     internal static void AddP6() => Add(
     [
         // Ekleme kataloğu ("Widget ekle", Widget'lar sayfası)
-        new("Saat ve bilgi", "Clocks and info"),
         new("Büyük dijital saat", "Large digital clock"),
         new("Gün, ay ve haftalık şerit", "Day, month and a weekly strip"),
         new("Yapışkan not; yazdıkça kaydedilir", "Sticky note; saved as you type"),
@@ -36,9 +35,7 @@ internal static partial class En
         new("Bilgisayardaki herhangi bir klasörü bölmede göster (masaüstünde olması gerekmez)",
             "Show any folder on this PC in a panel (it doesn't have to be on the desktop)"),
         new("{0} klasörünün içi, en yeni üstte", "Contents of {0}, newest first"),
-        new("Windows klasörü", "Windows folder"),
         new("Bölmede gösterilecek klasörü seç", "Choose the folder to show in the panel"),
-        new("{0} masaüstüne eklendi.", "{0} was added to the desktop."),
         new("Ekran görüntüleri", "Screenshots"),
 
         // Widget adları (Widget'lar listesi, tepsi)
@@ -58,7 +55,7 @@ internal static partial class En
         new("ekranın üst ortasına", "at the top center of the screen"),
         new("imlecin yanına", "next to the pointer"),
         new("{0} {1} eklendi", "{0} was added {1}"),
-        new("Yeni widget'ların yerini Widget'lar sayfasından değiştirebilirsin.", "You can change where new widgets appear on the Widgets page."),
+        new("Yeni widget'ların yerini Ayarlar'dan değiştirebilirsin.", "You can change where new widgets appear in Settings."),
         new(" Widget'ları pencerelerin önüne getirmek için {0}.", " Press {0} to bring widgets in front of windows."),
 
         // Saat

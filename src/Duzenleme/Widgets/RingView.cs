@@ -117,7 +117,7 @@ internal static class RingInput
 /// açılırken öğeler büyüyüp kayarken de doğrudur. Klavye: 1–9 (tuşa basınca vurgu, bırakınca seçim), oklar
 /// (<see cref="RingGeometry.Navigate"/>), Enter/Boşluk, Backspace ya da ortaya tıklama (alt halkadan geri), Esc.</para>
 /// <para>Erişilebilirlik: her öğe isabet testine katılmayan bir Button'dur (AutomationId <c>Ring.Item.N</c>, adı öğenin adı,
-/// Invoke seçer); orta <c>Ring.Center</c>, alt halkadaki geri <c>Ring.Back</c>.</para>
+/// Invoke seçer); orta <c>Ring.Center</c>, alt halkadaki geri <c>Ring.Back</c>, widget'taki "+" yeri <c>Ring.AddApp</c>.</para>
 /// </summary>
 internal sealed class RingView : FrameworkElement
 {
@@ -183,6 +183,15 @@ internal sealed class RingView : FrameworkElement
     /// fare dışarı çıkınca vurguyu silmez.
     /// </summary>
     public bool PointerFromOwner { get; set; }
+
+    /// <summary>
+    /// Masaüstündeki widget: halkada 8'den az yer varken sonda "+" yeri ("Uygulama ekle", AutomationId <c>Ring.AddApp</c>)
+    /// çizilir; seçilince <see cref="AddRequested"/>. Veri değildir; numarası, menüsü ve sürüklemesi yoktur. Açılır halkada yok.
+    /// </summary>
+    public bool ShowAddSlot { get; set; }
+
+    /// <summary>"+" yeri seçildi (tık, Enter, UI Automation Invoke).</summary>
+    public event Action? AddRequested;
 
     /// <summary>Kökte boşken orta dairede ad yerine widget'ın simgesi ("Göster ▸ Ad" kapalıyken).</summary>
     public bool CenterShowsIcon
@@ -255,13 +264,15 @@ internal sealed class RingView : FrameworkElement
         if (_tab >= config.Tabs.Count) _tab = 0;
         foreach (var slot in _slots) slot.Release();
         _slots = RingSlot.Build(config, _tab);
+        if (ShowAddSlot && RingSlot.WantsAddSlot(_slots.Count)) _slots.Add(RingSlot.AddSlot());
 
         _parentAngle = null;
         if (_tab > 0)
         {
             var root = RingSlot.Build(config, 0);
             var at = root.FindIndex(s => s.Kind == RingSlotKind.SubRing && s.TabIndex == _tab);
-            var rootAngles = RingGeometry.Angles(root.Count);
+            // Kökün "+" yeri (varsa) en sondadır: alt halkanın yönü onunla birlikte hesaplanır.
+            var rootAngles = RingGeometry.Angles(WithAddSlot(root.Count));
             _parentAngle = at >= 0 ? (rootAngles[at] + 180) % 360 : 180;
         }
         _angles = RingGeometry.Angles(_slots.Count, _parentAngle);
@@ -398,6 +409,7 @@ internal sealed class RingView : FrameworkElement
         if (index < 0 || index >= _slots.Count) return;
         var slot = _slots[index];
         if (slot.Kind == RingSlotKind.SubRing) OpenSubRing(slot.TabIndex);
+        else if (slot.Kind == RingSlotKind.Add) AddRequested?.Invoke();
         else ItemInvoked?.Invoke(slot);
     }
 
@@ -439,8 +451,14 @@ internal sealed class RingView : FrameworkElement
     public int DropIndexAt(Point point)
     {
         var c = CenterPoint;
-        return RingInput.DropIndex(_angles, _slots.Count(s => s.Kind != RingSlotKind.SubRing), point.X - c.X, point.Y - c.Y);
+        return RingInput.DropIndex(_angles, EntryCount, point.X - c.X, point.Y - c.Y);
     }
+
+    /// <summary>Sekmenin öğeleri (yol ve eylem; alt halkalar ve "+" yeri hariç): hep yerlerin başındadır.</summary>
+    private int EntryCount => _slots.Count(s => s.Kind is RingSlotKind.Path or RingSlotKind.Action);
+
+    /// <summary>Numara alan yerler ("+" yeri hariç; o hep sondadır).</summary>
+    private int NumberedCount => _slots.Count(s => s.Kind != RingSlotKind.Add);
 
     /// <summary>
     /// Sürükleme sırasında bırakılacak yeri gösterir: <paramref name="insertIndex"/> öğelerin arasına vurgu çizgisi,
@@ -462,14 +480,19 @@ internal sealed class RingView : FrameworkElement
 
     private static double IconDip(WidgetConfig config) => TileItem.IconPixels(config.IconSize);
 
-    /// <summary>Bütün halkaların en çok yeri (alt halkada "geri" yeri dahil): boyut halkalar arasında değişmesin.</summary>
-    private static int MaxPlaces(WidgetConfig config)
+    /// <summary>
+    /// Bütün halkaların en çok yeri (alt halkada "geri" yeri, widget'ta "+" yeri dahil): boyut halkalar arasında değişmesin.
+    /// </summary>
+    private int MaxPlaces(WidgetConfig config)
     {
-        var max = RingSlot.Build(config, 0).Count;
+        var max = WithAddSlot(RingSlot.Build(config, 0).Count);
         for (var t = 1; t < config.Tabs.Count; t++)
-            if (config.Tabs[t] is { } tab) max = Math.Max(max, LauncherEntries.Count(tab) + 1);
+            if (config.Tabs[t] is { } tab) max = Math.Max(max, WithAddSlot(LauncherEntries.Count(tab)) + 1);
         return max;
     }
+
+    /// <summary>Bu kadar yerli halkada "+" yeriyle birlikte kaç yer olur.</summary>
+    private int WithAddSlot(int places) => ShowAddSlot && RingSlot.WantsAddSlot(places) ? places + 1 : places;
 
     private Point CenterPoint => new(_metrics.OuterRadius, _metrics.OuterRadius);
 
@@ -497,7 +520,7 @@ internal sealed class RingView : FrameworkElement
             if (HighlightedSlot is { } slot) return slot.Name;
             if (_highlight.Kind == RingGeometry.HitKind.Parent || (_highlight.Kind == RingGeometry.HitKind.Center && _tab > 0))
                 return L.F("Geri: {0}", RootTitle);
-            if (_tab == 0 && _slots.Count == 0) return L.T("Uygulama, dosya ya da klasörü buraya sürükle");
+            if (_tab == 0 && _slots.All(s => s.Kind == RingSlotKind.Add)) return L.T("Uygulama, dosya ya da klasörü buraya sürükle");
             if (_tab == 0 && CenterShowsIcon) return null;
             return CenterTitle;
         }
@@ -756,7 +779,7 @@ internal sealed class RingView : FrameworkElement
         if (_parentRim is not null) dc.DrawGeometry(null, IsHot(-1) ? _colors.RimHot : _colors.Rim, _parentRim);
 
         // Bırakılacak yer: öğelerin arasında vurgu çizgisi.
-        var entries = _slots.Count(s => s.Kind != RingSlotKind.SubRing);
+        var entries = EntryCount;
         if (_dropInsert is { } insert && entries > 0)
         {
             insert = Math.Clamp(insert, 0, entries);
@@ -865,7 +888,7 @@ internal sealed class RingView : FrameworkElement
         switch (kind)
         {
             case RingKey.Number:
-                if (!e.IsRepeat && RingInput.NumberIndex(number, _slots.Count) is { } index)
+                if (!e.IsRepeat && RingInput.NumberIndex(number, NumberedCount) is { } index)
                 {
                     Highlight(index);
                     _commitKey = e.Key;
@@ -1020,6 +1043,9 @@ internal sealed class RingItemVisual : FrameworkElement
     public void Bind(RingSlot slot)
     {
         _slot = slot;
+        // "+" yerinin kendi kimliği var (yer sırası değişse de bulunsun); öbürleri sırasıyla.
+        AutomationProperties.SetAutomationId(this, slot.Kind == RingSlotKind.Add ? "Ring.AddApp"
+            : "Ring.Item." + (_index + 1).ToString(CultureInfo.InvariantCulture));
         AutomationProperties.SetName(this, slot.Name);
         AutomationProperties.SetHelpText(this, slot.Kind == RingSlotKind.SubRing ? L.P(slot.ChildCount, "({0} öğe)")
             : !slot.Runnable ? L.T("Bu öğe bu sürümde çalışmıyor ya da kapalı.") : "");
@@ -1082,7 +1108,7 @@ internal sealed class RingItemVisual : FrameworkElement
 
         // 1–9: hep yerinde (rozet fareyle belirmez), Kando'daki gibi öğenin ortaya bakan kenarında (alt halkanın noktaları hiç
         // o yönde değildir); vurgulanınca yalnızca rengi değişir.
-        if (_index is >= 0 and < 9 && _ring.ShowsKeys)
+        if (_index is >= 0 and < 9 && _ring.ShowsKeys && _slot?.Kind != RingSlotKind.Add)
         {
             var badge = RingView.At(c, radius * 0.95, _ring.ItemAngle(_index) + 180);
             var r = Math.Max(8, metrics.ItemDip * 0.16);

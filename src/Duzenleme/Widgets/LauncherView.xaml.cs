@@ -150,6 +150,7 @@ public partial class LauncherView : UserControl, IWidgetView
         }).ToList();
         Items.ItemsSource = _tiles;
         EmptyState.Visibility = _tiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyText.Text = _config.Tabs.Count > 1 ? L.T("Bu sekme boş.") : L.T("Kutu boş.");
         if (_selectAfterRender is { } path)
         {
             _selectAfterRender = null;
@@ -596,8 +597,9 @@ public partial class LauncherView : UserControl, IWidgetView
         HeaderIcon.Foreground = palette.Accent;
         CountText.Foreground = palette.Secondary;
         AddTabIcon.Foreground = palette.Secondary;
-        EmptyText.Foreground = palette.Secondary;
-        EmptyIcon.Foreground = palette.Secondary;
+        EmptyText.Foreground = palette.Foreground;
+        EmptyHint.Foreground = palette.Secondary;
+        EmptyAddIcon.Foreground = palette.Accent;
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = palette.Overlay;
         RemoveButton.Foreground = palette.Foreground;
@@ -613,10 +615,8 @@ public partial class LauncherView : UserControl, IWidgetView
             menu.Primary.Add(Menus.Item(L.F("Geri al: \"{0}\" listeye dönsün", Menus.Literal(TileItem.DisplayName(lastPath))), UndoRemove));
             menu.Primary.Add(new Separator());
         }
-        var add = new MenuItem { Header = L.T("Öğe ekle") };
-        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), AddFiles));
-        add.Items.Add(Menus.Item(L.T("Klasör…"), AddFolders));
-        menu.Primary.Add(add);
+        // Başlat menüsündeki uygulamalar; dosya ve klasör aynı pencerenin altındaki "Dosya ya da klasör seç…"te.
+        menu.Primary.Add(Menus.Item(L.T("Uygulama ekle…"), AddApps));
         menu.Primary.Add(Menus.Item(L.T("Sekme ekle…"), NewTab));
         var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
         rename.InputGestureText = KeyNames.F2;
@@ -624,8 +624,7 @@ public partial class LauncherView : UserControl, IWidgetView
         menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
         menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
-        // "Kutuya eklediklerim masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da, Widget'lar
-        // sayfasında ve tepside (Views.DesktopModes).
+        // "Kutuya eklediklerim masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da (Views.DesktopModes).
     }
 
     public bool OnCtrlWheel(int delta)
@@ -634,32 +633,17 @@ public partial class LauncherView : UserControl, IWidgetView
         return true;
     }
 
-    /// <summary>Sürükle-bırak dışında da ekleyebilmek için dosya seçici.</summary>
-    private void AddFiles()
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = L.T("Kısayol kutusuna ekle"),
-            Multiselect = true,
-            DereferenceLinks = false,
-            Filter = L.T("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*"),
-            InitialDirectory = AppHost.DesktopDirectory,
-        };
-        if (dialog.ShowDialog() != true) return;
-        AddItems(dialog.FileNames);
-    }
+    private void AddApp_Click(object sender, RoutedEventArgs e) => AddApps();
 
-    /// <summary>Klasör seçici (eskiden klasör yalnızca sürükleyerek eklenebiliyordu).</summary>
-    private void AddFolders()
+    /// <summary>
+    /// "Uygulama ekle…" (menü ve boş kutudaki düğme): "Uygulama seç" penceresi widget'ın monitöründe açılır; seçilen uygulama
+    /// (ya da altındaki "Dosya ya da klasör seç…" ile seçilenler) etkin sekmeye eklenir. Sekmede zaten olan "Zaten ekli"dir.
+    /// </summary>
+    private void AddApps()
     {
-        var dialog = new Microsoft.Win32.OpenFolderDialog
-        {
-            Title = L.T("Kısayol kutusuna klasör ekle"),
-            Multiselect = true,
-            InitialDirectory = AppHost.DesktopDirectory,
-        };
-        if (dialog.ShowDialog() != true) return;
-        AddItems(dialog.FolderNames);
+        var tab = Current;
+        if (Views.AppPicker.Ask(DialogPoint, tab.Items, L.T("Kısayol kutusuna ekle"), L.T("Kısayol kutusuna klasör ekle")) is not { } pick) return;
+        _edits.AddItems(() => _config.Tabs.Contains(tab) ? tab : Current, pick.Paths, names: pick.Names);
     }
 
     // --- Yerinde yeniden adlandırma (F2) ve simgeler ---

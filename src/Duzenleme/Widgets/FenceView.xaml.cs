@@ -1475,8 +1475,8 @@ public partial class FenceView : UserControl, IWidgetView
         if (folder is not null)
             menu.More.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(folder)));
         menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
-        // "Windows masaüstü simgeleri" kipi uygulama genelidir: widget menüsünde değil, Ayarlar'da, Widget'lar sayfasında ve
-        // tepside (Views.DesktopModes).
+        // "Windows masaüstü simgeleri" kipi uygulama genelidir: widget menüsünde değil, Ayarlar'da ve karşılamada
+        // (Views.DesktopModes).
     }
 
 

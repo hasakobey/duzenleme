@@ -18,7 +18,6 @@ internal static partial class En
         new("Açık", "Light"),
         new("Başlangıç ayarlarını aç", "Open Startup settings"),
         new("Belgeler", "Documents"),
-        new("Bölmeler", "Panels"),
         new("Dosyalar", "Files"),
         new("Gelişmiş", "Advanced"),
         new("Geri al", "Undo"),

@@ -35,8 +35,8 @@ internal readonly record struct WidgetPlacement(NativeMethods.POINT Anchor, Plac
         new(near, PlaceModes.Parse(AppHost.Settings.NewWidgetPlacement), FromWindow: true);
 
     /// <summary>
-    /// Türüne göre köşe, noktanın ekranında (Widget'lar sayfası, karşılama, başlangıç bölmeleri: ana pencere açık kalır,
-    /// imlecin yanına konan widget onun arkasında kaybolurdu). Nokta yoksa imlecin ekranı.
+    /// Türüne göre köşe, noktanın ekranında (karşılamanın toplu eklemesi ve başlangıç bölmeleri: birden çok widget imlecin
+    /// yanında üst üste yığılmasın). Nokta yoksa imlecin ekranı.
     /// </summary>
     public static WidgetPlacement CornerNear(NativeMethods.POINT? near) =>
         near is { } point ? new(point, PlaceMode.Corner, true) : new(Pointer(out _), PlaceMode.Corner, true);

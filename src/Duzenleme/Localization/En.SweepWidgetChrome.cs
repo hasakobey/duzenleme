@@ -13,8 +13,6 @@ internal static partial class En
         // Widget'lar sayfası
         new("Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın.",
             "Add a clock, a note or a panel to your desktop. You'll find what you add below and can remove it with one click."),
-        new("İpucu: Widget'ı sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.",
-            "Tip: Drag a widget to move it, drag its edge to resize it, and right-click it to change its settings."),
         new("Masaüstündekiler", "On your desktop"),
         new("Masaüstündekiler ({0})", "On your desktop ({0})"),
         new("Hepsini öne getir", "Bring all to front"),
@@ -30,8 +28,6 @@ internal static partial class En
         new("Masaüstünde henüz widget yok. Yukarıdan birine tıkla, hemen masaüstüne gelsin.",
             "There are no widgets on your desktop yet. Click one above and it appears on your desktop right away."),
         new("Tüm widget'ların görünümü", "Appearance of all widgets"),
-        new("Kısayolla ya da \"Widget ekle\" penceresiyle eklenenler. Bu sayfadan eklenenler ekranın köşesine gelir.",
-            "For widgets added with a shortcut or the \"Add widget\" window. Widgets added from this page go to a corner of the screen."),
         new("Tek bir widget'ı ayarlamak için ona sağ tıkla → Görünüm. Notlar kendi kağıt rengini kullanır.",
             "To change a single widget, right-click it → Appearance. Notes use their own paper color."),
         new("Kayıtlı yerleşimler", "Saved layouts"),

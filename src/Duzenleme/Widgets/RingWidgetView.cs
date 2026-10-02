@@ -65,6 +65,9 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         // Ad halkanın ortasında yazılır; satır yalnızca F2 / "Yeniden adlandır" sürerken halkanın üstünde açılır.
         _name = new WidgetNameLine(this, config, _nameBox, _nameText, shadow: null, Render, editOnly: true);
         _ring.PixelsPerDipHint = WidgetWindow.ExpectedPixelsPerDip(config);
+        // 8'den az yerli halkada sonda "+" ("Uygulama ekle"): "Uygulama seç" açılır, seçilen gösterilen halkaya eklenir.
+        _ring.ShowAddSlot = true;
+        _ring.AddRequested += () => AddApps(CurrentTab, () => null);
         _ring.SetRing(config);
         _rendered = true;
         _ring.ItemInvoked += RingRunner.RunFromWidget;
@@ -183,15 +186,17 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             menu.Primary.Add(Menus.Item(undo, UndoRemove));
             menu.Primary.Add(new Separator());
         }
+        // Başlat menüsündeki uygulamalar (gösterilen halkaya); öbür türler (web adresi, komut, tuşlar…) "Öğe ekle ▸"de.
+        menu.Primary.Add(Menus.Item(L.T("Uygulama ekle…"), () => AddApps(CurrentTab, () => null)));
         menu.Primary.Add(AddMenu(CurrentTab, () => null));
+        // Kısayolla imleçte açılan halka (bkz. RingShortcut): yalnızca kısayolun açtığı halkada işaretli; açarken ne yaptığı
+        // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır.
+        menu.Primary.Add(Menus.Toggle(L.T("Tuşla imlecin yanında açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
+            staysOpen: false));
         if (_ring.InSubRing) menu.Primary.Add(Menus.Item(L.T("Ana halkaya dön"), _ring.GoBack, KeyNames.Backspace));
         menu.Primary.Add(_name.MenuItem());
         menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.ClosePart], ApplyParts));
-        // Kısayolla imleçte açılan halka (bkz. RingShortcut): yalnızca kısayolun açtığı halkada işaretli; açarken ne yaptığı
-        // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır.
-        menu.More.Add(Menus.Toggle(L.T("Tuşla imlecin yanında açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
-            staysOpen: false));
     }
 
     /// <summary>
@@ -201,8 +206,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     private MenuItem AddMenu(LauncherTab tab, Func<int?> where)
     {
         var add = new MenuItem { Header = L.T("Öğe ekle") };
-        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), () => AddFiles(tab, where)));
-        add.Items.Add(Menus.Item(L.T("Klasör…"), () => AddFolders(tab, where)));
+        // Uygulama, dosya ya da klasör: "Uygulama seç" (dosya ve klasör altındaki "Dosya ya da klasör seç…"te).
+        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), () => AddApps(tab, where)));
         add.Items.Add(new Separator());
         add.Items.Add(Menus.Item(L.T("Web adresi…"), () => AddAction(RingActionTypes.Url, tab, where)));
         add.Items.Add(Menus.Item(L.T("Komut…"), () => AddAction(RingActionTypes.Command, tab, where)));
@@ -236,9 +241,12 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- öğe menüsü
 
+    /// <summary>Menüsü olan yer ("+" yerinin menüsü yok: oraya sağ tık widget'ın menüsünü açar).</summary>
+    private static RingSlot? WithMenu(RingSlot? slot) => slot is { Kind: RingSlotKind.Add } ? null : slot;
+
     private void OnRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        _menuSlot = _ring.SlotAt(e.GetPosition(_ring));
+        _menuSlot = WithMenu(_ring.SlotAt(e.GetPosition(_ring)));
         // Öğe yoksa (orta, dış) menü olayı karta geçer: widget'ın menüsü.
         _ring.ContextMenu = _menuSlot is null ? null : _itemMenu;
         _ring.ClearValue(ContextMenuService.PlacementTargetProperty); // fareyle: imlecin yanında
@@ -250,14 +258,14 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         if (key == Key.Apps || (key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
         {
             // Klavyeyle açılan menü vurgulanan öğenin ortasında; vurgu yoksa widget'ın menüsü.
-            _menuSlot = _ring.HighlightedSlot;
+            _menuSlot = WithMenu(_ring.HighlightedSlot);
             _ring.ContextMenu = _menuSlot is null ? null : _itemMenu;
             if (_menuSlot is not null && _ring.ItemElement(IndexOf(_menuSlot)) is { } element)
                 ContextMenuService.SetPlacementTarget(_ring, element);
             else _ring.ClearValue(ContextMenuService.PlacementTargetProperty);
             return;
         }
-        if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None && _ring.HighlightedSlot is { } slot)
+        if (key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None && WithMenu(_ring.HighlightedSlot) is { } slot)
         {
             Remove(CurrentTab, slot);
             e.Handled = true;
@@ -371,35 +379,24 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- ekleme
 
-    private void AddFiles(LauncherTab tab, Func<int?> where)
+    /// <summary>
+    /// "Uygulama ekle…", "+" yeri ve "Öğe ekle ▸ Uygulama ya da dosya…": "Uygulama seç" widget'ın monitöründe açılır; seçilen
+    /// uygulama (ya da altındaki "Dosya ya da klasör seç…" ile seçilenler) <paramref name="tab"/> sekmesine, <paramref name="where"/>
+    /// sırasına (yoksa sona; sıra pencere kapanınca hesaplanır) eklenir. Sekmede zaten olan "Zaten ekli"dir.
+    /// </summary>
+    private void AddApps(LauncherTab tab, Func<int?> where)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = L.T("Halkaya ekle"),
-            Multiselect = true,
-            DereferenceLinks = false,
-            Filter = L.T("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*"),
-            InitialDirectory = AppHost.DesktopDirectory,
-        };
-        if (dialog.ShowDialog() == true) AddPaths(tab, dialog.FileNames, null, null, where());
-    }
-
-    private void AddFolders(LauncherTab tab, Func<int?> where)
-    {
-        var dialog = new Microsoft.Win32.OpenFolderDialog
-        {
-            Title = L.T("Halkaya ekle"),
-            Multiselect = true,
-            InitialDirectory = AppHost.DesktopDirectory,
-        };
-        if (dialog.ShowDialog() == true) AddPaths(tab, dialog.FolderNames, null, null, where());
+        if (Views.AppPicker.Ask(Owner?.CenterPoint, Live(tab).Items, L.T("Halkaya ekle"), L.T("Halkaya ekle")) is not { } pick) return;
+        AddPaths(tab, pick.Paths, null, null, where(), pick.Names);
     }
 
     /// <summary>Yolları ekler (kısayol kutusuyla aynı yoldan); hepsi zaten oradaysa söyler.</summary>
-    private void AddPaths(LauncherTab tab, IReadOnlyList<string> paths, ItemLook? look, Action? then, int? at) =>
+    private void AddPaths(LauncherTab tab, IReadOnlyList<string> paths, ItemLook? look, Action? then, int? at,
+        IReadOnlyDictionary<string, string>? names = null) =>
         _edits.AddItems(() => _config.Tabs.Contains(tab) ? tab : CurrentTab, paths, look, then, at,
             duplicate: () => Views.Notice.Show(paths.Count == 1
-                ? L.F("\"{0}\" zaten halkada.", RingSlot.DefaultPathName(paths[0])) : L.T("Bu öğeler zaten halkada."), Views.NoticeKind.Info));
+                ? L.F("\"{0}\" zaten halkada.", RingSlot.DefaultPathName(paths[0])) : L.T("Bu öğeler zaten halkada."), Views.NoticeKind.Info),
+            names: names);
 
     private void AddAction(string type, LauncherTab tab, Func<int?> where)
     {

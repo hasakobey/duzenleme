@@ -69,7 +69,8 @@ internal static class WelcomeSetup
         {
             if (!c.Tools.Contains(choice.Key)) continue;
             if (choice.Matches is { } matches && settings.Widgets.Any(matches)) continue;
-            WidgetCatalog.Invoke(choice with { FocusAfterAdd = false }, near);
+            // Toplu ekleme: türüne göre köşeye (imlecin yanında üst üste yığılmasın).
+            WidgetCatalog.Invoke(choice with { FocusAfterAdd = false }, near, followSetting: false);
         }
         var toolsAdded = settings.Widgets.Count - toolsBefore;
 

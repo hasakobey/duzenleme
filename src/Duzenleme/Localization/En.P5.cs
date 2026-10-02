@@ -56,7 +56,6 @@ internal static partial class En
         new("Bu bölmede ara", "Search this panel"),
         new("Öğe ekle", "Add item"),
         new("Uygulama ya da dosya…", "App or file…"),
-        new("Klasör…", "Folder…"),
         new("Kısayol kutusuna klasör ekle", "Add folders to the shortcut box"),
 
         // Simge seçici
@@ -152,6 +151,5 @@ internal static partial class En
         new("Masaüstünde bu adda bir klasör var; bölme onu gösterir.",
             "There's already a folder with this name on the desktop; the panel will show it."),
         new("Bir klasör seç.", "Choose a folder."),
-        new("\"{0}\" bölmesi masaüstüne eklendi.", "The \"{0}\" panel was added to the desktop."),
     ]);
 }

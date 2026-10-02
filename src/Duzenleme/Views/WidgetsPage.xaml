@@ -16,12 +16,6 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
         </Style>
-        <Style x:Key="SubHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="Margin" Value="0,8,0,8" />
-        </Style>
         <!-- Katlanır bölümün "Göster/Gizle" düğmesi: metin değişince genişlik (ve yerleşim) oynamasın. -->
         <Style x:Key="FoldButton" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="MinWidth" Value="84" />
@@ -39,37 +33,11 @@
         <TextBlock Style="{StaticResource PageSubtitle}"
                    Text="{l:T 'Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın.'}" />
 
-        <!-- Windows masaüstü simgeleri: Ayarlar, tepsi ve widget menüleriyle aynı üç seçenek (DesktopModes). "Yalnızca bölmelerde"
-             seçilince bölme yoksa başlangıç bölmeleri kurulur. -->
-        <Border Style="{StaticResource Surface}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <ui:SymbolIcon Symbol="Board24" Style="{StaticResource RowIcon}" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Windows masaüstü simgeleri'}" />
-                    <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" Margin="0,2,0,0"
-                               AutomationProperties.AutomationId="Widgets.IconModeText" />
-                </StackPanel>
-                <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" VerticalAlignment="Center"
-                          SelectionChanged="IconModeBox_SelectionChanged"
-                          AutomationProperties.AutomationId="Widgets.IconMode" AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
-            </Grid>
-        </Border>
-
-        <!-- Ekle: kutucuklar WidgetCatalog'dan ("Widget ekle" penceresi ve karşılamayla aynı liste). -->
-        <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Ekle'}" />
-        <TextBlock Style="{StaticResource SubHeader}" Margin="0,0,0,8" Text="{l:T 'Bölmeler'}" />
-        <WrapPanel x:Name="FenceTiles" />
-        <TextBlock Style="{StaticResource SubHeader}" Text="{l:T 'Araçlar'}" />
-        <WrapPanel x:Name="ToolTiles" />
-        <TextBlock Style="{StaticResource SubHeader}" Text="{l:T 'Saat ve bilgi'}" />
-        <WrapPanel x:Name="InfoTiles" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                   Text="{l:T 'İpucu: Widget\'ı sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.'}" />
+        <!-- Ekleme: her yerdeki gibi tek "Widget ekle" penceresi (QuickAddWindow; tepsi, Ctrl+Alt+B, halka, Ana sayfa). Windows
+             masaüstü simgeleri ve yeni widget'ların yeri Ayarlar'dadır. -->
+        <ui:Button x:Name="AddWidgetButton" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="{l:T 'Widget ekle'}"
+                   Padding="18,9" Margin="0,4,0,0" HorizontalAlignment="Left" AutomationProperties.AutomationId="Widgets.AddWidget"
+                   Click="AddWidget_Click" />
 
         <!-- Masaüstündekiler -->
         <Grid Margin="0,24,0,8">
@@ -202,21 +170,6 @@
                     <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Widget\'lar üst üste binmesin'}" />
                     <ui:ToggleSwitch x:Name="OverlapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Overlap_Changed" Unchecked="Overlap_Changed"
                                      AutomationProperties.AutomationId="Widgets.PreventOverlap" AutomationProperties.Name="{l:T 'Widget\'lar üst üste binmesin'}" />
-                </Grid>
-            </Border>
-            <Border Style="{StaticResource SettingRow}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Yeni widget\'ların yeri'}" />
-                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Kısayolla ya da &quot;Widget ekle&quot; penceresiyle eklenenler. Bu sayfadan eklenenler ekranın köşesine gelir.'}" />
-                    </StackPanel>
-                    <ComboBox x:Name="PlacementBox" Grid.Column="1" Width="220" VerticalAlignment="Center"
-                              SelectionChanged="PlacementBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.NewWidgetPlacement" AutomationProperties.Name="{l:T 'Yeni widget\'ların yeri'}" />
                 </Grid>
             </Border>
             <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"

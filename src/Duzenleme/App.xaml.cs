@@ -204,7 +204,7 @@ public partial class App : Application
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
         SystemParameters.StaticPropertyChanged += OnSystemParameterChanged;
 
-        var tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, ExitApp);
+        var tray = new TrayIcon(ShowMainWindow, ShowQuickAdd, () => ShowPage(typeof(Views.SettingsPage)), ExitApp);
         AppHost.Tray = tray;
         PerfLog.Mark("Tray.created");
         // Gezgin yeniden başladı: widget'lar 3 sn'lik nöbetçiyi beklemeden yeni masaüstüne bağlansın.

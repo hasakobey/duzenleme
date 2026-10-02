@@ -61,17 +61,9 @@ public partial class NoteView : UserControl, IWidgetView
             FocusText(AddBox);
         };
 
-        // Başlık yerinde düzenlenir (F2, "Yeniden adlandır"); notun başlık simgesi yok. Yeni eklenen notta başlıktan sonra
-        // (Enter, Tab, Esc) yazı alanına geçilir.
-        _titleEditor = new TitleEditor(this, HeaderRow, TitleText, null, () => DefaultTitle, CommitTitle, null, () => { })
-        {
-            Ended = keyboard =>
-            {
-                if (!_bodyAfterTitle) return;
-                _bodyAfterTitle = false;
-                if (keyboard) FocusEditor();
-            },
-        };
+        // Başlık yerinde düzenlenir (F2, "Yeniden adlandır"); notun başlık simgesi yok. Yeni not adlandırmaya açılmaz: yazı
+        // alanıyla açılır (WidgetManager.FocusNote).
+        _titleEditor = new TitleEditor(this, HeaderRow, TitleText, null, () => DefaultTitle, CommitTitle, null, () => { });
 
         ApplyMode();
 
@@ -285,22 +277,6 @@ public partial class NoteView : UserControl, IWidgetView
     {
         if (_titleEditor.IsEditing) return true;
         return BeginTitleEdit();
-    }
-
-    // Yeni eklenen not: başlık bitince yazı alanına geçilir.
-    private bool _bodyAfterTitle;
-
-    /// <summary>
-    /// "Widget ekle"den eklenen not: önce başlığı (seçili) adlandırılır, Enter/Tab/Esc ile yazı alanına geçilir. Başlık satırı
-    /// gizliyse doğrudan yazı alanı.
-    /// </summary>
-    internal void BeginNaming()
-    {
-        (Window.GetWindow(this) as WidgetWindow)?.ActivateForInput();
-        _bodyAfterTitle = true;
-        if (_titleEditor.Begin()) return;
-        _bodyAfterTitle = false;
-        FocusEditor();
     }
 
     /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>

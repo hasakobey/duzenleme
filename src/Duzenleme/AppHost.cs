@@ -832,9 +832,9 @@ public static class AppHost
         };
         var reveal = Settings.Hotkeys.PeekWidgets;
         Tray?.Notify(L.F("{0} {1} eklendi", name, where),
-            L.T("Yeni widget'ların yerini Widget'lar sayfasından değiştirebilirsin.") +
+            L.T("Yeni widget'ların yerini Ayarlar'dan değiştirebilirsin.") +
             (string.IsNullOrWhiteSpace(reveal) ? "" : L.F(" Widget'ları pencerelerin önüne getirmek için {0}.", reveal)),
-            () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
+            () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.SettingsPage)));
     }
 
     // --- Yeniden adlandırma ve simgeler ---
@@ -945,8 +945,8 @@ public static class AppHost
         SetFencesManageDesktop(false);
         if (notify)
             Tray?.Notify(L.T("Masaüstü simgeleri yeniden gösteriliyor"),
-                L.T("Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Widget'lar sayfasından yeniden aç."),
-                () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.WidgetsPage)));
+                L.T("Bir bölme kaldırıldığı için bazı masaüstü öğeleri hiçbir bölmede görünmüyordu. İstersen Ayarlar'dan yeniden aç."),
+                () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.SettingsPage)));
         return true;
     }
 

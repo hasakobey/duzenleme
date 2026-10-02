@@ -5,8 +5,11 @@ using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace Duzenleme.Widgets;
 
-/// <summary>Halkadaki bir yerin türü (kalıcı değil).</summary>
-internal enum RingSlotKind { Path, Action, SubRing }
+/// <summary>
+/// Halkadaki bir yerin türü (kalıcı değil). Add: masaüstündeki halka widget'ında, halkada 8'den az yer varken sonda duran "+"
+/// ("Uygulama ekle"; veri değildir, <see cref="RingView.ShowAddSlot"/>).
+/// </summary>
+internal enum RingSlotKind { Path, Action, SubRing, Add }
 
 /// <summary>
 /// Halkadaki bir yer: sekmenin bir öğesi (yol ya da yol olmayan öğe; <see cref="LauncherEntries"/> sırasıyla) ya da kök halkada
@@ -161,6 +164,18 @@ internal sealed class RingSlot
     /// <summary>Alt halkanın simgesi.</summary>
     public const SymbolRegular SubRingGlyph = SymbolRegular.AppFolder24;
 
+    /// <summary>"+" yerinin ("Uygulama ekle") simgesi.</summary>
+    public const SymbolRegular AddGlyph = SymbolRegular.Add24;
+
+    /// <summary>"+" yeri bu kadardan az yerli halkada çizilir (sekiz yerden sonra halka dolu sayılır).</summary>
+    public const int AddSlotBelow = 8;
+
+    /// <summary>Halkada bu kadar yer varken (öğeler ve kökte alt halkalar) sonda "+" yeri olur mu?</summary>
+    public static bool WantsAddSlot(int places) => places < AddSlotBelow;
+
+    /// <summary>Sondaki "+" yeri ("Uygulama ekle"): seçilince "Uygulama seç" açılır; menüsü, numarası ve sürüklemesi yok.</summary>
+    public static RingSlot AddSlot() => new() { Kind = RingSlotKind.Add, Name = L.T("Uygulama ekle"), Glyph = AddGlyph };
+
     /// <summary>Alt halkadaki "geri" yerinin simgesi.</summary>
     public const SymbolRegular BackGlyph = SymbolRegular.ArrowLeft24;
 
@@ -168,7 +183,7 @@ internal sealed class RingSlot
     public static IEnumerable<SymbolRegular> AllGlyphs =>
         RingActionTypes.All.Select(t => DefaultGlyph(new LauncherAction { Type = t }))
             .Concat(RingAppIds.All.Select(AppGlyph))
-            .Concat([SymbolRegular.QuestionCircle24, SubRingGlyph, BackGlyph]);
+            .Concat([SymbolRegular.QuestionCircle24, SubRingGlyph, BackGlyph, AddGlyph]);
 
     // ---------------------------------------------------------------- simge
 

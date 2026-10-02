@@ -443,23 +443,7 @@ public sealed class WidgetManager
         Changed?.Invoke();
     }
 
-    /// <summary>
-    /// Yeni eklenen bölme/kutu/notun başlığını yerinde düzenlemeye açar (Gezgin'deki "Yeni klasör" gibi; başlık seçili,
-    /// bölme ve kutuda simgesi tıklanınca seçici açılır; notta başlıktan sonra yazı alanına geçilir). Pencere yerleşip öne
-    /// geldikten sonra; başlığı olmayan widget'ta (saat, tarih) bir şey yapmaz, odak çalınmaz.
-    /// </summary>
-    public void BeginRename(string id)
-    {
-        if (!_open.TryGetValue(id, out var window)) return;
-        window.Dispatcher.BeginInvoke(() =>
-        {
-            if (!_open.ContainsKey(id)) return;
-            if (window.View is NoteView note) note.BeginNaming();
-            else window.View.TryBeginRename();
-        }, DispatcherPriority.ApplicationIdle);
-    }
-
-    /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir.</summary>
+    /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir (düz notta yazı alanı, yapılacaklarda ilk satır).</summary>
     public void FocusNote(string id)
     {
         if (!_open.TryGetValue(id, out var window) || window.View is not NoteView note) return;

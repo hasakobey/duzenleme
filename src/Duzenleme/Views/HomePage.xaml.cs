@@ -144,7 +144,8 @@ public partial class HomePage : Page
 
     private void Go(Type page) => (Window.GetWindow(this) as MainWindow)?.NavigateTo(page);
 
-    private void AddWidget_Click(object sender, RoutedEventArgs e) => Go(typeof(WidgetsPage));
+    // Her ekleme yolu aynı "Widget ekle" penceresini açar (tepsi, Ctrl+Alt+B, halka, Widget'lar sayfası, Başlat menüsü).
+    private void AddWidget_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowQuickAdd();
 
     private async void OrganizeNow_Click(object sender, RoutedEventArgs e)
     {

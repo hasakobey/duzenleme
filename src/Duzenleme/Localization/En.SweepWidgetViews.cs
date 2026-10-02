@@ -34,8 +34,6 @@ internal static partial class En
         new("Bu klasörü ayrı bölme yap", "Make this folder its own panel"),
 
         // Kısayol kutusu (LauncherView)
-        new("Uygulama, kısayol, dosya ya da klasörü buraya sürükle. Tek tıkla açılır.",
-            "Drag an app, shortcut, file or folder here. It opens with a single click."),
         new("Bırak, kısayol olarak eklensin", "Drop to add as a shortcut"),
         new("Sağ tık: yeniden adlandır, taşı, sil", "Right-click to rename, move or delete"),
         new("Sola taşı", "Move left"),
