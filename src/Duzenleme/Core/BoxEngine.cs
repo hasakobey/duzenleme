@@ -128,7 +128,7 @@ public sealed class BoxEngine(IBoxDisk disk, BoxMoveLog log)
                 outcomes[i] = new ClaimOutcome(step, null);
                 continue;
             }
-            var record = new BoxMove { WidgetId = step.BoxId, Original = step.Original, Current = target };
+            var record = new BoxMove { WidgetId = step.BoxId, Original = step.Original, Current = target, ForItem = step.ForItem };
             try { log.Add(record); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

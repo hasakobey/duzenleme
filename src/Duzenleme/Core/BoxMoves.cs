@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Duzenleme.Core;
 
 /// <summary>
-/// Masaüstünden bir kısayol kutusuna taşınan öğe ("Kutulara eklediklerim masaüstünden kalksın"). Öğe görünür, sıradan
+/// Masaüstünden bir kısayol kutusuna (halkaya) taşınan öğe ("Kutuya koyduğum simgeler masaüstünden kalksın"). Öğe görünür, sıradan
 /// bir klasöre (<see cref="BoxPlan.RootFor"/>) taşınır; kutu yeni yolu gösterir. Kayıt masaüstüne geri koymak için tutulur.
 /// </summary>
 public sealed class BoxMove
@@ -267,14 +267,17 @@ public enum BoxLinkReason
     Folder,
 }
 
-/// <summary>Bir kutunun taşınmak istenen öğeleri: kutunun kimliği, NestDesk altındaki klasörü ve yollar.</summary>
-public sealed record ClaimInput(string BoxId, string Folder, IReadOnlyList<string> Paths);
+/// <summary>
+/// Bir kutunun taşınmak istenen öğeleri: kutunun kimliği, NestDesk altındaki klasörü ve yollar. <see cref="ForItem"/>: bu
+/// yollar kutuda değil, kutudaki o öğe (Başlat menüsünden eklenen uygulama) yüzünden kalkar (masaüstündeki kısayolu).
+/// </summary>
+public sealed record ClaimInput(string BoxId, string Folder, IReadOnlyList<string> Paths, string? ForItem = null);
 
 /// <summary>
 /// Taşıma planındaki bir adım: öğe hangi kutu için nereye taşınır (<see cref="Target"/>), ya da neden taşınmaz
 /// (<see cref="Reason"/>). <see cref="OnPublic"/>: ortak masaüstünde (yalnızca yönetici yazar).
 /// </summary>
-public sealed record ClaimStep(string BoxId, string Original, string? Target, BoxLinkReason Reason, bool OnPublic);
+public sealed record ClaimStep(string BoxId, string Original, string? Target, BoxLinkReason Reason, bool OnPublic, string? ForItem = null);
 
 /// <summary>Taşıma kararının ortamı: kullanıcının masaüstü, ortak masaüstleri ve ortak masaüstündekiler de taşınsın mı.</summary>
 public sealed record BoxContext(string UserDesktop, IReadOnlyList<string> PublicDesktops, bool IncludePublic);
@@ -294,6 +297,25 @@ public enum BoxCloseReason
     /// <summary>Yarıda kalan birim arası kopyalama: öğe hem masaüstünde hem NestDesk'te; kutu masaüstündekini gösterir.</summary>
     CopyLeft,
 }
+
+/// <summary>Kutulardaki masaüstü öğelerinden şimdi taşınabilenler ve yalnızca ayrı izinle (herkesin masaüstü) taşınabilenler.</summary>
+public sealed record ClaimCount(List<string> Movable, List<string> PublicOnly);
+
+/// <summary>Taşınmış öğe kutudan dışarı sürüklendikten sonra ne oldu (yalnızca çalışma zamanı).</summary>
+public enum DragOutResult
+{
+    /// <summary>NestDesk'teki dosya duruyor: kopyalandı ya da kısayolu yapıldı; bir şey yapılmaz.</summary>
+    Copied,
+
+    /// <summary>Masaüstüne geri döndü: kayıt kapanır, öğe kutudan çıkar ("Geri al" yeniden kutuya koyar).</summary>
+    Returned,
+
+    /// <summary>Başka bir yere taşındı (ya da Geri Dönüşüm Kutusu'na): kayıt kapanır, öğe kutudan çıkar.</summary>
+    LeftBox,
+}
+
+/// <summary>Kaldırırken geri konacaklar: eski yerine ve (sessiz kaldırmada herkesin masaüstündekiler) kullanıcının masaüstüne.</summary>
+public sealed record UninstallPlan(List<BoxMove> InPlace, List<BoxMove> ToUserDesktop);
 
 /// <summary>Kutu öğelerinin taşınma planı. Saf hesap: dosya sistemine dokunmaz (dosya bilgisini çağıran verir).</summary>
 public static class BoxPlan
@@ -442,12 +464,12 @@ public static class BoxPlan
                 var onPublic = onDesktop && !IsDirectlyIn(path, [context.UserDesktop]);
                 if (reason != BoxLinkReason.None)
                 {
-                    steps.Add(new ClaimStep(input.BoxId, path, null, reason, onPublic));
+                    steps.Add(new ClaimStep(input.BoxId, path, null, reason, onPublic, input.ForItem));
                     continue;
                 }
                 var target = FileMover.UniquePath(input.Folder, NameOf(path), reserved, exists);
                 reserved.Add(target);
-                steps.Add(new ClaimStep(input.BoxId, path, target, BoxLinkReason.None, onPublic));
+                steps.Add(new ClaimStep(input.BoxId, path, target, BoxLinkReason.None, onPublic, input.ForItem));
             }
         return steps;
     }
@@ -617,6 +639,175 @@ public static class BoxPlan
         return kept;
     }
 
+    // ------------------------------------------------------------------------------------------------- 2.2 kolay (UX)
+
+    /// <summary>
+    /// Kutulardaki (verilen) yollardan kaç tanesi masaüstünden kalkabilir: <c>Movable</c> şimdi taşınır (Decide None),
+    /// <c>PublicOnly</c> herkesin masaüstünde ve yalnızca ayrı izinle taşınır. Aynı yol bir kez sayılır; klasörler, korunanlar
+    /// ve masaüstünde olmayanlar sayılmaz. Masaüstünde olmayan yolun özniteliğine bakılmaz.
+    /// </summary>
+    /// <param name="attributes">Masaüstündeki öğenin öznitelikleri (arayüzde masaüstünün anlık görüntüsünden; yoksa null).</param>
+    public static ClaimCount ClaimCandidates(IEnumerable<string> paths, Func<string, FileAttributes?> attributes, BoxContext context)
+    {
+        var movable = new List<string>();
+        var publicOnly = new List<string>();
+        var desktops = new List<string>(context.PublicDesktops.Count + 1) { context.UserDesktop };
+        desktops.AddRange(context.PublicDesktops);
+        foreach (var path in paths.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (TileItemPath.IsShellObject(path) || !IsDirectlyIn(path, desktops)) continue;
+            var attrs = attributes(path);
+            var reason = Decide(path, attrs, context.UserDesktop, context.PublicDesktops, context.IncludePublic);
+            if (reason == BoxLinkReason.None) movable.Add(path);
+            else if (reason == BoxLinkReason.PublicDesktop &&
+                     Decide(path, attrs, context.UserDesktop, context.PublicDesktops, includePublic: true) == BoxLinkReason.None)
+                publicOnly.Add(path);
+        }
+        return new ClaimCount(movable, publicOnly);
+    }
+
+    /// <summary>
+    /// Yol birden çok yerde mi duruyor (başka bir kutuda, halkada ya da aynı kutunun başka sekmesinde)? Öyleyse bir yerden
+    /// kaldırılınca masaüstüne dönmez, bölmede de görünmez.
+    /// </summary>
+    public static bool HeldElsewhere(IEnumerable<WidgetConfig> launchers, string path) =>
+        launchers.Where(w => w.Kind == WidgetKind.Launcher).SelectMany(w => w.Tabs).Where(t => t?.Items is not null)
+            .Count(t => t.Items.Any(p => p is not null && Same(p, path))) > 1;
+
+    /// <summary>
+    /// Kaldırma sonrasında masaüstüne dönecek taşınmış öğeler: <paramref name="boxId"/> kutusundan (ya da yalnızca
+    /// <paramref name="tab"/> sekmesinden; <paramref name="path"/> verilirse yalnızca o öğe) çıkınca hiçbir kutuda ya da
+    /// halkada kalmayan ve taşınmış olanlar. Bildirim cümleleri ("Masaüstünden kalkan {0} simge geri dönüyor.") bunu sayar.
+    /// </summary>
+    public static List<string> ReturningIf(IEnumerable<WidgetConfig> launchers, string boxId, LauncherTab? tab, string? path,
+        Func<string, bool> isMoved)
+    {
+        var removed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var remaining = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var box in launchers.Where(w => w.Kind == WidgetKind.Launcher))
+        {
+            var thisBox = string.Equals(box.Id, boxId, StringComparison.Ordinal);
+            foreach (var t in box.Tabs.Where(t => t?.Items is not null))
+            {
+                var inScope = thisBox && (tab is null || ReferenceEquals(t, tab));
+                foreach (var p in t.Items.Where(p => p is not null))
+                {
+                    if (inScope && (path is null || Same(p, path))) removed.Add(p);
+                    else remaining.Add(p);
+                }
+            }
+        }
+        return removed.Where(p => !remaining.Contains(p) && isMoved(p)).ToList();
+    }
+
+    /// <summary>
+    /// Bölmeler masaüstünü yönetirken (ve "Kutuya koyduğum simgeler masaüstünden kalksın" açıkken) masaüstü bölmelerinin
+    /// göstermediği yollar: kutularda ve halkalarda duran masaüstü öğeleri (ortak masaüstündekiler ve klasörler de) ve
+    /// kutudaki bir uygulama yüzünden kalkan kısayollar (<paramref name="appShortcuts"/>: kısayol → uygulamanın kutu yolu;
+    /// uygulama hâlâ bir kutudaysa). Dosyaya dokunulmaz; klasör bölmeleri ve portallar süzülmez.
+    /// </summary>
+    public static HashSet<string> FenceExclusions(IEnumerable<WidgetConfig> launchers, IReadOnlyList<string> desktopDirs,
+        IReadOnlyDictionary<string, string>? appShortcuts = null)
+    {
+        var list = launchers.ToList();
+        var set = PinnedDesktopPaths(list, desktopDirs);
+        if (appShortcuts is { Count: > 0 })
+        {
+            var referenced = Referenced(list);
+            foreach (var (shortcut, app) in appShortcuts)
+                if (referenced.Contains(app) && IsDirectlyIn(shortcut, desktopDirs)) set.Add(shortcut);
+        }
+        return set;
+    }
+
+    /// <summary>
+    /// Taşınmış öğe kutudan dışarı (Gezgin'e, Windows masaüstüne) sürüklendi: ne oldu? NestDesk'teki dosya duruyorsa
+    /// kopyalandı ya da kısayolu yapıldı (Copied: bir şey yapılmaz); yoksa bir masaüstü klasöründe aynı adla duruyorsa geri
+    /// döndü (Returned: kayıt kapanır, öğe kutudan çıkar); hiçbirinde yoksa başka bir yere taşındı (LeftBox). Önce eski
+    /// klasörüne (bugün de masaüstüyse) bakılır. Yalnızca kayıtla ilgili yollar için diske bakar.
+    /// </summary>
+    public static (DragOutResult Result, string? Path) AfterDragOut(BoxMove record, Func<string, bool> exists, IReadOnlyList<string> desktopDirs)
+    {
+        if (exists(record.Current)) return (DragOutResult.Copied, null);
+        var name = NameOf(record.Current);
+        var first = ParentOf(record.Original) is { } parent && desktopDirs.Any(d => SameDir(parent, d)) ? parent : null;
+        var order = (first is null ? desktopDirs : desktopDirs.Where(d => !SameDir(first, d)).Prepend(first))
+            .Select(Path.TrimEndingDirectorySeparator).Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var dir in order)
+        {
+            var candidate = Path.Combine(dir, name);
+            if (exists(candidate)) return (DragOutResult.Returned, candidate);
+        }
+        return (DragOutResult.LeftBox, null);
+    }
+
+    /// <summary>
+    /// Kaldırırken (<c>--restore-desktop</c>) masaüstüne geri konacak kayıtlar: etkin olanların hepsi. Eski yerine
+    /// (<c>InPlace</c>; herkesin masaüstüne dönecekse yönetici onayıyla, verilmezse kullanıcının masaüstüne) ya da sessiz
+    /// kaldırmada (<paramref name="quiet"/>: onay penceresi açılamaz) herkesin masaüstündekiler kullanıcının masaüstüne
+    /// (<c>ToUserDesktop</c>). <paramref name="include"/>: test masaüstünde yalnızca o masaüstünün kayıtları.
+    /// </summary>
+    public static UninstallPlan PlanUninstallReturns(IEnumerable<BoxMove> records, IReadOnlyList<string> desktopDirs, string userDesktop,
+        bool quiet, Func<BoxMove, bool>? include = null)
+    {
+        var inPlace = new List<BoxMove>();
+        var toUser = new List<BoxMove>();
+        foreach (var record in records.Where(r => r.Active && (include?.Invoke(r) ?? true)))
+        {
+            var dir = ReturnDirectory(record.Original, desktopDirs, userDesktop);
+            if (quiet && !SameDir(dir, userDesktop)) toUser.Add(record);
+            else inPlace.Add(record);
+        }
+        return new UninstallPlan(inPlace, toUser);
+    }
+
+    /// <summary>
+    /// Test masaüstünde kaldırma: yalnızca o masaüstünün NestDesk kökündeki ve eski yeri o masaüstlerinden birinde olan
+    /// kayıtlar (gerçek masaüstünün kayıtlarına asla dokunulmaz).
+    /// </summary>
+    public static Func<BoxMove, bool> UninstallScope(string root, IReadOnlyList<string> desktopDirs)
+    {
+        var top = Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar;
+        return r => r.Current.StartsWith(top, StringComparison.OrdinalIgnoreCase) && IsDirectlyIn(r.Original, desktopDirs);
+    }
+
+    /// <summary>
+    /// Masaüstü OneDrive'da mı (yol parçalarından biri "OneDrive" ya da "OneDrive - …")? Öyleyse kalkan simgeler OneDrive'ın
+    /// eşitlediği öbür bilgisayarlarda da masaüstünden kalkar (Ayarlar bunu söyler). Diske bakmaz.
+    /// </summary>
+    public static bool IsOneDrivePath(string path) =>
+        Path.TrimEndingDirectorySeparator(path).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(part => part.Equals("OneDrive", StringComparison.OrdinalIgnoreCase) ||
+                         part.StartsWith("OneDrive - ", StringComparison.OrdinalIgnoreCase));
+
+    // --- "Bu klasör nedir.txt": NestDesk kökündeki açıklama (kaldırma adımı olmayan Store ve taşınabilir sürüm için de) ---
+
+    /// <summary>Kökteki açıklama dosyasının adı (yazıldığı anın dilinde).</summary>
+    public static string BreadcrumbName => L.T("Bu klasör nedir.txt");
+
+    /// <summary>Ad, açıklama dosyasının (iki dildeki) adlarından biri mi? Boş klasör temizliği onu yok sayar.</summary>
+    public static bool IsBreadcrumb(string name) =>
+        L.Variants("Bu klasör nedir.txt").Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Açıklama dosyasının metni: ne olduğu, nasıl geri konacağı ve köke taşınmış her öğe için "kutud ← eski klasör"
+    /// (yalnızca bu kökteki etkin kayıtlar; yoksa null: dosya silinir).
+    /// </summary>
+    public static string? BreadcrumbText(IEnumerable<BoxMove> records, string root)
+    {
+        var top = Path.TrimEndingDirectorySeparator(root);
+        var lines = records.Where(r => r.Active && RootOf(r.Current) is { } own && SameDir(own, top))
+            .Select(r => (Item: Path.GetRelativePath(top, r.Current), From: ParentOf(r.Original) ?? r.Original))
+            .OrderBy(x => x.Item, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Item + "  ←  " + x.From)
+            .ToList();
+        if (lines.Count == 0) return null;
+        var header = L.F("Bu klasördeki dosyalar, {0}'te kutulara ve halkalara koyduğun masaüstü simgeleridir. {0} açıkken bir simgeyi kutudan çıkarınca ya da Ayarlar → Masaüstü → \"Hepsini masaüstüne geri koy\" ile masaüstüne geri döner. {0}'i kaldırdıysan dosyaları aşağıdaki eski klasörlerine kendin taşıyabilirsin; {0} onları silmez.",
+            AppInfo.Name);
+        return header + Environment.NewLine + Environment.NewLine + L.T("Simge ← eski klasörü:") + Environment.NewLine +
+               string.Join(Environment.NewLine, lines) + Environment.NewLine;
+    }
+
     /// <summary>
     /// Taşıma geçmişinden arama: masaüstündeki yoldan, verilen zamandan sonra (ya da aynı anda) kuralla ya da elle taşınan
     /// dosyanın son hedefi; yoksa null. Geri alınmış kayıtlar sayılmaz (dosya masaüstüne dönmüştür).
@@ -671,7 +862,16 @@ public static class BoxFiles
         {
             try
             {
-                if (!Directory.Exists(dir) || Directory.EnumerateFileSystemEntries(dir).Any()) return;
+                if (!Directory.Exists(dir)) return;
+                var entries = Directory.EnumerateFileSystemEntries(dir).ToList();
+                // Kökte yalnızca açıklama dosyası ("Bu klasör nedir.txt") kaldıysa o da gider: anlatacak öğe yok.
+                if (string.Equals(dir, top, StringComparison.OrdinalIgnoreCase) && entries.Count > 0 &&
+                    entries.All(e => File.Exists(e) && BoxPlan.IsBreadcrumb(Path.GetFileName(e))))
+                {
+                    foreach (var file in entries) File.Delete(file);
+                    entries.Clear();
+                }
+                if (entries.Count > 0) return;
                 Directory.Delete(dir, recursive: false);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }

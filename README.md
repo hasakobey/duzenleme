@@ -65,13 +65,23 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 - Başlıktaki 🔍 ya da `Ctrl+F` ile yazdıkça ara (alt klasörler dahil); dosyaları bölmeden bölmeye sürükle; resim/video/PDF önizlemesi; en yeni, en eski, ad, tür, boyut ya da elle (sürükleyerek) sıralama; başlığa katlanma.
 - Klavye: `Enter` açar, `F2` yeniden adlandırır (diskte; gizli uzantılar korunur, çakışmada "(2)" önerilir), `Delete` Geri Dönüşüm Kutusu'na gönderir, ok tuşlarıyla gezinilir; harf yazınca o harfle başlayan öğeye gidilir. İstersen **Simgeler ▸ Numara tuşlarıyla aç (1–9)** ile `1`–`9` görünen ilk dokuz öğeyi açar (kısayol kutusunda da).
 
-#### Windows masaüstü simgeleri (üç seçenek)
+#### Windows masaüstü simgeleri
 
-**Ayarlar → Masaüstü**, **Widget'lar** sayfası ve tepsi menüsünde aynı seçim:
+**Ayarlar → Masaüstü** ve karşılamada iki seçenek:
 
-1. **Hepsi masaüstünde görünsün** (varsayılan): Windows simgeleri her zamanki gibi; kutular ve bölmeler dosyalara dokunmadan kısayol gösterir.
-2. **Kutulara eklediklerim masaüstünden kalksın:** Windows simgeleri görünür; kısayol kutusuna eklediğin (sürükleyerek ya da **Öğe ekle**) masaüstü öğesi masaüstü klasörünün yanındaki görünür `NestDesk\<kutunun adı>` klasörüne taşınır ("Oyunlar" adlı bir kutu için ör. `C:\Users\<ad>\NestDesk\Oyunlar`; masaüstün OneDrive'daysa OneDrive'ın içinde) ve kutuda durur. Masaüstüne sonradan gelenler görünür kalır. Öğeye sağ tık → **Masaüstüne geri koy**, kutudan çıkarmak ya da kutuyu kaldırmak öğeyi masaüstüne döndürür; Ayarlar'da **Klasörü aç** ve **Hepsini masaüstüne geri koy**. Ortak Masaüstü'ndeki (tüm hesapların gördüğü) öğeler ayrıca izin verilmedikçe taşınmaz. Dosyaların gizlenmez, öznitelikleri değişmez.
-3. **Yalnızca bölmelerde göster:** Windows'un kendi simgeleri gizlenir, her şey bölmelerde görünür. Dosyalara dokunulmaz; başka seçeneğe geçince ya da uygulamadan çıkınca simgeler geri gelir. **"Masaüstümü bölmelere ayır"** ("Widget ekle" penceresi) gereken bölmeleri kurup bu seçeneğe geçer; bildirimdeki **Geri al** hepsini geri alır.
+1. **Hepsi masaüstünde görünsün** (varsayılan): Windows simgeleri her zamanki gibi; bölmeler dosyalara dokunmadan kısayol gösterir.
+2. **Yalnızca bölmelerde göster:** Windows'un kendi simgeleri gizlenir, her şey bölmelerde görünür. Dosyalara dokunulmaz; başka seçeneğe geçince ya da uygulamadan çıkınca simgeler geri gelir. **"Masaüstümü bölmelere ayır"** ("Widget ekle" penceresi) gereken bölmeleri kurup bu seçeneğe geçer; bildirimdeki **Geri al** hepsini geri alır.
+
+#### Kutuya koyduğum simgeler masaüstünden kalksın
+
+"Kutuya ya da halkaya koyduğun masaüstü simgesi masaüstünden kalkar; çıkarınca geri gelir." Kapalıyken kutu ve halka yalnızca bağlantı tutar. İlk masaüstü simgesini kutuya koyduğunda kutunun yanında bir kez sorulur (**Evet, kalksın** / **Hayır, kalsın**); sonra **Ayarlar → Masaüstü**'nden açılıp kapanır.
+
+- **Windows simgeleri görünürken** dosya masaüstü klasörünün yanındaki görünür `NestDesk\<kutunun adı>` klasörüne taşınır ("Oyunlar" adlı bir kutu için ör. `C:\Users\<ad>\NestDesk\Oyunlar`; masaüstün OneDrive'daysa OneDrive'ın içinde) ve kutuda durur. Dosyaların gizlenmez, öznitelikleri değişmez; kökteki `Bu klasör nedir.txt` her dosyanın eski yerini yazar.
+- **"Yalnızca bölmelerde göster" açıkken** hiçbir dosya taşınmaz: kutudaki simgeler masaüstü bölmelerinde görünmez.
+- **Çıkarınca geri gelir:** **Kutudan kaldır** / **Halkadan kaldır** (`Delete`), masaüstüne ya da bir bölmeye sürüklemek, sekmeyi, alt halkayı ya da kutunun kendisini kaldırmak; bildirimdeki **Geri al** yeniden kutuya koyar. Başka bir kutuda da duruyorsa yalnızca oradan kalkar. Ayarlar'da **Klasörü aç** ve **Hepsini masaüstüne geri koy**; seçeneği kapatmak da hepsini geri koyar (**Geri al** ile).
+- Seçenek açıkken masaüstünde kalmış bir simgede (önceden eklenen, "Şimdi değil", açık dosya) öğe menüsü **Masaüstünden kaldır** sunar.
+- **Klasörler taşınmaz** (kutuda bağlantı olarak durur). **Herkesin masaüstündeki** simgeler (çoğu uygulamanın kısayolu) bir kez ayrıca sorulur ve Windows'un yönetici onayıyla taşınır; Store sürümü onları taşımaz.
+- **Uygulama eklenince masaüstündeki kısayolu da kalksın:** Başlat menüsünden eklediğin uygulamanın masaüstünde birebir aynı uygulamayı gösteren kısayolu varsa ilk seferde sorulur (**Evet, hep böyle yap** / **Hayır**).
 
 #### Windows masaüstüne göz at
 
@@ -168,8 +178,8 @@ Hesap, reklam ve telemetri yok; her şey bilgisayarında kalır. Dosyalar yalnı
 
 ### Kaldırma
 
-- **Store:** Windows uygulamayla birlikte ayarlarını, halka menülerini, ayar yedeklerini ve hata günlüklerini de siler. **Kurulum sürümü:** kaldırma programı gizli kalmış masaüstü simgelerini geri açar ve ayarların (halka menüler, temalar, bırakılan bağlantılar, yedekler ve hata günlükleri dahil) silinip silinmeyeceğini sorar. **Taşınabilir:** klasörü sil.
-- Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (önce **Ayarlar → Masaüstü → Hepsini masaüstüne geri koy**), klasör simgeleri (önce **Ayarlar → Gelişmiş → Klasör simgelerinin hepsini kaldır**), otomatik taşınan dosyalar (taşındıkları klasörde) ve kaydettiğin tanılama paketleri.
+- **Store:** Windows uygulamayla birlikte ayarlarını, halka menülerini, ayar yedeklerini ve hata günlüklerini de siler. **Kurulum sürümü:** kaldırma programı gizli kalmış masaüstü simgelerini geri açar, kutulara taşınan simgeleri masaüstüne geri koyar ve ayarların (halka menüler, temalar, bırakılan bağlantılar, yedekler ve hata günlükleri dahil) silinip silinmeyeceğini sorar. **Taşınabilir:** klasörü sil.
+- Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (Store ve taşınabilir sürümde önce **Ayarlar → Masaüstü → Hepsini masaüstüne geri koy**; kaldırdıktan sonra `Bu klasör nedir.txt` eski yerleri yazar), klasör simgeleri (önce **Ayarlar → Gelişmiş → Klasör simgelerinin hepsini kaldır**), otomatik taşınan dosyalar (taşındıkları klasörde) ve kaydettiğin tanılama paketleri.
 
 ### Derleme
 
@@ -186,7 +196,7 @@ powershell -File tools/package-msix.ps1 -Strict  # dist-store/: Microsoft Store'
 powershell -File tools/perf/perf-run.ps1      # başarım ölçümü (test örneğiyle; gerçek masaüstüne dokunmaz; senaryolar ve eşikler: docs/perf.md)
 ```
 
-Komut satırı: `--minimized` (tepside başla), `--add` ("Widget ekle"; uygulama çalışıyorsa ona iletilir), `--peek` (Windows masaüstüne göz at ya da NestDesk'e dön), `--welcome` (karşılamayı aç; uygulama kapalıyken), `--exit` (çalışan örneği düzgünce kapat), `--restore-desktop` (gizli kalmış Windows masaüstü simgelerini geri açıp çık; kaldırma programı kullanır), `--desktop <klasör> --data <klasör>` (test örneği: gerçek masaüstüne, "Windows ile başlat" kaydına ve Windows simgelerine dokunmaz).
+Komut satırı: `--minimized` (tepside başla), `--add` ("Widget ekle"; uygulama çalışıyorsa ona iletilir), `--peek` (Windows masaüstüne göz at ya da NestDesk'e dön), `--welcome` (karşılamayı aç; uygulama kapalıyken), `--exit` (çalışan örneği düzgünce kapat), `--restore-desktop` (gizli kalmış Windows masaüstü simgelerini geri açar, kutulara taşınan simgeleri geri koyar ve çıkar; kaldırma programı kullanır, sessiz kaldırmada `--quiet`), `--desktop <klasör> --data <klasör>` (test örneği: gerçek masaüstüne, "Windows ile başlat" kaydına ve Windows simgelerine dokunmaz).
 
 Ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_LANG=tr|en|pseudo` (arayüz dili; ekran görüntüleri ve testler için), `NESTDESK_DEBUGLOG=<dosya>` (ayrıntılı geliştirme günlüğü; hata günlüğünden ayrı), `NESTDESK_PERF_LOG=<dosya>` (başarım günlüğü), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT` / `NESTDESK_RING_AT="x,y"` (fiziksel piksel; pencereleri, göz atma çubuğunu ve kısayolla açılan halkayı o noktanın monitöründe açar), `NESTDESK_TEST_RING=1` (yalnızca `--desktop` ile: halka kısayolu atanmamışken de açılır halkayı dener), `NESTDESK_TEST_HOTKEYS=1` (yalnızca `--desktop` ile: test örneği genel kısayolları da Windows'a kaydeder; yoksa hiçbirini kaydetmez, kısayol iletiyle denenir), `NESTDESK_TEST_CRASH=1` (yalnızca `--desktop` ile: açılıştan birkaç saniye sonra çökme denemesi), `NESTDESK_APPDATA_ROOT` (veri klasörü taşıma denemesi için; yalnızca `--desktop` ile ve `--data` olmadan), `NESTDESK_GPU=1` (widget'larda donanım çizimi). `--desktop` ile `--data` verilmezse veriler `%TEMP%\NestDesk-test-data\<anahtar>` klasöründe tutulur (gerçek ayarlara dokunulmaz). Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. Geliştirme yardımcıları: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
 
@@ -255,13 +265,23 @@ Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Tid
 - Search as you type with the 🔍 button or `Ctrl+F` (including subfolders); drag files between panels; preview pictures, videos and PDFs; sort newest or oldest first, by name, type, size or by hand (drag to reorder); collapse to the title bar.
 - Keyboard: `Enter` opens, `F2` renames (on disk; hidden extensions are kept and "(2)" is suggested on a name clash), `Delete` sends to the Recycle Bin, arrow keys move the selection; type a letter to jump to the item that starts with it. Optionally, **Icons ▸ Open with number keys (1–9)** makes `1`–`9` open the first nine visible items (in shortcut boxes too).
 
-#### Windows desktop icons (three choices)
+#### Windows desktop icons
 
-The same choice is in **Settings → Desktop**, on the **Widgets** page and in the tray menu:
+Two choices in **Settings → Desktop** and in the welcome:
 
-1. **Show everything on the desktop** (default): the Windows icons look as usual; boxes and panels show shortcuts without touching your files.
-2. **Items I add to boxes leave the desktop:** the Windows icons stay visible; a desktop item you add to a shortcut box (by dragging or with **Add item**) is moved into a visible `NestDesk\<box name>` folder next to your Desktop folder (for a box named "Games", e.g. `C:\Users\<name>\NestDesk\Games`; inside OneDrive if your desktop is in OneDrive) and stays in the box. Items that land on the desktop later stay visible. Right-click the item → **Put back on the desktop**, removing it from the box, or removing the box returns it to the desktop; Settings offers **Open folder** and **Put all back on the desktop**. Items on the Public Desktop (seen by all accounts) are not moved unless you give separate permission. Your files are never hidden and their attributes never change.
-3. **Show only in panels:** Windows' own icons are hidden and everything appears in panels. Your files are not touched; the icons come back when you pick another choice or quit the app. **"Sort my desktop into panels"** (in the Add widget window) creates the panels you need and switches to this choice; **Undo** in the notice reverts everything.
+1. **Show everything on the desktop** (default): the Windows icons look as usual; panels show shortcuts without touching your files.
+2. **Show only in panels:** Windows' own icons are hidden and everything appears in panels. Your files are not touched; the icons come back when you pick another choice or quit the app. **"Sort my desktop into panels"** (in the Add widget window) creates the panels you need and switches to this choice; **Undo** in the notice reverts everything.
+
+#### Icons I put in boxes leave the desktop
+
+"A desktop icon you put in a box or ring leaves the desktop; take it out and it comes back." While this is off, boxes and rings only hold links. The first time you put a desktop icon in a box you are asked once, next to the box (**Yes, remove it** / **No, keep it**); after that it is a switch in **Settings → Desktop**.
+
+- **With Windows icons visible**, the file is moved into a visible `NestDesk\<box name>` folder next to your Desktop folder (for a box named "Games", e.g. `C:\Users\<name>\NestDesk\Games`; inside OneDrive if your desktop is in OneDrive) and stays in the box. Your files are never hidden and their attributes never change; `What is this folder.txt` at the top of that folder lists each file's former location.
+- **While "Show only in panels" is on**, no file is moved: icons in boxes simply don't show in the desktop panels.
+- **Take it out and it comes back:** **Remove from box** / **Remove from ring** (`Delete`), dragging it to the desktop or onto a panel, or removing its tab, sub-ring or the box itself; **Undo** in the notice puts it back in the box. If it is also in another box, it only leaves that one. Settings offers **Open folder** and **Put all back on the desktop**; turning the option off puts everything back too (with **Undo**).
+- If an icon is still on the desktop while the option is on (added earlier, "Not now", the file was open), its item menu offers **Remove from desktop**.
+- **Folders are never moved** (they stay in the box as links). Icons on **everyone's desktop** (where most apps put their shortcuts) are asked about once more and moved with Windows' administrator approval; the Store edition doesn't move them.
+- **When I add an app, its desktop shortcut leaves too:** if an app you add from the Start menu has a desktop shortcut to exactly the same app, you are asked the first time (**Yes, always do this** / **No**).
 
 #### Peek at the Windows desktop
 
@@ -358,8 +378,8 @@ No account, no ads, no telemetry; everything stays on your PC. Files are moved o
 
 ### Uninstalling
 
-- **Store:** Windows removes your settings, ring menus, settings backups and error logs together with the app. **Installer edition:** the uninstaller shows any desktop icons left hidden and asks whether to delete your settings (including ring menus, themes, dropped links, backups and error logs). **Portable:** delete the folder.
-- What stays as your own content: the `NestDesk` box folder (first use **Settings → Desktop → Put all back on the desktop**), folder icons (first use **Settings → Advanced → Remove all folder icons**), files moved by auto-move (in the folders they were moved to) and diagnostic packages you saved.
+- **Store:** Windows removes your settings, ring menus, settings backups and error logs together with the app. **Installer edition:** the uninstaller shows any desktop icons left hidden, puts icons that were moved to boxes back on the desktop and asks whether to delete your settings (including ring menus, themes, dropped links, backups and error logs). **Portable:** delete the folder.
+- What stays as your own content: the `NestDesk` box folder (in the Store and portable editions first use **Settings → Desktop → Put all back on the desktop**; afterwards `What is this folder.txt` lists the former locations), folder icons (first use **Settings → Advanced → Remove all folder icons**), files moved by auto-move (in the folders they were moved to) and diagnostic packages you saved.
 
 ### Building
 
@@ -376,7 +396,7 @@ powershell -File tools/package-msix.ps1 -Strict  # dist-store/: .msixbundle for 
 powershell -File tools/perf/perf-run.ps1      # performance measurement (test instance; never touches your real desktop; scenarios and thresholds: docs/perf.md)
 ```
 
-Command line: `--minimized` (start in the tray), `--add` ("Add widget"; forwarded to the running app), `--peek` (peek at the Windows desktop, or return to NestDesk), `--welcome` (open the welcome; while the app is closed), `--exit` (close the running instance cleanly), `--restore-desktop` (show Windows desktop icons that were left hidden and exit; used by the uninstaller), `--desktop <folder> --data <folder>` (test instance: never touches your real desktop, the "Start with Windows" entry or the Windows icons).
+Command line: `--minimized` (start in the tray), `--add` ("Add widget"; forwarded to the running app), `--peek` (peek at the Windows desktop, or return to NestDesk), `--welcome` (open the welcome; while the app is closed), `--exit` (close the running instance cleanly), `--restore-desktop` (shows Windows desktop icons that were left hidden, puts icons moved to boxes back and exits; used by the uninstaller, with `--quiet` for a silent uninstall), `--desktop <folder> --data <folder>` (test instance: never touches your real desktop, the "Start with Windows" entry or the Windows icons).
 
 Environment variables (the older `DUZENLEME_*` names work too): `NESTDESK_LANG=tr|en|pseudo` (interface language, for screenshots and tests), `NESTDESK_DEBUGLOG=<file>` (detailed developer log; separate from the error log), `NESTDESK_PERF_LOG=<file>` (performance log), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT` / `NESTDESK_RING_AT="x,y"` (physical pixels; open windows, the peek bar and the shortcut ring on that point's monitor), `NESTDESK_TEST_RING=1` (only with `--desktop`: try the pop-up ring without assigning its shortcut), `NESTDESK_TEST_HOTKEYS=1` (only with `--desktop`: the test instance also registers its global shortcuts with Windows; otherwise it registers none and shortcuts are tried by message), `NESTDESK_TEST_CRASH=1` (only with `--desktop`: a test crash a few seconds after startup), `NESTDESK_APPDATA_ROOT` (for testing the data folder migration; only with `--desktop` and without `--data`), `NESTDESK_GPU=1` (hardware rendering for widgets). Without `--data`, a `--desktop` test instance keeps its data in `%TEMP%\NestDesk-test-data\<key>` (your real settings are never touched). An empty `--data` folder opens the welcome; to skip it, put a `settings.json` containing `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` in the folder. Developer helpers: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
 

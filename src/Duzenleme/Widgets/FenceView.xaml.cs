@@ -104,8 +104,23 @@ public partial class FenceView : UserControl, IWidgetView
             snapshot.Changed += ScheduleUpdate;
             _desktopSources.Add(snapshot);
         }
+        // Bölme kipinde kutudaki ve halkadaki simgeler masaüstü bölmelerinde görünmez: kutular değişince liste yenilenir.
+        AppHost.PinnedPathsChanged += OnPinnedPathsChanged;
         Update();
     }
+
+    /// <summary>Kutulardaki masaüstü öğeleri ya da bölme kipi değişti: masaüstü bölmesi (yalnızca gerekirse) yeniden hesaplar.</summary>
+    private void OnPinnedPathsChanged()
+    {
+        if (DesktopMode) ScheduleUpdate();
+    }
+
+    /// <summary>
+    /// Masaüstü bölmesinin göstermedikleri: bölmeler masaüstünü yönetirken ve "Kutuya koyduğum simgeler masaüstünden kalksın"
+    /// açıkken kutulardaki ve halkalardaki masaüstü öğeleri (dosyaya dokunulmaz; kutuda görünürler). Klasör bölmesinde ve
+    /// öbür durumlarda null.
+    /// </summary>
+    private HashSet<string>? BoxExclusions() => DesktopMode && BoxMover.HidesFromFences ? BoxMover.FenceExclusions() : null;
 
     public bool Resizable => true;
     // Başlık satırı gizliyse katlanınca geriye hiçbir şey kalmaz: katlama kapanır.
@@ -199,7 +214,12 @@ public partial class FenceView : UserControl, IWidgetView
             _config.Filter.ToString(), _config.Sort.ToString(), _config.HiddenItems.Count.ToString(), _systemIconsVersion.ToString(),
             _config.SortBy ?? "", _orderVersion.ToString(),
         };
-        if (DesktopMode) parts.AddRange(_desktopSources.Select(s => $"{s.State}{s.Version}"));
+        if (DesktopMode)
+        {
+            parts.AddRange(_desktopSources.Select(s => $"{s.State}{s.Version}"));
+            // Kutulardaki öğeler yalnızca bölme kipinde (seçenek açıkken) süzülür: yalnızca o zaman damgaya girer.
+            parts.Add(BoxMover.HidesFromFences ? $"box{AppHost.PinnedVersion}" : "");
+        }
         else parts.Add($"{_folderPath}|{_folderSource?.State}{_folderSource?.Version}");
         return string.Join("|", parts);
     }
@@ -267,7 +287,7 @@ public partial class FenceView : UserControl, IWidgetView
             new HashSet<string>(_config.HiddenItems, StringComparer.OrdinalIgnoreCase),
             // Gizleme kayıtları yalnızca okunan kendi klasöründe temizlenir (Genel Masaüstü ve alt klasörler hariç).
             DesktopMode ? AppHost.DesktopDirectory : _folderPath!, DesktopMode ? UserDesktop.Entries : _folderSource!.Entries,
-            _config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All);
+            _config.Filter is DesktopFilter.Shortcuts or DesktopFilter.All, BoxExclusions());
         var clock = PerfLog.Enabled ? System.Diagnostics.Stopwatch.StartNew() : null;
         FenceResult result;
         try { result = await Task.Run(() => Compute(input)); }
@@ -294,8 +314,10 @@ public partial class FenceView : UserControl, IWidgetView
         }
     }
 
+    /// <param name="Boxed">Kutulardaki masaüstü öğeleri (bölme kipinde gösterilmez; gizleme kayıtlarına karışmaz); yoksa null.</param>
     private sealed record FenceInput(bool DesktopMode, DesktopFilter Filter, FenceSort Sort, string? SortBy, List<string>? Order, int? Cap,
-        IReadOnlyList<DirEntry>[] Sources, HashSet<string> Hidden, string PruneDirectory, IReadOnlyList<DirEntry> PruneEntries, bool SystemIcons);
+        IReadOnlyList<DirEntry>[] Sources, HashSet<string> Hidden, string PruneDirectory, IReadOnlyList<DirEntry> PruneEntries, bool SystemIcons,
+        HashSet<string>? Boxed = null);
 
     /// <param name="Total">Sınırdan önceki öğe sayısı (Entries sınırı aşan klasörde bundan azdır).</param>
     /// <param name="OrderPruned">Elle sıradaki, artık hiçbir kaynakta olmayan yollar.</param>
@@ -307,8 +329,8 @@ public partial class FenceView : UserControl, IWidgetView
         var entries = input.DesktopMode
             ? input.Sources.SelectMany(s => s.Where(e => DesktopItems.Matches(input.Filter, e)))
             : input.Sources[0].Where(e => !e.IsHiddenOrSystem);
-        var all = FenceOrder.Sort(entries.Where(e => !input.Hidden.Contains(e.Path)), input.Sort, input.SortBy, input.Order,
-            e => TileItem.DisplayName(e.Path), L.Sorter).ToList();
+        var all = FenceOrder.Sort(entries.Where(e => !input.Hidden.Contains(e.Path) && input.Boxed?.Contains(e.Path) != true),
+            input.Sort, input.SortBy, input.Order, e => TileItem.DisplayName(e.Path), L.Sorter).ToList();
         // Çok büyük klasörün (İndirilenler) yalnızca ilk öğeleri kutucuk olur; kalanı "… ve N öğe daha" (arama hepsini bulur).
         var sorted = input.Cap is { } cap && all.Count > cap ? all.Take(cap).ToList() : all;
         var orderPruned = input.Order is { Count: > 0 } order
@@ -1181,6 +1203,8 @@ public partial class FenceView : UserControl, IWidgetView
     // --- Sürükle-bırak ---
     // Sürükleme boyunca yollar değişmez; DragOver diske dokunmaz, yalnızca metin karşılaştırır.
     private string[]? _dragPaths;
+    // Kutudan çıkarılan öğe masaüstünde (bölmede) yeniden görünecek mi (kaplamanın metni).
+    private bool _outOfBoxReappears;
 
     /// <summary>Bırakılınca ne olur.</summary>
     private enum DropKind { None, Reorder, IntoFolder, ToDesktop, OutOfBox }
@@ -1233,8 +1257,12 @@ public partial class FenceView : UserControl, IWidgetView
             // 2.2 Kutu: bırakılan bağlantının dosyası uygulamanındır (öteki kutular da onu gösterebilir): yerinden taşınmaz.
             if (TileItem.IsDroppedLink(source.Path)) return (DropKind.None, [], source);
             if (DesktopMode)
-                return BoxMover.IsMoved(source.Path) || OnDesktop(paths[0])
-                    ? (DropKind.OutOfBox, [], source) : (DropKind.None, [], source);
+            {
+                if (!BoxMover.IsMoved(source.Path) && !OnDesktop(paths[0])) return (DropKind.None, [], source);
+                // Kutudan çıkınca masaüstünde yeniden görünür mü (başka bir kutuda ya da halkada da duruyorsa hayır)?
+                _outOfBoxReappears = BoxMover.WouldReappear(source.Path);
+                return (DropKind.OutOfBox, [], source);
+            }
             // Kutunun klasörüne taşınmış öğe önce masaüstüne dönmeli (kutunun kaydı onu izler).
             if (folder is null || BoxMover.IsMoved(source.Path)) return (DropKind.None, [], source);
             var one = DropCandidates(folder, paths);
@@ -1267,7 +1295,8 @@ public partial class FenceView : UserControl, IWidgetView
         {
             DropKind.IntoFolder => L.T("Bırak, klasöre taşınsın"),
             DropKind.ToDesktop => L.T("Bırak, masaüstüne taşınsın"),
-            DropKind.OutOfBox => L.T("Bırak, kutudan çıkarılsın"),
+            DropKind.OutOfBox when _outOfBoxReappears => L.T("Bırak, kutudan çıkarılsın"),
+            DropKind.OutOfBox => L.T("Bırak, bu kutudan çıkarılsın"),
             _ => null,
         };
         if (text is not null) DropText.Text = text;
@@ -1487,6 +1516,7 @@ public partial class FenceView : UserControl, IWidgetView
     public void Detach()
     {
         _detached = true;
+        AppHost.PinnedPathsChanged -= OnPinnedPathsChanged;
         _rename?.Cancel();
         _titleEditor.Cancel();
         _searchDelay.Stop();

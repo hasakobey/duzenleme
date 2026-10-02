@@ -23,10 +23,15 @@ public static class KnownFolders
     private static extern int SHGetKnownFolderPath([MarshalAs(UnmanagedType.LPStruct)] Guid id, uint flags, IntPtr token, out IntPtr path);
 
     /// <summary>Bilinen klasörün yolu (<see cref="FolderPortal.KnownIds"/>); bu Windows'ta tanımlı değilse null.</summary>
-    public static string? PathOf(string id)
+    public static string? PathOf(string id) => Ids.TryGetValue(id, out var guid) ? PathOf(guid) : null;
+
+    /// <summary>
+    /// Kimliği verilen bilinen klasörün yolu (ör. Program Files; Uygulamalar klasörünün "{kimlik}\göreli\uygulama.exe"
+    /// biçimindeki uygulama kimliklerini açmak için); bu Windows'ta tanımlı değilse null. Diske bakmaz.
+    /// </summary>
+    public static string? PathOf(Guid guid)
     {
         const uint KF_FLAG_DONT_VERIFY = 0x00004000;
-        if (!Ids.TryGetValue(id, out var guid)) return null;
         var path = IntPtr.Zero;
         try
         {

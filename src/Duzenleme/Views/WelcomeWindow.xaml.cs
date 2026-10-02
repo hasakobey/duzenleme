@@ -172,7 +172,6 @@ public partial class WelcomeWindow : FluentWindow
         {
             Fences = Picked(FencesYes, FencesNo),
             IconsOnlyInFences = SelectedIconMode == IconMode.FencesOnly,
-            BoxItemsLeaveDesktop = SelectedIconMode == IconMode.BoxItemsLeave,
             AutoMove = Picked(MoveYes, MoveNo),
             MoveFolders = SelectedFolders(),
         };
@@ -258,7 +257,8 @@ public partial class WelcomeWindow : FluentWindow
             ? L.T("Var olan bölmelerin, widget'ların ve dosyaların silinmez; yalnızca eksikler eklenir.")
             : L.F("{0} masaüstünü derli toplu tutar: simgeleri bölmelerde toplar, gelen dosyaları klasörlerine taşır, saat ve not gibi küçük araçlar ekler.", AppInfo.Name);
         FencePlan.Text = Onboarding.FencePlanText(StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, _existingFolders));
-        // Windows simgeleri: Ayarlar'daki üç seçenek. Varsayılan ilk açılışta "Yalnızca bölmelerde", yeniden kurulumda şu anki seçim.
+        // Windows simgeleri: Ayarlar'daki iki seçenek. Varsayılan ilk açılışta "Yalnızca bölmelerde", yeniden kurulumda şu anki
+        // seçim. "Kutuya koyduğum simgeler masaüstünden kalksın" burada sorulmaz: ilk simge kutuya konunca sorulur.
         foreach (var mode in DesktopModes.Choices)
             IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
         IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, _rerun ? DesktopModes.Current : IconMode.FencesOnly);

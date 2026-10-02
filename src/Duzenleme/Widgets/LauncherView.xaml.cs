@@ -28,7 +28,7 @@ public partial class LauncherView : UserControl, IWidgetView
         _config = config;
         if (_config.Tabs.Count == 0) _config.Tabs.Add(new LauncherTab { Name = L.T("Uygulamalar") });
         InitializeComponent();
-        _edits = new LauncherEdits(_config, Render);
+        _edits = new LauncherEdits(_config, Render, () => DialogPoint);
 
         _titleEditor = new TitleEditor(this, Header, TitleText, HeaderIconButton, () => DefaultTitle, CommitTitle, PickIcon, ApplyParts);
         Header.MouseLeftButtonDown += (_, e) =>
@@ -44,14 +44,24 @@ public partial class LauncherView : UserControl, IWidgetView
         Items.KeyDown += OnItemsKey;
         Menus.AttachItemMenu(Items, FillItemMenu);
 
-        // Kutudaki öğe bağlantıdır: dışarı (Gezgin'e) sürüklenince asıl dosya yerinden oynamaz. Başka bir kutuya ya da bölmeye
-        // bırakılınca hedef onu WidgetDrag'den tanır ve bu kutudan çıkarır (Ctrl ile kutuya kopyalanır).
+        // Kutudaki öğe bağlantıdır: dışarı (Gezgin'e) sürüklenince asıl dosya yerinden oynamaz. Masaüstünden kalkmış öğe (NestDesk
+        // klasöründe) ise taşınabilir: Windows masaüstüne ya da Gezgin'e bırakılınca kutudan çıkmış sayılır (BoxMover.DraggedOut;
+        // kopyalanırsa bir şey olmaz). Başka bir kutuya ya da bölmeye bırakılınca hedef onu WidgetDrag'den tanır ve bu kutudan
+        // çıkarır (Ctrl ile kutuya kopyalanır).
+        LauncherTab? dragTab = null;
         Menus.EnableDragOut(Items, DragDropEffects.Copy | DragDropEffects.Link, item =>
-        {
-            var tab = Current;
-            var path = item.Path;
-            return new WidgetDragSource(_config.Id, path, FromBox: true, () => TakeOut(tab, path), ItemLooks.Get(_config, path));
-        });
+            {
+                var tab = dragTab = Current;
+                var path = item.Path;
+                return new WidgetDragSource(_config.Id, path, FromBox: true, () => TakeOut(tab, path), ItemLooks.Get(_config, path));
+            },
+            completed: (path, _, inside) =>
+            {
+                if (!inside && BoxMover.IsMoved(path)) BoxMover.DraggedOut(_config.Id, dragTab, path);
+            },
+            allowedFor: item => BoxMover.IsMoved(item.Path)
+                ? DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link
+                : DragDropEffects.Copy | DragDropEffects.Link);
         DragEnter += OnDragOver;
         DragOver += OnDragOver;
         DragLeave += (_, _) => DropOverlay.Visibility = Visibility.Collapsed;
@@ -255,11 +265,12 @@ public partial class LauncherView : UserControl, IWidgetView
 
     /// <summary>
     /// Sekmeyi siler (soru yok): başka sekmede kalmayan öğelerin adları ve simgeleri de gider (son çıkarılan öğe "Geri al" için
-    /// tutulur), masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner. Bildirimdeki "Geri al" sekmeyi içindekiler,
-    /// adlar ve simgelerle yerine koyar (kip açıksa öğeler yeniden kutunun klasörüne taşınır).
+    /// tutulur), masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner (bildirim kaç tanesinin döndüğünü söyler).
+    /// Bildirimdeki "Geri al" sekmeyi içindekiler, adlar ve simgelerle yerine koyar (öğeler yeniden kutunun klasörüne taşınır).
     /// </summary>
     private void DeleteTab(LauncherTab tab)
     {
+        var returning = BoxMover.ReturningIf(_config.Id, tab, null);
         LauncherEdits.RemovedTab? removed = null;
         Change(() => removed = LauncherEdits.TakeTab(_config, _config.Tabs.IndexOf(tab),
             _edits.LastRemoved?.Entry.Path is { } last ? [last] : null));
@@ -268,13 +279,14 @@ public partial class LauncherView : UserControl, IWidgetView
         // Geri alma kutuyu kimliğiyle bulur: o arada kaldırılıp geri getirildiyse yeni görünüm ve ayarın kopyası vardır;
         // kaldırılmış kaldıysa bir şey yapmaz.
         var id = _config.Id;
-        Views.Notice.Show(L.F("\"{0}\" sekmesi silindi.", tab.Name), Views.NoticeKind.Info, L.T("Geri al"),
+        Views.Notice.Show(WidgetManager.RemovedText(L.F("\"{0}\" sekmesi silindi.", tab.Name), returning, modeOff: false),
+            Views.NoticeKind.Info, L.T("Geri al"),
             () => (AppHost.Widgets.ViewOf(id) as LauncherView)?.PutBack(taken), L.T("Geri almak için buraya tıkla."));
     }
 
     private void PutBack(LauncherEdits.RemovedTab taken)
     {
-        if (!AppHost.Settings.Widgets.Contains(_config)) return;
+        if (Launchers.Find(AppHost.Settings, _config.Id) != _config) return;
         var restored = false;
         Change(() => restored = LauncherEdits.PutTab(_config, taken));
         if (restored) BoxMover.Reconcile(interactive: true);
@@ -306,20 +318,24 @@ public partial class LauncherView : UserControl, IWidgetView
     private void Change(Action change) => _edits.Change(change);
 
     /// <summary>
-    /// Öğeyi listeden çıkarır; kutunun menüsündeki "Geri al" ile yerine döner. Masaüstünden kutuya taşınmış öğe (başka kutuda
-    /// yoksa) masaüstüne geri konur; "Geri al" onu yeniden kutuya taşır.
+    /// "Kutudan kaldır" (Delete): öğeyi listeden çıkarır; bildirimdeki ve kutunun menüsündeki "Geri al" ile yerine döner.
+    /// Masaüstünden kalkmış öğe (başka bir kutuda ya da halkada yoksa) masaüstüne geri döner; "Geri al" onu yeniden kutuya taşır.
     /// </summary>
     private void RemoveItem(TileItem item)
     {
-        if (_edits.Remove(Current, LauncherEntries.IndexOfPath(Current, item.Path)) == true)
-            Views.Notice.Show(L.F("\"{0}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", item.Name), Views.NoticeKind.Info, L.T("Geri al"),
-                UndoRemove, L.T("Geri almak için buraya tıkla."));
+        var moved = BoxMover.IsMoved(item.Path);
+        var result = _edits.Remove(Current, LauncherEntries.IndexOfPath(Current, item.Path));
+        if (result is null) return;
+        var text = result == true ? L.F("\"{0}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", item.Name)
+            : moved ? L.F("\"{0}\" kutudan kaldırıldı; başka bir kutuda ya da halkada da durduğu için masaüstüne dönmedi.", item.Name)
+            : L.F("\"{0}\" kutudan kaldırıldı.", item.Name);
+        Views.Notice.Show(text, Views.NoticeKind.Info, L.T("Geri al"), UndoRemove, L.T("Geri almak için buraya tıkla."));
     }
 
     private void UndoRemove() => _edits.UndoRemove();
 
     /// <summary>
-    /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Kutulara eklediklerim masaüstünden kalksın" açıksa
+    /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa
     /// masaüstündekiler kutunun klasörüne taşınır.
     /// </summary>
     /// <param name="look">Başka kutudan taşınan öğenin orada verilmiş adı ve simgesi.</param>
@@ -364,32 +380,7 @@ public partial class LauncherView : UserControl, IWidgetView
                 ? Menus.Item(L.T("Varsayılan simge"), () => Change(() => ItemLooks.SetIcon(_config, item.Path, null)))
                 : Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
         menu.Items.Add(new Separator());
-        // Bulunamayan öğe geri konamaz: o satırlar gösterilmez (öğe kutudan yine kaldırılabilir).
-        var moved = BoxMover.IsMoved(item.Path) && !item.Missing;
-        if (moved)
-        {
-            // Masaüstünden kutuya taşınmış öğe (NestDesk klasöründe).
-            var back = Menus.Item(L.T("Masaüstüne geri koy"), () => BoxMover.Return([item.Path]));
-            back.ToolTip = L.T("Öğe masaüstüne döner ve kutuda kalır.");
-            menu.Items.Add(back);
-            var takeOut = Menus.Item(L.T("Kutudan çıkar (masaüstüne döner)"), () => RemoveItem(item));
-            takeOut.ToolTip = L.T("Öğe masaüstüne geri konur ve kutudan çıkar.\nGeri almak için: kutuya sağ tık → Geri al");
-            menu.Items.Add(takeOut);
-        }
-        else
-        {
-            var remove = Menus.Item(L.T("Kutudan kaldır"), () => RemoveItem(item));
-            remove.InputGestureText = KeyNames.Delete;
-            remove.ToolTip = L.T("Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al");
-            menu.Items.Add(remove);
-            // Kip sonradan açıldıysa önceden eklenen masaüstü dosyası da tek tek kutuya alınabilir (klasörler taşınmaz).
-            if (BoxMover.MovesFiles && !item.Missing && !item.IsDirectory && BoxPlan.PinnedDesktopPaths([_config], AppHost.DesktopDirectories).Contains(item.Path))
-            {
-                var claim = Menus.Item(L.T("Masaüstünden kaldır (kutuya taşı)"), () => BoxMover.Claim(_config, [item.Path], justAdded: false));
-                claim.ToolTip = L.F("Öğe {0} klasörüne taşınır ve kutuda durur.", BoxMover.Root);
-                menu.Items.Add(claim);
-            }
-        }
+        AddBoxRows(menu, item);
         if (TileItem.IsShellObject(item.Path))
         {
             // Bu Bilgisayar, Geri Dönüşüm Kutusu…: diskte konumu yoktur.
@@ -420,6 +411,30 @@ public partial class LauncherView : UserControl, IWidgetView
     }
 
     /// <summary>
+    /// Öğe menüsünün kutu satırları (<see cref="BoxChoices.MenuRows"/>; halkayla aynı): tek kaldırma fiili "Kutudan kaldır"
+    /// (Delete; masaüstünden kalkmış öğe geri döner) ve istisna durumunda (seçenek açık ama öğe masaüstünde) "Masaüstünden
+    /// kaldır". Bulunamayan öğede geri koyma satırı yok.
+    /// </summary>
+    private void AddBoxRows(ContextMenu menu, TileItem item)
+    {
+        var tab = Current;
+        var path = item.Path;
+        var state = BoxMover.ItemState(path, item.Missing);
+        var held = state == BoxItemState.Moved && BoxPlan.HeldElsewhere(Launchers.All(AppHost.Settings), path);
+        foreach (var row in BoxChoices.MenuRows(state, ring: false, held))
+        {
+            var menuItem = row.Action switch
+            {
+                BoxMenuAction.Remove => Menus.Item(row.Label, () => RemoveItem(item), KeyNames.Delete),
+                BoxMenuAction.LeaveDesktopAsAdmin => Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, path, tab, asAdmin: true)),
+                _ => Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, path, tab, asAdmin: false)),
+            };
+            menuItem.ToolTip = row.ToolTip;
+            menu.Items.Add(menuItem);
+        }
+    }
+
+    /// <summary>
     /// Bırakılınca ne olur: kendi öğesi yer değiştirir; başka kutudan gelen buraya taşınır (Ctrl basılıysa kopyalanır);
     /// bölmeden, Gezgin'den ya da başka uygulamadan gelen kısayol olarak eklenir. 2.2: Başlat menüsünden bırakılan uygulama
     /// (AddShell), tarayıcıdan bırakılan bağlantı (AddLink) da eklenir; eklenemeyen türde bağlantı (file:, javascript:…)
@@ -432,6 +447,8 @@ public partial class LauncherView : UserControl, IWidgetView
     // sürüklemenin verisi tutulmaz).
     private WeakReference<IDataObject>? _dropData;
     private DropContent _dropContent;
+    // Bırakılanlar masaüstünden kalkar mı ("Kutuya koyduğum simgeler masaüstünden kalksın"; sürükleme başına bir kez).
+    private BoxDropEffect _dropLeaves;
 
     private DropContent ContentOf(IDataObject data)
     {
@@ -439,6 +456,10 @@ public partial class LauncherView : UserControl, IWidgetView
         {
             _dropData = new WeakReference<IDataObject>(data);
             _dropContent = LauncherDrop.Classify(data);
+            _dropLeaves = _dropContent == DropContent.None && WidgetDrag.For(data) is not { FromBox: true } &&
+                          data.GetData(DataFormats.FileDrop) is string[] dropped
+                ? BoxMover.DropEffect(dropped)
+                : BoxDropEffect.None;
         }
         return _dropContent;
     }
@@ -473,6 +494,8 @@ public partial class LauncherView : UserControl, IWidgetView
             : allowed & DragDropEffects.Move;
         var text = kind switch
         {
+            DropKind.Add when _dropLeaves == BoxDropEffect.Moves => L.T("Bırak, kutuya girsin; masaüstünden kalkar"),
+            DropKind.Add when _dropLeaves == BoxDropEffect.Hides => L.T("Bırak, kutuya girsin; bölmeden kalkar"),
             DropKind.Add => L.T("Bırak, kısayol olarak eklensin"),
             DropKind.MoveHere => L.T("Bırak, bu kutuya taşınsın"),
             DropKind.AddShell when _dropContent == DropContent.Apps => L.T("Bırak, uygulama olarak eklensin"),

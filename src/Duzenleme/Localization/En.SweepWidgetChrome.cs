@@ -60,8 +60,6 @@ internal static partial class En
 
         // WidgetManager: kaldırma (tepsi balonu ve Widget'lar sayfası), açılamayan widget
         new("Widget kaldırıldı", "Widget removed"),
-        new("Kutudaki {0} öğe masaüstüne geri konuyor.",
-            "{0} item from the box is going back to the desktop.", "{0} items from the box are going back to the desktop."),
         new("Masaüstü simgeleri yeniden gösteriliyor.", "Desktop icons are visible again."),
         new("Geri getirmek için buraya ya da tepsi menüsüne tıkla.", "To bring it back, click here or use the menu in the notification area."),
         new("Widget açılamadı. {0}'ten çıkıp yeniden açtıktan sonra tekrar dene.",
@@ -69,27 +67,10 @@ internal static partial class En
 
         // Windows masaüstü simgeleri (DesktopModes: Ayarlar, Widget'lar sayfası, tepsi, karşılama)
         new("Hepsi masaüstünde görünsün", "Show everything on the desktop"),
-        new("Kutulara eklediklerim masaüstünden kalksın", "Items I add to boxes leave the desktop"),
         new("Yalnızca bölmelerde göster", "Show only in panels"),
-        new("Windows simgeleri görünür. Kısayol kutusuna eklediğin masaüstü öğesi masaüstünden kalkar: masaüstünün yanındaki {0} klasörüne taşınır ve kutuda durur. Masaüstüne sonradan gelenler görünür kalır; kutudan çıkarınca masaüstüne geri döner.",
-            "Windows icons stay visible. A desktop item you add to a shortcut box leaves the desktop: it moves to the {0} folder next to the desktop and stays in the box. Things that land on the desktop later stay visible; take an item out of the box and it goes back to the desktop."),
         new("Masaüstündeki her şey bölmelerde toplanır; Windows'un kendi simgeleri gizlenir. Dosyalarına dokunulmaz; kapatınca simgeler geri gelir.",
             "Everything on the desktop is gathered into panels, and Windows' own icons are hidden. Your files aren't touched; turn this off and the icons come back."),
-        new("Windows'un masaüstü simgeleri her zamanki gibi görünür; kutular ve bölmeler dosyalara dokunmadan kısayol gösterir.",
-            "Windows desktop icons show as usual; boxes and panels show shortcuts without touching your files."),
-        new("Kutulardaki öğeler masaüstüne geri konsun mu?", "Put the items in your boxes back on the desktop?"),
-        new("{0} öğe kutuya eklendiği için {1} klasöründe duruyor. Geri konunca masaüstünde yine görünür ve kutularda kalır. \"Klasörde kalsın\" dersen kutular onları oradan açmaya devam eder.",
-            "{0} item is in the {1} folder because it was added to a box. If you put it back, it shows on the desktop again and stays in your boxes. If you choose \"Keep in folder\", your boxes keep opening it from there.",
-            "{0} items are in the {1} folder because they were added to a box. If you put them back, they show on the desktop again and stay in your boxes. If you choose \"Keep in folder\", your boxes keep opening them from there."),
-        new("Klasörde kalsın", "Keep in folder"),
-        new("Kutulardaki masaüstü öğeleri de taşınsın mı?", "Move the desktop items in your boxes too?"),
-        new("Kutularında masaüstünde duran {0} öğe var. Taşınırsa masaüstünden kalkar, {1} klasöründe durur ve kutularda görünmeye devam eder.",
-            "Your boxes have {0} item that's still on the desktop. If it's moved, it leaves the desktop, is kept in the {1} folder and still shows in your boxes.",
-            "Your boxes have {0} items that are still on the desktop. If they're moved, they leave the desktop, are kept in the {1} folder and still show in your boxes."),
-        new("Taşı", "Move"),
         new("Şimdi değil", "Not now"),
-        new("Bundan sonra kısayol kutusuna eklediğin masaüstü öğeleri masaüstünden kalkar ve kutuda durur.",
-            "From now on, desktop items you add to a shortcut box leave the desktop and stay in the box."),
         new("Masaüstü simgeleri yeniden gösteriliyor. Bölmelerin yerinde duruyor.",
             "Desktop icons are visible again. Your panels stay where they are."),
 

@@ -192,7 +192,27 @@
 
         <!-- ================= Masaüstü ================= -->
         <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Masaüstü'}" />
-        <!-- Windows masaüstü simgeleri: Widget'lar sayfası, tepsi ve widget menüleriyle aynı üç seçenek (DesktopModes). -->
+        <!-- Windows masaüstü simgeleri: karşılama ve "Masaüstümü bölmelere ayır" ile aynı iki seçenek (DesktopModes). -->
+        <Border Style="{StaticResource Row}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Windows masaüstü simgeleri'}" />
+                    <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.IconModeText" />
+                </StackPanel>
+                <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" Margin="16,0,0,0" VerticalAlignment="Center"
+                          SelectionChanged="IconModeBox_SelectionChanged"
+                          AutomationProperties.AutomationId="Settings.IconMode" AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
+            </Grid>
+        </Border>
+        <!-- Kutuya koyduğum simgeler masaüstünden kalksın (BoxMover; DesktopModes.SetBoxLeaves): bölme kipinden bağımsız anahtar,
+             altında taşınanlar (sayı, klasör, hepsini geri koy) ve iki alt anahtar (herkesin masaüstü, uygulamanın kısayolu). -->
         <Border Style="{StaticResource Row}">
             <StackPanel>
                 <Grid>
@@ -201,17 +221,18 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                    <ui:SymbolIcon Symbol="AppsAddIn24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Windows masaüstü simgeleri'}" />
-                        <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.IconModeText" />
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Kutuya koyduğum simgeler masaüstünden kalksın'}" />
+                        <TextBlock x:Name="BoxLeavesText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.BoxLeavesText" />
                     </StackPanel>
-                    <ComboBox x:Name="IconModeBox" Grid.Column="2" Width="330" Margin="16,0,0,0" VerticalAlignment="Center"
-                              SelectionChanged="IconModeBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Settings.IconMode" AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
+                    <ui:ToggleSwitch x:Name="BoxLeavesToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
+                                     Checked="BoxLeavesToggle_Changed" Unchecked="BoxLeavesToggle_Changed"
+                                     AutomationProperties.AutomationId="Settings.BoxLeaves"
+                                     AutomationProperties.Name="{l:T 'Kutuya koyduğum simgeler masaüstünden kalksın'}" />
                 </Grid>
-                <!-- Kutulara taşınanlar: sayı, klasör, hepsini geri koy; ortak masaüstü izni (yalnızca bu kipte). -->
+                <!-- Kutulara taşınanlar: sayı, klasör, hepsini geri koy (anahtar açıkken dosyalar taşınıyorsa ya da taşınmış öğe kaldıysa). -->
                 <StackPanel x:Name="BoxPanel" Margin="36,12,0,0" Visibility="Collapsed">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -228,18 +249,36 @@
                                    Icon="{ui:SymbolIcon ArrowUndo24}" AutomationProperties.AutomationId="Settings.ReturnAll"
                                    Click="ReturnAll_Click" />
                     </Grid>
-                    <Grid x:Name="PublicBoxRow" Margin="0,12,0,0">
+                </StackPanel>
+                <!-- Alt anahtarlar: yalnızca anahtar açıkken. Herkesin masaüstü yalnızca dosyalar taşınırken ve Store sürümü değilken. -->
+                <StackPanel x:Name="BoxOptions" Margin="36,12,0,0" Visibility="Collapsed">
+                    <Grid x:Name="PublicBoxRow">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Ortak masaüstündeki öğeler de taşınsın'}" />
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Herkesin masaüstündeki simgeler de kalksın'}" />
                             <TextBlock Style="{StaticResource Muted}"
-                                       Text="{l:T 'Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; Windows bunun için yönetici onayı ister.'}" />
+                                       Text="{l:T 'Çoğu uygulamanın kısayolu bu bilgisayardaki herkesin masaüstündedir. Açarsan onlar da herkesin masaüstünden kalkar; Windows bir kez yönetici izni ister.'}" />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="PublicBoxToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Checked="PublicBoxToggle_Changed" Unchecked="PublicBoxToggle_Changed"
-                                         AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="{l:T 'Ortak masaüstündeki öğeler de taşınsın'}" />
+                                         AutomationProperties.AutomationId="Settings.PublicBox" AutomationProperties.Name="{l:T 'Herkesin masaüstündeki simgeler de kalksın'}" />
+                    </Grid>
+                    <Grid x:Name="AppShortcutsRow" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Uygulama eklenince masaüstündeki kısayolu da kalksın'}" />
+                            <TextBlock Style="{StaticResource Muted}"
+                                       Text="{l:T 'Kutuya ya da halkaya bir uygulama eklediğinde masaüstünde aynı uygulamanın kısayolu varsa o da kalkar.'}" />
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="AppShortcutsToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         Checked="AppShortcutsToggle_Changed" Unchecked="AppShortcutsToggle_Changed"
+                                         AutomationProperties.AutomationId="Settings.BoxAppShortcuts"
+                                         AutomationProperties.Name="{l:T 'Uygulama eklenince masaüstündeki kısayolu da kalksın'}" />
                     </Grid>
                 </StackPanel>
             </StackPanel>

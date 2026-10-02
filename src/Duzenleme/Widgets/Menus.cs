@@ -265,8 +265,10 @@ public static class Menus
 
     /// <param name="describe">Öğenin sürükleme kaynağı (başka widget'a bırakılınca hedef onu tanır).</param>
     /// <param name="completed">Sürükleme bitti: yol, sonuç ve bir widget'ın içine bırakıldı mı.</param>
+    /// <param name="allowedFor">Öğeye göre izin verilen etkiler (yoksa <paramref name="allowed"/>): ör. kutuda masaüstünden kalkmış
+    /// öğe taşınabilir, öbürleri yalnızca bağlantıdır.</param>
     internal static void EnableDragOut(ListBox list, DragDropEffects allowed, Func<TileItem, WidgetDragSource>? describe = null,
-        Action<string, DragDropEffects, bool>? completed = null)
+        Action<string, DragDropEffects, bool>? completed = null, Func<TileItem, DragDropEffects>? allowedFor = null)
     {
         Point? start = null;
         TileItem? item = null;
@@ -288,12 +290,13 @@ public static class Menus
             // yolu sürüklemeyi başlatırken arayüzü dondurmasın.
             var draggable = !item.Missing && !TileItem.IsShellObject(item.Path);
             var source = draggable ? describe?.Invoke(item) : null;
+            var effects = draggable ? allowedFor?.Invoke(item) ?? allowed : allowed;
             start = null;
             item = null;
             if (!draggable) return;
             var result = DragDropEffects.None;
             var inside = WidgetDrag.Run(source,
-                () => result = DragDrop.DoDragDrop(list, new DataObject(DataFormats.FileDrop, new[] { path }), allowed));
+                () => result = DragDrop.DoDragDrop(list, new DataObject(DataFormats.FileDrop, new[] { path }), effects));
             completed?.Invoke(path, result, inside);
         };
     }

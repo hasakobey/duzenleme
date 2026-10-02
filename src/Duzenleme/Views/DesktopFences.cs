@@ -26,12 +26,15 @@ internal static class DesktopFences
 
     /// <summary>
     /// TurnOn'u geri alır: turnModeOff ise (mod TurnOn'dan önce kapalıydı) önce SetFencesManageDesktop(false); sonra her id
-    /// için Widgets.Remove(id, notify: false). Mod önceden açıksa açık kalır, yalnızca eklenen bölmeler kalkar.
+    /// için Widgets.Remove(id, notify: false). Mod önceden açıksa açık kalır, yalnızca eklenen bölmeler kalkar. Mod kapanınca
+    /// "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa masaüstünde görünen kutu simgelerinin kalkması şeritte sorulur
+    /// (anahtar bölme kipinden etkilenmez: geri alınca da açık kalır).
     /// </summary>
     public static void Undo(IReadOnlyList<string> addedIds, bool turnModeOff)
     {
         if (turnModeOff) AppHost.SetFencesManageDesktop(false);
         foreach (var id in addedIds) AppHost.Widgets.Remove(id, notify: false);
+        if (turnModeOff) DesktopModes.AfterFencesOff(owner: null, near: null, automatic: true);
     }
 
     /// <summary>

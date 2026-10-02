@@ -41,7 +41,6 @@ internal static partial class En
         new("Alt halkaya taşı", "Move to sub-ring"),
         new("Başka halkaya taşı", "Move to another ring"),
         new("Değiştir…", "Change…"),
-        new("Öğe masaüstüne döner ve halkada kalır.", "The item goes back to the desktop and stays in the ring."),
         new("Halkadan kaldır", "Remove from ring"),
         new("Halkaya ekle", "Add to ring"),
         new("Geri al: \"{0}\" halkaya dönsün", "Undo: put \"{0}\" back in the ring"),

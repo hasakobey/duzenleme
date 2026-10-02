@@ -524,13 +524,17 @@ public sealed class AppSettings
     public int NewWidgetHintsShown { get; set; }
 
     /// <summary>
-    /// "Kutulara eklediklerim masaüstünden kalksın": kısayol kutusuna eklenen masaüstü öğesi görünür bir klasöre
-    /// (masaüstünün yanındaki NestDesk klasörü) taşınır. Bölmeler masaüstünü yönetirken (FencesReplaceIcons) etkisizdir.
+    /// "Kutuya koyduğum simgeler masaüstünden kalksın" (2.1'de "Kutulara eklediklerim masaüstünden kalksın"): kutuya ya da
+    /// halkaya konan masaüstü simgesi masaüstünden kalkar, çıkarınca geri gelir. Windows simgeleri görünürken dosya görünür bir
+    /// klasöre (masaüstünün yanındaki NestDesk klasörü) taşınır; bölmeler masaüstünü yönetirken (FencesReplaceIcons) dosyaya
+    /// dokunulmaz, masaüstü bölmeleri onu göstermez. 2.2'den beri bölme kipi bu ayarı kapatmaz (iki ayrı seçim; 2.1 ikisi de
+    /// açıkken bölme kipini görür ve hiçbir şey taşımaz).
     /// </summary>
     public bool BoxItemsLeaveDesktop { get; set; }
 
     /// <summary>
-    /// Ortak masaüstündeki (tüm hesaplar) öğeler de kutuya taşınsın. Varsayılan kapalı: yalnızca bağlantı eklenir. Store (MSIX)
+    /// "Herkesin masaüstündeki simgeler de kalksın": ortak masaüstündeki (tüm hesaplar) öğeler de kutuya taşınır (Windows
+    /// yönetici onayı ister). Varsayılan kapalı. 2.2: yalnızca yönetici onaylı taşıma başarılı olunca açılır. Store (MSIX)
     /// sürümü bunu yok sayar (kaldırınca geri koyamaz); 2.1.1'de taşınanlar yine geri döner.
     /// </summary>
     public bool BoxIncludesPublicDesktop { get; set; }
@@ -622,6 +626,43 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? BoxClaimRetry { get; set; }
+
+    /// <summary>
+    /// "Kutuya koyduğum simgeler masaüstünden kalksın" soruldu mu? Kapalıyken bir masaüstü simgesi ilk kez kutuya ya da halkaya
+    /// konunca bir kez, widget'ın yanında sorulur; iki yanıt da bunu yazar. <see cref="BoxItemsLeaveDesktop"/> açıksa sorulmuş
+    /// sayılır (<see cref="BoxChoices.Asked"/>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool BoxLeaveAsked { get; set; }
+
+    /// <summary>
+    /// Herkesin masaüstündeki bir simge kutuya konunca "o da kalksın mı" soruldu mu (bir kez; iki yanıt da yazar). Evet denip
+    /// yönetici onaylı taşıma başarılı olursa <see cref="BoxIncludesPublicDesktop"/> açılır.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool BoxPublicAsked { get; set; }
+
+    /// <summary>
+    /// Kutuya ya da halkaya Başlat menüsünden bir uygulama eklenince masaüstündeki aynı uygulamanın kısayolu: null = ilk
+    /// eşleşmede sor, "leave" = o da kalksın, "keep" = kalsın (bkz. <see cref="BoxAppShortcutChoices"/>; tanınmayan değer sor).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BoxAppShortcuts { get; set; }
+}
+
+/// <summary><see cref="AppSettings.BoxAppShortcuts"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>
+public static class BoxAppShortcutChoices
+{
+    public const string Leave = "leave";
+    public const string Keep = "keep";
+
+    /// <summary>Kayıtlı değeri çözer: "leave" ya da "keep"; boş ya da tanınmayan değerde null (sor).</summary>
+    public static string? Normalize(string? choice) => choice?.Trim().ToLowerInvariant() switch
+    {
+        Leave => Leave,
+        Keep => Keep,
+        _ => null,
+    };
 }
 
 /// <summary><see cref="AppSettings.CrashReportMode"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>
