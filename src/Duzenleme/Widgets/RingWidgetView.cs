@@ -328,7 +328,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         menu.Items.Add(Menus.Item(L.T("Değiştir…"), () => Edit(slot, subTab)));
         if (slot is { Kind: RingSlotKind.Path, Path: { } path } && !TileItem.IsShellObject(path))
         {
-            if (BoxMover.IsMoved(path))
+            // Bulunamayan öğe geri konamaz.
+            if (BoxMover.IsMoved(path) && !slot.Dimmed)
             {
                 var back = Menus.Item(L.T("Masaüstüne geri koy"), () => BoxMover.Return([path]));
                 back.ToolTip = L.T("Öğe masaüstüne döner ve halkada kalır.");
@@ -470,7 +471,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             foreach (var path in looks.Keys) ItemLooks.Reset(_config, path);
         });
         // Alt halkadaki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
-        BoxMover.Reconcile();
+        BoxMover.Reconcile(interactive: true);
         Views.Notice.Show(L.F("\"{0}\" alt halkası kaldırıldı.", name), Views.NoticeKind.Info, L.T("Geri al"), UndoRemove,
             L.T("Geri almak için buraya tıkla."));
     }
@@ -501,7 +502,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
                 foreach (var (path, look) in sub.Looks) ItemLooks.Restore(_config, path, look);
             });
             // Öğeler bu arada masaüstüne geri konduysa halka onları yeniden bulur (kip açıksa yeniden taşınır).
-            BoxMover.Reconcile();
+            BoxMover.Reconcile(interactive: true);
             return;
         }
         _edits.UndoRemove();

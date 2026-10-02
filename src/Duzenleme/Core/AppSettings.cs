@@ -529,10 +529,13 @@ public sealed class AppSettings
     /// </summary>
     public bool BoxItemsLeaveDesktop { get; set; }
 
-    /// <summary>Ortak masaüstündeki (tüm hesaplar) öğeler de kutuya taşınsın. Varsayılan kapalı: yalnızca bağlantı eklenir.</summary>
+    /// <summary>
+    /// Ortak masaüstündeki (tüm hesaplar) öğeler de kutuya taşınsın. Varsayılan kapalı: yalnızca bağlantı eklenir. Store (MSIX)
+    /// sürümü bunu yok sayar (kaldırınca geri koyamaz); 2.1.1'de taşınanlar yine geri döner.
+    /// </summary>
     public bool BoxIncludesPublicDesktop { get; set; }
 
-    /// <summary>Ortak masaüstü öğesinin taşınmadığını anlatan bildirim gösterildi mi?</summary>
+    /// <summary>2.1.1: ortak masaüstü öğesinin taşınmadığını anlatan bildirim gösterildi mi? 2.2 okumaz (eski sürüm için kalır).</summary>
     public bool PublicBoxNoticeShown { get; set; }
 
     // 2.1 P6
@@ -608,6 +611,17 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RingHoldSelectOff { get; set; }
+
+    // 2.2 kutu (kolay)
+    // (Metin listesi: 2.1 bilmediği alanı Extra'da aynen korur. Boşken yazılmaz.)
+
+    /// <summary>
+    /// Kutuya (halkaya) eklenirken açık olduğu için masaüstünden kalkamayan öğeler (masaüstündeki yolları): "Kutulara
+    /// eklediklerim masaüstünden kalksın" açıkken birkaç saniye sonra, masaüstü değişince ve sonraki açılışta yeniden denenir.
+    /// Taşınınca, hiçbir kutuda kalmayınca ya da seçenek kapanınca listeden düşer.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? BoxClaimRetry { get; set; }
 }
 
 /// <summary><see cref="AppSettings.CrashReportMode"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>

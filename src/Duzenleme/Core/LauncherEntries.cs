@@ -144,6 +144,28 @@ public static class LauncherEntries
         return true;
     }
 
+    /// <summary>
+    /// Yolları <paramref name="map"/> ile değiştirir (null: değişmez): kutuya taşındı, masaüstüne döndü, yeniden adlandırıldı,
+    /// bağlantı yeni veri klasörüne çevrildi. Aynı yol iki kez kalırsa ilk görüneni kalır. Yol olmayan öğeler (halka eylemleri)
+    /// yollarla birlikte yerinde kalır (PathsBefore yeniden yazılır). Değiştiyse true.
+    /// </summary>
+    public static bool Rewrite(LauncherTab tab, Func<string, string?> map)
+    {
+        var list = Ordered(tab);
+        var changed = false;
+        for (var i = 0; i < list.Count; i++)
+        {
+            if (list[i].Path is not { } path || map(path) is not { } moved || string.Equals(moved, path, StringComparison.Ordinal)) continue;
+            list[i] = LauncherEntry.Of(moved);
+            changed = true;
+        }
+        if (!changed) return false;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        list.RemoveAll(e => e.Path is { } p && !seen.Add(p));
+        Write(tab, list);
+        return true;
+    }
+
     /// <summary>Yolun görünen sırası (harf duyarsız); yoksa -1.</summary>
     public static int IndexOfPath(LauncherTab tab, string path) =>
         Ordered(tab).FindIndex(e => e.Path is { } p && string.Equals(p, path, StringComparison.OrdinalIgnoreCase));

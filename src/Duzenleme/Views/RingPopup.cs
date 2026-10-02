@@ -266,7 +266,7 @@ internal sealed class RingPopup : Window
     private void RebuildIfDirty()
     {
         if (_forReal || IsVisible || !_dirty) return;
-        var config = RingTargets.Pick(AppHost.Settings.Widgets, AppHost.Settings.RingWidgetId);
+        var config = RingTargets.Pick(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId);
         if (config is null)
         {
             _dirty = false;
@@ -333,7 +333,7 @@ internal sealed class RingPopup : Window
             return;
         }
         if (_forReal || _dirty) return;
-        var config = RingTargets.Pick(AppHost.Settings.Widgets, AppHost.Settings.RingWidgetId);
+        var config = RingTargets.Pick(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId);
         if (ReferenceEquals(config, _config) && config is not null && Signature(config) == _signature) return;
         MarkDirty();
     }
@@ -389,7 +389,7 @@ internal sealed class RingPopup : Window
         }
         _previous = previous;
 
-        var config = RingTargets.Pick(AppHost.Settings.Widgets, AppHost.Settings.RingWidgetId);
+        var config = RingTargets.Pick(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId);
         if (config is null)
         {
             _previous = IntPtr.Zero;

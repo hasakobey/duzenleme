@@ -102,7 +102,8 @@ internal static class DesktopModes
                 if (AppHost.Settings.FencesReplaceIcons) DesktopFences.TurnOff();
                 else AppHost.SaveSettings();
                 var existing = BoxMover.DesktopItemsInBoxes();
-                var count = existing.Sum(e => e.Paths.Count);
+                // Aynı öğe birden çok kutuda olsa da bir kez; ortak masaüstündekiler yalnızca izin verildiyse taşınır.
+                var count = BoxMover.ClaimableCount(existing);
                 if (count > 0 && Confirm.Ask(owner, L.T("Kutulardaki masaüstü öğeleri de taşınsın mı?"),
                         L.P(count, "Kutularında masaüstünde duran {0} öğe var. Taşınırsa masaüstünden kalkar, {1} klasöründe durur ve kutularda görünmeye devam eder.",
                             BoxMover.Root),

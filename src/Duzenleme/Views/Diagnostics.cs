@@ -162,7 +162,10 @@ internal static class Diagnostics
         };
         if (backup is not null) text += " " + L.T("Okunamayan dosya silinmedi.");
         var target = backup;
-        Notice.Show(text, NoticeKind.Warning, L.T("Klasörü aç"), () => Reveal(target, AppHost.DataDirectory));
+        // Kutu kayıtları boş başladıysa düğme kutulara taşınmış öğelerin klasörünü açar (kayıtlar açılışta oradan yeniden kurulur).
+        if (kind == JsonFile.KindBoxMoves && !usedBak)
+            Notice.Show(text, NoticeKind.Warning, L.T("Klasörü aç"), () => OpenFolderInBackground(BoxMover.FolderToOpen));
+        else Notice.Show(text, NoticeKind.Warning, L.T("Klasörü aç"), () => Reveal(target, AppHost.DataDirectory));
     }
 
     /// <summary>Dosyayı Gezgin'de seçili gösterir (yoksa klasörü açar); yol Store sürümünde arka planda çözülür.</summary>
@@ -170,6 +173,11 @@ internal static class Diagnostics
     {
         if (file is not null && File.Exists(file)) ShellReveal.Select(AppHost.PathOnDisk(file));
         else OpenFolder(folder);
+    });
+
+    private static void OpenFolderInBackground(string folder) => Task.Run(() =>
+    {
+        if (Directory.Exists(folder)) OpenFolder(folder);
     });
 
     private static void OpenFolder(string folder)

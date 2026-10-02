@@ -15,6 +15,9 @@ public static class AppHost
     /// <summary>Masaüstünde görünen klasörler: kullanıcının masaüstü ve (test klasörü verilmediyse) Genel Masaüstü.</summary>
     public static IReadOnlyList<string> DesktopDirectories { get; private set; } = [];
 
+    /// <summary>Test örneğinde ortak masaüstü yerine geçen klasör (NESTDESK_TEST_PUBLIC_DESKTOP, yalnızca --desktop ile); yoksa null.</summary>
+    public static string? TestPublicDesktop { get; private set; }
+
     /// <summary>--desktop ile verilen test klasörü mü izleniyor?</summary>
     public static bool IsTestDesktop { get; private set; }
     public static bool IsPortable { get; private set; }
@@ -167,6 +170,15 @@ public static class AppHost
         DesktopDirectories = string.IsNullOrWhiteSpace(common) || string.Equals(common, DesktopDirectory, StringComparison.OrdinalIgnoreCase)
             ? [DesktopDirectory]
             : [DesktopDirectory, common];
+        // Test örneği: NESTDESK_TEST_PUBLIC_DESKTOP klasörü ortak masaüstü yerine geçer (kutu taşımalarını gerçek ortak
+        // masaüstüne ve yönetici onayına dokunmadan denemek için; bkz. Widgets/BoxDisk). Gerçek örnekte yok sayılır.
+        if (IsTestDesktop && AppEnvironment.Get("TEST_PUBLIC_DESKTOP") is { } testPublic && Directory.Exists(testPublic) &&
+            !string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(testPublic)), Path.TrimEndingDirectorySeparator(DesktopDirectory),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            TestPublicDesktop = Path.TrimEndingDirectorySeparator(Path.GetFullPath(testPublic));
+            DesktopDirectories = [DesktopDirectory, TestPublicDesktop];
+        }
         Directory.CreateDirectory(DataDirectory);
 
         // Masaüstü okuması (Genel Masaüstü dahil) hemen arka planda başlar: widget'lar açılırken liste büyük ihtimalle
@@ -222,7 +234,7 @@ public static class AppHost
         BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
         // 2.2 Kutu: kutudaki bağlantılar başka bir veri klasöründe yazılmışsa (taşınabilir sürümün sürücü harfi değişti, eski
         // veri klasörü taşındı) bu oturumun links\ klasörünü göstersin.
-        if (LinkFiles.RebaseAll(Settings.Widgets, LinksDirectory)) SaveSettings();
+        if (LinkFiles.RebaseAll(Launchers.All(Settings), LinksDirectory)) SaveSettings();
         Widgets = new WidgetManager();
         Icons.FolderIconService.Changed += OnFolderIconChanged;
         // Günlük yedek; sürüm yedeklerinden fazlası silinir (az önce alınan kalır) ve anahtar yoksa onlardan da çıkarılır
@@ -237,11 +249,8 @@ public static class AppHost
         }, onError: ex => DebugLog.Write($"ayar yedeği: {ex}"));
         // Kutulardaki masaüstü öğeleri kurallarla taşınmasın; widget eklenince/kaldırılınca küme yenilenir, kaldırılan
         // kutunun taşınmış öğeleri masaüstüne döner (kutu "Geri al" ile gelirse yeniden taşınır).
-        Widgets.Changed += () =>
-        {
-            RefreshPinnedPaths();
-            BoxMover.Reconcile();
-        };
+        // Arka planda uzlaşır (yönetici onayı istenmez); kullanıcının kaldırdığı widget için WidgetManager ayrıca sorarak ister.
+        Widgets.Changed += LaunchersChanged;
         RefreshPinnedPaths();
 
         // Önceki oturum simgeleri gizli bırakarak kapandıysa (ör. çökme) geri aç.
@@ -866,7 +875,7 @@ public static class AppHost
 
     private static void ApplyRenameToWidgets(string oldPath, string newPath, bool isDirectory)
     {
-        var changed = PathRenames.Apply(Settings.Widgets, oldPath, newPath, isDirectory, DesktopDirectory);
+        var changed = PathRenames.Apply(Launchers.Configs(Settings), oldPath, newPath, isDirectory, DesktopDirectory);
         // Simge verilen klasör (ya da üstü) yeniden adlandırıldı: "hepsini kaldır" onu yeni adıyla bulsun.
         if (FolderIconLog.Rename(Settings.IconFolders, oldPath, newPath, isDirectory) is var icons && !ReferenceEquals(icons, Settings.IconFolders))
         {
@@ -878,8 +887,7 @@ public static class AppHost
             string.Equals(parent, Path.TrimEndingDirectorySeparator(BoxMover.Root), StringComparison.OrdinalIgnoreCase))
         {
             var oldName = Path.GetFileName(Path.TrimEndingDirectorySeparator(oldPath));
-            foreach (var box in Settings.Widgets.Where(w => w.Kind == WidgetKind.Launcher &&
-                                                            string.Equals(w.BoxFolder, oldName, StringComparison.OrdinalIgnoreCase)))
+            foreach (var box in Launchers.All(Settings).Where(w => string.Equals(w.BoxFolder, oldName, StringComparison.OrdinalIgnoreCase)))
             {
                 box.BoxFolder = Path.GetFileName(Path.TrimEndingDirectorySeparator(newPath));
                 changed = true;
@@ -920,7 +928,18 @@ public static class AppHost
     /// göstermesin). Yeni küme atanır; izleyici arka planda okur. Kutu değişince çağrılır (ucuz, diske bakmaz).
     /// </summary>
     public static void RefreshPinnedPaths() =>
-        Organizer.Pinned = BoxPlan.PinnedDesktopPaths(Settings.Widgets, DesktopDirectories);
+        Organizer.Pinned = Launchers.PinnedDesktopPaths(Settings, DesktopDirectories);
+
+    /// <summary>
+    /// Kutular ya da halkalar eklendi, kaldırıldı ya da değişti (widget listesi, düzen, ayarlarda duran bir halka): kurallardan
+    /// korunan yollar yenilenir ve taşınmış öğeler kutularla uzlaşır (arka planda; yönetici onayı istenmez). Widget olmayan bir
+    /// launcher'ı (<see cref="Launchers.All"/>) değiştiren kod bunu çağırır: WidgetManager.Changed onun için tetiklenmez.
+    /// </summary>
+    public static void LaunchersChanged()
+    {
+        RefreshPinnedPaths();
+        BoxMover.Reconcile();
+    }
 
     /// <summary>
     /// "Masaüstünü bölmeler yönetsin": açılınca eksik Klasörler/Kısayollar/Dosyalar bölmeleri eklenir (hiçbir öğe

@@ -264,7 +264,7 @@ public partial class LauncherView : UserControl, IWidgetView
         Change(() => removed = LauncherEdits.TakeTab(_config, _config.Tabs.IndexOf(tab),
             _edits.LastRemoved?.Entry.Path is { } last ? [last] : null));
         if (removed is not { } taken) return;
-        BoxMover.Reconcile();
+        BoxMover.Reconcile(interactive: true);
         // Geri alma kutuyu kimliğiyle bulur: o arada kaldırılıp geri getirildiyse yeni görünüm ve ayarın kopyası vardır;
         // kaldırılmış kaldıysa bir şey yapmaz.
         var id = _config.Id;
@@ -277,7 +277,7 @@ public partial class LauncherView : UserControl, IWidgetView
         if (!AppHost.Settings.Widgets.Contains(_config)) return;
         var restored = false;
         Change(() => restored = LauncherEdits.PutTab(_config, taken));
-        if (restored) BoxMover.Reconcile();
+        if (restored) BoxMover.Reconcile(interactive: true);
     }
 
     private void Swap(int a, int b)
@@ -364,7 +364,8 @@ public partial class LauncherView : UserControl, IWidgetView
                 ? Menus.Item(L.T("Varsayılan simge"), () => Change(() => ItemLooks.SetIcon(_config, item.Path, null)))
                 : Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
         menu.Items.Add(new Separator());
-        var moved = BoxMover.IsMoved(item.Path);
+        // Bulunamayan öğe geri konamaz: o satırlar gösterilmez (öğe kutudan yine kaldırılabilir).
+        var moved = BoxMover.IsMoved(item.Path) && !item.Missing;
         if (moved)
         {
             // Masaüstünden kutuya taşınmış öğe (NestDesk klasöründe).
@@ -381,8 +382,8 @@ public partial class LauncherView : UserControl, IWidgetView
             remove.InputGestureText = KeyNames.Delete;
             remove.ToolTip = L.T("Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al");
             menu.Items.Add(remove);
-            // Kip sonradan açıldıysa önceden eklenen masaüstü öğesi de tek tek kutuya alınabilir.
-            if (BoxMover.Active && !item.Missing && BoxPlan.PinnedDesktopPaths([_config], AppHost.DesktopDirectories).Contains(item.Path))
+            // Kip sonradan açıldıysa önceden eklenen masaüstü dosyası da tek tek kutuya alınabilir (klasörler taşınmaz).
+            if (BoxMover.MovesFiles && !item.Missing && !item.IsDirectory && BoxPlan.PinnedDesktopPaths([_config], AppHost.DesktopDirectories).Contains(item.Path))
             {
                 var claim = Menus.Item(L.T("Masaüstünden kaldır (kutuya taşı)"), () => BoxMover.Claim(_config, [item.Path], justAdded: false));
                 claim.ToolTip = L.F("Öğe {0} klasörüne taşınır ve kutuda durur.", BoxMover.Root);

@@ -351,6 +351,8 @@ public sealed class WidgetManager
         // Kutunun masaüstünden taşınmış öğeleri (başka kutuda yoksa) masaüstüne döner; "Geri al" onları yeniden taşır.
         var returning = BoxMover.MovedOnlyIn(AppHost.Settings.Widgets[index]);
         var modeOff = RemoveCore(id, notify: false, leave: true);
+        // Kullanıcı kaldırdı: ortak masaüstüne dönecek öğe için Windows onay isteyebilir (arka plandaki uzlaştırma sormaz).
+        BoxMover.Reconcile(interactive: true);
         _removed.Add(new RemovedWidget(copy, index, modeOff));
         if (notify)
             AppHost.Tray?.Notify(L.T("Widget kaldırıldı"),
@@ -393,6 +395,8 @@ public sealed class WidgetManager
         if (TryOpen(last.Copy, fadeIn: true) is not null) ApplyZOrder();
         if (last.ModeTurnedOff && !AppHost.Settings.FencesReplaceIcons) AppHost.SetFencesManageDesktop(true);
         Changed?.Invoke();
+        // Kutu geri geldi: masaüstüne dönen öğeleri yeniden taşınırken ortak masaüstü için Windows onay isteyebilir.
+        BoxMover.Reconcile(interactive: true);
     }
 
     /// <summary>Masaüstündeki her öğe türü (klasör, kısayol, dosya) en az bir bölmede görünüyor mu?</summary>

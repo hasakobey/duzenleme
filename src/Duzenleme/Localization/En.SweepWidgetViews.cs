@@ -93,8 +93,6 @@ internal static partial class En
         new("{0} öğe taşınamadı (kullanımda ya da izin yok); kutuya bağlantı olarak eklendi.",
             "Couldn't move {0} item (in use or access denied), so it was added to the box as a link.",
             "Couldn't move {0} items (in use or access denied), so they were added to the box as links."),
-        new("\"{0}\" klasörünü bir kural ya da bölme kullandığı için masaüstünde kaldı.",
-            "\"{0}\" stayed on the desktop because a rule or panel uses this folder."),
         new("\"{0}\" masaüstüne geri kondu.", "\"{0}\" was put back on the desktop."),
         new("{0} öğe masaüstüne geri kondu.", "{0} item was put back on the desktop.", "{0} items were put back on the desktop."),
         new("{0} öğe geri konamadı ({1}); {2} klasöründe duruyor.",

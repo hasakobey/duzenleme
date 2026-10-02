@@ -228,8 +228,9 @@ public partial class App : Application
             AppHost.Widgets.EnsureDesktopCoverage();
             AppHost.ApplyDesktopState();
         }
-        // Kutulara taşınan öğeler: önceki oturum yarıda kaldıysa ya da kutu dışarıdan silindiyse kayıtlar kutularla uzlaşır.
-        Widgets.BoxMover.Reconcile();
+        // Kutulara taşınan öğeler: önceki oturum yarıda kaldıysa ya da kutu dışarıdan silindiyse kayıtlar kutularla uzlaşır
+        // (yönetici onayı istenmez), kayıt dosyası kaybolduysa yeniden kurulur, açık olduğu için taşınamayanlar yeniden denenir.
+        Widgets.BoxMover.Startup();
         // Yeni klasöre "simge ver" önerisi: ayrı izleyici yok, masaüstünün anlık görüntüsünden; yalnızca öneri açıkken dinlenir.
         _newFolders = new NewFolderSuggestions(AppHost.DesktopSnapshot, folder => Dispatcher.BeginInvoke(() =>
         {

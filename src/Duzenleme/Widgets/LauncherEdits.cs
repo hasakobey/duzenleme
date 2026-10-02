@@ -44,8 +44,8 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         if (removed is null) return null;
         LastRemoved = removed;
         if (!moved) return false;
-        BoxMover.Reconcile();
-        return !BoxPlan.Referenced(AppHost.Settings.Widgets).Contains(path!);
+        BoxMover.Reconcile(interactive: true);
+        return !Launchers.Referenced(AppHost.Settings).Contains(path!);
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         if (LastRemoved is not { } last || !config.Tabs.Contains(last.Tab)) return false;
         LastRemoved = null;
         Change(() => Put(config, last));
-        if (last.Entry.IsPath) BoxMover.Reconcile();
+        if (last.Entry.IsPath) BoxMover.Reconcile(interactive: true);
         return true;
     }
 
@@ -86,7 +86,7 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         Change(() => added = Insert(config, tab, existing, look, at, names));
         if (existing.Count > 0) then?.Invoke();
         if (existing.Count > 0 && added.Count == 0) duplicate?.Invoke();
-        if (added.Count > 0 && BoxMover.Active) BoxMover.Claim(config, added, justAdded: true);
+        if (added.Count > 0 && BoxMover.MovesFiles) BoxMover.Claim(config, added, justAdded: true, tab);
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         var index = LauncherEntries.IndexOfPath(tab, path);
         if (index < 0) return;
         Change(() => Take(config, tab, index));
-        BoxMover.Reconcile();
+        BoxMover.Reconcile(interactive: true);
     }
 
     // ---------------------------------------------------------------- saf bölümler (testlenir)

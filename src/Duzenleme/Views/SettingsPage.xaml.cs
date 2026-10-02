@@ -493,21 +493,26 @@ public partial class SettingsPage : Page
         LoadDesktopChoices();
     }
 
-    /// <summary>Kutulara taşınan öğeler: sayı ve klasör. Kip açıkken ya da taşınmış öğe kaldıysa görünür.</summary>
+    /// <summary>
+    /// Kutulara taşınan öğeler: sayı ve klasör. Kip açıkken, taşınmış öğe kaldıysa ya da NestDesk klasörü duruyorsa görünür
+    /// (kayıtlar kaybolsa da klasör açılabilsin; klasörün varlığına arka planda bakılır, bkz. BoxMover.RootExists). Masaüstü
+    /// sonradan taşındıysa öğelerin durduğu eski klasörü gösterir.
+    /// </summary>
     private void UpdateBoxPanel()
     {
         var moved = BoxMover.MovedCount;
         var active = DesktopModes.Current == IconMode.BoxItemsLeave;
-        BoxPanel.Visibility = active || moved > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var folder = BoxMover.FolderToOpen;
+        BoxPanel.Visibility = active || moved > 0 || BoxMover.RootExists ? Visibility.Visible : Visibility.Collapsed;
         BoxCountText.Text = moved == 0
-            ? L.F("Henüz kutuya taşınan öğe yok. Taşınanlar {0} klasöründe durur.", BoxMover.Root)
-            : L.P(moved, "{0} öğe kutularda; dosyalar {1} klasöründe.", BoxMover.Root);
+            ? L.F("Henüz kutuya taşınan öğe yok. Taşınanlar {0} klasöründe durur.", folder)
+            : L.P(moved, "{0} öğe kutularda; dosyalar {1} klasöründe.", folder);
         ReturnAllButton.IsEnabled = moved > 0;
-        OpenBoxFolderButton.IsEnabled = moved > 0;
+        OpenBoxFolderButton.IsEnabled = moved > 0 || BoxMover.RootExists;
         PublicBoxRow.Visibility = active && !AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void OpenBoxFolder_Click(object sender, RoutedEventArgs e) => TileItem.Launch(BoxMover.Root);
+    private void OpenBoxFolder_Click(object sender, RoutedEventArgs e) => TileItem.Launch(BoxMover.FolderToOpen);
 
     private void ReturnAll_Click(object sender, RoutedEventArgs e)
     {
@@ -768,7 +773,7 @@ public partial class SettingsPage : Page
         RingToggle.IsChecked = hotkey is not null;
         RingHoldToggle.IsChecked = !AppHost.Settings.RingHoldSelectOff;
 
-        var rings = RingTargets.All(AppHost.Settings.Widgets);
+        var rings = Launchers.Rings(AppHost.Settings);
         var choices = rings.Select(r => new RingChoice(r.Id, WidgetText.DisplayName(r))).ToList();
         RingTargetBox.ItemsSource = choices;
         var target = RingTargets.Pick(rings, AppHost.Settings.RingWidgetId);
