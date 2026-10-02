@@ -29,7 +29,6 @@ internal static partial class En
         new("Metin", "Text"),
 
         // Widget ve öğe menüleri
-        new("Ana halkaya dön", "Back to main ring"),
         new("Tuş numaraları", "Key numbers"),
         new("Tuşla imlecin yanında açılsın", "Open next to the pointer with a key"),
         new("Web adresi…", "Web address…"),
@@ -44,7 +43,6 @@ internal static partial class En
         new("Öğe masaüstüne döner ve halkada kalır.", "The item goes back to the desktop and stays in the ring."),
         new("Halkadan kaldır", "Remove from ring"),
         new("Halkaya ekle", "Add to ring"),
-        new("Geri al: \"{0}\" halkaya dönsün", "Undo: put \"{0}\" back in the ring"),
 
         // Bildirimler
         new("\"{0}\" o halkada zaten var.", "\"{0}\" is already in that ring."),

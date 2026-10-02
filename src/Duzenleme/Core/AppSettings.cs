@@ -616,6 +616,14 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HowToDismissed { get; set; }
+
+    /// <summary>
+    /// "Görünüm ve diğer ayarlar artık Düzenle'de." bildirimi gösterildi (ya da kullanıcı paneli kendisi açtı): widget menüsünde
+    /// "Görünüm ▸" ve "Diğer ▸" görmüş kullanıcıya bir kez. Yeni kullanıcıda açılışta true yazılır. 2.1 bu alanı tanımaz ve
+    /// <see cref="Extra"/>'da aynen korur.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool EditPanelNoticeShown { get; set; }
 }
 
 /// <summary><see cref="AppSettings.CrashReportMode"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>

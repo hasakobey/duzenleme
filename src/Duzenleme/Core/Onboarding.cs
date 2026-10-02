@@ -52,6 +52,7 @@ public static class Onboarding
         if (settings.FirstRunDone) return false;
         settings.Paused = true;
         settings.RenameNoticeShown = true;
+        settings.EditPanelNoticeShown = true; // eski "Görünüm ▸" menüsünü hiç görmedi
         // İzleyici kuralları arka planda okur: liste yerinde değişmez, yenisi atanır.
         if (desktopFolders is not null && Rule.AreDefaults(settings.Rules))
             settings.Rules = Rule.Defaults(L.Current, desktopFolders);

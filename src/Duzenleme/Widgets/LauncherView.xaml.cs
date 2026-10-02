@@ -70,7 +70,7 @@ public partial class LauncherView : UserControl, IWidgetView
 
     // Etiketler Menus.Parts'ta çevrilir (L.Dyn).
     private static readonly (string Key, string Label)[] LauncherParts =
-        [("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("tabs", L.N("Sekmeler")), Menus.ClosePart];
+        [("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("tabs", L.N("Sekmeler")), Menus.EditPart, Menus.ClosePart];
 
     /// <summary>
     /// Kullanıcının kapattığı parçaları gizler. Dar kutuda başlık okunsun diye öğe sayısı ve başlık simgesi (bu sırayla)
@@ -82,9 +82,9 @@ public partial class LauncherView : UserControl, IWidgetView
         HeaderIconButton.Visibility = Visibility.Visible;
         CountText.Visibility = _config.Shows("count") ? Visibility.Visible : Visibility.Collapsed;
         TabStrip.Visibility = AddTab.Visibility = _config.Shows("tabs") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         // Başlık düzenlenirken kutuya yer açılır, simge düğmesi (seçiciyi açar) gizlenmez.
-        _titleEditor.Fit([CountText, HeaderIconButton], [RemoveButton]);
+        _titleEditor.Fit([CountText, HeaderIconButton], [Corner]);
     }
 
     private List<TileItem> _tiles = [];
@@ -157,6 +157,7 @@ public partial class LauncherView : UserControl, IWidgetView
             if (_tiles.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is { } item) SelectAndFocus(item);
         }
         WatchRecycleBin(_tiles.Any(t => TileItem.IsRecycleBin(t.Path)));
+        _editorChanged?.Invoke();
     }
 
     private bool _watchingBin;
@@ -288,8 +289,6 @@ public partial class LauncherView : UserControl, IWidgetView
     }
 
     private void AddTab_Click(object sender, RoutedEventArgs e) => NewTab();
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     private void NewTab()
     {
@@ -608,29 +607,83 @@ public partial class LauncherView : UserControl, IWidgetView
         EmptyAddIcon.Foreground = palette.Accent;
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = palette.Overlay;
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
         RenderTabs();
         UpdateIconSizes(); // ölçek değiştiyse simgeler yeni piksel boyutunda
     }
 
+    /// <summary>
+    /// Menüde: son çıkarılan öğe varsa onun "Geri al"ı ve "Uygulama ekle…" (Başlat menüsündeki uygulamalar; dosya ve klasör aynı
+    /// pencerenin altındaki "Dosya ya da klasör seç…"te). Öğeler, sekmeler ve görünüş Düzenle panelinde (<see cref="AddEditorContent"/>).
+    /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
         if (_edits.LastRemoved?.Entry.Path is { } lastPath)
-        {
             menu.Primary.Add(Menus.Item(L.F("Geri al: \"{0}\" listeye dönsün", Menus.Literal(TileItem.DisplayName(lastPath))), UndoRemove));
-            menu.Primary.Add(new Separator());
-        }
-        // Başlat menüsündeki uygulamalar; dosya ve klasör aynı pencerenin altındaki "Dosya ya da klasör seç…"te.
-        menu.Primary.Add(Menus.Item(L.T("Uygulama ekle…"), AddApps));
-        menu.Primary.Add(Menus.Item(L.T("Sekme ekle…"), NewTab));
-        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
-        rename.InputGestureText = KeyNames.F2;
-        menu.Primary.Add(rename);
-        menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
-        menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
-        menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+        menu.Primary.Add(Menus.Item(L.T("Uygulama ekle…"), () => AddApps()));
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
+        menu.More.AddRange(Menus.TileOptions(_config, Change, singleClickOption: false));
         // "Kutuya eklediklerim masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da (Views.DesktopModes).
+    }
+
+    // Açık Düzenle panelinin öğe listesi kutu değişince (sürükleyip bırakma, arka planda biten ekleme) hemen tazelensin.
+    private Action? _editorChanged;
+
+    /// <summary>
+    /// Düzenle paneli: birden çok sekme varsa "Sekme", etkin sekmenin öğeleri (yalnızca seçili satırda "Kaldır" · "↑" · "↓";
+    /// çıkarma <see cref="LauncherEdits.Remove"/> ile, "Geri al" bildirimde ve menüde), "+ Uygulama" ("Uygulama seç") · "+ Klasör"
+    /// · "+ Dosya" · "+ Sekme" ve görünüş (Izgara/Liste, simge boyutu).
+    /// </summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        _editorChanged = () => content.Changed();
+        if (_config.Tabs.Count > 1)
+            content.Dropdown(L.T("Sekme"), "Editor.Launcher.Tab", _config.Tabs.Select(t => t.Name).ToList(),
+                () => Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1), index =>
+                {
+                    if (index == _config.ActiveTab) return;
+                    _config.ActiveTab = index;
+                    // Seçili sekme önemsiz bir durum: bir sonraki kayıtla gider.
+                    AppHost.SaveSettingsLater();
+                    Render();
+                });
+        content.Items(L.T("Öğeler"), _config.Tabs.Count > 1 ? L.T("Bu sekme boş.") : L.T("Kutu boş."), () => _tiles,
+            path =>
+            {
+                // Panelden çıkarılanın "Geri al"ı panelin kendi bildiriminde (masaüstüne geri konan da, yalnızca listeden çıkan da).
+                if (_tiles.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is not { } item) return;
+                if (_edits.Remove(Current, LauncherEntries.IndexOfPath(Current, item.Path)) is not { } movedBack) return;
+                content.Notice(movedBack ? L.F("\"{0}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", item.Name)
+                    : L.F("\"{0}\" kutudan çıkarıldı.", item.Name), UndoRemove);
+            },
+            MoveItem);
+        content.Buttons(
+        [
+            (L.T("+ Uygulama"), "Editor.Launcher.AddApp", () => AddApps()),
+            (L.T("+ Klasör"), "Editor.Launcher.AddFolder", () => AddPicked(Views.AppPicker.AskFolders(content.Owner, L.T("Kısayol kutusuna klasör ekle")))),
+            (L.T("+ Dosya"), "Editor.Launcher.AddFile", () => AddPicked(Views.AppPicker.AskFiles(content.Owner, L.T("Kısayol kutusuna ekle")))),
+            (L.T("+ Sekme"), "Editor.Launcher.AddTab", NewTab),
+        ], rebuild: true);
+        content.TileLook(_config, Change);
+        return true;
+    }
+
+    /// <summary>Panelden seçilen dosya ya da klasörler etkin sekmeye (varlık denetimi arka planda).</summary>
+    private void AddPicked(IReadOnlyList<string>? paths)
+    {
+        if (paths is not { Count: > 0 }) return;
+        var tab = Current;
+        _edits.AddItems(() => _config.Tabs.Contains(tab) ? tab : Current, paths);
+    }
+
+    /// <summary>Etkin sekmedeki öğeyi bir yukarı (-1) ya da aşağı (+1) taşır (Düzenle panelinin "↑" / "↓", Alt+↑/↓).</summary>
+    private void MoveItem(string path, int delta)
+    {
+        var tab = Current;
+        var from = LauncherEntries.IndexOfPath(tab, path);
+        if (from >= 0) Change(() => LauncherEntries.Move(tab, from, from + delta));
     }
 
     public bool OnCtrlWheel(int delta)
@@ -660,6 +713,15 @@ public partial class LauncherView : UserControl, IWidgetView
         if (_titleEditor.IsEditing || _rename is { IsActive: true }) return true;
         if (Items.IsKeyboardFocusWithin && Items.SelectedItem is TileItem item) return BeginLabelRename(item);
         return BeginTitleEdit();
+    }
+
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title;
+        HeaderIcon.Symbol = WidgetIcons.For(_config);
+        ApplyParts();
+        return true;
     }
 
     /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>
@@ -761,12 +823,13 @@ public partial class LauncherView : UserControl, IWidgetView
     }
 
     // 2.2 Kutu
-    /// <summary>1–9: etkin sekmede görünen n'inci öğeyi açar; seçenek açıksa (Simgeler ▸ Numara tuşlarıyla aç).</summary>
+    /// <summary>1–9: etkin sekmede görünen n'inci öğeyi açar; seçenek açıksa (Düzenle ▸ Daha fazla ▸ Numara tuşlarıyla aç).</summary>
     public bool TryQuickOpen(KeyEventArgs e) =>
         Menus.TryQuickOpen(e, _config, Items, editing: _titleEditor.IsEditing || _rename is { IsActive: true });
 
     public void Detach()
     {
+        _editorChanged = null;
         _rename?.Cancel();
         _titleEditor.Cancel();
         BoxMover.Changed -= Render;

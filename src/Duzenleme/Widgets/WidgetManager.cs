@@ -618,6 +618,36 @@ public sealed class WidgetManager
         Changed?.Invoke();
     }
 
+    // 2.2 Kolay NestDesk: Düzenle paneli
+
+    /// <summary>
+    /// "Bu görünümü tüm widget'lara uygula" (Düzenle paneli): kaynağın teması, arka planı ve vurgu rengi bütün widget'lara
+    /// (notlar hariç: kendi kağıt renkleri var) yazılır. Bildirimdeki "Geri al" için her birinin önceki görünüşünü döner
+    /// (<see cref="UndoLookCopy"/>).
+    /// </summary>
+    internal IReadOnlyList<(string Id, LookFields Before)> CopyLookToAll(WidgetConfig source)
+    {
+        var before = LookGallery.CopyToAll(source, AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList());
+        if (before.Count == 0) return before;
+        AppHost.SaveSettings();
+        foreach (var (id, _) in before) Restyle(id);
+        Changed?.Invoke();
+        return before;
+    }
+
+    /// <summary><see cref="CopyLookToAll"/>'u geri alır: hâlâ duran widget'lar önceki görünüşüne döner (kaldırılanlar atlanır).</summary>
+    internal void UndoLookCopy(IReadOnlyList<(string Id, LookFields Before)> before)
+    {
+        var restored = LookGallery.Undo(before, AppHost.Settings.Widgets);
+        if (restored.Count == 0) return;
+        AppHost.SaveSettings();
+        foreach (var id in restored) Restyle(id);
+        Changed?.Invoke();
+    }
+
+    /// <summary>Bir widget'ın adı ya da simgesi değişti (Düzenle paneli): Widget'lar listesi ve tepsi güncellensin.</summary>
+    internal void NotifyChanged() => Changed?.Invoke();
+
     /// <summary>
     /// Pencereleri gizler/gösterir. Yalnızca <see cref="AppHost.ApplyDesktopState"/> çağırır: başka yerden gizlemek/göstermek
     /// tepsiyi, Ayarlar'ı ve Windows simgelerini durumla çelişik bırakır (bunun yerine <see cref="AppHost.EnsureWidgetsShown"/>).

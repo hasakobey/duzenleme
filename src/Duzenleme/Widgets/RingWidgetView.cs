@@ -25,7 +25,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     private readonly RingView _ring = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Grid _nameBox;
     private readonly TextBlock _nameText;
-    private readonly Button _remove;
+    private readonly CardButtons _corner;
     private readonly WidgetNameLine _name;
     private readonly LauncherEdits _edits;
     private readonly ContextMenu _itemMenu;
@@ -46,20 +46,19 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center,
             FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
         };
-        _nameBox = new Grid { Margin = new Thickness(22, -2, 22, 6), Visibility = Visibility.Collapsed };
+        _nameBox = new Grid { Margin = new Thickness(44, -2, 44, 6), Visibility = Visibility.Collapsed };
         _nameBox.Children.Add(_nameText);
         Grid.SetRow(_ring, 1);
-        _remove = new Button { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -10, -12, 0) };
-        _remove.SetResourceReference(StyleProperty, "WidgetCloseButton");
-        _remove.Click += (_, _) => AppHost.Widgets.RemoveWithUndo(_config.Id);
-        Grid.SetRowSpan(_remove, 2);
+        // Sağ üst köşede hep yerinde, sönük: ⋯ Düzenle ve × (kilitliyken kilit).
+        _corner = new CardButtons { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -10, -12, 0) };
+        Grid.SetRowSpan(_corner, 2);
         // Saydam zemin: halkanın dışına da bırakılabilsin (basıp sürüklemek yine widget'ı taşır).
         var root = new Grid { Background = Brushes.Transparent };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
         root.Children.Add(_nameBox);
         root.Children.Add(_ring);
-        root.Children.Add(_remove);
+        root.Children.Add(_corner);
         Content = root;
 
         // Ad halkanın ortasında yazılır; satır yalnızca F2 / "Yeniden adlandır" sürerken halkanın üstünde açılır.
@@ -143,7 +142,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     private void ApplyParts()
     {
-        _remove.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        _corner.Update(_config);
         _name.Render();
         // "Göster ▸ Ad" kapalıyken boştaki ortada adın yerine widget'ın simgesi.
         _ring.CenterShowsIcon = !_config.Shows(WidgetNameLine.PartKey);
@@ -155,7 +154,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     {
         _name.ApplyPalette(palette);
         _ring.ApplyPalette(palette);
-        _remove.Foreground = palette.Foreground;
+        _corner.Paint(palette);
         ClearTypeText.Follow(this, _ring);
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir
     }
@@ -166,8 +165,14 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         _ring.UpdateIconSizes();
     }
 
-    /// <summary>F2 ve "Yeniden adlandır": halkanın adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    /// <summary>F2: halkanın adı (bkz. <see cref="WidgetNameLine"/>; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
+
+    public bool RefreshTitle()
+    {
+        _name.Refresh();
+        return true;
+    }
 
     public void Detach()
     {
@@ -179,24 +184,23 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- widget menüsü
 
+    /// <summary>
+    /// Menüde: "Uygulama ekle…" (Başlat menüsündeki uygulamalar, gösterilen halkaya) ve "Tuşla imlecin yanında açılsın" (açıkken
+    /// tuşuyla). Öbür öğe türleri (web adresi, komut, tuşlar…) Düzenle panelinin "Öğe ekle"sinde; kaldırılanın "Geri al"ı bildirimde.
+    /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
-        if (UndoText is { } undo)
-        {
-            menu.Primary.Add(Menus.Item(undo, UndoRemove));
-            menu.Primary.Add(new Separator());
-        }
-        // Başlat menüsündeki uygulamalar (gösterilen halkaya); öbür türler (web adresi, komut, tuşlar…) "Öğe ekle ▸"de.
         menu.Primary.Add(Menus.Item(L.T("Uygulama ekle…"), () => AddApps(CurrentTab, () => null)));
-        menu.Primary.Add(AddMenu(CurrentTab, () => null, withApps: false));
         // Kısayolla imleçte açılan halka (bkz. RingShortcut): yalnızca kısayolun açtığı halkada işaretli; açarken ne yaptığı
-        // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır.
-        menu.Primary.Add(Menus.Toggle(L.T("Tuşla imlecin yanında açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
-            staysOpen: false));
-        if (_ring.InSubRing) menu.Primary.Add(Menus.Item(L.T("Ana halkaya dön"), _ring.GoBack, KeyNames.Backspace));
-        menu.Primary.Add(_name.MenuItem());
-        menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
-        menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.ClosePart], ApplyParts));
+        // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır (panel yeniden kurulur).
+        var key = Menus.Toggle(L.T("Tuşla imlecin yanında açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
+            staysOpen: false);
+        if (RingShortcut.Opens(_config) && RingShortcut.Current is { } hotkey) key.InputGestureText = hotkey;
+        menu.Primary.Add(key);
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(AddMenu(CurrentTab, () => null, withApps: false));
+        menu.Settings.Add(Menus.Parts(_config,
+            [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.EditPart, Menus.ClosePart], ApplyParts));
     }
 
     /// <summary>
@@ -228,19 +232,6 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             add.Items.Add(Menus.Item(L.T("Alt halka…"), AddSubRing));
         }
         return add;
-    }
-
-    private void PickIcon()
-    {
-        if (Owner is not { } window) return;
-        Views.IconPicker.ForWidget(window, _config, WidgetText.DisplayName(_config),
-            preview: icon => _ring.PreviewIcon(icon, active: !string.Equals(icon, _config.Icon, StringComparison.Ordinal)),
-            commit: icon =>
-            {
-                _config.Icon = icon;
-                AppHost.SaveSettings();
-                _ring.PreviewIcon(null, active: false);
-            });
     }
 
     // ---------------------------------------------------------------- öğe menüsü
@@ -451,7 +442,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     /// <summary>
     /// Alt halkayı (sekmeyi) içindekilerle birlikte kaldırır (soru yok: dosyalara dokunulmaz). Masaüstünden taşınmış öğeleri
-    /// başka kutuda yoksa masaüstüne döner; bildirimdeki ve menüdeki "Geri al" alt halkayı yerine koyar.
+    /// başka kutuda yoksa masaüstüne döner; bildirimdeki "Geri al" alt halkayı yerine koyar.
     /// </summary>
     private void RemoveSubRing(LauncherTab tab, string name)
     {
@@ -475,20 +466,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             L.T("Geri almak için buraya tıkla."));
     }
 
-    /// <summary>Menüdeki "Geri al" satırı; geri alınacak bir şey yoksa null.</summary>
-    private string? UndoText
-    {
-        get
-        {
-            if (_removedSubRing is { } sub) return L.F("Geri al: \"{0}\" halkaya dönsün", Menus.Literal(RingSlot.SubRingName(sub.Tab)));
-            if (_edits.LastRemoved is not { } last) return null;
-            var name = last.Entry.Path is { } path
-                ? (last.Look?.Name is { Length: > 0 } given ? given : RingSlot.DefaultPathName(path))
-                : last.Entry.Action is { } action ? (string.IsNullOrWhiteSpace(action.Name) ? RingSlot.DefaultName(action) : action.Name) : "";
-            return L.F("Geri al: \"{0}\" halkaya dönsün", Menus.Literal(name));
-        }
-    }
-
+    /// <summary>Bildirimdeki "Geri al": son kaldırılan öğeyi ya da alt halkayı yerine koyar.</summary>
     private void UndoRemove()
     {
         if (_removedSubRing is { } sub)

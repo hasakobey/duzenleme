@@ -25,7 +25,7 @@ internal readonly record struct LookOverride(
 /// Pencerede hiçbir Effect yoktur: yazılımla çizilen katmanlı pencerede efekt, içerideki her küçük değişiklikte bütün
 /// kartı yeniden işler (gölge <see cref="CardShadow"/> ile efektsiz çizilir).
 /// </summary>
-public sealed class WidgetWindow : Window
+public sealed class WidgetWindow : Window, Views.IEditorTarget
 {
     private const double ShadowMargin = 14;
     private const double MinScale = 0.5, MaxScale = 2.5;
@@ -44,7 +44,12 @@ public sealed class WidgetWindow : Window
     private int _nudge;
 
     public WidgetConfig Config { get; }
-    public IWidgetView View { get; }
+
+    /// <summary>
+    /// Kartın içindeki görünüm. Düzenle panelinin "Geri al"ı (ad ve simgeyi yerinde tazeleyemeyen görünümde bunlar da) yenisini
+    /// kurar (<see cref="RebuildView"/>).
+    /// </summary>
+    public IWidgetView View { get; private set; }
 
     public WidgetWindow(WidgetConfig config, IWidgetView view)
     {
@@ -125,11 +130,13 @@ public sealed class WidgetWindow : Window
         // değişince Windows'un pencereyi kaydırması kayıtlı düzeni bozmasın; ekran geri gelince eski yerine döner.
         MouseEnter += (_, _) => OnHover(true);
         MouseLeave += (_, _) => OnHover(false);
-        View.LayoutChanged += () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
+        _onLayoutChanged = () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
+        View.LayoutChanged += _onLayoutChanged;
         PreviewDragEnter += (_, _) => OnHover(true);
         _rollupTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _rollupTimer.Tick += (_, _) => { _rollupTimer.Stop(); TryRollUp(); };
-        View.CollapseToggleRequested += () => SetCollapsed(!Config.Collapsed);
+        _onCollapseToggle = () => SetCollapsed(!Config.Collapsed);
+        View.CollapseToggleRequested += _onCollapseToggle;
 
         ApplyStyle();
         ApplyLayoutMode();
@@ -407,75 +414,56 @@ public sealed class WidgetWindow : Window
     }
 
     /// <summary>
-    /// Sağ tık menüsünün iskeleti (Kolay NestDesk 1. dalga): üstte widget'ın asıl işleri, altta "Görünüm ▸" ve seyrek
-    /// kullanılanlar için "Diğer ▸", en altta "Kaldır". Widget'a özel parçaları görünüm sınıfı <see cref="WidgetMenu"/>
-    /// bölümlerine koyar. Seçenekler (görünüş, parçalar, kilit…) tıklanınca menü açık kalır ve widget hemen değişir; komutlar
-    /// (çoğalt, kaldır) menüyü kapatır. Menüde uygulama geneli öğe (widget ekle, göz at, mıknatıs, simge kipleri…), gri ipucu
-    /// satırı ve fareyle önizleme yoktur; fareye bağlı iki seçenek ("Fare üstünde değilken …") yalnızca açıkken görünür
-    /// (kapatılabilsin diye).
+    /// Sağ tık menüsü (Kolay NestDesk): "Düzenle…" (kalın; kartın ⋯ düğmesiyle aynı), widget'ın en çok iki işi, ayraç, kilitliyse
+    /// "Kilidi aç", "Kaldır". Bütün ayarlar (görünüş, parçalar, kilit, çoğaltma…) Düzenle panelindedir; menüde alt menü, uygulama
+    /// geneli öğe, gri ipucu satırı ve fareyle önizleme yoktur.
     /// </summary>
     private void FillMenu(ContextMenu menu)
     {
         var own = new WidgetMenu();
         View.AddMenuItems(own);
-
-        if (own.Primary.Count > 0)
-        {
-            foreach (var item in own.Primary) menu.Items.Add(item);
-            menu.Items.Add(new Separator());
-        }
-
-        var look = new MenuItem { Header = L.T("Görünüm") };
-        if (own.Appearance.Count > 0)
-        {
-            foreach (var item in own.Appearance) look.Items.Add(item);
-            look.Items.Add(new Separator());
-        }
-        // Not kendi kağıt rengini kullanır: tema, arka plan ve vurgu rengi orada etkisizdir, gösterilmez. Seçimlerin öncelik
-        // kuralları WidgetLooks'ta (tema seçmek vurgu rengini de getirir, klasik arka plan temayı kaldırır…).
-        if (View.UsesThemeColors)
-        {
-            look.Items.Add(LookMenus.Theme(Config, Update, SystemParameters.HighContrast));
-            look.Items.Add(LookMenus.Background(Config, Update));
-            look.Items.Add(LookMenus.Accent(Config, Update, PickAccentColor));
-        }
-        look.Items.Add(Menus.Choice(L.T("Ölçek"), () => Math.Round(Config.Scale, 2),
-            [(0.7, L.Percent(0.7)), (0.85, L.Percent(0.85)), (1.0, L.F("Normal ({0})", L.Percent(1))), (1.25, L.Percent(1.25)),
-             (1.5, L.Percent(1.5)), (2.0, L.Percent(2))],
-            v => Update(() => Config.Scale = v)));
-        look.Items.Add(Menus.Choice(L.T("Saydamlık"), () => Math.Round(Config.Opacity, 2),
-            [(1.0, L.T("Yok")), (0.85, L.Percent(0.15)), (0.7, L.Percent(0.3)), (0.55, L.Percent(0.45))],
-            v => Update(() => Config.Opacity = v)));
-        look.Items.Add(Menus.Choice(L.T("Köşeler"), () => Config.Corners,
-            [(CornerStyle.Round, L.T("Yuvarlak")), (CornerStyle.Soft, L.T("Hafif yuvarlak")), (CornerStyle.Square, L.T("Köşeli"))],
-            v => Update(() => Config.Corners = v)));
-        look.Items.Add(Menus.Toggle(L.T("Gölge"), () => Config.Shadow, () => Update(() => Config.Shadow = !Config.Shadow)));
-        // Fareye bağlı seçenek yalnızca açıkken görünür: kapatılabilsin (kapatınca menüden de kalkar).
-        look.Items.Add(Menus.Live(Menus.Toggle(L.T("Fare üstünde değilken soluk dursun"), () => Config.FadeUntilHover,
-            () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)), visible: () => Config.FadeUntilHover));
-        menu.Items.Add(look);
-
-        var more = new MenuItem { Header = L.T("Diğer") };
-        if (own.More.Count > 0)
-        {
-            foreach (var item in own.More) more.Items.Add(item);
-            more.Items.Add(new Separator());
-        }
-        // Başlığa katlama yalnızca başlığı görünen bölme/kutuda: başlık menü açıkken Göster ▸'den gizlenirse bunlar da kaybolur.
-        more.Items.Add(Menus.Live(Menus.Toggle(L.T("Başlığa katla"), () => Config.Collapsed, () => SetCollapsed(!Config.Collapsed)),
-            visible: () => View.Collapsible));
-        more.Items.Add(Menus.Live(Menus.Toggle(L.T("Fare üstünde değilken başlığa katla"), () => Config.AutoRollup, ToggleAutoRollup),
-            visible: () => View.Collapsible && Config.AutoRollup));
-        // Kilitli widget'ta kaldırma düğmesi de gizlenir (ApplyStyle görünümlere iletir).
-        more.Items.Add(Menus.Toggle(L.T("Konumu kilitle"), () => Config.Locked, () => SetLocked(!Config.Locked)));
-        more.Items.Add(Menus.Item(L.T("Çoğalt"), () => AppHost.Widgets.Duplicate(Config.Id)));
-        menu.Items.Add(more);
-
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item(L.T("Kaldır"), () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
+        BuildMenu(menu, own.Primary, Config.Locked, OpenEditor, () => SetLocked(false), () => AppHost.Widgets.RemoveWithUndo(Config.Id));
+        AnnounceEditPanelOnce();
     }
 
-    /// <summary>Konum kilidi (Diğer ▸ Konumu kilitle, kilitliyken sürükleyince çıkan bildirimdeki "Kilidi aç").</summary>
+    /// <summary>
+    /// Menünün satırları (testlenir): "Düzenle…" · widget'ın işleri (<see cref="WidgetMenu.MaxActions"/>; alt menü ve ayraç
+    /// girmez, ayarlar paneldedir) · ayraç · [Kilidi aç] · Kaldır. En çok beş satır.
+    /// </summary>
+    internal static void BuildMenu(ItemsControl menu, IEnumerable<object> actions, bool locked, Action edit, Action unlock, Action remove)
+    {
+        var editItem = Menus.Item(L.T("Düzenle…"), edit);
+        editItem.FontWeight = FontWeights.SemiBold;
+        menu.Items.Add(editItem);
+        // Görünüm en çok iki iş verir (WidgetMenuTests her türü dener); fazlası ve alt menü yine de menüye girmez.
+        foreach (var item in actions.OfType<MenuItem>().Where(a => a.Items.Count == 0).Take(WidgetMenu.MaxActions)) menu.Items.Add(item);
+        menu.Items.Add(new Separator());
+        if (locked) menu.Items.Add(Menus.Item(L.T("Kilidi aç"), unlock));
+        menu.Items.Add(Menus.Item(L.T("Kaldır"), remove));
+    }
+
+    /// <summary>
+    /// Kolay NestDesk'ten önceki kullanıcıya bir kez (ilk kart menüsünde): "Görünüm ▸" ve "Diğer ▸" kalktı, ayarlar Düzenle
+    /// panelinde. Yeni kullanıcı görmez (<see cref="Onboarding.PrepareNewUser"/> işaretler); paneli kendisi açan da görmez.
+    /// </summary>
+    private void AnnounceEditPanelOnce()
+    {
+        if (!MarkEditPanelKnown()) return;
+        Dispatcher.BeginInvoke(() => Views.Notice.Show(L.T("Görünüm ve diğer ayarlar artık \"Düzenle\"de."), Views.NoticeKind.Info),
+            DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>Düzenle paneli bilindi sayılır; daha önce bilinmiyorsa true.</summary>
+    private static bool MarkEditPanelKnown()
+    {
+        var settings = AppHost.Settings;
+        if (settings.EditPanelNoticeShown) return false;
+        settings.EditPanelNoticeShown = true;
+        AppHost.SaveSettings();
+        return true;
+    }
+
+    /// <summary>Konum kilidi (Düzenle ▸ Daha fazla ▸ Konumu kilitle; "Kilidi aç": menü, kartın kilit düğmesi, sürükleyince çıkan bildirim).</summary>
     internal void SetLocked(bool locked)
     {
         if (Config.Locked == locked) return;
@@ -485,16 +473,18 @@ public sealed class WidgetWindow : Window
     }
 
     /// <summary>
-    /// Görünüm ▸ Vurgu rengi ▸ Özel renk…: renk seçici kartın yanında açılır; seçilen renk widget'ta hemen önizlenir, Kaydet yazar
+    /// Düzenle ▸ Renk ▸ "Özel…": renk seçici kartın (ve panelin) yanında açılır; seçilen renk widget'ta hemen önizlenir, Kaydet yazar
     /// (adlı renk 2.1 için en yakın değere), Vazgeç kayıtlı renge döner.
     /// </summary>
-    private void PickAccentColor() =>
+    /// <param name="saved">Renk yazıldıktan sonra (Düzenle paneli kendini tazeler).</param>
+    private void PickAccentColor(Action saved) =>
         Views.ColorPickerDialog.ForWidget(this, WidgetLooks.CustomAccent(Config) ?? CurrentAccentHex(),
             hex => HoldPreview(hex is null ? null : new LookOverride(AccentColor: hex)),
             hex =>
             {
                 _heldPreview = null;
                 Update(() => WidgetLooks.SetAccentColor(Config, hex));
+                saved();
             });
 
     /// <summary>Kayıtlı görünüşün vurgu rengi ("#RRGGBB"; önizlemesiz, yüksek karşıtlık yokmuş gibi): seçici bununla açılır.</summary>
@@ -515,7 +505,7 @@ public sealed class WidgetWindow : Window
     }
 
     /// <summary>Görünüş ayarını değiştirir, uygular ve kaydettirir; menüdeki önizleme (varsa) seçilen değerle biter.</summary>
-    private void Update(Action change)
+    internal void Update(Action change)
     {
         change();
         _preview = _wantedPreview = _heldPreview;
@@ -523,6 +513,157 @@ public sealed class WidgetWindow : Window
         AppHost.SaveSettings();
         ResolveOverlapAfterLayout(); // ölçek büyüdüyse komşusunun üstüne binmesin
     }
+
+    // ---------------------------------------------------------------- 2.2 Kolay NestDesk: Düzenle paneli
+
+    /// <summary>
+    /// "Düzenle…" (menünün ilk satırı) ve kartın ⋯ düğmesi: panel kartın yanında açılır; başka bir kartta açıksa bu karta geçer.
+    /// </summary>
+    internal void OpenEditor()
+    {
+        MarkEditPanelKnown();
+        Dispatcher.BeginInvoke(() =>
+        {
+            // Menü kapandıktan sonra: kapanan menü odağı karta geri verirken paneli arkaya itmesin.
+            if (!_leaving && !_closed) Views.WidgetEditorWindow.ShowFor(this);
+        }, DispatcherPriority.Background);
+    }
+
+    private Action _onLayoutChanged, _onCollapseToggle;
+
+    /// <summary>
+    /// Görünümü ayardan yeniden kurar (Düzenle panelinin "Geri al"ı; ad ve simgeyi yerinde tazeleyemeyen görünümde bunlar da):
+    /// görünümlerin başlığı, simgesi ve parçaları
+    /// ayarı okuyarak çizilir, her görünümün kendi yenileme yolu yoktur. Önce bekleyen içerik yazılır; yeni görünüm eskisi
+    /// bırakılmadan kurulur (paylaşılan klasör izleyicisi kapanıp yeniden açılmasın). Kartın yeri ve boyutu değişmez.
+    /// </summary>
+    internal void RebuildView()
+    {
+        if (_closed) return;
+        var old = View;
+        old.Flush();
+        var view = WidgetViews.Create(Config);
+        old.LayoutChanged -= _onLayoutChanged;
+        old.CollapseToggleRequested -= _onCollapseToggle;
+        View = view;
+        _card.Padding = view.CardPadding;
+        _card.Child = (UIElement)view;
+        view.LayoutChanged += _onLayoutChanged;
+        view.CollapseToggleRequested += _onCollapseToggle;
+        old.Detach();
+        ApplyStyle();
+        ApplyLayoutMode();
+        if (_live == true) view.SetLive(true);
+        if (IsActive) FocusCard();
+    }
+
+    // Değişince görünümün yeniden kurulması gerekmeyen alanlar (ApplyStyle/yerleşim yeter).
+    private static readonly HashSet<string> StyleOnly =
+    [
+        nameof(WidgetConfig.Style), nameof(WidgetConfig.Accent), nameof(WidgetConfig.LookTheme), nameof(WidgetConfig.LookAccentColor),
+        nameof(WidgetConfig.Scale), nameof(WidgetConfig.Opacity), nameof(WidgetConfig.Corners), nameof(WidgetConfig.Shadow),
+        nameof(WidgetConfig.FadeUntilHover), nameof(WidgetConfig.AutoRollup), nameof(WidgetConfig.Collapsed),
+        nameof(WidgetConfig.Locked), nameof(WidgetConfig.NoteColor),
+    ];
+
+    // Görünümün başlığı yerinde tazeleyebildiği alanlar (IWidgetView.RefreshTitle).
+    private static readonly HashSet<string> TitleOnly = [nameof(WidgetConfig.Title), nameof(WidgetConfig.Icon)];
+
+    /// <summary>
+    /// Ad ya da simge değişti: görünüm başlığı yerinde tazeler (<see cref="IWidgetView.RefreshTitle"/>), yapamıyorsa yeniden
+    /// kurulur. Görünüm yerinde kalınca panelin ya da kartın o an basılan düğmesi kaybolmaz, büyük bölme yeniden dolmaz.
+    /// </summary>
+    private void ShowTitleAndIcon()
+    {
+        if (!View.RefreshTitle()) RebuildView();
+    }
+
+    /// <summary>
+    /// Düzenle panelinin "Geri al"ı: ayar panel açıldığındaki hâline döner (<see cref="ConfigSnapshot"/>: yer, boyut ve notun
+    /// metni hariç). Yalnızca görünüş değiştiyse yeniden çizilir, başka bir şey de değiştiyse görünüm yeniden kurulur; kutunun
+    /// öğeleri değiştiyse masaüstündeki taşınmış öğeler ve kutudaki dosyaların listesi uzlaştırılır.
+    /// </summary>
+    internal void RestoreFrom(ConfigSnapshot snapshot)
+    {
+        if (_closed || snapshot.Id != Config.Id) return;
+        View.Flush();
+        var collapsed = Config.Collapsed;
+        var changed = snapshot.Restore(Config);
+        if (changed.Count == 0) return;
+        AppHost.SaveSettings();
+        if (changed.Contains(nameof(WidgetConfig.Tabs)) || changed.Contains(nameof(WidgetConfig.ItemLooks)))
+        {
+            BoxMover.Reconcile();
+            AppHost.RefreshPinnedPaths();
+        }
+        if (changed.Any(name => !StyleOnly.Contains(name) && !TitleOnly.Contains(name))) RebuildView();
+        else if (changed.Any(TitleOnly.Contains)) ShowTitleAndIcon();
+        // "Masaüstünü bölmeler yönetsin": geri gelen kaynakla bir tür hiçbir bölmede kalmadıysa mod kapanır.
+        if (changed.Contains(nameof(WidgetConfig.Filter))) FenceView.KeepDesktopCovered();
+        if (Config.Collapsed != collapsed)
+        {
+            var wanted = Config.Collapsed;
+            Config.Collapsed = collapsed;
+            if (View.Collapsible) SetCollapsed(wanted);
+            else Config.Collapsed = wanted;
+        }
+        if (!Config.AutoRollup) _rolledUp = false;
+        _preview = _wantedPreview = _heldPreview = null;
+        ApplyStyle();
+        ApplyLayoutMode();
+        ResolveOverlapAfterLayout();
+    }
+
+    void Views.IEditorTarget.Update(Action change) => Update(change);
+
+    void Views.IEditorTarget.SetLocked(bool locked) => SetLocked(locked);
+
+    void Views.IEditorTarget.SetAutoRollup(bool on)
+    {
+        if (Config.AutoRollup != on) ToggleAutoRollup();
+    }
+
+    void Views.IEditorTarget.Rename(string? title)
+    {
+        if (string.Equals(Config.Title, title, StringComparison.Ordinal)) return;
+        Config.Title = title;
+        AppHost.SaveSettings();
+        ShowTitleAndIcon();
+        AppHost.Widgets?.NotifyChanged();
+    }
+
+    void Views.IEditorTarget.PickIcon(Action<string?> preview, Action saved) =>
+        Views.IconPicker.ForWidget(this, Config, WidgetText.DisplayName(Config), preview, icon =>
+        {
+            if (string.Equals(icon, Config.Icon, StringComparison.Ordinal)) return;
+            Config.Icon = icon;
+            AppHost.SaveSettings();
+            ShowTitleAndIcon();
+            AppHost.Widgets?.NotifyChanged();
+            saved();
+        });
+
+    void Views.IEditorTarget.PickAccentColor(Action saved) => PickAccentColor(saved);
+
+    void Views.IEditorTarget.Restore(ConfigSnapshot snapshot)
+    {
+        RestoreFrom(snapshot);
+        AppHost.Widgets?.NotifyChanged();
+    }
+
+    IReadOnlyList<(string Id, LookFields Before)> Views.IEditorTarget.ApplyLookToAll() =>
+        AppHost.Widgets?.CopyLookToAll(Config) ?? [];
+
+    void Views.IEditorTarget.UndoLookToAll(IReadOnlyList<(string Id, LookFields Before)> before) =>
+        AppHost.Widgets?.UndoLookCopy(before);
+
+    void Views.IEditorTarget.Duplicate() => AppHost.Widgets?.Duplicate(Config.Id);
+
+    void Views.IEditorTarget.Remove() => AppHost.Widgets?.RemoveWithUndo(Config.Id);
+
+    Box? Views.IEditorTarget.CardBox => VisibleCardBox;
+
+    NativeMethods.POINT Views.IEditorTarget.CenterPoint => CenterPoint;
 
     /// <summary>Kaydedilmiş fiziksel konum hâlâ bağlı bir monitörün çalışma alanında mı?</summary>
     private static bool IsOnSomeMonitor(int x, int y)

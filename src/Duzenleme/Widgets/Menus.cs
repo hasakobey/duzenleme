@@ -10,13 +10,15 @@ using Duzenleme.Core;
 namespace Duzenleme.Widgets;
 
 /// <summary>
-/// Widget sağ tık menüleri için küçük yardımcılar.
+/// Widget sağ tık menüleri ve Düzenle paneli için küçük yardımcılar.
 /// <para>İki tür öğe var. <b>Komut</b> (<see cref="Item"/>: aç, ekle, kaldır, pencere açan işler) tıklanınca menüyü kapatır.
 /// <b>Seçenek</b> (<see cref="Toggle"/>, <see cref="Choice{T}"/>, <see cref="Parts"/>, <see cref="TileOptions"/>) durumunu
 /// bir okuyucudan alır, tıklanınca menü açık kalır ve widget hemen değişir; ardından <see cref="Sync"/> menüdeki bütün
-/// işaretleri, etkinlikleri ve başlıkları yerinde tazeler. Kaynağı, başlığı ya da menünün kendisini değiştiren seçenekler
-/// (ör. "Ne gösterilsin?", zamanlayıcının türü) <c>staysOpen: false</c> ile kapatır. Fareyle üstüne gelmek hiçbir öğede
-/// bir şey değiştirmez (önizleme yok); gri ipucu satırı ve uygulama geneli ayar widget menüsüne girmez.</para>
+/// işaretleri, etkinlikleri ve başlıkları yerinde tazeler. Kolay NestDesk: seçenekler Düzenle panelinde satır olarak çizilir
+/// (<c>Views.MenuRows</c>; <see cref="WidgetMenu.Settings"/> ve <see cref="WidgetMenu.More"/>); sağ tık menüsünde yalnızca widget'ın
+/// en çok iki işi durur. Kaynağı, başlığı ya da panelin yapısını değiştiren seçenekler (ör. zamanlayıcının türü)
+/// <c>staysOpen: false</c> ile işaretlenir (panel yeniden kurulur). Fareyle üstüne gelmek hiçbir öğede bir şey değiştirmez
+/// (önizleme yok); gri ipucu satırı ve uygulama geneli ayar widget menüsüne girmez.</para>
 /// </summary>
 public static class Menus
 {
@@ -43,10 +45,32 @@ public static class Menus
         bool staysOpen = true)
     {
         var parent = new MenuItem { Header = header };
+        parent.SetValue(PanelShapeProperty, PanelShape.Choice);
         foreach (var (value, label) in options)
             parent.Items.Add(new OptionMenuItem(label, () => EqualityComparer<T>.Default.Equals(current(), value), () => select(value), staysOpen));
         return parent;
     }
+
+    // 2.2 Kolay NestDesk 2. dalga: Düzenle paneli görünümlerin menü öğelerini satır olarak çizer (Views/MenuRows). Alt menünün
+    // ne olduğu yapısından anlaşılmaz (tek seçimli seçenekler de parça listesi de OptionMenuItem'dır): kuran yardımcı işaretler.
+
+    /// <summary>Alt menünün panelde nasıl çizileceği: Group = başlık ve altında satırlar, Choice = tek seçim, Parts = "Göster" listesi.</summary>
+    internal enum PanelShape { Group, Choice, Parts }
+
+    private static readonly DependencyProperty PanelShapeProperty =
+        DependencyProperty.RegisterAttached("PanelShape", typeof(PanelShape), typeof(Menus), new PropertyMetadata(PanelShape.Group));
+
+    private static readonly DependencyProperty PartKeyProperty =
+        DependencyProperty.RegisterAttached("PartKey", typeof(string), typeof(Menus));
+
+    /// <summary>Alt menünün panel biçimi (işaretlenmemişse Group).</summary>
+    internal static PanelShape ShapeOf(MenuItem item) => (PanelShape)item.GetValue(PanelShapeProperty);
+
+    /// <summary>"Göster" listesindeki seçeneğin parça anahtarı (HiddenParts); parça değilse null.</summary>
+    internal static string? PartKeyOf(MenuItem item) => item.GetValue(PartKeyProperty) as string;
+
+    /// <summary>Öğenin <see cref="Live{T}"/> okuyucularını çalıştırır (başlık, etkinlik, görünürlük); yoksa bir şey yapmaz.</summary>
+    internal static void RefreshLive(MenuItem item) => (item.GetValue(RefreshProperty) as Action)?.Invoke();
 
     /// <summary>
     /// Durumu değişebilen herhangi bir öğe (komut ya da alt menü başlığı): <see cref="Sync"/> başlığını, etkinliğini ve
@@ -149,10 +173,17 @@ public static class Menus
     }
 
     /// <summary>
-    /// Kaldırma düğmesi (×) parçası: beş widget türünün "Göster" listesinin sonunda durur. Kapalıyken widget yalnızca
-    /// menüdeki "Kaldır" ile kaldırılır ("Konumu kilitle" de düğmeyi gizler). Etiket <see cref="L.Dyn"/> ile çevrilir.
+    /// Kaldırma düğmesi (×) parçası: her widget'ın "Göster" listesinin sonunda durur (Düzenle panelinde "Daha fazla"da). Kapalıyken
+    /// widget menüdeki ya da paneldeki "Kaldır" ile kaldırılır; kilitli widget'ta ×'in yerinde kilit durur
+    /// (<see cref="CardButtons"/>). Etiket <see cref="L.Dyn"/> ile çevrilir.
     /// </summary>
     public static readonly (string Key, string Label) ClosePart = ("close", L.N("Kaldır düğmesi (×)"));
+
+    /// <summary>
+    /// Düzenle düğmesi (⋯) parçası (Kolay NestDesk; <see cref="ClosePart"/>'tan hemen önce): kapalıyken panel sağ tık menüsündeki
+    /// "Düzenle…" ile açılır.
+    /// </summary>
+    public static readonly (string Key, string Label) EditPart = ("edit", L.N("Düzenle düğmesi (⋯)"));
 
     /// <summary>
     /// "Göster" alt menüsü: widget'ın parçalarını tek tek açıp kapatır (menü açık kalır). Etiketler <see cref="L.N"/> ile
@@ -161,21 +192,20 @@ public static class Menus
     public static MenuItem Parts(WidgetConfig c, IEnumerable<(string Key, string Label)> parts, Action changed)
     {
         var parent = new MenuItem { Header = L.T("Göster") };
+        parent.SetValue(PanelShapeProperty, PanelShape.Parts);
         foreach (var (key, label) in parts)
-            parent.Items.Add(Toggle(L.Dyn(label), () => c.Shows(key), () =>
+        {
+            var toggle = Toggle(L.Dyn(label), () => c.Shows(key), () =>
             {
                 if (!c.HiddenParts.Remove(key)) c.HiddenParts.Add(key);
                 AppHost.SaveSettings();
                 changed();
-            }));
+            });
+            toggle.SetValue(PartKeyProperty, key);
+            parent.Items.Add(toggle);
+        }
         return parent;
     }
-
-    /// <summary>
-    /// Tıklanamayan durum satırı: yalnızca bir seçeneğin neden etkisiz olduğunu söyler (yüksek karşıtlıkta Tema ▸). Kısayol,
-    /// ipucu ya da başlık satırı olarak kullanma (Kolay NestDesk: menüde gri ipucu yok; <c>MenuTests</c> denetler).
-    /// </summary>
-    public static MenuItem Hint(string text) => new() { Header = text, IsEnabled = false };
 
     /// <summary>
     /// Menü başlığına giren veri (dosya, klasör, sekme adı): menü öğesi "_"yi erişim tuşu sayar ve gizlerdi
@@ -184,36 +214,32 @@ public static class Menus
     public static string Literal(string text) => text.Replace("_", "__", StringComparison.Ordinal);
 
     /// <summary>
-    /// Bölme ve kısayol kutusunun "Simgeler" alt menüsü: düzen, boyut, hizalama, aralık, yazı, adlar (hepsi menü açıkken
-    /// hemen uygulanır). <paramref name="first"/> en başa gelir (bölmenin "Sırala" alt menüsü).
+    /// Bölme ve kısayol kutusunun seyrek simge seçenekleri (Düzenle paneli ▸ "Daha fazla"): hizalama, aralık, yazı boyutu, adlar,
+    /// önizlemeler, tek tıkla açma ve 1–9; hepsi hemen uygulanır. Görünüş (Izgara/Liste) ve simge boyutu panelin üst bölümündedir
+    /// (<see cref="Views.EditorContent.TileLook"/>).
     /// </summary>
-    public static MenuItem TileOptions(WidgetConfig c, Action<Action> change, bool singleClickOption, MenuItem? first = null)
+    public static IReadOnlyList<MenuItem> TileOptions(WidgetConfig c, Action<Action> change, bool singleClickOption)
     {
-        var parent = new MenuItem { Header = L.T("Simgeler") };
-        if (first is not null) parent.Items.Add(first);
-        parent.Items.Add(Choice(L.T("Düzen"), () => c.View,
-            [(ItemView.Icons, L.T("Izgara")), (ItemView.List, L.T("Liste"))], v => change(() => c.View = v)));
-        parent.Items.Add(Choice(L.T("Boyut"), () => c.IconSize,
-            [(IconSize.Small, L.T("Küçük")), (IconSize.Medium, L.T("Orta")), (IconSize.Large, L.T("Büyük")), (IconSize.ExtraLarge, L.T("Çok büyük"))],
-            v => change(() => c.IconSize = v)));
-        parent.Items.Add(Choice(L.T("Hizalama"), () => c.Align,
-            [(TileAlign.Left, L.T("Sola")), (TileAlign.Center, L.T("Ortaya")), (TileAlign.Right, L.T("Sağa"))], v => change(() => c.Align = v)));
-        parent.Items.Add(Choice(L.T("Aralık"), () => c.Spacing,
-            [(TileSpacing.Compact, L.T("Sık")), (TileSpacing.Normal, L.T("Normal")), (TileSpacing.Wide, L.T("Geniş"))], v => change(() => c.Spacing = v)));
-        parent.Items.Add(Choice(L.T("Yazı boyutu"), () => c.LabelSize,
-            [(LabelSize.Small, L.T("Küçük")), (LabelSize.Normal, L.T("Normal")), (LabelSize.Large, L.T("Büyük"))], v => change(() => c.LabelSize = v)));
-        parent.Items.Add(new Separator());
-        parent.Items.Add(Toggle(L.T("Adları gizle"), () => c.HideLabels, () => change(() => c.HideLabels = !c.HideLabels)));
-        parent.Items.Add(Toggle(L.T("Önizlemeleri göster (resim, video, PDF)"), () => c.ShowPreviews, () => change(() => c.ShowPreviews = !c.ShowPreviews)));
+        var items = new List<MenuItem>
+        {
+            Choice(L.T("Hizalama"), () => c.Align,
+                [(TileAlign.Left, L.T("Sola")), (TileAlign.Center, L.T("Ortaya")), (TileAlign.Right, L.T("Sağa"))], v => change(() => c.Align = v)),
+            Choice(L.T("Aralık"), () => c.Spacing,
+                [(TileSpacing.Compact, L.T("Sık")), (TileSpacing.Normal, L.T("Normal")), (TileSpacing.Wide, L.T("Geniş"))], v => change(() => c.Spacing = v)),
+            Choice(L.T("Yazı boyutu"), () => c.LabelSize,
+                [(LabelSize.Small, L.T("Küçük")), (LabelSize.Normal, L.T("Normal")), (LabelSize.Large, L.T("Büyük"))], v => change(() => c.LabelSize = v)),
+            Toggle(L.T("Adları gizle"), () => c.HideLabels, () => change(() => c.HideLabels = !c.HideLabels)),
+            Toggle(L.T("Önizlemeleri göster (resim, video, PDF)"), () => c.ShowPreviews, () => change(() => c.ShowPreviews = !c.ShowPreviews)),
+        };
         if (singleClickOption)
-            parent.Items.Add(Toggle(L.T("Tek tıkla aç"), () => c.SingleClick, () => change(() => c.SingleClick = !c.SingleClick)));
+            items.Add(Toggle(L.T("Tek tıkla aç"), () => c.SingleClick, () => change(() => c.SingleClick = !c.SingleClick)));
         // 2.2 Kutu: görünüşü değiştirmez, kutucuklar yeniden kurulmaz (yalnızca kaydedilir). Rozet ve ipucu satırı yok.
-        parent.Items.Add(Toggle(L.T("Numara tuşlarıyla aç (1–9)"), () => c.QuickKeys, () =>
+        items.Add(Toggle(L.T("Numara tuşlarıyla aç (1–9)"), () => c.QuickKeys, () =>
         {
             c.QuickKeys = !c.QuickKeys;
             AppHost.SaveSettings();
         }));
-        return parent;
+        return items;
     }
 
     /// <summary>

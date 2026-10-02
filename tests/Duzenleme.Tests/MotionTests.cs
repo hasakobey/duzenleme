@@ -546,6 +546,24 @@ public class MotionTests
         Assert.True(offenders.Count == 0, "FitChromeToContent çağrılmıyor:\n" + string.Join("\n", offenders));
     }
 
+    [Fact]
+    public void Edit_panel_only_fades_in_and_never_previews_on_hover()
+    {
+        // Düzenle paneli: pencere yalnızca kısa bir solmayla gelir (Motion.Enter, Fade); satırlarında fareyle beliren, kayan ya da
+        // önizleyen bir şey yok (widget yalnızca tıklanınca değişir, önizleme yalnızca renk seçicide).
+        var views = Path.Combine(SourceRoot, "Views");
+        var window = string.Join("\n", File.ReadAllLines(Path.Combine(views, "WidgetEditorWindow.cs")).Select(StripComment));
+        Assert.Single(Regex.Matches(window, @"\bMotion\.\w+\("));
+        Assert.Contains("Motion.Enter(_root, MotionKind.Fade)", window);
+        foreach (var file in new[] { "WidgetEditor.cs", "EditorRows.cs", "LookGalleryControl.cs" })
+        {
+            var code = string.Join("\n", File.ReadAllLines(Path.Combine(views, file)).Select(StripComment));
+            Assert.DoesNotMatch(@"\bMotion\.", code);
+            Assert.DoesNotMatch(@"\bMouse(Enter|Leave|Move)\b|\.Preview\(|LookOverride", code);
+            Assert.DoesNotMatch(@"\.Effect\s*=|DropShadowEffect|BlurEffect|Visibility\s*=.*IsMouseOver", code);
+        }
+    }
+
     private static string StripComment(string line)
     {
         var index = line.IndexOf("//", StringComparison.Ordinal);

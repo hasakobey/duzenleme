@@ -319,7 +319,8 @@ internal sealed class IconPicker : FluentWindow
         if (!NativeMethods.GetWindowRect(hwnd, out var r)) return;
         var work = NativeMethods.WorkAreaAt(anchorPoint);
         var area = new Box(work.Left, work.Top, work.Right, work.Bottom);
-        var card = _anchor?.VisibleCardBox ?? new Box(anchorPoint.X, anchorPoint.Y, anchorPoint.X, anchorPoint.Y);
+        // Düzenle paneli açıksa kartın da panelin de yanına (ikisini de örtmesin).
+        var card = (_anchor is { } anchor ? WidgetEditorWindow.AnchorBox(anchor) : null) ?? new Box(anchorPoint.X, anchorPoint.Y, anchorPoint.X, anchorPoint.Y);
         var gap = (int)Math.Round(12 * NativeMethods.ScaleAt(anchorPoint));
         var (x, y) = AnchorPlacement.NextTo(card, r.Width, r.Height, area, gap);
         NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER);

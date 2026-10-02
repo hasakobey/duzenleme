@@ -144,10 +144,10 @@ public partial class CalendarView : UserControl, IWidgetView
         DayNames.Visibility = _config.Shows("weekdays") ? Visibility.Visible : Visibility.Collapsed;
         WeekHeader.Visibility = DayNames.Visibility;
         WeekColumn.Visibility = _config.Shows("weeknum") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         _name.Render();
-        // Başlık (ay ya da ad) gizliyken × gün adlarının üstüne binmesin.
-        Root.Margin = new Thickness(0, _config.Shows("header") || _name.IsShown || RemoveButton.Visibility != Visibility.Visible ? 0 : 14, 0, 0);
+        // Başlık (ay ya da ad) gizliyken ⋯ ve × gün adlarının üstüne binmesin.
+        Root.Margin = new Thickness(0, _config.Shows("header") || _name.IsShown || Corner.Visibility != Visibility.Visible ? 0 : 18, 0, 0);
         AutomationProperties.SetName(this, WidgetText.DisplayName(_config));
     }
 
@@ -160,7 +160,7 @@ public partial class CalendarView : UserControl, IWidgetView
         foreach (var week in _weeks) week.Foreground = palette.Secondary;
         WeekHeader.Foreground = palette.Secondary;
         foreach (var button in new[] { PrevButton, NextButton }) button.Foreground = palette.Foreground;
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         ClearTypeText.Follow(this, [MonthTitle, WeekHeader, .. _names, .. _weeks]);
         Render();
     }
@@ -195,7 +195,8 @@ public partial class CalendarView : UserControl, IWidgetView
         var back = Menus.Item(L.T("Bugüne dön"), () => Show(DateTime.Today), "Home");
         back.IsEnabled = _month != FirstOfMonth(DateTime.Today);
         menu.Primary.Add(back);
-        menu.Primary.Add(Menus.Choice<int?>(L.T("Haftanın ilk günü"), () => _config.FirstDayOfWeek,
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Choice<int?>(L.T("Haftanın ilk günü"), () => _config.FirstDayOfWeek,
             [(null, L.T("Dile göre")), (1, Culture.DateTimeFormat.GetDayName(DayOfWeek.Monday)), (0, Culture.DateTimeFormat.GetDayName(DayOfWeek.Sunday))],
             value =>
             {
@@ -203,16 +204,20 @@ public partial class CalendarView : UserControl, IWidgetView
                 AppHost.SaveSettings();
                 Render();
             }));
-        menu.Primary.Add(_name.MenuItem());
-        menu.Appearance.Add(Menus.Parts(_config,
-            [WidgetNameLine.Part, ("header", L.N("Ay ve düğmeler")), ("weekdays", L.N("Gün adları")), ("weeknum", L.N("Hafta numaraları")), Menus.ClosePart],
+        menu.Settings.Add(Menus.Parts(_config,
+            [WidgetNameLine.Part, ("header", L.N("Ay ve düğmeler")), ("weekdays", L.N("Gün adları")), ("weeknum", L.N("Hafta numaraları")),
+             Menus.EditPart, Menus.ClosePart],
             Render));
     }
 
-    /// <summary>F2 ve "Yeniden adlandır": takvimin adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    /// <summary>F2: takvimin adı (bkz. <see cref="WidgetNameLine"/>; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
 
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
+    public bool RefreshTitle()
+    {
+        _name.Refresh();
+        return true;
+    }
 
     public void Detach()
     {

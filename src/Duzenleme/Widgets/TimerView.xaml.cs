@@ -162,7 +162,7 @@ public partial class TimerView : UserControl, IWidgetView
         ProgressBox.Visibility = mode != TimerModes.Stopwatch && _config.Shows("progress") ? Visibility.Visible : Visibility.Collapsed;
         PhaseBox.Visibility = _config.Shows("phase") ? Visibility.Visible : Visibility.Collapsed;
         ButtonRow.Visibility = _config.Shows("buttons") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         AlertFrame.BorderBrush = _alert ? _palette.Accent : Brushes.Transparent;
         _name.Render();
         AutomationProperties.SetName(this, string.Join(", ", new[] { _name.Name, PhaseText.Text, DigitsText.Text }.OfType<string>()));
@@ -253,85 +253,114 @@ public partial class TimerView : UserControl, IWidgetView
         Fill.Background = palette.Accent;
         Track.Background = palette.BorderBrush;
         foreach (var button in new[] { StartButton, ResetButton, PlusButton }) button.Foreground = palette.Foreground;
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         foreach (var shadow in new[] { PhaseShadow, DigitsShadow }) shadow.Show(palette.TextShadow);
         ClearTypeText.Follow(this, PhaseText, PlusButton);
         Render();
     }
 
-    private static readonly int[] Presets = [1, 5, 10, 15, 20, 25, 30, 45, 60];
+    /// <summary>Zamanlayıcının hazır süreleri (Düzenle panelinde yongalar; başkası "Başka süre…" ile).</summary>
+    private static readonly int[] Presets = [1, 5, 10, 15, 25, 30, 45, 60];
 
+    /// <summary>Menüde: Başlat/Duraklat ve Sıfırla (kartın kısayollarıyla). Ayarlar Düzenle panelinde.</summary>
     public void AddMenuItems(WidgetMenu menu)
     {
         var running = TimerLogic.IsRunning(State);
         menu.Primary.Add(Menus.Item(running ? L.T("Duraklat") : L.T("Başlat"), StartPause, L.T("Boşluk")));
         menu.Primary.Add(Menus.Item(L.T("Sıfırla"), Reset, "R"));
-        // Tür değişince menünün kendisi (süre seçenekleri) değişir: seçim menüyü kapatır.
-        menu.Primary.Add(Menus.Choice(L.T("Tür"), () => Mode,
-            [(TimerModes.Countdown, L.T("Zamanlayıcı")), (TimerModes.Pomodoro, L.T("Pomodoro")), (TimerModes.Stopwatch, L.T("Kronometre"))],
-            mode =>
+        if (!menu.ForEditor) return;
+        if (Mode == TimerModes.Pomodoro)
+            menu.More.Add(Menus.Toggle(L.T("Sonraki aşama kendiliğinden başlasın"), () => State.AutoStartNext, () =>
+            {
+                State.AutoStartNext = !State.AutoStartNext;
+                AppHost.SaveSettings();
+            }));
+        menu.Settings.Add(Menus.Parts(_config,
+            [WidgetNameLine.Part, ("phase", L.N("Durum satırı")), ("progress", L.N("İlerleme çubuğu")), ("buttons", L.N("Düğmeler")),
+             Menus.EditPart, Menus.ClosePart],
+            Render));
+    }
+
+    /// <summary>
+    /// Düzenle paneli: "Tür" (Zamanlayıcı · Pomodoro · Kronometre; panel yeniden kurulur), zamanlayıcının süresi (yongalar ve
+    /// "Başka süre…"), Pomodoro'nun süreleri (25 / 5 / 15 · 50 / 10 / 30 · "Özel…") ve "Süre dolunca bildir". Çalışan aşamanın
+    /// süresi değişmez; durmuşsa yeni süre hemen görünür.
+    /// </summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        content.Segments(L.T("Tür"),
+            [
+                new(TimerModes.Countdown, L.T("Zamanlayıcı"), "Editor.Timer.Countdown"),
+                new(TimerModes.Pomodoro, L.T("Pomodoro"), "Editor.Timer.Pomodoro"),
+                new(TimerModes.Stopwatch, L.T("Kronometre"), "Editor.Timer.Stopwatch"),
+            ],
+            () => Mode, mode =>
             {
                 if (mode == Mode) return;
                 TimerLogic.SetMode(State, mode);
                 Changed();
-            }, staysOpen: false));
+            }, rebuild: true);
         switch (Mode)
         {
             case TimerModes.Countdown:
-                var minutes = MinutesChoice(L.T("Süre"), () => State.Minutes, value => TimerLogic.SetMinutes(State, value));
-                minutes.Items.Add(new Separator());
-                minutes.Items.Add(Menus.Item(L.T("Başka süre…"), AskMinutes));
-                menu.Primary.Add(minutes);
+                var minutes = Presets.Select(m => new Views.EditorChoice(Id(m), L.F("{0} dk", m), "Editor.Timer.Minutes." + Id(m))).ToList();
+                // Kayıtlı başka bir süre seçili yonga olarak görünür (kaybolmaz).
+                if (!Presets.Contains(State.Minutes))
+                    minutes.Add(new(Id(State.Minutes), L.F("{0} dk", State.Minutes), "Editor.Timer.Minutes.Custom"));
+                minutes.Add(new("other", L.T("Başka süre…"), "Editor.Timer.Minutes.Other", OpensWindow: true));
+                content.Chips(L.T("Süre"), minutes, () => Id(State.Minutes), id =>
+                {
+                    if (id == "other") AskMinutes();
+                    else if (int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value != State.Minutes)
+                        SetMinutes(value);
+                }, rebuild: true);
                 break;
             case TimerModes.Pomodoro:
-                menu.Primary.Add(PomodoroChoice());
-                menu.Primary.Add(Menus.Toggle(L.T("Sonraki aşama kendiliğinden başlasın"), () => State.AutoStartNext, () =>
+                var presets = TimerLogic.PomodoroPresets;
+                var choices = presets.Select((p, i) => new Views.EditorChoice(Id(i), L.F("{0} / {1} / {2} dk", p.Focus, p.Break, p.LongBreak),
+                    "Editor.Timer.Pomodoro." + (i + 1))).ToList();
+                choices.Add(new("custom", L.T("Özel…"), "Editor.Timer.Pomodoro.Custom", OpensWindow: true));
+                content.Chips(L.T("Süre"), choices, () =>
                 {
-                    State.AutoStartNext = !State.AutoStartNext;
-                    AppHost.SaveSettings();
-                }));
+                    var index = presets.ToList().IndexOf(TimerLogic.PomodoroMinutes(State));
+                    return index < 0 ? "custom" : Id(index);
+                }, id =>
+                {
+                    if (id == "custom") AskPomodoro();
+                    else if (int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && index < presets.Count)
+                    {
+                        TimerLogic.SetPomodoro(State, presets[index]);
+                        Changed();
+                    }
+                });
                 break;
         }
         if (Mode != TimerModes.Stopwatch)
-            menu.Primary.Add(Menus.Toggle(L.T("Süre dolunca bildir"), () => State.Notify, () =>
+            content.Switch(L.T("Süre dolunca bildir"), "Editor.Timer.Notify", () => State.Notify, on =>
             {
-                State.Notify = !State.Notify;
+                State.Notify = on;
                 AppHost.SaveSettings();
-            }));
-        menu.Primary.Add(_name.MenuItem());
-        menu.Appearance.Add(Menus.Parts(_config,
-            [WidgetNameLine.Part, ("phase", L.N("Durum satırı")), ("progress", L.N("İlerleme çubuğu")), ("buttons", L.N("Düğmeler")), Menus.ClosePart],
-            Render));
+            });
+        return true;
     }
 
-    /// <summary>F2 ve "Yeniden adlandır": zamanlayıcının adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    private static string Id(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>Zamanlayıcının süresi; çalışmıyorsa yeni süre hemen görünür (çalışan aşamanın süresi değişmez).</summary>
+    private void SetMinutes(int minutes)
+    {
+        TimerLogic.SetMinutes(State, minutes);
+        if (!TimerLogic.IsRunning(State)) State.RemainingTicks = null;
+        Changed();
+    }
+
+    /// <summary>F2: zamanlayıcının adı (bkz. <see cref="WidgetNameLine"/>; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
 
-    /// <summary>Dakika seçimi; çalışmıyorsa yeni süre hemen görünür (çalışan aşamanın süresi değişmez).</summary>
-    private MenuItem MinutesChoice(string header, Func<int> current, Action<int> set, params int[] options) =>
-        Menus.Choice(header, current, (options.Length > 0 ? options : Presets).Select(m => (m, L.F("{0} dk", m))), value =>
-        {
-            set(value);
-            if (!TimerLogic.IsRunning(State)) State.RemainingTicks = null;
-            Changed();
-        });
-
-    /// <summary>
-    /// Pomodoro "Süre ▸": iki hazır üçlü (odak / mola / uzun mola) ve "Özel…" (üçünü tek pencerede sorar; menü kapanır).
-    /// Kayıtlı süreler hazırlardan biri değilse "Özel…" işaretlidir.
-    /// </summary>
-    private MenuItem PomodoroChoice()
+    public bool RefreshTitle()
     {
-        var item = Menus.Choice(L.T("Süre"), () => TimerLogic.PomodoroMinutes(State),
-            TimerLogic.PomodoroPresets.Select(p => (p, L.F("{0} / {1} / {2} dk", p.Focus, p.Break, p.LongBreak))), value =>
-            {
-                TimerLogic.SetPomodoro(State, value);
-                Changed();
-            });
-        item.Items.Add(new Separator());
-        item.Items.Add(Menus.Toggle(L.T("Özel…"), () => !TimerLogic.PomodoroPresets.Contains(TimerLogic.PomodoroMinutes(State)),
-            AskPomodoro, staysOpen: false));
-        return item;
+        _name.Refresh();
+        return true;
     }
 
     private void AskPomodoro()
@@ -358,11 +387,8 @@ public partial class TimerView : UserControl, IWidgetView
         if (InputDialog.Ask(L.T("Zamanlayıcı"), L.T("Süre (dakika)"), State.Minutes.ToString(Culture),
                 (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is not { } text) return;
         if (!int.TryParse(text.Trim(), NumberStyles.Integer, Culture, out var minutes) || minutes < TimerLogic.MinMinutes) return;
-        TimerLogic.SetMinutes(State, minutes);
-        Changed();
+        SetMinutes(minutes);
     }
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach()
     {

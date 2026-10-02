@@ -93,8 +93,8 @@ public partial class CountdownView : UserControl, IWidgetView
         DateText.Foreground = _palette.Secondary;
         TitleBox.Visibility = _config.Shows("title") ? Visibility.Visible : Visibility.Collapsed;
         DateBox.Visibility = _config.Shows("date") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Foreground = _palette.Foreground;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Paint(_palette);
+        Corner.Update(_config);
     }
 
     public void ApplyPalette(WidgetPalette palette)
@@ -107,17 +107,34 @@ public partial class CountdownView : UserControl, IWidgetView
         Render();
     }
 
+    /// <summary>
+    /// Geri sayımın menüde işi yok. Düzenle panelinde: etkinliğin adı (panelin ad kutusu), gün ve "Her yıl yinele"
+    /// (<see cref="AddEditorContent"/>), parçalar.
+    /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
-        // Ad ve gün tek pencerede değişir (F2 adı yerinde de düzenler).
-        menu.Primary.Add(Menus.Item(L.T("Tarihi ve adı değiştir…"), Edit));
-        menu.Primary.Add(Menus.Toggle(L.T("Her yıl yinele"), () => _config.CountdownYearly, () =>
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Parts(_config,
+            [("title", L.N("Etkinliğin adı")), ("date", L.N("Tarih satırı")), Menus.EditPart, Menus.ClosePart], Render));
+    }
+
+    /// <summary>Düzenle paneli: gün (takvimden ya da yazarak) ve "Her yıl yinele"; ikisi de hemen uygulanır.</summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        content.Date(L.T("Gün"), "Editor.Countdown.Date", () => Target, day =>
         {
-            _config.CountdownYearly = !_config.CountdownYearly;
+            // Yalnızca gün: saat dilimi eki olmadan saklanır (yolculukta ya da dilim değişince gün kaymasın).
+            _config.TargetDate = DateTime.SpecifyKind(day.Date, DateTimeKind.Unspecified);
             AppHost.SaveSettings();
             Render();
-        }));
-        menu.Appearance.Add(Menus.Parts(_config, [("title", L.N("Etkinliğin adı")), ("date", L.N("Tarih satırı")), Menus.ClosePart], Render));
+        });
+        content.Switch(L.T("Her yıl yinele"), "Editor.Countdown.Yearly", () => _config.CountdownYearly, on =>
+        {
+            _config.CountdownYearly = on;
+            AppHost.SaveSettings();
+            Render();
+        });
+        return true;
     }
 
     /// <summary>
@@ -127,6 +144,13 @@ public partial class CountdownView : UserControl, IWidgetView
     {
         if (_titleEditor.Begin()) return true;
         Edit();
+        return true;
+    }
+
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        Render();
         return true;
     }
 
@@ -146,8 +170,6 @@ public partial class CountdownView : UserControl, IWidgetView
         NativeMethods.GetWindowRect(source.Handle, out var r)
             ? new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 }
             : null;
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach()
     {

@@ -8,14 +8,14 @@ namespace Duzenleme.Widgets;
 /// Başlık satırı olmayan küçük widget'ların (zamanlayıcı, Pomodoro, kronometre, dünya saati, takvim, sistem durumu) isteğe
 /// bağlı adı (<see cref="WidgetConfig.Title"/>): aynı türden birkaç widget (ör. çay ve çamaşır zamanlayıcısı) Widget'lar
 /// listesinde, tepsideki "Geri getir"de ve "Süre doldu" bildiriminde ayırt edilsin (bkz. <see cref="WidgetText"/>).
-/// <para>Ad verilmemişse satır yoktur ve widget'ın görünümü değişmez; verilince widget'ın üstünde bir satırda görünür. F2 ve
-/// "Yeniden adlandır" satırı yerinde düzenler (<see cref="TitleEditor"/>; Enter/dışarı tıklama kaydeder, Esc vazgeçer, boş
-/// bırakılırsa ad kalkar). "Görünüm ▸ Göster ▸ Ad" satırı gizler; gizliyken yeniden adlandırma küçük bir pencere açar.
+/// <para>Ad verilmemişse satır yoktur ve widget'ın görünümü değişmez; verilince widget'ın üstünde bir satırda görünür. F2 satırı
+/// yerinde düzenler (<see cref="TitleEditor"/>; Enter/dışarı tıklama kaydeder, Esc vazgeçer, boş bırakılırsa ad kalkar); Düzenle
+/// panelinin ad kutusu da aynı adı yazar. "Düzenle ▸ Göster ▸ Ad" satırı gizler; gizliyken F2 küçük bir pencere açar.
 /// Title 2.0'da da vardır: bu türleri tanımayan sürüm onu korur.</para>
 /// </summary>
 internal sealed class WidgetNameLine
 {
-    /// <summary>"Göster ▸" menüsündeki parça (HiddenParts anahtarı).</summary>
+    /// <summary>"Göster" listesindeki parça (HiddenParts anahtarı).</summary>
     public const string PartKey = "title";
 
     public static (string Key, string Label) Part => (PartKey, L.N("Ad"));
@@ -84,8 +84,7 @@ internal sealed class WidgetNameLine
     }
 
     /// <summary>
-    /// F2 ve "Yeniden adlandır": ad yerinde düzenlenir (ad yoksa satır düzenleme süresince açılır). Satır gizlenmişse ad küçük
-    /// bir pencerede sorulur.
+    /// F2: ad yerinde düzenlenir (ad yoksa satır düzenleme süresince açılır). Satır gizlenmişse ad küçük bir pencerede sorulur.
     /// </summary>
     public bool Begin()
     {
@@ -108,9 +107,6 @@ internal sealed class WidgetNameLine
         return true;
     }
 
-    /// <summary>Widget menüsünün "Yeniden adlandır" öğesi (F2 ipucuyla).</summary>
-    public MenuItem MenuItem() => Menus.Item(L.T("Yeniden adlandır"), () => Begin(), KeyNames.F2);
-
     public void ApplyPalette(WidgetPalette palette)
     {
         _textShadow = palette.TextShadow;
@@ -121,4 +117,12 @@ internal sealed class WidgetNameLine
     }
 
     public void Cancel() => _editor.Cancel();
+
+    /// <summary>Ad başka yerden (Düzenle panelinin ad kutusu) değişti: satır ve görünüm (erişilebilirlik adı dahil) yeniden çizilir.</summary>
+    public void Refresh()
+    {
+        _editor.Cancel();
+        Render();
+        _changed();
+    }
 }
