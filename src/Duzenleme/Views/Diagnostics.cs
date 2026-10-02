@@ -336,7 +336,7 @@ internal static class Diagnostics
 
     /// <summary>
     /// "Tanılama paketi oluştur": içerik önce gösterilir (girecekler / girmeyecekler), sonra Kaydet penceresi Belgeler'de açılır
-    /// (masaüstünde "Arşivler" kuralı zip'i taşırdı), zip arka planda yazılır ve "Klasörde göster" sunulur. Hiçbir şey gönderilmez.
+    /// (masaüstünde "Arşivler" kuralı zip'i taşırdı), zip arka planda yazılır ve "Dosya konumunu aç" sunulur. Hiçbir şey gönderilmez.
     /// </summary>
     public static async void CreatePackage(Window? owner)
     {
@@ -382,7 +382,7 @@ internal static class Diagnostics
                 return;
             }
             AppLog.Info("diagnostics", "package-saved");
-            Notice.Show(L.T("Tanılama paketi kaydedildi."), NoticeKind.Success, L.T("Klasörde göster"), () => Reveal(path, Path.GetDirectoryName(path) ?? path));
+            Notice.Show(L.T("Tanılama paketi kaydedildi."), NoticeKind.Success, L.T("Dosya konumunu aç"), () => Reveal(path, Path.GetDirectoryName(path) ?? path));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

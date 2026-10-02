@@ -201,7 +201,6 @@ public partial class WorldClockView : UserControl, IWidgetView
         menu.Primary.Add(ClockView.HourFormatChoice(_config, Update));
         menu.Primary.Add(_name.MenuItem());
         menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, ("day", L.N("Dün / yarın")), ("offset", L.N("Saat farkı")), Menus.ClosePart], Update));
-        menu.More.Add(Menus.Hint(L.T("Satıra sağ tık: adını değiştir, taşı, kaldır")));
     }
 
     /// <summary>F2 ve "Yeniden adlandır": widget'ın adı (şehirlerin adı satır menüsünden değişir).</summary>

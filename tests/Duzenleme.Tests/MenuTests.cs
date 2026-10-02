@@ -222,41 +222,74 @@ public class MenuTests
         });
     }
 
+    /// <summary>
+    /// Kolay NestDesk: fareyle (ya da klavyeyle) bir seçeneğin üstüne gelmek hiçbir şeyi değiştirmez; önizleme yok. Bütün
+    /// seçenek türleri (Choice, Toggle, Parts, Simgeler, Tema/Arka plan/Vurgu) üstüne gelme, ayrılma, odak ve alt menünün
+    /// kapanması olaylarını alır; ne ayar ne işaret değişir, hiçbir değişiklik bildirilmez.
+    /// </summary>
     [Fact]
-    public void Hover_previews_an_option_and_leaving_or_closing_ends_it()
+    public void Options_never_react_to_hover()
     {
         OnSta(() =>
         {
-            var current = Look.Glass;
-            var log = new List<string>();
+            var c = new WidgetConfig { Kind = WidgetKind.Fence, Style = WidgetStyle.Glass, Accent = WidgetAccent.Violet };
+            var before = JsonFile.Serialize(c);
+            var calls = 0;
             var menu = new ContextMenu();
-            var choice = Menus.Choice("Arka plan", () => current, [(Look.Glass, "Cam"), (Look.Dark, "Koyu")], v => current = v,
-                v => log.Add($"önizle {v}"), () => log.Add("bitir"));
-            menu.Items.Add(choice);
-            var dark = choice.Items.OfType<OptionMenuItem>().Last();
+            menu.Items.Add(Menus.Choice("Ölçek", () => 1.0, [(1.0, "Normal"), (2.0, "%200")], _ => calls++));
+            menu.Items.Add(Menus.Toggle("Gölge", () => false, () => calls++));
+            menu.Items.Add(Menus.Parts(c, [("header", "Başlık satırı"), Menus.ClosePart], () => calls++));
+            menu.Items.Add(Menus.TileOptions(c, change => { change(); calls++; }, singleClickOption: true));
+            menu.Items.Add(LookMenus.Theme(c, change => { change(); calls++; }, highContrast: false));
+            menu.Items.Add(LookMenus.Background(c, change => { change(); calls++; }));
+            menu.Items.Add(LookMenus.Accent(c, change => { change(); calls++; }, () => calls++));
 
-            dark.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
-            dark.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
-            choice.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuClosedEvent, choice));
+            var all = menu.Items.OfType<MenuItem>().SelectMany(i => Descendants(i).Prepend(i)).ToList();
+            var options = all.OfType<OptionMenuItem>().ToList();
+            Assert.True(options.Count > 30);
+            var checks = options.Select(o => o.IsChecked).ToList();
+            foreach (var item in all)
+            {
+                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
+                item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
+                item.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, 0, null, item) { RoutedEvent = Keyboard.GotKeyboardFocusEvent });
+                item.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuClosedEvent, item));
+            }
+            Pump();
 
-            Assert.Equal(["önizle Dark", "bitir", "bitir"], log);
-            Assert.Equal(Look.Glass, current); // önizleme seçim değildir
+            Assert.Equal(0, calls);
+            Assert.Equal(before, JsonFile.Serialize(c));
+            Assert.Equal(checks, options.Select(o => o.IsChecked));
         });
     }
 
+    /// <summary>
+    /// Kolay NestDesk: widget menülerinde gri ipucu satırı ve uygulama geneli öğe yok. Durum satırı (Menus.Hint) yalnızca
+    /// yüksek karşıtlıkta Tema ▸'de; iskelet (FillMenu) widget ekleme, göz atma, mıknatıs, çakışma, hizalama ve masaüstü simge
+    /// kiplerini içermez; görünümler simge kipini değiştirmez.
+    /// </summary>
     [Fact]
-    public void Options_without_preview_do_not_react_to_hover()
+    public void Widget_menus_have_no_hint_rows_and_no_app_wide_items()
     {
-        OnSta(() =>
-        {
-            var menu = new ContextMenu();
-            var choice = Menus.Choice("Ölçek", () => 1.0, [(1.0, "Normal"), (2.0, "%200")], _ => { });
-            menu.Items.Add(choice);
-            var item = choice.Items.OfType<OptionMenuItem>().Last();
-            item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
-            item.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
-            Assert.False(item.IsChecked);
-        });
+        var widgets = Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets");
+        var hints = Directory.GetFiles(widgets, "*.cs")
+            .Where(f => Path.GetFileName(f) != "LookMenus.cs" && File.ReadAllText(f).Contains("Menus.Hint(", StringComparison.Ordinal))
+            .Select(Path.GetFileName).ToList();
+        Assert.Empty(hints);
+        var menus = File.ReadAllText(Path.Combine(widgets, "Menus.cs"));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(menus, @"\bHint\("));   // yalnızca tanımı
+
+        var window = File.ReadAllText(Path.Combine(widgets, "WidgetWindow.cs"));
+        var fill = System.Text.RegularExpressions.Regex.Match(window, @"private void FillMenu\(ContextMenu menu\)\s*\{(?<body>[\s\S]*?)\n    \}").Groups["body"].Value;
+        Assert.NotEmpty(fill);
+        foreach (var banned in new[] { "ShowQuickAdd", "TogglePeek", "SnapWidgets", "PreventOverlap", "ArrangeAll", "DesktopModes", "Hint(", "Preview(" })
+            Assert.DoesNotContain(banned, fill);
+        // Fareye bağlı seçenekler yalnızca açıkken görünür.
+        Assert.Contains("visible: () => Config.FadeUntilHover", fill);
+        Assert.Contains("visible: () => View.Collapsible && Config.AutoRollup", fill);
+
+        foreach (var file in Directory.GetFiles(widgets, "*View*.cs"))
+            Assert.DoesNotContain("DesktopModes.Set(", File.ReadAllText(file));
     }
 
     [Fact]
@@ -275,16 +308,14 @@ public class MenuTests
     // ---------------------------------------------------------------- 2.2 Tema
 
     [Fact]
-    public void Theme_menu_previews_on_hover_and_commits_on_click()
+    public void Theme_menu_commits_on_click()
     {
         OnSta(() =>
         {
             var c = new WidgetConfig { Kind = WidgetKind.Fence, Style = WidgetStyle.Glass, Accent = WidgetAccent.Violet };
-            var previews = new List<LookOverride?>();
             var updates = 0;
             var menu = new ContextMenu();
-            var theme = LookMenus.Theme(c, change => { change(); updates++; }, look => previews.Add(look), () => previews.Add(null),
-                highContrast: false);
+            var theme = LookMenus.Theme(c, change => { change(); updates++; }, highContrast: false);
             menu.Items.Add(theme);
             var options = theme.Items.OfType<OptionMenuItem>().ToList();
             Assert.Equal(["Klasik", "Otomatik (Windows'a uyar)", "Neon", "Gece", "Kâğıt", "Okyanus"], options.Select(o => (string)o.Header));
@@ -292,22 +323,14 @@ public class MenuTests
             Assert.All(options, o => Assert.True(o.StaysOpenOnClick));
 
             var neon = options.Single(o => (string)o.Header == "Neon");
-            neon.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
-            neon.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseLeaveEvent });
-            Assert.Equal([new LookOverride(Theme: "neon", AccentColor: "#22D3EE"), null], previews);
-            Assert.Null(c.LookTheme); // önizleme kaydedilmez
-
             Click(neon);
             Assert.Equal(1, updates);
             Assert.Equal("neon", c.LookTheme);
             Assert.Equal("#22D3EE", c.LookAccentColor);
             Assert.Equal(["Neon"], options.Where(o => o.IsChecked).Select(o => (string)o.Header));
 
-            // Klasik'in önizlemesi temayı da, onunla gelen rengi de kaldırır.
-            var classic = options[0];
-            classic.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
-            Assert.Equal(new LookOverride(Theme: "", AccentColor: ""), previews[^1]);
-            Click(classic);
+            // Klasik temayı da, onunla gelen rengi de kaldırır.
+            Click(options[0]);
             Assert.Null(c.LookTheme);
             Assert.Null(c.LookAccentColor);
         });
@@ -319,9 +342,9 @@ public class MenuTests
         OnSta(() =>
         {
             var c = new WidgetConfig { Kind = WidgetKind.Clock };
-            var normal = LookMenus.Theme(c, change => change(), _ => { }, () => { }, highContrast: false);
+            var normal = LookMenus.Theme(c, change => change(), highContrast: false);
             Assert.DoesNotContain(normal.Items.OfType<MenuItem>(), i => !i.IsEnabled);
-            var contrast = LookMenus.Theme(c, change => change(), _ => { }, () => { }, highContrast: true);
+            var contrast = LookMenus.Theme(c, change => change(), highContrast: true);
             var hint = Assert.Single(contrast.Items.OfType<MenuItem>(), i => !i.IsEnabled);
             Assert.Equal("Yüksek karşıtlık açık: widget'lar Windows'un renklerini kullanır.", hint.Header);
         });
@@ -334,17 +357,13 @@ public class MenuTests
         {
             var c = new WidgetConfig { Kind = WidgetKind.Fence, Style = WidgetStyle.Glass };
             WidgetLooks.SetTheme(c, "gece", systemDark: true);
-            var previews = new List<LookOverride?>();
             var menu = new ContextMenu();
-            var background = LookMenus.Background(c, change => change(), look => previews.Add(look), () => previews.Add(null));
-            var theme = LookMenus.Theme(c, change => change(), _ => { }, () => { }, highContrast: false);
+            var background = LookMenus.Background(c, change => change());
+            var theme = LookMenus.Theme(c, change => change(), highContrast: false);
             menu.Items.Add(theme);
             menu.Items.Add(background);
             var styles = background.Items.OfType<OptionMenuItem>().ToList();
             Assert.DoesNotContain(styles, o => o.IsChecked);
-
-            styles[2].RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.MouseEnterEvent });
-            Assert.Equal(new LookOverride(Style: WidgetStyle.Light), previews[^1]);
 
             Click(styles[2]); // Açık
             Assert.Null(c.LookTheme);
@@ -363,7 +382,7 @@ public class MenuTests
             var c = new WidgetConfig { Kind = WidgetKind.Fence, Accent = WidgetAccent.Blue };
             var picked = 0;
             var menu = new ContextMenu();
-            var accent = LookMenus.Accent(c, change => change(), _ => { }, () => { }, () => picked++);
+            var accent = LookMenus.Accent(c, change => change(), () => picked++);
             menu.Items.Add(accent);
             var options = accent.Items.OfType<OptionMenuItem>().ToList();
             var custom = options[^1];
@@ -397,6 +416,13 @@ public class MenuTests
     // ---------------------------------------------------------------- yardımcılar
 
     private static AutomationPeer Peer(UIElement element) => UIElementAutomationPeer.CreatePeerForElement(element);
+
+    private static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "Duzenleme.sln"))) return dir.FullName;
+        throw new DirectoryNotFoundException("Duzenleme.sln");
+    }
 
     /// <summary>Fare tıklamasıyla aynı yol: UIA Invoke → MenuItem.ClickItem → OnClick; Click olayı çizimden sonra gelir.</summary>
     private static void Click(MenuItem item)

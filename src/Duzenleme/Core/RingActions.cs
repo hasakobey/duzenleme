@@ -12,7 +12,7 @@ public static class RingActionTypes
     /// <summary>Kullanıcının yazdığı komut (yalnızca kullanıcıdan; örnek komut yok).</summary>
     public const string Command = "command";
 
-    /// <summary>Tuş kısayolu gönder (en çok 8 birleşim; yalnızca kısayolla açılan halkadan).</summary>
+    /// <summary>Tuşlara bas (en çok 8 birleşim; yalnızca kısayolla açılan halkadan).</summary>
     public const string Keys = "keys";
 
     /// <summary>Metin yapıştır (pano geçmişine girmez; yalnızca kısayolla açılan halkadan).</summary>
@@ -312,7 +312,7 @@ public static class RingHotkey
     public sealed record TurnOnResult(string? Hotkey, string? Failure, IReadOnlyList<string> Tried);
 
     /// <summary>
-    /// "Kısayolla imleçte açılsın" akışı (saf; testlenir): <see cref="Suggest"/> → Set(Ring) → <paramref name="apply"/> (kaydeder,
+    /// "Tuşla imlecin yanında açılsın" akışı (saf; testlenir): <see cref="Suggest"/> → Set(Ring) → <paramref name="apply"/> (kaydeder,
     /// kaydedilemeyenleri döner) → Ring kaydedilemediyse denenenlere eklenip sıradaki öneri. Yalnızca Ring'in hatasına bakılır
     /// (başka eylemin kaydedilememesi öneriyi reddetmez). Hiçbiri kaydedilemezse halka kapalı kalır (Set(Ring, "") ve bir kez
     /// daha <paramref name="apply"/>) ve son hata döner.

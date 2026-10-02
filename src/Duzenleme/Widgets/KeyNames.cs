@@ -11,4 +11,6 @@ internal static class KeyNames
     public const string Delete = "Del";
     public const string Find = "Ctrl+F";
     public const string Backspace = "Backspace";
+    /// <summary>Odak nerede olursa olsun widget'ın menüsü (<see cref="WidgetWindow.OpenCardMenu"/>).</summary>
+    public const string WidgetMenu = "Ctrl+Shift+F10";
 }

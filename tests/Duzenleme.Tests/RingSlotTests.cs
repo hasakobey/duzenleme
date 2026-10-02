@@ -26,6 +26,29 @@ public class RingSlotTests
     }
 
     [Fact]
+    public void Add_slot_is_runtime_only_and_shown_below_eight_places()
+    {
+        // "+" yeri veri değildir: Build onu hiç üretmez; görünüm 8'den az yerli halkada sona ekler.
+        Assert.DoesNotContain(RingSlot.Build(Ring(), 0), s => s.Kind == RingSlotKind.Add);
+        Assert.True(RingSlot.WantsAddSlot(0));
+        Assert.True(RingSlot.WantsAddSlot(7));
+        Assert.False(RingSlot.WantsAddSlot(8));
+        Assert.False(RingSlot.WantsAddSlot(12));
+
+        var add = RingSlot.AddSlot();
+        Assert.Equal(RingSlotKind.Add, add.Kind);
+        Assert.Equal("Uygulama ekle", add.Name);
+        Assert.Equal(RingSlot.AddGlyph, add.Glyph);
+        Assert.Contains(RingSlot.AddGlyph, RingSlot.AllGlyphs);
+        Assert.Equal(-1, add.EntryIndex);
+        Assert.Null(add.Path);
+        Assert.Null(add.Action);
+        Assert.False(add.Dimmed);
+        using var _ = L.Use(Lang.En);
+        Assert.Equal("Add app", RingSlot.AddSlot().Name);
+    }
+
+    [Fact]
     public void Sub_rings_are_appended_to_the_root_with_their_item_count()
     {
         var ring = Ring();

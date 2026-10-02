@@ -70,7 +70,7 @@ internal sealed class NewFenceDialog : FluentWindow
         _hint = new TextBlock { TextWrapping = TextWrapping.Wrap, Opacity = 0.75, FontSize = 12, Margin = new Thickness(0, 4, 0, 0), Visibility = Visibility.Collapsed };
         body.Children.Add(_hint);
 
-        body.Children.Add(Label(L.T("Ne göstersin?"), 16));
+        body.Children.Add(Label(L.T("Ne gösterilsin?"), 16));
         _newFolder = Choice(L.T("Masaüstünde bu adla yeni klasör"), "NewFence.NewFolder");
         _newFolder.IsChecked = true;
         body.Children.Add(_newFolder);
@@ -96,17 +96,17 @@ internal sealed class NewFenceDialog : FluentWindow
         body.Children.Add(_desktop);
         body.Children.Add(_filters);
 
-        // Masaüstü dışındaki klasör (portal): Windows'un bilinen klasörleri; "Gözat…" herhangi bir klasörü listeye ekler.
+        // Masaüstü dışındaki klasör (portal): Windows'un bilinen klasörleri; "Klasör seç…" herhangi bir klasörü listeye ekler.
         _other = Choice(L.T("Masaüstü dışındaki bir klasör"), "NewFence.Other");
         _places = new ComboBox { MinWidth = 220, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var id in new[] { FolderPortal.Downloads, FolderPortal.Documents, FolderPortal.Pictures })
             if (KnownFolders.PathOf(id) is { } path) _places.Items.Add(new ComboBoxItem { Content = FolderPortal.KnownName(id), Tag = new Place(path, id) });
         if (_places.Items.Count > 0) _places.SelectedIndex = 0;
-        else _places.IsEnabled = false; // bilinen klasör yoksa yalnızca "Gözat…" (seçilen klasör listeye girince açılır)
+        else _places.IsEnabled = false; // bilinen klasör yoksa yalnızca "Klasör seç…" (seçilen klasör listeye girince açılır)
         AutomationProperties.SetAutomationId(_places, "NewFence.Place");
         AutomationProperties.SetName(_places, L.T("Masaüstü dışındaki bir klasör"));
         _places.SelectionChanged += (_, _) => { _other.IsChecked = true; Validate(showErrors: false); };
-        var browse = new Button { Content = L.T("Gözat…"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var browse = new Button { Content = L.T("Klasör seç…"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetAutomationId(browse, "NewFence.Browse");
         browse.ToolTip = L.T("Bilgisayardaki herhangi bir klasörü bölmede göster (masaüstünde olması gerekmez)");
         browse.Click += (_, _) => BrowseFolder();
@@ -178,7 +178,7 @@ internal sealed class NewFenceDialog : FluentWindow
 
     private Place? SelectedPlace => (_places.SelectedItem as ComboBoxItem)?.Tag as Place;
 
-    /// <summary>"Gözat…": klasör seçtirir, listeye ekleyip seçer (aynı klasör zaten varsa onu seçer).</summary>
+    /// <summary>"Klasör seç…": klasör seçtirir, listeye ekleyip seçer (aynı klasör zaten varsa onu seçer).</summary>
     private void BrowseFolder()
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog

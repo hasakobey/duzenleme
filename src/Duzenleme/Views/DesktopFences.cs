@@ -5,7 +5,7 @@ namespace Duzenleme.Views;
 
 /// <summary>
 /// "Masaüstü simgelerini yalnızca bölmelerde göster" modunu açıp kapatır ve açarken eklenen bölmeleri geri alınabilir
-/// tutar ("Masaüstümü bölmelere ayır" düğmesi, Widget'lar sayfasındaki anahtar).
+/// tutar ("Masaüstümü bölmelere ayır" düğmesi, Ayarlar'daki seçim).
 /// </summary>
 internal static class DesktopFences
 {

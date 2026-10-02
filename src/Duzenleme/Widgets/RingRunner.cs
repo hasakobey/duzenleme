@@ -97,7 +97,7 @@ internal static class RingRunner
     {
         if (RingActions.IsRunnable(action)) return true;
         Views.Notice.Show(action.Disabled ? L.T("Bu öğe kapalı: başka bir yerden aktarıldı ve henüz onaylanmadı.")
-            : RingActionTypes.IsKnown(action.Type) ? L.T("Bu öğe eksik ya da geçersiz. Düzenle…'yi kullanarak düzeltebilirsin.")
+            : RingActionTypes.IsKnown(action.Type) ? L.T("Bu öğe eksik ya da geçersiz. Halkadaki \"Değiştir…\" ile düzeltebilirsin.")
             : L.F("Bu öğe {0}'in daha yeni bir sürümünde eklenmiş; bu sürümde çalışmaz.", AppInfo.Name), Views.NoticeKind.Warning);
         return false;
     }
@@ -202,7 +202,7 @@ internal static class RingRunner
     {
         SendResult.Sent => (null, Views.NoticeKind.Info),
         SendResult.Busy => (L.T("Önceki gönderim sürüyor; biraz sonra yeniden dene."), Views.NoticeKind.Info),
-        SendResult.Invalid => (L.T("Bu öğe eksik ya da geçersiz. Düzenle…'yi kullanarak düzeltebilirsin."), Views.NoticeKind.Warning),
+        SendResult.Invalid => (L.T("Bu öğe eksik ya da geçersiz. Halkadaki \"Değiştir…\" ile düzeltebilirsin."), Views.NoticeKind.Warning),
         SendResult.NoTarget => (L.T("Gönderilecek pencere yok. Halkayı bir uygulamanın penceresindeyken aç."), Views.NoticeKind.Info),
         SendResult.NotInFront => (L.T("Hedef pencere öne gelmedi; tuş gönderilmedi."), Views.NoticeKind.Info),
         SendResult.Elevated => (elevated == true ? L.T("Yönetici olarak çalışan pencereye tuş gönderilemez.")

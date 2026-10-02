@@ -60,7 +60,7 @@ internal static class RingActionDialog
     {
         if (slot.Path is not { } path) return null;
         var look = ItemLooks.Get(config, path);
-        var form = new Form(L.T("Düzenle"), anchor);
+        var form = new Form(L.T("Öğeyi değiştir"), anchor);
         var defaultName = RingSlot.DefaultPathName(path);
         string? icon = look?.Icon;
         var name = form.NameRow(look?.Name ?? "", defaultName, () => icon, i => icon = i, anchor is null || slot.Tile is null ? null : pick =>
@@ -266,7 +266,7 @@ internal static class RingActionDialog
         RingActionTypes.Keys => isNew ? L.T("Tuş kısayolu ekle") : L.T("Tuş kısayolu"),
         RingActionTypes.Text => isNew ? L.T("Metin ekle") : L.T("Metin"),
         RingActionTypes.App => L.F("{0} eylemi", AppInfo.Name),
-        _ => L.T("Düzenle"),
+        _ => L.T("Öğeyi değiştir"),
     };
 
     /// <summary>Basılan tuşun birleşimi ("Ctrl+Shift+T", "F5"); adı yazılamayan tuşta null.</summary>

@@ -46,13 +46,18 @@ public partial class RecycleBinView : UserControl, IWidgetView
         _poll.Tick += (_, _) => Refresh();
         AutomationProperties.SetName(EmptyButton, L.T("Geri Dönüşüm Kutusu'nu boşalt"));
         EmptyButton.ToolTip = L.T("Geri Dönüşüm Kutusu'ndaki her şeyi kalıcı olarak siler (önce sorar)");
-        BinIcon.ToolTip = L.T("Açmak için çift tıkla");
         AutomationProperties.SetName(BinIcon, L.T("Geri Dönüşüm Kutusu'nu aç"));
-        BinIcon.MouseLeftButtonDown += (_, e) =>
+        // Simge tek tıkla açılır; widget simgeden de sürüklenebilir (basış kartın sürüklemesine gider, bırakılınca yer
+        // değişmediyse tıklamadır). Alışkanlıkla yapılan çift tıklamanın ikinci basışı yok sayılır (iki pencere açılmasın).
+        BinIcon.PreviewMouseLeftButtonDown += (_, e) => _iconPress = e.ClickCount == 1 ? PointToScreen(e.GetPosition(this)) : null;
+        Loaded += (_, _) =>
         {
-            if (e.ClickCount != 2) return;
-            e.Handled = true;
-            TileItem.Launch(RecycleBin.ShellName);
+            if (Window.GetWindow(this) is { } window && !ReferenceEquals(_clickWindow, window))
+            {
+                if (_clickWindow is not null) _clickWindow.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+                _clickWindow = window;
+                window.PreviewMouseLeftButtonUp += OnWindowMouseUp;
+            }
         };
         DragEnter += OnDragOver;
         DragOver += OnDragOver;
@@ -63,6 +68,26 @@ public partial class RecycleBinView : UserControl, IWidgetView
     }
 
     public bool Resizable => false;
+
+    // Simgeye basılan yer (ekran pikseli: widget sürüklenince görünümle birlikte kayar, görünüm koordinatı değişmezdi) ve
+    // bırakmayı dinleyen pencere: kart sürüklemesi fareyi yakalar, bırakma olayı simgeye değil pencereden karta iner
+    // (önizleme olayı pencereden geçer).
+    private Point? _iconPress;
+    private Window? _clickWindow;
+
+    private void OnWindowMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_iconPress is not { } start) return;
+        _iconPress = null;
+        if (PresentationSource.FromVisual(this) is null) return;
+        var delta = PointToScreen(e.GetPosition(this)) - start;
+        var scale = VisualTreeHelper.GetDpi(this);
+        if (Math.Abs(delta.X) >= SystemParameters.MinimumHorizontalDragDistance * scale.DpiScaleX ||
+            Math.Abs(delta.Y) >= SystemParameters.MinimumVerticalDragDistance * scale.DpiScaleY) return;
+        var at = e.GetPosition(BinIcon);
+        if (at.X < 0 || at.Y < 0 || at.X > BinIcon.ActualWidth || at.Y > BinIcon.ActualHeight) return;
+        TileItem.Launch(RecycleBin.ShellName);
+    }
 
     protected override Geometry? GetLayoutClip(Size layoutSlotSize) => ClipToBounds ? base.GetLayoutClip(layoutSlotSize) : null;
 
@@ -223,6 +248,8 @@ public partial class RecycleBinView : UserControl, IWidgetView
 
     public void Detach()
     {
+        if (_clickWindow is not null) _clickWindow.PreviewMouseLeftButtonUp -= OnWindowMouseUp;
+        _clickWindow = null;
         _titleEditor.Cancel();
         _poll.Stop();
         if (_live) RecycleBin.Changed -= OnBinChanged;

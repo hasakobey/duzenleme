@@ -456,7 +456,7 @@ public partial class AutoMovePage : Page
         // Otomatik taşıma kapalı: klasör açıldı ama dosyalar yerinde; nedenini söyle, istenirse şimdi taşınsın.
         if (waiting > 0)
             Notice.Show(L.P(waiting, "\"{1}\" klasörü oluşturuldu. Otomatik taşıma kapalı olduğu için {0} dosya masaüstünde bekliyor.", name),
-                NoticeKind.Info, L.T("Şimdi düzenle"), () => _ = MoveActions.OrganizeNowAsync());
+                NoticeKind.Info, L.T("Dosyaları şimdi taşı"), () => _ = MoveActions.OrganizeNowAsync());
     }
 
     // ---- Son taşınanlar ----
@@ -496,30 +496,39 @@ public partial class AutoMovePage : Page
         if (AppHost.Settings.CreateMissingFolders) AppHost.OrganizeIfActive();
     }
 
+    /// <summary>
+    /// Kurallar varsayılana döner (soru yok; dosyalara dokunulmaz): masaüstünde öteki dildeki klasör varsa (ör. İngilizce
+    /// arayüzde "Resimler") kural ona yönelir. Bildirimdeki "Geri al" önceki kuralları geri koyar (yeni liste atanır).
+    /// </summary>
     private void ResetRules_Click(object sender, RoutedEventArgs e)
     {
-        // Soruda yazılacak kuralların kendi adları geçer: arayüz dilindeki adlar ya da masaüstünde zaten olan öteki dildeki
-        // klasör (ör. İngilizce arayüzde "Resimler").
+        var before = AppHost.Settings.Rules;
         var defaults = Rule.Defaults(L.Current, DesktopFolders());
-        if (!Confirm.Ask(Window.GetWindow(this), L.T("Kurallar varsayılana dönsün mü?"),
-                L.F("Eklediğin ya da değiştirdiğin kurallar silinir; {0} kuralları geri gelir. Dosyalarına dokunulmaz.",
-                    L.Join(defaults.Select(r => r.TargetFolder).ToList())),
-                L.T("Varsayılana döndür")))
-            return;
-        AppHost.Settings.Rules = defaults;
-        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
-        AppHost.SaveSettings();
-        Recount();
-        Notice.Show(L.T("Kurallar varsayılana döndü."), NoticeKind.Success);
+        SetRules(defaults);
+        Notice.Show(L.T("Kurallar varsayılana döndü."), NoticeKind.Success, L.T("Geri al"), () =>
+        {
+            // Bu arada kurallar başka yerden değiştiyse (ör. kural eklendi) geri alma onu ezmez.
+            if (ReferenceEquals(AppHost.Settings.Rules, defaults)) SetRules(before);
+        });
     }
 
+    /// <summary>Kural listesini değiştirir (yeni liste atanır: izleyici arka planda eskisini okuyor olabilir).</summary>
+    private void SetRules(List<Rule> rules)
+    {
+        AppHost.Settings.Rules = rules;
+        if (IsLoaded) BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
+        AppHost.SaveSettings();
+        if (IsLoaded) Recount();
+    }
+
+    /// <summary>
+    /// Geçmiş temizlenir (soru yok): yalnızca geri alınmamış taşıma kayıtları silinir; geri alınanların kaydı ("bir daha
+    /// taşıma") kalır, dosyalar yerinde durur. Bildirimdeki "Geri al" silinen kayıtları geri koyar.
+    /// </summary>
     private void ClearHistory_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm.Ask(Window.GetWindow(this), L.T("Geçmiş temizlensin mi?"),
-                L.T("Listedeki taşımalar silinir ve artık buradan geri alınamaz. Dosyaların bulundukları klasörde kalır. Geri aldığın dosyaların kaydı korunur; onlar yine taşınmaz."),
-                L.T("Temizle")))
-            return;
-        AppHost.Journal.Clear();
-        Notice.Show(L.T("Geçmiş temizlendi."), NoticeKind.Success);
+        var removed = AppHost.Journal.Clear();
+        if (removed.Count == 0) Notice.Show(L.T("Geçmiş temizlendi."), NoticeKind.Success);
+        else Notice.Show(L.T("Geçmiş temizlendi."), NoticeKind.Success, L.T("Geri al"), () => AppHost.Journal.Restore(removed));
     }
 }

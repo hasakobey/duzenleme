@@ -18,6 +18,7 @@ public sealed class TrayIcon : IDisposable
 {
     private readonly Action _openMainWindow;
     private readonly Action _quickAdd;
+    private readonly Action _openSettings;
     private readonly Action _exit;
     private readonly HwndSource _window;
     private readonly uint _taskbarCreatedMessage;
@@ -40,10 +41,11 @@ public sealed class TrayIcon : IDisposable
     /// </summary>
     public event Action? TaskbarCreated;
 
-    public TrayIcon(Action openMainWindow, Action quickAdd, Action exit)
+    public TrayIcon(Action openMainWindow, Action quickAdd, Action openSettings, Action exit)
     {
         _openMainWindow = openMainWindow;
         _quickAdd = quickAdd;
+        _openSettings = openSettings;
         _exit = exit;
         // Görünmez üst düzey pencere: yalnızca ileti alan (HWND_MESSAGE) pencereye "TaskbarCreated" yayını ulaşmaz.
         _window = new HwndSource(new HwndSourceParameters(AppInfo.Name + " Tray")
@@ -267,8 +269,8 @@ public sealed class TrayIcon : IDisposable
         Peeking: AppHost.Peeking,
         PeekHotkey: AppHost.Settings.Hotkeys.PeekDesktop,
         LastRemovedName: AppHost.Widgets.LastRemovedName,
-        IconModes: Views.DesktopModes.Choices.Select(Views.DesktopModes.Label).ToList(),
-        CurrentIconMode: Array.IndexOf(Views.DesktopModes.Choices, Views.DesktopModes.Current));
+        QuickAddHotkey: AppHost.Settings.Hotkeys.QuickAdd,
+        OrganizeHotkey: AppHost.Settings.Hotkeys.OrganizeNow);
 
     /// <summary>
     /// Windows'un kendi açılır menüsü, her açılışta güncel durumla yeniden kurulur. Seçilen komut menü kapandıktan sonra
@@ -318,15 +320,10 @@ public sealed class TrayIcon : IDisposable
                 var id = commands.Count + 1;
                 commands[id] = item;
                 info.fMask = Native.MIIM_FTYPE | Native.MIIM_STRING | Native.MIIM_STATE | Native.MIIM_ID;
-                info.fType = item.IsRadio ? Native.MFT_RADIOCHECK : Native.MFT_STRING;
+                info.fType = Native.MFT_STRING;
                 info.fState = item.IsChecked ? Native.MFS_CHECKED : 0;
                 info.wID = (uint)id;
                 info.dwTypeData = item.NativeText;
-                if (item.Children is { } children)
-                {
-                    info.fMask |= Native.MIIM_SUBMENU;
-                    info.hSubMenu = BuildMenu(children, commands);
-                }
             }
             Native.InsertMenuItem(menu, position++, true, ref info);
             if (item.IsDefault) Native.SetMenuDefaultItem(menu, info.wID, 0);
@@ -346,10 +343,7 @@ public sealed class TrayIcon : IDisposable
             case TrayCommand.ToggleDesktop: AppHost.ToggleDesktop(); break;
             case TrayCommand.PeekDesktop: AppHost.TogglePeek(AppHost.PeekOrigin.Tray); break;
             case TrayCommand.UndoRemove: AppHost.Widgets.UndoRemove(); break;
-            case TrayCommand.IconMode when item.Choice >= 0 && item.Choice < Views.DesktopModes.Choices.Length:
-                Views.DesktopModes.Set(Views.DesktopModes.Choices[item.Choice], null, null);
-                break;
-            case TrayCommand.RevealWidgets: AppHost.Widgets.RevealAll(); break;
+            case TrayCommand.OpenSettings: _openSettings(); break;
             case TrayCommand.Exit: _exit(); break;
         }
     }
@@ -485,8 +479,8 @@ public sealed class TrayIcon : IDisposable
         public const int WM_MBUTTONUP = 0x0208, WM_MBUTTONDBLCLK = 0x0209;
         public const int NIN_BALLOONHIDE = 0x0403, NIN_BALLOONTIMEOUT = 0x0404, NIN_BALLOONUSERCLICK = 0x0405;
 
-        public const uint MIIM_STATE = 0x0001, MIIM_ID = 0x0002, MIIM_SUBMENU = 0x0004, MIIM_STRING = 0x0040, MIIM_FTYPE = 0x0100;
-        public const uint MFT_STRING = 0x0000, MFT_RADIOCHECK = 0x0200, MFT_SEPARATOR = 0x0800;
+        public const uint MIIM_STATE = 0x0001, MIIM_ID = 0x0002, MIIM_STRING = 0x0040, MIIM_FTYPE = 0x0100;
+        public const uint MFT_STRING = 0x0000, MFT_SEPARATOR = 0x0800;
         public const uint MFS_CHECKED = 0x0008;
         public const uint TPM_LEFTALIGN = 0x0000, TPM_RIGHTALIGN = 0x0008, TPM_RIGHTBUTTON = 0x0002, TPM_NONOTIFY = 0x0080, TPM_RETURNCMD = 0x0100;
         public const int SM_MENUDROPALIGNMENT = 40;

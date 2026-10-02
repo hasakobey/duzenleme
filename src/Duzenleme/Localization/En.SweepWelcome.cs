@@ -109,13 +109,9 @@ internal static partial class En
         new("Ayarı Windows'un Başlangıç uygulamaları sayfasından değiştirebilirsin.", "You can change it in Settings > Apps > Startup."),
 
         // "Widget ekle" penceresi ve ekleme kataloğu
-        new("Masaüstüne ne eklemek istersin?", "What would you like to add to your desktop?"),
-        new("Birine tıkla, hemen masaüstüne gelsin. Sonra sürükleyerek taşı, kenarından büyüt, sağ tıklayarak ayarla.",
-            "Click one and it appears on your desktop right away. Then drag to move it, drag an edge to resize it and right-click to adjust it."),
         new("Masaüstümü bölmelere ayır", "Sort my desktop into panels"),
         new("Klasörler, Kısayollar, Dosyalar ve PDF gibi klasörler için bölme kurar; masaüstü simgeleri yalnızca bölmelerde görünür",
             "Sets up panels for Folders, Shortcuts, Files and folders like PDF; desktop icons then appear only in panels"),
-        new("Widget'ları yönet…", "Manage widgets…"),
         new("Uygulama kısayolları, Bu Bilgisayar, Geri Dönüşüm Kutusu", "App shortcuts, This PC, Recycle Bin"),
         new("Masaüstünde duran dosyalar", "Files on the desktop"),
         new("Tüm masaüstü", "Whole desktop"),
@@ -123,7 +119,6 @@ internal static partial class En
         new("\"{0}\" klasörünün içi", "Contents of the \"{0}\" folder"),
         new("Masaüstünde \"{0}\" klasörü açılır; otomatik taşıma açıksa uygun dosyalar oraya taşınır",
             "Creates a \"{0}\" folder on the desktop; if auto-move is on, matching files are moved there"),
-        new("yeni klasör", "new folder"),
         new("Diğer klasörler ({0})", "More folders ({0})"),
 
         // "Masaüstümü bölmelere ayır" / bölme kipi bildirimi (DesktopFences)

@@ -6,34 +6,32 @@ public enum TrayCommand
     Separator,
     QuickAdd,
     OpenApp,
+    PeekDesktop,
     AutoMove,
     OrganizeNow,
     UndoLastMove,
-    ToggleDesktop,
-    PeekDesktop,
     UndoRemove,
-    IconModes,
-    IconMode,
-    RevealWidgets,
+    ToggleDesktop,
+    OpenSettings,
     Exit,
 }
 
-/// <summary>Menü açılırken okunan durum. IconModes: "Windows masaüstü simgeleri" seçeneklerinin etiketleri, sırasıyla.</summary>
+/// <summary>
+/// Menü açılırken okunan durum. Kısayollar menüde öğenin sağında yazar (atanmamışsa yazmaz): QuickAddHotkey "Widget ekle…",
+/// PeekHotkey göz atma, OrganizeHotkey "Dosyaları şimdi taşı".
+/// </summary>
 public sealed record TrayMenuState(
     bool AutoMove,
     bool DesktopHidden,
     bool Peeking,
     string? PeekHotkey,
     string? LastRemovedName,
-    IReadOnlyList<string> IconModes,
-    int CurrentIconMode);
+    string? QuickAddHotkey = null,
+    string? OrganizeHotkey = null);
 
-/// <summary>
-/// Tepsi menüsünün bir öğesi. Text görünen metindir (Windows menüsüne <see cref="NativeText"/> verilir). Choice: alt menüdeki
-/// seçeneğin sırası (IconMode için), öbürlerinde -1.
-/// </summary>
+/// <summary>Tepsi menüsünün bir öğesi. Text görünen metindir (Windows menüsüne <see cref="NativeText"/> verilir).</summary>
 public sealed record TrayMenuItem(TrayCommand Command, string Text = "", string? Shortcut = null, bool IsDefault = false,
-    bool IsChecked = false, bool IsRadio = false, int Choice = -1, IReadOnlyList<TrayMenuItem>? Children = null)
+    bool IsChecked = false)
 {
     public bool IsSeparator => Command == TrayCommand.Separator;
 
@@ -42,9 +40,10 @@ public sealed record TrayMenuItem(TrayCommand Command, string Text = "", string?
 }
 
 /// <summary>
-/// Tepsi menüsünün içeriği (saf; her açılışta yeniden kurulur). Sıra, metinler ve işaretler 2.1.1'deki menüyle aynıdır:
-/// varsayılan (kalın) "Widget ekle…", işaretli "Otomatik taşıma", radyo seçimli "Windows masaüstü simgeleri", kısayolu
-/// yazılı göz atma; "Geri getir" yalnızca kaldırılmış bir widget varken görünür.
+/// Tepsi menüsünün içeriği (saf; her açılışta yeniden kurulur). Kolay NestDesk: alt menü yok. Sıra: varsayılan (kalın)
+/// "Widget ekle…", "NestDesk'i aç", göz atma ("NestDesk'e dön"); işaretli "Otomatik taşıma", "Dosyaları şimdi taşı", "Son
+/// taşımayı geri al"; yalnızca gerektiğinde "Geri getir: …" (kaldırılmış widget varken) ve "Masaüstünü göster" (masaüstü
+/// gizliyken: geri dönüş yolu), "Ayarlar", "Çıkış". Windows masaüstü simgeleri Ayarlar'da; widget'ları öne getirmek kısayolda.
 /// </summary>
 public static class TrayMenuModel
 {
@@ -54,29 +53,29 @@ public static class TrayMenuModel
         var items = new List<TrayMenuItem>
         {
             // Her ekleme yolu aynı "Widget ekle" penceresini açar (bölme, araç ve "Masaüstümü bölmelere ayır" orada).
-            new(TrayCommand.QuickAdd, L.T("Widget ekle…"), IsDefault: true),
+            new(TrayCommand.QuickAdd, L.T("Widget ekle…"), Shortcut: Key(state.QuickAddHotkey), IsDefault: true),
             new(TrayCommand.OpenApp, L.F("{0}'i aç", AppInfo.Name)),
+            new(TrayCommand.PeekDesktop, state.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at"),
+                Shortcut: Key(state.PeekHotkey)),
             separator,
             // İşaretli = otomatik taşıma açık (Paused'ın tersi).
             new(TrayCommand.AutoMove, L.T("Otomatik taşıma"), IsChecked: state.AutoMove),
-            new(TrayCommand.OrganizeNow, L.T("Masaüstünü şimdi düzenle")),
+            new(TrayCommand.OrganizeNow, L.T("Dosyaları şimdi taşı"), Shortcut: Key(state.OrganizeHotkey)),
             new(TrayCommand.UndoLastMove, L.T("Son taşımayı geri al")),
-            new(TrayCommand.ToggleDesktop, state.DesktopHidden ? L.T("Masaüstünü göster") : L.T("Masaüstünü gizle")),
-            new(TrayCommand.PeekDesktop, state.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at"),
-                Shortcut: string.IsNullOrWhiteSpace(state.PeekHotkey) ? null : state.PeekHotkey),
             separator,
         };
         if (state.LastRemovedName is { } removed)
             items.Add(new(TrayCommand.UndoRemove, L.F("Geri getir: {0}", removed)));
-        // Windows masaüstü simgeleri: Ayarlar ve Widget'lar sayfasıyla aynı üç seçenek (Views.DesktopModes).
-        var modes = state.IconModes.Select((label, i) =>
-            new TrayMenuItem(TrayCommand.IconMode, label, IsChecked: i == state.CurrentIconMode, IsRadio: true, Choice: i)).ToList();
-        items.Add(new(TrayCommand.IconModes, L.T("Windows masaüstü simgeleri"), Children: modes));
-        items.Add(new(TrayCommand.RevealWidgets, L.T("Widget'ları öne getir (5 sn)")));
-        items.Add(separator);
+        // Masaüstü gizliyken (Ctrl+Alt+H, çift tıklama) geri dönüş yolu; gizlemek kısayolda ve Ayarlar'da.
+        if (state.DesktopHidden)
+            items.Add(new(TrayCommand.ToggleDesktop, L.T("Masaüstünü göster")));
+        items.Add(new(TrayCommand.OpenSettings, L.T("Ayarlar")));
         items.Add(new(TrayCommand.Exit, L.T("Çıkış")));
         return items;
     }
+
+    /// <summary>Kısayol sütunu: atanmamışsa (boş) yok.</summary>
+    private static string? Key(string? hotkey) => string.IsNullOrWhiteSpace(hotkey) ? null : hotkey;
 }
 
 /// <summary>Tepsi metinlerinin Windows sınırlarına uydurulması (saf).</summary>

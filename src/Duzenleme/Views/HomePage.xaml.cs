@@ -10,7 +10,7 @@ using TextBlock = System.Windows.Controls.TextBlock;
 namespace Duzenleme.Views;
 
 /// <summary>
-/// Ana sayfa: selam, üç ana eylem (Widget ekle, Şimdi düzenle, Son taşımayı geri al), otomatik taşıma durumu ve son üç
+/// Ana sayfa: selam, üç ana eylem (Widget ekle, Dosyaları şimdi taşı, Son taşımayı geri al), otomatik taşıma durumu ve son üç
 /// taşıma. Açılışı hafif tutulur: klasörlerin içi sayılmaz, yalnızca masaüstündeki klasör adlarına bakılır.
 /// </summary>
 public partial class HomePage : Page
@@ -144,7 +144,8 @@ public partial class HomePage : Page
 
     private void Go(Type page) => (Window.GetWindow(this) as MainWindow)?.NavigateTo(page);
 
-    private void AddWidget_Click(object sender, RoutedEventArgs e) => Go(typeof(WidgetsPage));
+    // Her ekleme yolu aynı "Widget ekle" penceresini açar (tepsi, Ctrl+Alt+B, halka, Widget'lar sayfası, Başlat menüsü).
+    private void AddWidget_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowQuickAdd();
 
     private async void OrganizeNow_Click(object sender, RoutedEventArgs e)
     {

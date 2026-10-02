@@ -19,6 +19,7 @@ internal static partial class En
         new("Taşıma bildirimleri", "Move notifications"),
         new("Bir dosya taşındığında kısa bir bildirim göster.", "Show a short notification when a file is moved."),
         new("Tema", "Theme"),
+        new("Uygulama görünümü", "App appearance"),
         new("Bu pencerenin görünümü. Widget'ların görünümü Widget'lar sayfasından ya da widget'a sağ tıklayarak ayarlanır.",
             "How this window looks. To change how widgets look, use the Widgets page or right-click a widget."),
         new("Sistem", "System"),

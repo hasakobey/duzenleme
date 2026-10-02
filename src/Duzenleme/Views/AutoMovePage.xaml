@@ -39,7 +39,7 @@
                                AutomationProperties.AutomationId="AutoMove.StatusText" />
                 </StackPanel>
                 <ui:Button x:Name="OrganizeButton" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
-                           Icon="{ui:SymbolIcon Sparkle24}" Content="{l:T 'Şimdi düzenle'}"
+                           Icon="{ui:SymbolIcon Sparkle24}" Content="{l:T 'Dosyaları şimdi taşı'}"
                            ToolTip="{l:T 'Masaüstündeki uygun dosyaları şimdi klasörlerine taşır'}"
                            AutomationProperties.AutomationId="AutoMove.OrganizeNow" Click="OrganizeNow_Click" />
                 <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"

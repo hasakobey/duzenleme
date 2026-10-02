@@ -15,7 +15,8 @@ namespace Duzenleme.Widgets;
 /// <b>Seçenek</b> (<see cref="Toggle"/>, <see cref="Choice{T}"/>, <see cref="Parts"/>, <see cref="TileOptions"/>) durumunu
 /// bir okuyucudan alır, tıklanınca menü açık kalır ve widget hemen değişir; ardından <see cref="Sync"/> menüdeki bütün
 /// işaretleri, etkinlikleri ve başlıkları yerinde tazeler. Kaynağı, başlığı ya da menünün kendisini değiştiren seçenekler
-/// (ör. "Ne gösterilsin?", masaüstü simgesi kipi) <c>staysOpen: false</c> ile kapatır.</para>
+/// (ör. "Ne gösterilsin?", zamanlayıcının türü) <c>staysOpen: false</c> ile kapatır. Fareyle üstüne gelmek hiçbir öğede
+/// bir şey değiştirmez (önizleme yok); gri ipucu satırı ve uygulama geneli ayar widget menüsüne girmez.</para>
 /// </summary>
 public static class Menus
 {
@@ -34,27 +35,16 @@ public static class Menus
 
     /// <summary>
     /// Tek seçimli alt menü (Arka plan, Boyut, Renk…): her seçenek <paramref name="current"/> ona eşitken işaretlidir; seçili
-    /// olana yeniden tıklamak onu boşa düşürmez. <paramref name="preview"/> verilirse fare (ya da klavye) bir seçeneğin
-    /// üstüne gelince o seçenek geçici olarak gösterilir; üstünden çıkınca, alt menü kapanınca <paramref name="endPreview"/>
-    /// geri alır (yalnızca ucuz, görünüşe ait seçimler için: arka plan, renk, köşe, saydamlık). Menünün yapısını değiştiren
-    /// seçim (ör. zamanlayıcının türü) <paramref name="staysOpen"/> = false ile menüyü kapatır.
+    /// olana yeniden tıklamak onu boşa düşürmez. Fareyle üstüne gelmek hiçbir şeyi değiştirmez (önizleme yok): widget yalnızca
+    /// tıklanınca değişir. Menünün yapısını değiştiren seçim (ör. zamanlayıcının türü) <paramref name="staysOpen"/> = false ile
+    /// menüyü kapatır.
     /// </summary>
     public static MenuItem Choice<T>(string header, Func<T> current, IEnumerable<(T Value, string Label)> options, Action<T> select,
-        Action<T>? preview = null, Action? endPreview = null, bool staysOpen = true)
+        bool staysOpen = true)
     {
         var parent = new MenuItem { Header = header };
         foreach (var (value, label) in options)
-        {
-            var item = new OptionMenuItem(label, () => EqualityComparer<T>.Default.Equals(current(), value), () => select(value), staysOpen);
-            if (preview is not null)
-            {
-                item.MouseEnter += (_, _) => preview(value);
-                item.GotKeyboardFocus += (_, _) => preview(value);
-                if (endPreview is not null) item.MouseLeave += (_, _) => endPreview();
-            }
-            parent.Items.Add(item);
-        }
-        if (endPreview is not null) parent.SubmenuClosed += (_, _) => endPreview();
+            parent.Items.Add(new OptionMenuItem(label, () => EqualityComparer<T>.Default.Equals(current(), value), () => select(value), staysOpen));
         return parent;
     }
 
@@ -118,7 +108,7 @@ public static class Menus
 
     /// <summary>
     /// Liste öğelerine (dosya, kısayol) sağ tık menüsü bağlar. Menü yalnızca bir öğeye sağ tıklanınca açılır;
-    /// boş alana sağ tıklanınca liste menüsü devre dışı kalır, olay widget kartına ulaşır ve widget'ın kendi ayar
+    /// boş alana sağ tıklanınca liste menüsü devre dışı kalır, olay widget kartına ulaşır ve widget'ın kendi
     /// menüsü (Simgeler, Görünüm, Kaldır…) açılır. Böylece eski bir seçim yanlış öğenin menüsünü de açmaz.
     /// <para>Klavyeyle (Shift+F10, menü tuşu) açılan menü odaktaki (yoksa seçili) öğenindir ve onun üstünde açılır; öğe yoksa
     /// widget'ın menüsü açılır. WPF menünün sahibini, olay yolunda ContextMenu'sü olan ilk öğe olarak menü olayından önce
@@ -181,7 +171,10 @@ public static class Menus
         return parent;
     }
 
-    /// <summary>Tıklanamayan, açıklama amaçlı menü satırı.</summary>
+    /// <summary>
+    /// Tıklanamayan durum satırı: yalnızca bir seçeneğin neden etkisiz olduğunu söyler (yüksek karşıtlıkta Tema ▸). Kısayol,
+    /// ipucu ya da başlık satırı olarak kullanma (Kolay NestDesk: menüde gri ipucu yok; <c>MenuTests</c> denetler).
+    /// </summary>
     public static MenuItem Hint(string text) => new() { Header = text, IsEnabled = false };
 
     /// <summary>
@@ -214,14 +207,12 @@ public static class Menus
         parent.Items.Add(Toggle(L.T("Önizlemeleri göster (resim, video, PDF)"), () => c.ShowPreviews, () => change(() => c.ShowPreviews = !c.ShowPreviews)));
         if (singleClickOption)
             parent.Items.Add(Toggle(L.T("Tek tıkla aç"), () => c.SingleClick, () => change(() => c.SingleClick = !c.SingleClick)));
-        // 2.2 Kutu: görünüşü değiştirmez, kutucuklar yeniden kurulmaz (yalnızca kaydedilir). Rozet yok; ipucu yalnızca açıkken.
+        // 2.2 Kutu: görünüşü değiştirmez, kutucuklar yeniden kurulmaz (yalnızca kaydedilir). Rozet ve ipucu satırı yok.
         parent.Items.Add(Toggle(L.T("Numara tuşlarıyla aç (1–9)"), () => c.QuickKeys, () =>
         {
             c.QuickKeys = !c.QuickKeys;
             AppHost.SaveSettings();
         }));
-        parent.Items.Add(Hint(L.T("İpucu: Ctrl + fare tekerleği simgeleri büyütür/küçültür")));
-        parent.Items.Add(Live(Hint(L.T("Aç: 1–9 · Ara: harf yaz")), visible: () => c.QuickKeys));
         return parent;
     }
 

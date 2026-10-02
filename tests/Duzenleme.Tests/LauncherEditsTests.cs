@@ -118,4 +118,51 @@ public class LauncherEditsTests
         Assert.Equal(order, LauncherEntries.Ordered(tab).Select(e => e.Path ?? e.Action!.Id));
         Assert.Same(removed.Entry.Action, tab.Actions![2]);
     }
+
+    // Kolay NestDesk: "Sekmeyi sil" soru sormaz; bildirimdeki "Geri al" sekmeyi adları ve simgeleriyle geri koyar.
+
+    [Fact]
+    public void Deleted_tab_comes_back_in_place_with_its_looks_and_the_active_tab()
+    {
+        var box = Box(@"C:\a.exe");
+        box.Tabs[1].Items.AddRange([@"C:\b.exe", @"C:\a.exe"]);
+        box.Tabs.Add(new LauncherTab { Name = "Oyunlar", Items = [@"C:\g.exe"] });
+        box.ActiveTab = 1;
+        ItemLooks.SetName(box, @"C:\a.exe", "Benim A", "a");   // başka sekmede de duruyor: kalır
+        ItemLooks.SetName(box, @"C:\b.exe", "Benim B", "b");   // yalnızca silinen sekmede: gider
+        ItemLooks.SetName(box, @"C:\g.exe", "Oyun", "g");
+        var tab = box.Tabs[1];
+
+        var removed = LauncherEdits.TakeTab(box, 1)!;
+        Assert.Equal(["Uygulamalar", "Oyunlar"], box.Tabs.Select(t => t.Name));
+        Assert.Equal(1, box.ActiveTab);
+        Assert.Null(ItemLooks.Get(box, @"C:\b.exe"));
+        Assert.Equal("Benim A", ItemLooks.Get(box, @"C:\a.exe")!.Name);
+        Assert.Equal([@"C:\b.exe"], removed.Looks.Select(p => p.Key));
+
+        // Bu arada kalan bir öğeye ad verildi: geri alma onu ezmez.
+        ItemLooks.SetName(box, @"C:\g.exe", "Yeni ad", "g");
+        Assert.True(LauncherEdits.PutTab(box, removed));
+        Assert.Same(tab, box.Tabs[1]);
+        Assert.Equal(["Uygulamalar", "Dosyalar", "Oyunlar"], box.Tabs.Select(t => t.Name));
+        Assert.Equal(1, box.ActiveTab);
+        Assert.Equal("Benim B", ItemLooks.Get(box, @"C:\b.exe")!.Name);
+        Assert.Equal("Yeni ad", ItemLooks.Get(box, @"C:\g.exe")!.Name);
+        Assert.False(LauncherEdits.PutTab(box, removed)); // zaten yerinde
+    }
+
+    [Fact]
+    public void Last_tab_is_never_deleted_and_the_last_removed_item_keeps_its_look()
+    {
+        var single = new WidgetConfig { Kind = WidgetKind.Launcher, Tabs = [new LauncherTab { Name = "Tek" }] };
+        Assert.Null(LauncherEdits.TakeTab(single, 0));
+        Assert.Null(LauncherEdits.TakeTab(Box(), 5));
+
+        var box = Box(@"C:\a.exe");
+        box.Tabs[1].Items.Add(@"C:\b.exe");
+        ItemLooks.SetName(box, @"C:\x.exe", "Son çıkarılan", "x"); // hiçbir sekmede değil ("Geri al" için tutuluyor)
+        var removed = LauncherEdits.TakeTab(box, 1, keepLooks: [@"C:\x.exe"])!;
+        Assert.Equal("Son çıkarılan", ItemLooks.Get(box, @"C:\x.exe")!.Name);
+        Assert.DoesNotContain(removed.Looks, p => p.Key == @"C:\x.exe");
+    }
 }

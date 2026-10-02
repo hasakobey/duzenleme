@@ -10,7 +10,6 @@ internal static partial class En
     internal static void AddP6() => Add(
     [
         // Ekleme kataloğu ("Widget ekle", Widget'lar sayfası)
-        new("Saat ve bilgi", "Clocks and info"),
         new("Büyük dijital saat", "Large digital clock"),
         new("Gün, ay ve haftalık şerit", "Day, month and a weekly strip"),
         new("Yapışkan not; yazdıkça kaydedilir", "Sticky note; saved as you type"),
@@ -36,9 +35,7 @@ internal static partial class En
         new("Bilgisayardaki herhangi bir klasörü bölmede göster (masaüstünde olması gerekmez)",
             "Show any folder on this PC in a panel (it doesn't have to be on the desktop)"),
         new("{0} klasörünün içi, en yeni üstte", "Contents of {0}, newest first"),
-        new("Windows klasörü", "Windows folder"),
         new("Bölmede gösterilecek klasörü seç", "Choose the folder to show in the panel"),
-        new("{0} masaüstüne eklendi.", "{0} was added to the desktop."),
         new("Ekran görüntüleri", "Screenshots"),
 
         // Widget adları (Widget'lar listesi, tepsi)
@@ -58,7 +55,7 @@ internal static partial class En
         new("ekranın üst ortasına", "at the top center of the screen"),
         new("imlecin yanına", "next to the pointer"),
         new("{0} {1} eklendi", "{0} was added {1}"),
-        new("Yeni widget'ların yerini Widget'lar sayfasından değiştirebilirsin.", "You can change where new widgets appear on the Widgets page."),
+        new("Yeni widget'ların yerini Ayarlar'dan değiştirebilirsin.", "You can change where new widgets appear in Settings."),
         new(" Widget'ları pencerelerin önüne getirmek için {0}.", " Press {0} to bring widgets in front of windows."),
 
         // Saat
@@ -130,7 +127,10 @@ internal static partial class En
         new("Tür", "Mode"),
         new("Süre", "Duration"),
         new("Başka süre…", "Other duration…"),
-        new("Odak süresi", "Focus length"),
+        new("{0} / {1} / {2} dk", "{0} / {1} / {2} min"),
+        new("Özel…", "Custom…"),
+        new("Odak / mola / uzun mola (dakika)", "Focus / break / long break (minutes)"),
+        new("Üç süreyi dakika olarak yaz, ör. 25 / 5 / 15.", "Type three durations in minutes, for example 25 / 5 / 15."),
         new("Sonraki aşama kendiliğinden başlasın", "Start the next phase automatically"),
         new("Süre dolunca bildir", "Notify me when time is up"),
         new("Durum satırı", "Status line"),
@@ -157,7 +157,6 @@ internal static partial class En
         new("Bu şehri kaldır", "Remove this city"),
         new("Şehir ekle…", "Add city…"),
         new("Şehir ekle", "Add city"),
-        new("Satıra sağ tık: adını değiştir, taşı, kaldır", "Right-click a row to rename, move or remove it"),
         new("Henüz şehir yok.", "No cities yet."),
         new("Şehir ya da saat dilimi ara", "Search for a city or time zone"),
         new("Ara", "Search"),
@@ -191,7 +190,6 @@ internal static partial class En
         new("Geri Dönüşüm Kutusu'nu boşalt", "Empty Recycle Bin"),
         new("Geri Dönüşüm Kutusu'nu boşalt…", "Empty Recycle Bin…"),
         new("Geri Dönüşüm Kutusu'ndaki her şeyi kalıcı olarak siler (önce sorar)", "Permanently deletes everything in the Recycle Bin (asks first)"),
-        new("Açmak için çift tıkla", "Double-click to open"),
         new("Öğe sayısı ve boyut", "Item count and size"),
         new("Boşalt düğmesi", "Empty button"),
         new("Bırak, Geri Dönüşüm Kutusu'na gitsin", "Drop to move to the Recycle Bin"),
@@ -207,17 +205,14 @@ internal static partial class En
         new("Klasör bulunamadı: {0}", "Folder not found: {0}"),
         new("Başka klasör seç…", "Choose another folder…"),
         new("… ve {0} öğe daha · Klasörde aç", "… and {0} more item · Open folder", "… and {0} more items · Open folder"),
-        new("Bilinen klasörler", "Known folders"),
         new("Başka bir klasör…", "Another folder…"),
         new("En eski üstte", "Oldest first"),
         new("Boyuta göre (büyük üstte)", "Size (largest first)"),
         new("Elle (sürükleyerek)", "Manual (drag to reorder)"),
 
         // Not
-        new("Yazı boyutu: Ctrl + tekerlek", "Text size: Ctrl + wheel"),
         new("Bitenler alta insin", "Move checked items to the bottom"),
 
         // Widget menüsü
-        new("Boyut: kenarlardan sürükle · {0} · Izgaraya hizala: Shift", "Size: drag the edges · {0} · Align to grid: Shift"),
     ]);
 }

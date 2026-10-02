@@ -419,7 +419,7 @@ public sealed class WidgetManager
         }
     }
 
-    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı düzenler'de durur; arayüz dilinde).</summary>
+    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı yerleşimler'de durur; arayüz dilinde).</summary>
     public static string ApplyBackupName => LayoutBackup.ApplyName;
 
     /// <summary>
@@ -444,22 +444,12 @@ public sealed class WidgetManager
     }
 
     /// <summary>
-    /// Yeni eklenen bölme/kutu/notun başlığını yerinde düzenlemeye açar (Gezgin'deki "Yeni klasör" gibi; başlık seçili,
-    /// bölme ve kutuda simgesi tıklanınca seçici açılır; notta başlıktan sonra yazı alanına geçilir). Pencere yerleşip öne
-    /// geldikten sonra; başlığı olmayan widget'ta (saat, tarih) bir şey yapmaz, odak çalınmaz.
+    /// Widget'ın şimdi açık görünümü; yoksa null. Bildirimdeki "Geri al" görünümü kimlikle bulur: widget o arada kaldırılıp
+    /// geri getirildiyse yeni pencerede yeni görünüm (ve ayarın kopyası) vardır.
     /// </summary>
-    public void BeginRename(string id)
-    {
-        if (!_open.TryGetValue(id, out var window)) return;
-        window.Dispatcher.BeginInvoke(() =>
-        {
-            if (!_open.ContainsKey(id)) return;
-            if (window.View is NoteView note) note.BeginNaming();
-            else window.View.TryBeginRename();
-        }, DispatcherPriority.ApplicationIdle);
-    }
+    internal IWidgetView? ViewOf(string id) => _open.TryGetValue(id, out var window) ? window.View : null;
 
-    /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir.</summary>
+    /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir (düz notta yazı alanı, yapılacaklarda ilk satır).</summary>
     public void FocusNote(string id)
     {
         if (!_open.TryGetValue(id, out var window) || window.View is not NoteView note) return;
@@ -489,19 +479,20 @@ public sealed class WidgetManager
         window.Attention();
     }
 
-    public static string ArrangeBackupName => LayoutBackup.ArrangeName;
-
     /// <summary>
-    /// Tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü simgeleri
-    /// genelde soldadır), geniş olanlar önce. Önceki düzen "Otomatik yerleştirmeden önce" adıyla kaydedilir.
+    /// "Widget'ları hizala": tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü
+    /// simgeleri genelde soldadır), geniş olanlar önce. Önceki düzen "Otomatik yerleştirmeden önce" adıyla kaydedilir;
+    /// <paramref name="moves"/> bildirimdeki "Geri al" içindir (<see cref="UndoArrange"/>).
     /// </summary>
-    public int ArrangeAll()
+    public int ArrangeAll(out IReadOnlyList<ArrangeMove> moves)
     {
+        moves = [];
         AppHost.EnsureWidgetsShown();
         var placed = _open.Values.Select(w => (Window: w, Bounds: w.PixelBounds)).Where(t => t.Bounds is not null).ToList();
         if (placed.Count == 0) return 0;
 
         LayoutBackup.SaveBeforeArrange(AppHost.Settings.Layouts, AppHost.Settings.Widgets);
+        var record = new List<ArrangeMove>();
 
         var byMonitor = placed.GroupBy(t =>
         {
@@ -518,11 +509,13 @@ public sealed class WidgetManager
             // Çalışma alanından uzun widget'ın görünen yüksekliği sütuna sığacak kadar kısılır (kayıtlı yüksekliği değişmez).
             var windows = group.Select(t =>
             {
-                if (t.Bounds!.Value.Height <= area.Height) return t;
+                if (t.Bounds!.Value.Height <= area.Height) return (t.Window, t.Bounds, Clipped: false);
                 t.Window.LimitDisplayHeight(area.Height);
-                return (t.Window, Bounds: t.Window.PixelBounds ?? t.Bounds);
+                var now = t.Window.PixelBounds ?? t.Bounds;
+                return (t.Window, Bounds: now, Clipped: now!.Value.Height < t.Bounds.Value.Height);
             }).ToList();
-            foreach (var (window, bounds) in windows.OrderByDescending(t => t.Bounds!.Value.Width).ThenBy(t => t.Bounds!.Value.Top))
+            foreach (var (window, bounds, clipped) in windows.OrderByDescending(t => t.Bounds!.Value.Width)
+                         .ThenBy(t => t.Bounds!.Value.Top))
             {
                 var r = bounds!.Value;
                 if (first || (y + r.Height > area.Bottom && y > area.Top))
@@ -535,12 +528,46 @@ public sealed class WidgetManager
                 }
                 var x = Math.Max(area.Left, right - r.Width); // sütunda sağa yaslı
                 window.MoveTo(x, y);
+                if (window.PixelBounds is { } now) record.Add(new ArrangeMove(window.Config.Id, r.Left, r.Top, now.Left, now.Top, clipped));
                 y += r.Height;
             }
         }
         AppHost.SaveSettings();
         Changed?.Invoke();
+        moves = record;
         return placed.Count;
+    }
+
+    /// <summary>
+    /// "Widget'ları hizala"yı geri alır: hâlâ hizalamanın koyduğu yerde duran widget'lar önceki yerlerine döner (sonradan
+    /// taşınan, eklenen ya da kaldırılan widget'lara dokunulmaz) ve hizalamanın kıstığı görünen yükseklik geri gelir.
+    /// </summary>
+    public void UndoArrange(IReadOnlyList<ArrangeMove> moves)
+    {
+        // Gizli widget'ın konumu okunamaz (PixelBounds): önce görünürler.
+        AppHost.EnsureWidgetsShown();
+        var back = ArrangeUndo.Pending(moves, id =>
+            _open.TryGetValue(id, out var w) && w.PixelBounds is { } r ? (r.Left, r.Top) : null);
+        if (back.Count == 0) return;
+        foreach (var move in back)
+        {
+            var window = _open[move.Id];
+            if (move.Moved) window.MoveTo(move.FromX, move.FromY);
+            window.RefitHeight();
+        }
+        AppHost.SaveSettings();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Widget'ın konum kilidini açar ("Konum kilitli." bildirimindeki "Kilidi aç").</summary>
+    public void Unlock(string id)
+    {
+        if (_open.TryGetValue(id, out var window)) window.SetLocked(false);
+        else if (AppHost.Settings.Widgets.FirstOrDefault(w => w.Id == id) is { Locked: true } config)
+        {
+            config.Locked = false;
+            AppHost.SaveSettings();
+        }
     }
 
     public void Restyle(string id)
@@ -643,8 +670,9 @@ public sealed class WidgetManager
 
     /// <summary>
     /// Yeni widget için boş bir yer (pencerenin sol üstü, fiziksel piksel): kipe göre istenen noktaya
-    /// (<see cref="WidgetLayout.DesiredSpot"/>) en yakın, diğer widget'lara değmeyen yer (<see cref="WidgetLayout.FindSpot"/>).
-    /// Hesap kartla yapılır (gölge payı hariç), aralık bırakılan widget'lar arasındakiyle aynıdır.
+    /// (<see cref="WidgetLayout.DesiredSpot"/>) en yakın, diğer widget'lara ve açık ana pencereye (<see cref="MainWindowBox"/>)
+    /// değmeyen yer (<see cref="WidgetLayout.FindSpot"/>). Hesap kartla yapılır (gölge payı hariç), aralık bırakılan
+    /// widget'lar arasındakiyle aynıdır.
     /// </summary>
     /// <param name="dipSize">Pencerenin DIP boyutu (gölge payı dahil).</param>
     /// <param name="marginDip">Kartın çevresindeki gölge payı (DIP).</param>
@@ -662,9 +690,25 @@ public sealed class WidgetManager
         var (dx, dy) = WidgetLayout.DesiredSpot(place.Mode, area, w, h, place.Anchor.X, place.Anchor.Y,
             cornerRight: corner != WidgetCorner.TopCenter, offset: (int)Math.Round(16 * scale), gap,
             cornerBottom: corner == WidgetCorner.BottomRight);
-        var (x, y) = WidgetLayout.FindSpot(area, w, h, dx, dy, OtherCards(self), gap,
+        var taken = OtherCards(self);
+        if (MainWindowBox() is { } main) taken.Add(main);
+        var (x, y) = WidgetLayout.FindSpot(area, w, h, dx, dy, taken, gap,
             step: Math.Max(8, (int)Math.Round(16 * scale)), horizontalWeight: place.Mode == PlaceMode.Corner ? 4 : 1);
         return new NativeMethods.POINT { X = x - m, Y = y - m };
+    }
+
+    /// <summary>
+    /// Açık ana pencerenin dikdörtgeni (fiziksel piksel; simge durumundaysa ya da gizliyse null). Yeni widget onun da yanına
+    /// yerleşir: widget'lar hep en altta durur, ana pencerenin altına düşen widget vurgusu bitince arkasında kaybolurdu
+    /// (ör. Ana sayfadan imleç kipinde eklerken).
+    /// </summary>
+    private static Box? MainWindowBox()
+    {
+        if (Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault(w => w.IsVisible && w.WindowState != WindowState.Minimized)
+            is not { } main) return null;
+        var handle = new System.Windows.Interop.WindowInteropHelper(main).Handle;
+        return handle != IntPtr.Zero && NativeMethods.GetWindowRect(handle, out var r) && r.Right > r.Left && r.Bottom > r.Top
+            ? new Box(r.Left, r.Top, r.Right, r.Bottom) : null;
     }
 
     private WidgetWindow? TryOpen(WidgetConfig config, WidgetPlacement? place = null, bool fadeIn = false)

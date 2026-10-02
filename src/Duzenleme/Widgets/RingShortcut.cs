@@ -3,7 +3,7 @@ using Duzenleme.Core;
 namespace Duzenleme.Widgets;
 
 /// <summary>
-/// "Kısayolla imleçte açılsın": halka kısayolunu açıp kapama akışının tek yeri (Ayarlar > Halka menü ve widget menüsü).
+/// "Tuşla imlecin yanında açılsın": halka kısayolunu açıp kapama akışının tek yeri (Ayarlar > Halka menü ve widget menüsü).
 /// Store: kısayol varsayılan olarak kapalı ve atanmamıştır, açılırken ne yaptığı anlatılır. Açma
 /// <see cref="RingHotkey.TurnOn"/> ile (öneri → kayıt → yalnızca halkanın kaydı başarısızsa sıradaki öneri); kapama
 /// Set(Ring, "") + Apply. Her değişiklikten sonra açılır halka ayara uyar (<see cref="Views.RingPopup.Sync"/>: açıksa boşta

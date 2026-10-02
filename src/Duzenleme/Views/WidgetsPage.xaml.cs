@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using Duzenleme.Core;
 using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
@@ -36,8 +35,8 @@ public sealed record LayoutRow(LayoutSnapshot Layout)
 }
 
 /// <summary>
-/// Widget'lar: "yalnızca bölmelerde" modu, ekleme kutucukları, masaüstündekilerin listesi (Bul / Kaldır), toplu görünüm ve
-/// kayıtlı düzenler. Her eylemin sonucu ana penceredeki bildirim şeridinde görünür; kaldırma ve silme oradan geri alınır.
+/// Widget'lar: "Widget ekle" (her yerdeki gibi tek pencere), masaüstündekilerin listesi (Bul / Kaldır), toplu görünüm ve
+/// kayıtlı yerleşimler. Her eylemin sonucu ana penceredeki bildirim şeridinde görünür; kaldırma ve silme oradan geri alınır.
 /// </summary>
 public partial class WidgetsPage : Page
 {
@@ -45,8 +44,6 @@ public partial class WidgetsPage : Page
     private static readonly WidgetStyle[] Styles = [WidgetStyle.Glass, WidgetStyle.Dark, WidgetStyle.Light];
     private static readonly WidgetAccent[] Accents =
         [WidgetAccent.Violet, WidgetAccent.Blue, WidgetAccent.Green, WidgetAccent.Orange, WidgetAccent.Pink];
-
-    private const string FolderKeyPrefix = "Folder:";
 
     // Kutular koddan güncellenirken SelectionChanged bütün widget'ları yeniden boyamasın.
     private bool _loading;
@@ -56,16 +53,8 @@ public partial class WidgetsPage : Page
         InitializeComponent();
         Fold.Attach(LookFold, LookContent);
         Fold.Attach(LayoutsFold, LayoutsContent);
-        foreach (var mode in DesktopModes.Choices)
-            IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
         foreach (var (id, label) in LookMenus.ThemeChoices)
             ThemeBox.Items.Add(new ComboBoxItem { Content = label, Tag = id });
-        foreach (var mode in PlaceModes.Choices)
-            PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
-        // Araçlar sabit; bölmeler (klasörler değişebilir) her açılışta yeniden kurulur.
-        var tools = WidgetCatalog.Tools;
-        WidgetCatalog.AddTiles(ToolTiles, tools.Where(c => c.Group == WidgetGroup.Tool), AddWidget);
-        WidgetCatalog.AddTiles(InfoTiles, tools.Where(c => c.Group == WidgetGroup.Info), AddWidget);
         Loaded += (_, _) => Reload();
         // Ana pencere gizliyken sayfa widget değişikliklerine ve kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
@@ -73,56 +62,25 @@ public partial class WidgetsPage : Page
             {
                 AppHost.Widgets.Changed += OnWidgetsChanged;
                 AppHost.SettingsChanged += OnSettingsChanged;
-                AppHost.DesktopVisibilityChanged += OnSettingsChanged;
-                AppHost.DesktopSnapshot.Changed += RefreshFenceTilesIfChanged;
             },
             detach: () =>
             {
                 AppHost.Widgets.Changed -= OnWidgetsChanged;
                 AppHost.SettingsChanged -= OnSettingsChanged;
-                AppHost.DesktopVisibilityChanged -= OnSettingsChanged;
-                AppHost.DesktopSnapshot.Changed -= RefreshFenceTilesIfChanged;
             },
             refresh: Reload);
     }
 
-    /// <summary>Bölme kutucukları (masaüstündeki klasörler değişebilir), liste ve ayarlar baştan.</summary>
+    /// <summary>Liste ve ayarlar baştan.</summary>
     private void Reload()
     {
-        BuildFenceTiles();
         _listed = null; // baştan kurulan liste oynamaz (sayfa zaten girerek gelir)
         OnWidgetsChanged();
         OnSettingsChanged();
     }
 
-    // Klasör bölmesi kutucuklarının hangi klasörlerle (ve "yeni klasör" rozetleriyle) kurulduğu.
-    private string _fenceSignature = "";
-
-    private static string FenceSignature() =>
-        string.Join("|", AppHost.Widgets.FolderFenceChoices().Select(c => (c.Exists ? "+" : "-") + c.Name));
-
-    private void BuildFenceTiles()
-    {
-        // "Diğer klasörler" açılmışsa yeniden kurulunca da açık kalsın.
-        var expanded = FenceTiles.Children.OfType<FrameworkElement>()
-            .Any(t => System.Windows.Automation.AutomationProperties.GetAutomationId(t) == "Add.MoreFolders" && t.Visibility != Visibility.Visible);
-        _fenceSignature = FenceSignature();
-        FenceTiles.Children.Clear();
-        WidgetCatalog.AddTiles(FenceTiles, WidgetCatalog.Fences(), AddWidget);
-        if (!expanded) return;
-        foreach (UIElement tile in FenceTiles.Children)
-            tile.Visibility = System.Windows.Automation.AutomationProperties.GetAutomationId(tile) == "Add.MoreFolders"
-                ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    /// <summary>
-    /// Sayfa açıkken masaüstünde klasör açıldı/silindi ya da kurallar değişti: klasör kutucukları ve "yeni klasör" rozetleri
-    /// güncellensin (yalnızca klasör listesi değiştiyse; bellekten, diske dokunmadan).
-    /// </summary>
-    private void RefreshFenceTilesIfChanged()
-    {
-        if (FenceSignature() != _fenceSignature) BuildFenceTiles();
-    }
+    /// <summary>"Widget ekle": tepsideki, Ctrl+Alt+B'deki ve halkadaki pencerenin aynısı (yeni widget ayardaki yere gelir).</summary>
+    private void AddWidget_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowQuickAdd();
 
     /// <summary>Widget eklendi, kaldırıldı, düzen uygulandı ya da yerleştirildi: liste, sayılar ve görünüm kutuları.</summary>
     private void OnWidgetsChanged()
@@ -144,7 +102,6 @@ public partial class WidgetsPage : Page
             return;
         }
         RefreshSettings();
-        RefreshFenceTilesIfChanged();
         if (ActiveList.ItemsSource is IEnumerable<WidgetRow> rows &&
             !rows.Select(r => (r.Name, r.Icon)).SequenceEqual(AppHost.Settings.Widgets.Select(w => (WidgetText.DisplayName(w), WidgetIcons.For(w)))))
             RefreshWidgets();
@@ -187,20 +144,16 @@ public partial class WidgetsPage : Page
     {
         var rows = AppHost.Settings.Layouts.OrderByDescending(l => l.Created).Select(l => new LayoutRow(l)).ToList();
         LayoutList.ItemsSource = rows;
-        LayoutsTitle.Text = L.F("Kayıtlı düzenler ({0})", rows.Count);
+        LayoutsTitle.Text = L.F("Kayıtlı yerleşimler ({0})", rows.Count);
         LayoutEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Mod anahtarı ve toplu görünüm denetimleri ayarlardaki değeri gösterir.</summary>
+    /// <summary>Toplu görünüm denetimleri ayarlardaki değeri gösterir.</summary>
     private void RefreshSettings()
     {
         _loading = true;
         try
         {
-            var mode = DesktopModes.Current;
-            IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, mode);
-            IconModeText.Text = DesktopModes.Description(mode);
-            PlacementBox.SelectedIndex = Array.IndexOf(PlaceModes.Choices, PlaceModes.Parse(AppHost.Settings.NewWidgetPlacement));
             // Notlar kendi kağıt rengini kullanır: toplu görünüm onları saymaz.
             var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
             // Tema açıkken "Arka plan" boş görünür (menüdeki gibi); özel vurgu rengi de adlı renklerden biri sayılmaz.
@@ -226,76 +179,15 @@ public partial class WidgetsPage : Page
         return distinct.Count == 1 ? distinct[0] : -1;
     }
 
-    /// <summary>Ana pencerenin ortası: yeni widget'lar bu pencerenin bulunduğu ekrana yerleşir.</summary>
-    private NativeMethods.POINT? WindowCenter()
-    {
-        if (Window.GetWindow(this) is not { } window) return null;
-        var hwnd = new WindowInteropHelper(window).Handle;
-        return hwnd != IntPtr.Zero && NativeMethods.GetWindowRect(hwnd, out var r)
-            ? new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 }
-            : null;
-    }
-
-    private void IconModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || IconModeBox.SelectedItem is not ComboBoxItem { Tag: IconMode mode }) return;
-        DesktopModes.Set(mode, WindowCenter(), Window.GetWindow(this));
-        // Soru penceresinden sonra ya da ayar değişmediyse de kutu gerçek durumu göstersin.
-        RefreshSettings();
-    }
-
-    private void PlacementBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || PlacementBox.SelectedItem is not ComboBoxItem { Tag: PlaceMode mode }) return;
-        DesktopModes.SetPlacement(mode);
-    }
-
-    /// <summary>Kutucuktaki widget'ı ana pencerenin ekranına ekler; bildirimdeki "Bul" onu öne getirir.</summary>
-    private void AddWidget(WidgetChoice choice)
-    {
-        var folder = choice.Key.StartsWith(FolderKeyPrefix, StringComparison.Ordinal) ? choice.Key[FolderKeyPrefix.Length..] : null;
-        // Klasör eklerken açılacak mı? Kutucuktaki rozete değil diske bakılır (kutucuk kurulduktan sonra değişmiş olabilir).
-        var creates = folder is not null && !AppHost.DesktopFolders().Any(f => FolderName.Equal(f, folder));
-        // Bölme ve kutu başlığı düzenlenir hâlde gelir (ad yazılabilir, simgesi tıklanınca seçici açılır).
-        if (WidgetCatalog.Invoke(choice, WindowCenter(), renameAfterAdd: true) is not { } config) return; // klasör açılamadı ya da vazgeçildi
-        // Pencere açılamadıysa WidgetManager widget'ı geri çıkarıp uyardı: "eklendi" denmesin.
-        if (!AppHost.Settings.Widgets.Any(w => w.Id == config.Id)) return;
-
-        var text = choice.Key == WidgetCatalog.NewFenceKey ? L.F("\"{0}\" bölmesi masaüstüne eklendi.", FenceTitle(config))
-            : choice.Group != WidgetGroup.Fence ? L.F("{0} masaüstüne eklendi.", choice.Label)
-            : creates ? L.F("\"{0}\" bölmesi eklendi; masaüstünde \"{0}\" klasörü de oluşturuldu.", folder)
-            : L.F("\"{0}\" bölmesi masaüstüne eklendi.", choice.Label);
-        Notice.Show(text, NoticeKind.Success, L.T("Bul"), () => AppHost.Widgets.Reveal(config.Id));
-        if (creates) RefreshTile(choice.Key);
-    }
-
-    /// <summary>Bölmenin görünen başlığı (kullanıcının verdiği ya da kaynağının adı).</summary>
-    private static string FenceTitle(WidgetConfig config) =>
-        config.Title ?? (config.Filter != DesktopFilter.None ? DesktopItems.Label(config.Filter) : config.FolderName ?? "");
-
-    /// <summary>Klasör açıldı: kutucuğun "yeni klasör" rozeti kalksın. Yerinde değiştirilir ("Diğer klasörler" açık kalır).</summary>
-    private void RefreshTile(string key)
-    {
-        var old = FenceTiles.Children.OfType<FrameworkElement>()
-            .FirstOrDefault(t => System.Windows.Automation.AutomationProperties.GetAutomationId(t) == "Add." + key);
-        if (old is null || WidgetCatalog.Fences().FirstOrDefault(c => c.Key == key) is not { } fresh) return;
-        var tile = WidgetCatalog.Tile(fresh, AddWidget);
-        tile.Visibility = old.Visibility;
-        // Dolu bir yuvaya doğrudan atamak (Children[i] = tile) WPF'te hata verir: önce eskisi çıkarılır.
-        var index = FenceTiles.Children.IndexOf(old);
-        FenceTiles.Children.RemoveAt(index);
-        FenceTiles.Children.Insert(index, tile);
-    }
-
     private void RevealAll_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RevealAll();
 
     private void Arrange_Click(object sender, RoutedEventArgs e)
     {
-        var count = AppHost.Widgets.ArrangeAll();
-        // Geri al yok: bildirim açık kalırken eklenen widget yedekle değiştirilince sessizce silinirdi. Yedek Kayıtlı düzenler'de.
-        if (count == 0) Notice.Show(L.T("Yerleştirilecek widget yok."), NoticeKind.Info);
-        else Notice.Show(L.P(count, "{0} widget düzenli yerleştirildi. Önceki yerleşim Kayıtlı düzenler'de \"{1}\" adıyla duruyor.",
-            WidgetManager.ArrangeBackupName));
+        var count = AppHost.Widgets.ArrangeAll(out var moves);
+        // "Geri al" yalnızca konumları geri koyar (yedeği bütünüyle uygulamak bildirim açıkken eklenen widget'ı silerdi);
+        // önceki yerleşim ayrıca Kayıtlı yerleşimler'de durur.
+        if (count == 0) Notice.Show(L.T("Hizalanacak widget yok."), NoticeKind.Info);
+        else Notice.Show(L.P(count, "{0} widget hizalandı."), NoticeKind.Success, L.T("Geri al"), () => AppHost.Widgets.UndoArrange(moves));
     }
 
     private void Reveal_Click(object sender, RoutedEventArgs e)

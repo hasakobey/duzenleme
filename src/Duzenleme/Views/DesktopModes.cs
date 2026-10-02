@@ -17,7 +17,7 @@ internal enum IconMode
 }
 
 /// <summary>
-/// "Windows masaüstü simgeleri" seçimi: Ayarlar, Widget'lar sayfası, tepsi, bölme ve kutu menüleri aynı metinleri ve aynı
+/// "Windows masaüstü simgeleri" seçimi: Ayarlar, karşılama ve "Widget ekle"deki "Masaüstümü bölmelere ayır" aynı metinleri ve aynı
 /// davranışı buradan alır. Dosya taşıyan ya da geri koyan adımlar her zaman sorulur.
 /// </summary>
 internal static class DesktopModes
@@ -47,7 +47,7 @@ internal static class DesktopModes
         _ => L.T("Windows'un masaüstü simgeleri her zamanki gibi görünür; kutular ve bölmeler dosyalara dokunmadan kısayol gösterir."),
     };
 
-    /// <summary>"Yeni widget'ların yeri" seçenekleri (Ayarlar ve Widget'lar sayfası).</summary>
+    /// <summary>"Yeni widget'ların yeri" seçenekleri (Ayarlar).</summary>
     public static string PlaceLabel(Core.PlaceMode mode) => mode switch
     {
         Core.PlaceMode.Center => L.T("Etkin ekranın ortasına"),

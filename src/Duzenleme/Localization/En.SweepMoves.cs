@@ -12,7 +12,7 @@ internal static partial class En
     [
         // Ana sayfa
         new("Saat, not, bölme…", "Clocks, notes, panels…"),
-        new("Masaüstündeki dosyaları taşı", "Move desktop files to their folders"),
+        new("Masaüstünden klasörlerine", "From the desktop to their folders"),
         new("Klasörleri ayarla", "Set up folders"),
         new("Son taşınanlar", "Recently moved"),
         new("Tümünü gör", "See all"),
@@ -79,13 +79,7 @@ internal static partial class En
             "The \"{1}\" folder was created. Auto-move is off, so {0} file is still waiting on the desktop.",
             "The \"{1}\" folder was created. Auto-move is off, so {0} files are still waiting on the desktop."),
         new("Tümünü göster ({0})", "Show all ({0})"),
-        new("Kurallar varsayılana dönsün mü?", "Reset rules to defaults?"),
-        new("Eklediğin ya da değiştirdiğin kurallar silinir; {0} kuralları geri gelir. Dosyalarına dokunulmaz.",
-            "Rules you've added or changed will be removed, and the {0} rules will come back. Your files won't be touched."),
         new("Kurallar varsayılana döndü.", "Rules were reset to defaults."),
-        new("Geçmiş temizlensin mi?", "Clear history?"),
-        new("Listedeki taşımalar silinir ve artık buradan geri alınamaz. Dosyaların bulundukları klasörde kalır. Geri aldığın dosyaların kaydı korunur; onlar yine taşınmaz.",
-            "The moves in the list will be removed and can't be undone from here anymore. Your files stay in the folders they're in. Files you've undone are still remembered and won't be moved again."),
         new("Geçmiş temizlendi.", "History cleared."),
 
         // Taşıma komutları (MoveActions)
@@ -108,7 +102,6 @@ internal static partial class En
 
         // Tepsi simgesi: menü, balonlar, ipucu
         new("Widget ekle…", "Add widget…"),
-        new("Masaüstünü gizle", "Hide desktop"),
         new("Geri getir: {0}", "Bring back: {0}"),
         new("Çıkış", "Exit"),
         new("{0} dosya → {1}", "{0} file → {1}", "{0} files → {1}"),

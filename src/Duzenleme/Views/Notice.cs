@@ -97,6 +97,9 @@ public static class Notice
         foreach (var window in app.Windows.OfType<MainWindow>()) window.HideNotice();
     }
 
+    /// <summary>Bildirim şeritte mi görünür (ana pencere açık ve simge durumunda değil)? Değilse tepsi balonuna düşer.</summary>
+    public static bool MainWindowShown => Application.Current is not null && VisibleMainWindow() is not null;
+
     /// <summary>Kullanıcının şeridi görebileceği ana pencere (açık ve simge durumunda değil); yoksa null.</summary>
     private static MainWindow? VisibleMainWindow() =>
         Application.Current.Windows.OfType<MainWindow>()

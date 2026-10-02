@@ -20,9 +20,6 @@ public interface IWidgetView
     /// <summary>Parça gizlenip gösterilince pencerenin yerleşimi (katlanabilirlik, boyut) yeniden uygulanmalı.</summary>
     event Action? LayoutChanged { add { } remove { } }
 
-    /// <summary>Widget'ın ayar menüsünü açma isteği (ör. dosya menüsündeki "Bölme ayarları…").</summary>
-    event Action? MenuRequested { add { } remove { } }
-
     /// <summary>Katlanınca gizlenecek gövde.</summary>
     void SetBodyVisible(bool visible) { }
 
@@ -54,8 +51,7 @@ public interface IWidgetView
     /// <summary>
     /// F2 / "Yeniden adlandır": seçili öğeyi (bölme: dosya ya da klasör, diskte; kutu: yalnızca görünen adı) ya da seçili öğe
     /// yoksa başlığı yerinde düzenlemeye açar (<see cref="TitleEditor"/>; pencere klavye için etkinleşir). Yeni eklenen widget
-    /// da bununla adlandırılır (<c>WidgetManager.BeginRename</c>). Başladıysa ya da zaten düzenleniyorsa true; başlığı olmayan
-    /// widget (saat, tarih) false.
+    /// adlandırmaya açılmaz (Kolay NestDesk). Başladıysa ya da zaten düzenleniyorsa true; başlığı olmayan widget (saat, tarih) false.
     /// </summary>
     bool TryBeginRename() => false;
 
@@ -66,9 +62,6 @@ public interface IWidgetView
     /// İlk çağrı pencere gösterilince gelir; o zamana dek görünüm "görünmez" sayılır. WidgetWindow değişince çağırır.
     /// </summary>
     void SetLive(bool live) { }
-
-    /// <summary>Görünüm ▸ altındaki ipucunda Ctrl + tekerleğin ne yaptığı (null: widget'ın ölçeği / simge boyutu).</summary>
-    string? CtrlWheelHint => null;
 
     // 2.2 Kutu
     /// <summary>
