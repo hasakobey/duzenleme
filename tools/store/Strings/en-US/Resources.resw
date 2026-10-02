@@ -15,7 +15,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AppDescription" xml:space="preserve">
-    <value>Splits your desktop into panels, moves files dropped on it into your own folders if you want, and adds widgets: clock, calendar, notes, to-do lists, timers and a shortcut box.</value>
+    <value>Splits your desktop into panels, moves files dropped on it into your own folders if you want, and adds widgets: clock, calendar, notes, to-do lists, timers, a shortcut box and a ring menu.</value>
     <comment>Package and Start menu description of the main app.</comment>
   </data>
   <data name="AddWidgetName" xml:space="preserve">
