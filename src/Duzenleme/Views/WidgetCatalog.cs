@@ -9,7 +9,7 @@ using TextBlock = System.Windows.Controls.TextBlock;
 
 namespace Duzenleme.Views;
 
-//// <summary>Ekleme yüzeylerindeki bölüm (kalıcı değil): Bölmeler, Araçlar (not, liste, kutu, zamanlayıcılar), Saat ve bilgi.</summary>
+/// <summary>Ekleme yüzeylerindeki bölüm (kalıcı değil): Bölmeler, Araçlar (not, liste, kutu, zamanlayıcılar), Saat ve bilgi.</summary>
 internal enum WidgetGroup { Fence, Tool, Info }
 
 /// <summary>
@@ -223,8 +223,8 @@ internal static class WidgetCatalog
     /// <summary>
     /// Kutucuk: 26 px simge, ad ve (varsa) altında görünen kısa açıklama (<see cref="WidgetChoice.Subtitle"/>; ikincil renkte, en
     /// çok iki satır). Açıklamalı kutucuk 128×100, açıklamasız 128×82 (adı iki satıra geçebilir). AutomationId "Add." + Key;
-    /// AutomationProperties.Name = Label; HelpText = Tip (ipucu yok: açıklama görünür). Basınca içerik hafifçe küçülür
-    /// (<see cref="Motion.PressProperty"/>).
+    /// AutomationProperties.Name = Label (sondaki "›" hariç); HelpText = Tip (ipucu yok: açıklama görünür). Basınca içerik
+    /// hafifçe küçülür (<see cref="Motion.PressProperty"/>).
     /// </summary>
     public static Button Tile(WidgetChoice choice, Action<WidgetChoice> onClick)
     {
@@ -260,7 +260,8 @@ internal static class WidgetCatalog
             Padding = new Thickness(6, 4, 6, 4),
         };
         System.Windows.Automation.AutomationProperties.SetAutomationId(button, "Add." + choice.Key);
-        System.Windows.Automation.AutomationProperties.SetName(button, choice.Label);
+        // "›" (sayfa açar) yalnızca görünür; ekran okuyucu onu okumasın ("Bölme ›" → "Bölme").
+        System.Windows.Automation.AutomationProperties.SetName(button, choice.Label.TrimEnd('›').TrimEnd());
         System.Windows.Automation.AutomationProperties.SetHelpText(button, choice.Tip);
         // Basınca içerik hafifçe küçülür (yalnızca Canlı; kutucuğun yeri ve boyutu değişmez).
         Motion.SetPress(button, true);
@@ -327,8 +328,8 @@ internal static class WidgetCatalog
 
     /// <summary>
     /// "Widget ekle"deki bir kutucuk: widget'ı ekler ve söyler. Ana pencere açıksa şeritte "{0} eklendi." + "Geri al" (widget
-    /// hemen kalkar; eklerken açılan klasör yerinde kalır); değilse ilk üç eklemede tepside nereye geldiği
-    /// (<see cref="AppHost.ShowNewWidgetHint"/>). Yeni widget birkaç saniye vurgulu öne gelir (WidgetManager, RevealGlow).
+    /// geri getirilebilir biçimde kalkar, <see cref="UndoAdd"/>; eklerken açılan klasör yerinde kalır); değilse ilk üç
+    /// eklemede tepside nereye geldiği (<see cref="AppHost.ShowNewWidgetHint"/>). Yeni widget birkaç saniye vurgulu öne gelir (WidgetManager, RevealGlow).
     /// </summary>
     public static WidgetConfig? AddAndAnnounce(WidgetChoice choice, NativeMethods.POINT? near)
     {
@@ -348,10 +349,22 @@ internal static class WidgetCatalog
             ? L.F("\"{0}\" bölmesi eklendi; masaüstünde \"{0}\" klasörü de oluşturuldu.", folder)
             : L.F("{0} eklendi.", name);
         var id = config.Id;
-        Notice.Show(text, NoticeKind.Success, L.T("Geri al"), () =>
-        {
-            if (AppHost.Settings.Widgets.Any(w => w.Id == id)) AppHost.Widgets.Remove(id);
-        });
+        Notice.Show(text, NoticeKind.Success, L.T("Geri al"), () => UndoAdd(id));
         return config;
+    }
+
+    /// <summary>
+    /// "{0} eklendi."deki "Geri al": şerit uzun süre açık kalabilir ve widget o arada doldurulmuş olabilir (not, kutu), bu yüzden
+    /// widget sıradan kaldırma gibi gider: ayarları ve içeriğiyle tutulur, yeni bildirimdeki "Geri al" (ya da tepsideki
+    /// "Geri getir") onu geri getirir.
+    /// </summary>
+    private static void UndoAdd(string id)
+    {
+        if (AppHost.Settings.Widgets.FirstOrDefault(w => w.Id == id) is not { } config) return;
+        var name = WidgetText.DisplayName(config); // kaldırmadan önce
+        var returning = BoxMover.MovedOnlyIn(config);
+        var modeOff = AppHost.Widgets.RemoveWithUndo(id, notify: false);
+        Notice.Show(WidgetManager.RemovedText(L.F("{0} kaldırıldı.", name), returning, modeOff),
+            NoticeKind.Info, L.T("Geri al"), () => AppHost.Widgets.UndoRemove(id));
     }
 }

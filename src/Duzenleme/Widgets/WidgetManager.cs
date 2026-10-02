@@ -443,6 +443,12 @@ public sealed class WidgetManager
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Widget'ın şimdi açık görünümü; yoksa null. Bildirimdeki "Geri al" görünümü kimlikle bulur: widget o arada kaldırılıp
+    /// geri getirildiyse yeni pencerede yeni görünüm (ve ayarın kopyası) vardır.
+    /// </summary>
+    internal IWidgetView? ViewOf(string id) => _open.TryGetValue(id, out var window) ? window.View : null;
+
     /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir (düz notta yazı alanı, yapılacaklarda ilk satır).</summary>
     public void FocusNote(string id)
     {
@@ -503,11 +509,13 @@ public sealed class WidgetManager
             // Çalışma alanından uzun widget'ın görünen yüksekliği sütuna sığacak kadar kısılır (kayıtlı yüksekliği değişmez).
             var windows = group.Select(t =>
             {
-                if (t.Bounds!.Value.Height <= area.Height) return t;
+                if (t.Bounds!.Value.Height <= area.Height) return (t.Window, t.Bounds, Clipped: false);
                 t.Window.LimitDisplayHeight(area.Height);
-                return (t.Window, Bounds: t.Window.PixelBounds ?? t.Bounds);
+                var now = t.Window.PixelBounds ?? t.Bounds;
+                return (t.Window, Bounds: now, Clipped: now!.Value.Height < t.Bounds.Value.Height);
             }).ToList();
-            foreach (var (window, bounds) in windows.OrderByDescending(t => t.Bounds!.Value.Width).ThenBy(t => t.Bounds!.Value.Top))
+            foreach (var (window, bounds, clipped) in windows.OrderByDescending(t => t.Bounds!.Value.Width)
+                         .ThenBy(t => t.Bounds!.Value.Top))
             {
                 var r = bounds!.Value;
                 if (first || (y + r.Height > area.Bottom && y > area.Top))
@@ -520,7 +528,7 @@ public sealed class WidgetManager
                 }
                 var x = Math.Max(area.Left, right - r.Width); // sütunda sağa yaslı
                 window.MoveTo(x, y);
-                if (window.PixelBounds is { } now) record.Add(new ArrangeMove(window.Config.Id, r.Left, r.Top, now.Left, now.Top));
+                if (window.PixelBounds is { } now) record.Add(new ArrangeMove(window.Config.Id, r.Left, r.Top, now.Left, now.Top, clipped));
                 y += r.Height;
             }
         }
@@ -544,7 +552,7 @@ public sealed class WidgetManager
         foreach (var move in back)
         {
             var window = _open[move.Id];
-            window.MoveTo(move.FromX, move.FromY);
+            if (move.Moved) window.MoveTo(move.FromX, move.FromY);
             window.RefitHeight();
         }
         AppHost.SaveSettings();
@@ -662,8 +670,9 @@ public sealed class WidgetManager
 
     /// <summary>
     /// Yeni widget için boş bir yer (pencerenin sol üstü, fiziksel piksel): kipe göre istenen noktaya
-    /// (<see cref="WidgetLayout.DesiredSpot"/>) en yakın, diğer widget'lara değmeyen yer (<see cref="WidgetLayout.FindSpot"/>).
-    /// Hesap kartla yapılır (gölge payı hariç), aralık bırakılan widget'lar arasındakiyle aynıdır.
+    /// (<see cref="WidgetLayout.DesiredSpot"/>) en yakın, diğer widget'lara ve açık ana pencereye (<see cref="MainWindowBox"/>)
+    /// değmeyen yer (<see cref="WidgetLayout.FindSpot"/>). Hesap kartla yapılır (gölge payı hariç), aralık bırakılan
+    /// widget'lar arasındakiyle aynıdır.
     /// </summary>
     /// <param name="dipSize">Pencerenin DIP boyutu (gölge payı dahil).</param>
     /// <param name="marginDip">Kartın çevresindeki gölge payı (DIP).</param>
@@ -681,9 +690,25 @@ public sealed class WidgetManager
         var (dx, dy) = WidgetLayout.DesiredSpot(place.Mode, area, w, h, place.Anchor.X, place.Anchor.Y,
             cornerRight: corner != WidgetCorner.TopCenter, offset: (int)Math.Round(16 * scale), gap,
             cornerBottom: corner == WidgetCorner.BottomRight);
-        var (x, y) = WidgetLayout.FindSpot(area, w, h, dx, dy, OtherCards(self), gap,
+        var taken = OtherCards(self);
+        if (MainWindowBox() is { } main) taken.Add(main);
+        var (x, y) = WidgetLayout.FindSpot(area, w, h, dx, dy, taken, gap,
             step: Math.Max(8, (int)Math.Round(16 * scale)), horizontalWeight: place.Mode == PlaceMode.Corner ? 4 : 1);
         return new NativeMethods.POINT { X = x - m, Y = y - m };
+    }
+
+    /// <summary>
+    /// Açık ana pencerenin dikdörtgeni (fiziksel piksel; simge durumundaysa ya da gizliyse null). Yeni widget onun da yanına
+    /// yerleşir: widget'lar hep en altta durur, ana pencerenin altına düşen widget vurgusu bitince arkasında kaybolurdu
+    /// (ör. Ana sayfadan imleç kipinde eklerken).
+    /// </summary>
+    private static Box? MainWindowBox()
+    {
+        if (Application.Current?.Windows.OfType<MainWindow>().FirstOrDefault(w => w.IsVisible && w.WindowState != WindowState.Minimized)
+            is not { } main) return null;
+        var handle = new System.Windows.Interop.WindowInteropHelper(main).Handle;
+        return handle != IntPtr.Zero && NativeMethods.GetWindowRect(handle, out var r) && r.Right > r.Left && r.Bottom > r.Top
+            ? new Box(r.Left, r.Top, r.Right, r.Bottom) : null;
     }
 
     private WidgetWindow? TryOpen(WidgetConfig config, WidgetPlacement? place = null, bool fadeIn = false)

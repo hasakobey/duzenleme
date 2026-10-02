@@ -130,6 +130,23 @@ public class WidgetCatalogTests
         Assert.Contains("ShowQuickAdd()", Read("Views", "HomePage.xaml.cs"));
     }
 
+    /// <summary>
+    /// "{0} eklendi."deki "Geri al" widget'ı geri getirilebilir biçimde kaldırır: şerit uzun süre açık kalabilir, o arada
+    /// doldurulan not ya da kutu geri dönüşsüz gitmesin. Yeni widget açık ana pencerenin altına düşmez (yer bulunurken dolu
+    /// sayılır).
+    /// </summary>
+    [Fact]
+    public void Undoing_an_add_keeps_the_widget_restorable_and_new_widgets_avoid_the_main_window()
+    {
+        var src = Path.Combine(RepoRoot(), "src", "Duzenleme");
+        var catalog = File.ReadAllText(Path.Combine(src, "Views", "WidgetCatalog.cs"));
+        Assert.Contains("RemoveWithUndo(id, notify: false)", catalog);
+        Assert.Contains("UndoRemove(id)", catalog);
+        Assert.DoesNotContain("Widgets.Remove(", catalog);
+        var manager = File.ReadAllText(Path.Combine(src, "Widgets", "WidgetManager.cs"));
+        Assert.Contains("if (MainWindowBox() is { } main) taken.Add(main);", manager);
+    }
+
     private static string RepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

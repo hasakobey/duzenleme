@@ -17,11 +17,18 @@ public class KolayUndoTests
             new ArrangeMove("b", 20, 20, 500, 300),  // sonradan kullanıcı taşıdı: yerinde kalır
             new ArrangeMove("c", 30, 30, 500, 600),  // bu arada kaldırıldı: dokunulmaz
             new ArrangeMove("d", 40, 40, 40, 40),    // hizalama yerinden oynatmadı
+            new ArrangeMove("e", 50, 0, 50, 0, Clipped: true),  // yerinde kaldı ama boyu kısıldı: boyu geri gelir
+            new ArrangeMove("f", 60, 0, 60, 0, Clipped: true),  // kısıldı, sonra kullanıcı taşıdı: dokunulmaz
         };
-        var now = new Dictionary<string, (int X, int Y)> { ["a"] = (500, 0), ["b"] = (700, 300), ["d"] = (40, 40) };
+        var now = new Dictionary<string, (int X, int Y)>
+        {
+            ["a"] = (500, 0), ["b"] = (700, 300), ["d"] = (40, 40), ["e"] = (50, 0), ["f"] = (900, 0),
+        };
         var back = ArrangeUndo.Pending(moves, id => now.TryGetValue(id, out var p) ? p : null);
-        Assert.Equal(["a"], back.Select(m => m.Id));
+        Assert.Equal(["a", "e"], back.Select(m => m.Id));
         Assert.Equal((10, 10), (back[0].FromX, back[0].FromY));
+        Assert.True(back[0].Moved);
+        Assert.False(back[1].Moved);
         Assert.Empty(ArrangeUndo.Pending([], _ => (0, 0)));
     }
 

@@ -130,6 +130,7 @@ internal static partial class En
         new("{0} / {1} / {2} dk", "{0} / {1} / {2} min"),
         new("Özel…", "Custom…"),
         new("Odak / mola / uzun mola (dakika)", "Focus / break / long break (minutes)"),
+        new("Üç süreyi dakika olarak yaz, ör. 25 / 5 / 15.", "Type three durations in minutes, for example 25 / 5 / 15."),
         new("Sonraki aşama kendiliğinden başlasın", "Start the next phase automatically"),
         new("Süre dolunca bildir", "Notify me when time is up"),
         new("Durum satırı", "Status line"),

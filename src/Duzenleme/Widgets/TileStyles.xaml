@@ -57,7 +57,7 @@
         </Setter>
     </Style>
 
-    <!-- Öğeyi kaldırmak için düğme yok: sağ tık → "Widget'tan kaldır" (fare öğelerin üstünde gezerken bir şey belirip kaybolmasın). -->
+    <!-- Öğeyi kaldırmak için düğme yok: sağ tık → "Bölmeden gizle" / "Kutudan kaldır" (fare öğelerin üstünde gezerken bir şey belirip kaybolmasın). -->
     <Style x:Key="TileContainer" TargetType="ListBoxItem">
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="0" />

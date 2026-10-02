@@ -337,11 +337,20 @@ public partial class TimerView : UserControl, IWidgetView
     private void AskPomodoro()
     {
         var (focus, rest, longRest) = TimerLogic.PomodoroMinutes(State);
-        if (InputDialog.Ask(L.T("Pomodoro"), L.T("Odak / mola / uzun mola (dakika)"), $"{focus} / {rest} / {longRest}",
-                (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is not { } text) return;
-        if (!TimerLogic.TryParsePomodoro(text, out var minutes)) return;
-        TimerLogic.SetPomodoro(State, minutes);
-        Changed();
+        var label = L.T("Odak / mola / uzun mola (dakika)");
+        var text = $"{focus} / {rest} / {longRest}";
+        // Okunamayan yanıt sessizce yok sayılmaz: pencere ne yazılacağını söyleyerek yazılanla yeniden açılır (Vazgeç bırakır).
+        while (InputDialog.Ask(L.T("Pomodoro"), label, text, (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is { } answer)
+        {
+            if (TimerLogic.TryParsePomodoro(answer, out var minutes))
+            {
+                TimerLogic.SetPomodoro(State, minutes);
+                Changed();
+                return;
+            }
+            text = answer;
+            label = L.T("Üç süreyi dakika olarak yaz, ör. 25 / 5 / 15.");
+        }
     }
 
     private void AskMinutes()

@@ -211,7 +211,14 @@ internal static class AppPicker
         _ = Refresh();
         async Task Refresh()
         {
-            var fresh = await StartMenuApps.RefreshAsync();
+            IReadOnlyList<StartApp> fresh;
+            try { fresh = await StartMenuApps.RefreshAsync(); }
+            catch (Exception)
+            {
+                // RefreshAsync hata fırlatmaz (okuma hatasını kendisi günlüğe yazar); yine de "yükleniyor" satırı hiçbir
+                // durumda kalmasın.
+                fresh = apps;
+            }
             if (closed) return;
             loading = false;
             if (fresh.Count == apps.Count && fresh.SequenceEqual(apps))

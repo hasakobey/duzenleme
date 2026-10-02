@@ -43,8 +43,13 @@ public partial class NoteView : UserControl, IWidgetView
 
         Editor.TextChanged += (_, _) => QueueSave();
         Editor.LostKeyboardFocus += (_, _) => Save();
-        // Yazı alanının menüsü yalnızca düzenleme komutlarıdır; notun kendi menüsü başlığa sağ tıklayınca açılır.
-        Editor.ContextMenu = Menus.Dynamic(menu => AddEditCommands(menu, Editor));
+        // Yazı alanının menüsü düzenleme komutlarıdır; notun kendi menüsü başlığa sağ tıklayınca (klavyede Ctrl+Shift+F10)
+        // açılır.
+        Editor.ContextMenu = Menus.Dynamic(menu =>
+        {
+            AddEditCommands(menu, Editor);
+            AddNoteMenuRow(menu);
+        });
 
         _rowTextStyle = (Style)FindResource("InlineTextBox");
         _rowBoxStyle = (Style)FindResource("ChecklistBox");
@@ -343,14 +348,12 @@ public partial class NoteView : UserControl, IWidgetView
     {
         _titleEditor.Cancel();
         Save();
-        _detached = true;
     }
 
-    private bool _detached;
-
     /// <summary>
-    /// "Notu temizle" (soru yok): yazı silinir, bildirimdeki "Geri al" onu geri getirir (o arada yazılan da kalır). Görünüm
-    /// bu arada kapandıysa (widget kaldırıldı) geri alma yalnızca ayara yazar.
+    /// "Notu temizle" (soru yok): yazı silinir, bildirimdeki "Geri al" onu geri getirir (o arada yazılan da kalır). Geri alma
+    /// notu kimliğiyle bulur (<see cref="WidgetManager.ViewOf"/>): widget o arada kaldırılıp geri getirildiyse yeni görünüme
+    /// yazar; kaldırılmış kaldıysa bir şey yapmaz.
     /// </summary>
     private void ClearNote()
     {
@@ -359,18 +362,16 @@ public partial class NoteView : UserControl, IWidgetView
         if (string.IsNullOrEmpty(cleared)) return;
         Editor.Clear();
         Save();
-        Views.Notice.Show(L.T("Not temizlendi."), Views.NoticeKind.Info, L.T("Geri al"), () =>
-        {
-            if (_config.NoteChecklist) return;
-            if (_detached)
-            {
-                _config.NoteText = NoteClear.Restore(cleared, _config.NoteText);
-                AppHost.SaveSettings();
-                return;
-            }
-            Editor.Text = NoteClear.Restore(cleared, Editor.Text);
-            Save();
-        }, L.T("Geri almak için buraya tıkla."));
+        var id = _config.Id;
+        Views.Notice.Show(L.T("Not temizlendi."), Views.NoticeKind.Info, L.T("Geri al"),
+            () => (AppHost.Widgets.ViewOf(id) as NoteView)?.RestoreCleared(cleared), L.T("Geri almak için buraya tıkla."));
+    }
+
+    private void RestoreCleared(string cleared)
+    {
+        if (_config.NoteChecklist) return;
+        Editor.Text = NoteClear.Restore(cleared, Editor.Text);
+        Save();
     }
 
     // --- Yapılacaklar ---
@@ -871,6 +872,19 @@ public partial class NoteView : UserControl, IWidgetView
             down.InputGestureText = "Alt+↓";
             menu.Items.Add(down);
         }
+        AddNoteMenuRow(menu);
+    }
+
+    /// <summary>
+    /// Başlığı gizli notta (Göster ▸ Başlık ve renkler kapalı) kartı yazı alanı ya da maddeler doldurur; notun menüsüne fareyle
+    /// başka yol kalmaz: yazı alanı ve madde menülerinin sonunda "Not/Liste ayarları…" onu açar. Başlık görünürken yok.
+    /// </summary>
+    private void AddNoteMenuRow(ContextMenu menu)
+    {
+        if (_config.Shows("header")) return;
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Menus.Item(_config.NoteChecklist ? L.T("Liste ayarları…") : L.T("Not ayarları…"),
+            () => (Window.GetWindow(this) as WidgetWindow)?.OpenCardMenu(), KeyNames.WidgetMenu));
     }
 
     private static void AddEditCommands(ContextMenu menu, TextBox target)

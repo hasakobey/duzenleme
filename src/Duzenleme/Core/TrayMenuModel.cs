@@ -78,7 +78,7 @@ public static class TrayMenuModel
     private static string? Key(string? hotkey) => string.IsNullOrWhiteSpace(hotkey) ? null : hotkey;
 }
 
-// <summary>Tepsi metinlerinin Windows sınırlarına uydurulması (saf).</summary>
+/// <summary>Tepsi metinlerinin Windows sınırlarına uydurulması (saf).</summary>
 public static class TrayText
 {
     /// <summary>İpucu (NOTIFYICONDATA.szTip) en çok 127 karakter.</summary>

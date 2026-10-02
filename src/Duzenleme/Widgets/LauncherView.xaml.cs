@@ -265,13 +265,19 @@ public partial class LauncherView : UserControl, IWidgetView
             _edits.LastRemoved?.Entry.Path is { } last ? [last] : null));
         if (removed is not { } taken) return;
         BoxMover.Reconcile();
-        Views.Notice.Show(L.F("\"{0}\" sekmesi silindi.", tab.Name), Views.NoticeKind.Info, L.T("Geri al"), () =>
-        {
-            if (!AppHost.Settings.Widgets.Contains(_config)) return;
-            var restored = false;
-            Change(() => restored = LauncherEdits.PutTab(_config, taken));
-            if (restored) BoxMover.Reconcile();
-        }, L.T("Geri almak için buraya tıkla."));
+        // Geri alma kutuyu kimliğiyle bulur: o arada kaldırılıp geri getirildiyse yeni görünüm ve ayarın kopyası vardır;
+        // kaldırılmış kaldıysa bir şey yapmaz.
+        var id = _config.Id;
+        Views.Notice.Show(L.F("\"{0}\" sekmesi silindi.", tab.Name), Views.NoticeKind.Info, L.T("Geri al"),
+            () => (AppHost.Widgets.ViewOf(id) as LauncherView)?.PutBack(taken), L.T("Geri almak için buraya tıkla."));
+    }
+
+    private void PutBack(LauncherEdits.RemovedTab taken)
+    {
+        if (!AppHost.Settings.Widgets.Contains(_config)) return;
+        var restored = false;
+        Change(() => restored = LauncherEdits.PutTab(_config, taken));
+        if (restored) BoxMover.Reconcile();
     }
 
     private void Swap(int a, int b)

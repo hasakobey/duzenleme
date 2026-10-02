@@ -1129,9 +1129,13 @@ public partial class FenceView : UserControl, IWidgetView
         var name = item.Name;
         var owner = Window.GetWindow(this) is { } window ? new System.Windows.Interop.WindowInteropHelper(window).Handle : IntPtr.Zero;
         // Bittiğinde (vazgeçilmediyse) ne olduğu söylenir; geri getirme Geri Dönüşüm Kutusu'ndan (kabuğun geri alma hilesi yok).
-        RunFileOperation(() => ShellFileOperations.RecycleWithShell(path, owner),
-            () => Views.Notice.Show(L.F("\"{0}\" Geri Dönüşüm Kutusu'na taşındı.", name), Views.NoticeKind.Success,
-                L.T("Geri Dönüşüm Kutusu'nu aç"), () => TileItem.Launch(RecycleBin.ShellName)));
+        // Yalnızca ana pencere açıkken şeritte: Gezgin de silince bildirim göstermez, her Delete'te tepsi balonu çıkmasın.
+        RunFileOperation(() => ShellFileOperations.RecycleWithShell(path, owner), () =>
+        {
+            if (!Views.Notice.MainWindowShown) return;
+            Views.Notice.Show(L.F("\"{0}\" Geri Dönüşüm Kutusu'na taşındı.", name), Views.NoticeKind.Success,
+                L.T("Geri Dönüşüm Kutusu'nu aç"), () => TileItem.Launch(RecycleBin.ShellName));
+        });
     }
 
     /// <summary>

@@ -13,7 +13,7 @@ namespace Duzenleme.Widgets;
 /// sürerken üstte bir satırda düzenlenir: <see cref="WidgetNameLine"/>; "Göster ▸ Ad" kapalıyken ortada simge). Tek tıkla
 /// açılır; 1–9 tuşları, oklar ve Enter da seçer.
 /// <para>Öğe menüsü (sağ tık, Menü tuşu/Shift+F10 vurgulanan öğede): Aç, Öğe ekle ▸, saat yönünde/ters yönde taşı, alt
-/// halkaya taşı ▸, Düzenle…, Halkadan kaldır ("Geri al" bildirimde ve widget menüsünde). Halkanın ortasına ya da dışına sağ
+/// halkaya taşı ▸, Değiştir…, Halkadan kaldır ("Geri al" bildirimde ve widget menüsünde). Halkanın ortasına ya da dışına sağ
 /// tık widget'ın menüsünü açar; oraya basıp sürüklemek widget'ı taşır. Yol öğeleri dışarı sürüklenebilir (veride yalnızca
 /// FileDrop); içeri dosya, klasör ya da http(s) adresi bırakılabilir (bırakılan yere girer; alt halkanın üstüne bırakılan
 /// onun içine). Ekleme/çıkarma kısayol kutusuyla aynı yoldan (<see cref="LauncherEdits"/>): kutudaki masaüstü dosyaları
@@ -188,7 +188,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         }
         // Başlat menüsündeki uygulamalar (gösterilen halkaya); öbür türler (web adresi, komut, tuşlar…) "Öğe ekle ▸"de.
         menu.Primary.Add(Menus.Item(L.T("Uygulama ekle…"), () => AddApps(CurrentTab, () => null)));
-        menu.Primary.Add(AddMenu(CurrentTab, () => null));
+        menu.Primary.Add(AddMenu(CurrentTab, () => null, withApps: false));
         // Kısayolla imleçte açılan halka (bkz. RingShortcut): yalnızca kısayolun açtığı halkada işaretli; açarken ne yaptığı
         // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır.
         menu.Primary.Add(Menus.Toggle(L.T("Tuşla imlecin yanında açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
@@ -201,14 +201,18 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     /// <summary>
     /// "Öğe ekle ▸": <paramref name="tab"/> sekmesine, <paramref name="where"/> sırasına (yoksa sona). Sıra seçilince
-    /// hesaplanır (menü açıkken halka yeniden kurulmuş olabilir).
+    /// hesaplanır (menü açıkken halka yeniden kurulmuş olabilir). <paramref name="withApps"/>: başta "Uygulama ya da dosya…"
+    /// (öğe menüsünde; widget menüsünde hemen üstteki "Uygulama ekle…" aynı işi yaptığı için yok).
     /// </summary>
-    private MenuItem AddMenu(LauncherTab tab, Func<int?> where)
+    private MenuItem AddMenu(LauncherTab tab, Func<int?> where, bool withApps = true)
     {
         var add = new MenuItem { Header = L.T("Öğe ekle") };
-        // Uygulama, dosya ya da klasör: "Uygulama seç" (dosya ve klasör altındaki "Dosya ya da klasör seç…"te).
-        add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), () => AddApps(tab, where)));
-        add.Items.Add(new Separator());
+        if (withApps)
+        {
+            // Uygulama, dosya ya da klasör: "Uygulama seç" (dosya ve klasör altındaki "Dosya ya da klasör seç…"te).
+            add.Items.Add(Menus.Item(L.T("Uygulama ya da dosya…"), () => AddApps(tab, where)));
+            add.Items.Add(new Separator());
+        }
         add.Items.Add(Menus.Item(L.T("Web adresi…"), () => AddAction(RingActionTypes.Url, tab, where)));
         add.Items.Add(Menus.Item(L.T("Komut…"), () => AddAction(RingActionTypes.Command, tab, where)));
         add.Items.Add(Menus.Item(L.T("Tuşlara bas…"), () => AddAction(RingActionTypes.Keys, tab, where)));
@@ -380,8 +384,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     // ---------------------------------------------------------------- ekleme
 
     /// <summary>
-    /// "Uygulama ekle…", "+" yeri ve "Öğe ekle ▸ Uygulama ya da dosya…": "Uygulama seç" widget'ın monitöründe açılır; seçilen
-    /// uygulama (ya da altındaki "Dosya ya da klasör seç…" ile seçilenler) <paramref name="tab"/> sekmesine, <paramref name="where"/>
+    /// "Uygulama ekle…", "+" yeri ve öğe menüsündeki "Öğe ekle ▸ Uygulama ya da dosya…": "Uygulama seç" widget'ın
+    /// monitöründe açılır; seçilen uygulama (ya da altındaki "Dosya ya da klasör seç…" ile seçilenler) <paramref name="tab"/> sekmesine, <paramref name="where"/>
     /// sırasına (yoksa sona; sıra pencere kapanınca hesaplanır) eklenir. Sekmede zaten olan "Zaten ekli"dir.
     /// </summary>
     private void AddApps(LauncherTab tab, Func<int?> where)

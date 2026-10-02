@@ -72,6 +72,8 @@ internal static partial class En
         new("Düz nota çevir", "Convert to plain note"),
         new("Onay kutulu listeye çevir", "Convert to checklist"),
         new("Notu temizle", "Clear note"),
+        new("Not ayarları…", "Note settings…"),
+        new("Liste ayarları…", "List settings…"),
         new("Panoya kopyala", "Copy to clipboard"),
         new("Maddeyi sil", "Delete item"),
         new("Kes", "Cut"),

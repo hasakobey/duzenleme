@@ -1350,11 +1350,33 @@ public sealed class WidgetWindow : Window
             e.Handled = true;
             return;
         }
-        if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
+        // Ctrl+Shift+F10: odak nerede olursa olsun (not yazı alanı, liste öğesi) widget'ın menüsü. Menü tuşu/Shift+F10 odaktaki
+        // öğenin menüsünü açar; yazı alanı sekmeyi yuttuğu için karta klavyeyle başka yol yok.
+        if ((e.Key == Key.System ? e.SystemKey : e.Key) == Key.F10 && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            OpenCardMenu();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None && View.TryBeginRename()) e.Handled = true;
         // 2.2 Kutu: 1–9 görünen n'inci öğeyi açar (bölme/kutu, seçenek açıksa). Odak kartta olsa da gelsin diye pencerede.
         // Elle ya da kendiliğinden katlanmış (AutoRollup) widget'ın gizli öğeleri açılmaz.
         else if (Keyboard.Modifiers == ModifierKeys.None && !IsCollapsedNow && View.TryQuickOpen(e)) e.Handled = true;
     }
+
+    /// <summary>
+    /// Widget'ın menüsünü açar (Ctrl+Shift+F10; başlığı gizli notta yazı alanı menüsündeki "Not ayarları…"). Klavyeyle
+    /// açılınca kartın ortasında (WPF'in klavyeyle açılan menüleri gibi), fareyle imlecin yanında (imleç başka ekranda
+    /// olabilir). Başka bir menü kapanırken çağrılabilir: açılış sıraya konur.
+    /// </summary>
+    internal void OpenCardMenu() => Dispatcher.BeginInvoke(() =>
+    {
+        if (_leaving || _card.ContextMenu is not { IsOpen: false } menu) return;
+        menu.PlacementTarget = _card;
+        menu.Placement = InputManager.Current.MostRecentInputDevice is KeyboardDevice
+            ? System.Windows.Controls.Primitives.PlacementMode.Center
+            : System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        menu.IsOpen = true;
+    }, DispatcherPriority.Input);
 
     /// <summary>Kartın ortası (fiziksel piksel): widget'tan açılan küçük pencereler bu monitörde açılsın.</summary>
     internal NativeMethods.POINT CenterPoint

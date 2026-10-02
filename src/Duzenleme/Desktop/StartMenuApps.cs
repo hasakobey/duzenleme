@@ -33,17 +33,20 @@ public static class StartMenuApps
 
     private static async Task<IReadOnlyList<StartApp>> ReadAsync()
     {
-        IReadOnlyList<StartApp> found = [];
+        IReadOnlyList<StartApp> list;
         try
         {
+            IReadOnlyList<StartApp> found = [];
             await ShellFileOperations.RunSta(() => found = Enumerate());
+            list = AppList.Prepare(found);
         }
-        catch (Exception ex) when (ex is COMException or InvalidCastException or InvalidOperationException or ArgumentException or OutOfMemoryException)
+        catch (Exception ex)
         {
+            // Kabuk her türlü hata verebilir (COM, erişim, bozuk öğe…): "Uygulama seç" hiçbirinde "yükleniyor"da kalmasın.
+            // AppLog yalnızca istisnanın türünü ve kodunu yazar.
             AppLog.Warn("start-apps", "enumerate-failed", ex);
             return Cached ?? [];
         }
-        var list = AppList.Prepare(found);
         // Boş sonuç (kabuk o an hazır değil) önceki listeyi silmesin.
         if (list.Count > 0 || Cached is null) Volatile.Write(ref _cache, list);
         AppLog.Info("start-apps", "enumerated", list.Count);
