@@ -12,7 +12,12 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
     public MoveJournal Journal => journal;
 
     public event Action<MoveEntry>? FileMoved;
-    public event Action<string, Exception>? MoveFailed;
+
+    /// <summary>
+    /// Taşıma başarısız oldu: dosyanın yolu, kuralın hedef klasörü (karar verilemeden olduysa null) ve hata. Bildirim dosyayı
+    /// klasör sanmasın ve izin vermeyen yer olarak masaüstünü değil hedef klasörü göstersin diye hedef de verilir.
+    /// </summary>
+    public event Action<string, string?, Exception>? MoveFailed;
 
     private IReadOnlySet<string> _pinned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -67,6 +72,7 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
     {
         lock (_moveLock)
         {
+            string? target = null;
             try
             {
                 if (!File.Exists(path)) return null;
@@ -78,7 +84,8 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
                     (IEnumerable<string>?)folders ?? ExistingFolders());
                 if (!decision.ShouldMove) return null;
 
-                var destination = FileMover.MoveInto(path, decision.TargetDirectory!);
+                target = decision.TargetDirectory!;
+                var destination = FileMover.MoveInto(path, target);
                 var entry = new MoveEntry { Source = path, Destination = destination };
                 journal.Add(entry);
                 FileMoved?.Invoke(entry);
@@ -86,7 +93,7 @@ public sealed class DesktopOrganizer(string desktopDirectory, Func<AppSettings> 
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                MoveFailed?.Invoke(path, ex);
+                MoveFailed?.Invoke(path, target, ex);
                 return null;
             }
         }

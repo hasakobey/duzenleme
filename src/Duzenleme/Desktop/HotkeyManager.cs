@@ -137,6 +137,13 @@ public sealed class HotkeyManager : IDisposable
                 continue;
             }
             var id = (int)action + 1;
+            if (!RegistersWithWindows(action, TestRing))
+            {
+                // Test masaüstünde halka kısayolu Windows'a kaydedilmez (kullanıcının gerçek tuşunu kapmasın); WM_HOTKEY id 8
+                // iletiyle gönderilir ve TestRing yine işler. Kayıt başarılı sayılır (Ayarlar'daki açma akışı denenebilsin).
+                DebugLog.Write($"kısayol kaydedilmedi (test masaüstü): {action}");
+                continue;
+            }
             if (RegisterHotKey(_window.Handle, id, (uint)hk.Modifiers | MOD_NOREPEAT, vk)) _registered.Add(id);
             else Failures[action] = L.T("Başka bir uygulama kullanıyor");
         }
@@ -165,6 +172,12 @@ public sealed class HotkeyManager : IDisposable
         var accepts = (testRing && action == HotkeyAction.Ring) || (applied?.Accepts(action) ?? action != HotkeyAction.Ring);
         return (true, accepts ? action : null);
     }
+
+    /// <summary>
+    /// Eylemin kısayolu Windows'a kaydedilir mi (saf; testlenir): test masaüstünde NESTDESK_TEST_RING=1 iken halka kısayolu
+    /// kaydedilmez, ötekiler her zaman kaydedilir.
+    /// </summary>
+    public static bool RegistersWithWindows(HotkeyAction action, bool testRing) => !(testRing && action == HotkeyAction.Ring);
 
     public void Dispose()
     {

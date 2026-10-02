@@ -60,6 +60,33 @@ public static class FolderCreation
         }
     }
 
+    /// <summary>
+    /// Otomatik taşımanın hatasını açıklar: dosya dosya olarak anılır ve izin vermeyen yer olarak kuralın hedef klasörü
+    /// (<paramref name="targetDirectory"/>; karar verilemeden olduysa null) gösterilir. İzin hatası Denetimli klasör erişimi
+    /// açıksa onu, değilse genel izin sorununu söyler; öbür hatalar yalnızca "taşınamadı".
+    /// </summary>
+    public static FolderCreateResult ExplainMove(Exception ex, string file, string? targetDirectory) =>
+        ExplainMove(ex, file, targetDirectory, ex is UnauthorizedAccessException && ControlledFolderAccessOn());
+
+    /// <param name="controlledFolderAccess">Denetimli klasör erişimi açık mı (testte verilir).</param>
+    internal static FolderCreateResult ExplainMove(Exception ex, string file, string? targetDirectory, bool controlledFolderAccess)
+    {
+        var name = Path.GetFileName(file);
+        var target = targetDirectory is null ? null : Path.TrimEndingDirectorySeparator(targetDirectory);
+        var folder = target is null ? null : Path.GetFileName(target);
+        if (ex is not UnauthorizedAccessException) return new(L.F("\"{0}\" taşınamadı.", name), false);
+        if (controlledFolderAccess)
+            return new(folder is null
+                ? L.F("Windows Güvenliği \"{0}\" dosyasının taşınmasını engelledi (Denetimli klasör erişimi). {1}'e izin vermek için: Windows Güvenliği → Virüs ve tehdit koruması → Fidye yazılımı koruması → Denetimli klasör erişimi ile bir uygulamaya izin ver.",
+                    name, AppInfo.Name)
+                : L.F("Windows Güvenliği \"{0}\" dosyasının \"{1}\" klasörüne taşınmasını engelledi (Denetimli klasör erişimi). {2}'e izin vermek için: Windows Güvenliği → Virüs ve tehdit koruması → Fidye yazılımı koruması → Denetimli klasör erişimi ile bir uygulamaya izin ver.",
+                    name, folder, AppInfo.Name), true);
+        return new(folder is null
+            ? L.F("\"{0}\" taşınamadı: Windows izin vermedi. Windows Güvenliği'nin Denetimli klasör erişimi ya da bir virüs koruma programı engelliyor olabilir.", name)
+            : L.F("\"{0}\" dosyası \"{1}\" klasörüne taşınamadı: Windows izin vermedi ({2}). Windows Güvenliği'nin Denetimli klasör erişimi ya da bir virüs koruma programı engelliyor olabilir.",
+                name, folder, target), true);
+    }
+
     /// <summary>Windows Güvenliği'nin Denetimli klasör erişimi açık mı (engelleme ya da yalnızca denetim)? Okunamazsa false.</summary>
     public static bool ControlledFolderAccessOn()
     {

@@ -381,6 +381,27 @@ public class DiagnosticsWiringTests : IDisposable
     }
 
     /// <summary>
+    /// Çökme döngüsü: çöken süreç açılış denetimini ve soruyu atlar (önceki oturumun raporu "soruldu" işaretlenmeden, şeridi
+    /// gösterilmeden kalmasın). İşaretlemenin kendisi de çökerken bir şey yapmaz (CrashReportsTests).
+    /// </summary>
+    [Fact]
+    public void Crashing_process_leaves_previous_reports_to_the_next_start()
+    {
+        var host = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "AppHost.cs"));
+        var start = host.IndexOf("private static void CheckPreviousSession(", StringComparison.Ordinal);
+        Assert.True(start > 0);
+        var body = host[start..host.IndexOf("CrashReports.ToAsk(", start, StringComparison.Ordinal)];
+        Assert.Matches(new Regex(@"^[^{]*\{\s*(//[^\n]*\n\s*)*if\s*\(\s*CrashReports\.Crashing\s*\)\s*return;"), body);
+        Assert.Equal(2, Regex.Matches(body, @"if\s*\(\s*CrashReports\.Crashing\s*\)\s*return;").Count);
+
+        var diagnostics = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Views", "Diagnostics.cs"));
+        var ask = diagnostics.IndexOf("public static void AskAboutCrashes(", StringComparison.Ordinal);
+        Assert.True(ask > 0);
+        var askBody = diagnostics[ask..diagnostics.IndexOf("Notice.Ask(", ask, StringComparison.Ordinal)];
+        Assert.Contains("CrashReports.Crashing) return;", askBody);
+    }
+
+    /// <summary>
     /// Günlüğe giden çağrılarda (DebugLog.Write, PerfLog.Write, AppLog.*, AppLog.Channel.*) basılan tuş, yazılan metin ya da pano:
     /// bağımsız değişkenin herhangi bir yerinde (ara değer, birleştirme, birden çok satır) <c>.Key</c>, <c>.SystemKey</c>,
     /// <c>.Text</c>, <c>.SelectedText</c>, <c>.Password</c> ya da <c>Clipboard</c>. Sorunlu çağrılar (dosya:satır).

@@ -79,7 +79,8 @@ internal static class Diagnostics
     /// </summary>
     public static void AskAboutCrashes(IReadOnlyList<CrashReport> reports)
     {
-        if (reports.Count == 0) return;
+        // Bu süreç çöküyor: soru gösterilmez ve raporlar işaretlenmez (sonraki açılış sorar; bkz. CrashReports.Crashing).
+        if (reports.Count == 0 || CrashReports.Crashing) return;
         var paths = reports.Select(r => r.Path).ToList();
         var text = reports.All(r => r.Kind == CrashReports.KindHang)
             ? L.F("{0} geçen sefer bir süre yanıt vermedi ve düzgün kapanmadı. Rapor bu bilgisayara kaydedilsin mi? Rapor kişisel bilgi içermez ve hiçbir yere gönderilmez.", AppInfo.Name)

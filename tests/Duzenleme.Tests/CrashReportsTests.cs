@@ -166,6 +166,78 @@ public class CrashReportsTests : IDisposable
         Assert.Equal(["notes.json.tmp"], Names());
     }
 
+    /// <summary>
+    /// "Kaydet" ve "Kaydetme" raporun yarıda kalmış yazmasının .tmp kopyasını da siler (kaydetmemeyi seçtiği raporun tam
+    /// kopyası kalmasın); başka raporun kopyasına dokunulmaz.
+    /// </summary>
+    [Fact]
+    public void Save_and_discard_remove_the_reports_interrupted_temp_copy()
+    {
+        var kept = Write(null, at: _now)!;
+        var dropped = Write(null, at: _now.AddSeconds(1))!;
+        var other = Write(null, at: _now.AddSeconds(2))!;
+        File.WriteAllText(kept + ".tmp", "{}");
+        File.WriteAllText(dropped + ".tmp", "{}");
+        File.WriteAllText(other + ".tmp", "{}");
+        Assert.NotNull(CrashReports.Save(kept, _now));
+        CrashReports.Discard(dropped);
+        Assert.False(File.Exists(kept + ".tmp"));
+        Assert.False(File.Exists(dropped + ".tmp"));
+        Assert.True(File.Exists(other + ".tmp"));
+    }
+
+    /// <summary>
+    /// Bakım (Prune): raporu artık olmayan ya da 14 günü geçmiş .tmp kopyaları silinir; raporu duran yeni kopya ve başka
+    /// dosyaların .tmp'si kalır.
+    /// </summary>
+    [Fact]
+    public void Prune_removes_orphaned_and_expired_temp_copies()
+    {
+        Directory.CreateDirectory(Dir);
+        var live = Write(null, at: _now)!;
+        File.WriteAllText(live + ".tmp", "{}");
+        var orphan = Path.Combine(Dir, CrashReports.PendingPrefix + "20261001-090000-000.json.tmp");
+        File.WriteAllText(orphan, "{}");
+        var expired = Write(CrashReportModes.Always, at: _now.AddDays(-20))!;
+        File.WriteAllText(expired + ".tmp", "{}");
+        var foreign = Path.Combine(Dir, "notes.json.tmp");
+        File.WriteAllText(foreign, "x");
+        CrashReports.Prune(Dir, _now);
+        Assert.True(File.Exists(live + ".tmp"));
+        Assert.False(File.Exists(orphan));
+        Assert.False(File.Exists(expired));
+        Assert.False(File.Exists(expired + ".tmp"));
+        Assert.True(File.Exists(foreign));
+    }
+
+    /// <summary>
+    /// Çökme döngüsü: çöken süreç (WriteOnce çağrıldı) önceki oturumun raporunu "soruldu" işaretlemez; rapor sonraki açılışta
+    /// yine sorulur.
+    /// </summary>
+    [Fact]
+    public void Crashing_process_does_not_mark_reports_asked()
+    {
+        var previous = Write(null)!;
+        CrashReports.ResetOnce();
+        try
+        {
+            Assert.False(CrashReports.Crashing);
+            CrashReports.WriteOnce(Dir, CrashReportModes.Never, false, CrashReports.KindCrash, Thrown(new InvalidOperationException()),
+                Recent(1), Scrubber, "new111", _now.AddSeconds(5));
+            Assert.True(CrashReports.Crashing);
+            CrashReports.MarkAsked(previous);
+            Assert.False(CrashReports.Read(previous)!.Asked);
+            Assert.Single(CrashReports.ToAsk(Dir, currentSession: "new111"));
+        }
+        finally
+        {
+            CrashReports.ResetOnce();
+        }
+        Assert.False(CrashReports.Crashing);
+        CrashReports.MarkAsked(previous);
+        Assert.True(CrashReports.Read(previous)!.Asked);
+    }
+
     [Fact]
     public void Save_and_discard()
     {

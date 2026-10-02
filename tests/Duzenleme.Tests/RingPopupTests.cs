@@ -342,6 +342,32 @@ public class RingPopupTests
         Assert.Matches(@"_hotkeyHeld = _hotkeyKeys\.Count > 0 && !AllReleased\(\);", popup);
     }
 
+    /// <summary>
+    /// Açılır halka widget'ın temasına uyar: tema ya da özel vurgu rengi değişince (Style/Accent aynı kalsa da, ör. Okyanus →
+    /// Otomatik → Klasik) önceden kurulmuş halka eskir ve yeniden kurulur; Windows'un açık/koyu kipi değişince de (açılışta
+    /// denetlenir). Arayüz denemesinde widget Klasik/Koyu iken açılır halka Okyanus renklerinde kalıyordu.
+    /// </summary>
+    [Fact]
+    public void Popup_rebuilds_when_the_theme_or_custom_accent_changes()
+    {
+        var config = WidgetSeeds.Create(WidgetSeeds.Ring)!;
+        var before = Views.RingPopup.Signature(config);
+        Assert.Equal(before, Views.RingPopup.Signature(config));
+        config.LookTheme = ThemePresets.Okyanus;
+        var themed = Views.RingPopup.Signature(config);
+        Assert.NotEqual(before, themed);
+        config.LookAccentColor = "#12A594";
+        Assert.NotEqual(themed, Views.RingPopup.Signature(config));
+        config.Left = 120; // konum görünüşü değiştirmez
+        var moved = Views.RingPopup.Signature(config);
+        config.Left = 340;
+        Assert.Equal(moved, Views.RingPopup.Signature(config));
+
+        var popup = Code("Views", "RingPopup.cs");
+        Assert.Contains("_builtSystemDark = WidgetPalette.SystemDark;", popup);
+        Assert.Matches(@"\|\| _builtSystemDark != WidgetPalette\.SystemDark\) Build\(config\);", popup);
+    }
+
     [Fact]
     public void Settings_list_the_ring_shortcut_and_reset_turns_it_off()
     {
@@ -356,9 +382,10 @@ public class RingPopupTests
         // Halka adı ComboBox'ta düz metin (DisplayMemberPath → TextBlock; "_" erişim tuşu olmaz).
         Assert.Contains("DisplayMemberPath=\"Name\"", xaml);
         // Kısayol listesinden açılan halka da ne yaptığını anlatır (Store matrisi 2b; widget menüsüyle aynı metin).
-        Assert.Matches(@"row\.Action == HotkeyAction\.Ring && !ringWasOn[^
-]*
-\s*Notice\.Show\(RingShortcut\.TurnedOnText\(", page);
+        // Ayarlar'da kapatınca açılıştaki "… ile imlecin yanında açılır" şeridi ortada kalmaz: kapatıldığı söylenir.
+        Assert.Matches(@"RingToggle_Changed[\s\S]*?if \(wasOn\) RingShortcut\.TurnOff\(\);[\s\S]*?if \(wasOn\) Notice\.Show\(L\.T\(""Halka menü kısayolu kapatıldı\.""\)", page);
+        // Satır sonu kaçışla (\n): kaynağın satır sonları (CRLF/LF) sonucu değiştirmesin.
+        Assert.Matches(@"row\.Action == HotkeyAction\.Ring && !ringWasOn[^\n]*\n\s*Notice\.Show\(RingShortcut\.TurnedOnText\(", page);
         Assert.Contains("TurnedOnText(hotkey)", Code("Widgets", "RingShortcut.cs"));
     }
 

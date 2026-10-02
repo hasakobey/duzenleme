@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Duzenleme.Core;
+using Duzenleme.Localization;
 
 namespace Duzenleme.Tests;
 
@@ -318,6 +319,25 @@ public class MotionTests
         json = System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(settings));
         Assert.Contains("\"AnimationsOff\": true", json);
         Assert.Contains("\"CalmMotion\": true", json);
+    }
+
+    /// <summary>
+    /// Ayarlar > Animasyonlar dürüst konuşur: "Kapalı" yalnızca uygulamanın kendi hareketlerini durdurur (WPF-UI'nin ComboBox,
+    /// CheckBox ve ToggleSwitch'teki kısa yerleşik geçişleri Motion'a bağlı değildir), "hiçbir şey oynamaz" denmez.
+    /// </summary>
+    [Fact]
+    public void Settings_motion_texts_promise_only_the_apps_own_animations()
+    {
+        var page = File.ReadAllText(Path.Combine(SourceRoot, "Views", "SettingsPage.xaml.cs"));
+        var xaml = File.ReadAllText(Path.Combine(SourceRoot, "Views", "SettingsPage.xaml"));
+        Assert.Contains("Kapalı: {0}'in kendi hareketleri oynamaz.", page);
+        Assert.Contains("şu an {0}'in kendi hareketleri oynamıyor.", page);
+        Assert.DoesNotContain("hiçbir şey oynam", page);
+        Assert.DoesNotContain("Kapalı: hiçbir şey", xaml);
+        Assert.Contains("x:Name=\"MotionDescription\"", xaml);
+        using var _ = L.Use(Lang.En);
+        Assert.Equal("Lively: widgets and pages open with a gentle zoom or slide. Calm: short fades only. Off: NestDesk's own animations don't play. Always follows the Windows animation setting.",
+            L.F("Canlı: widget'lar ve sayfalar hafifçe büyüyerek ya da kayarak açılır. Sakin: yalnızca kısa solmalar. Kapalı: {0}'in kendi hareketleri oynamaz. Windows'un animasyon ayarına her zaman uyar.", AppInfo.Name));
     }
 
     [Fact]

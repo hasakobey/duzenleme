@@ -134,6 +134,10 @@ public partial class SettingsPage : Page
             AppInfo.Name);
         RemoveIconsText.Text = L.F("Masaüstündeki klasörlere {0}'in verdiği simgeleri kaldırır. {0}'i kaldırmadan önce kullanabilirsin: simgeler klasörlerin içinde durduğu için kendiliğinden silinmez.",
             AppInfo.Name);
+        // "Kapalı" dürüst söylenir: yalnızca uygulamanın kendi hareketleri durur (WPF-UI denetimlerinin kısa yerleşik geçişleri
+        // Motion'a bağlı değildir).
+        MotionDescription.Text = L.F("Canlı: widget'lar ve sayfalar hafifçe büyüyerek ya da kayarak açılır. Sakin: yalnızca kısa solmalar. Kapalı: {0}'in kendi hareketleri oynamaz. Windows'un animasyon ayarına her zaman uyar.",
+            AppInfo.Name);
         RingExplain.Text = L.F("Kısayola basınca halka imlecin yanında açılır. Tıkla ya da 1–9'a bas; Esc kapatır. {0} klavyeni izlemez: yalnızca bu kısayol Windows'a kaydedilir. Kilit ekranında ve yönetici onayı ekranında açılmaz.",
             AppInfo.Name);
         ReportProblemText.Text = L.F("Bir şey ters gittiyse tanılama paketini oluşturup sorun kaydına ekleyebilirsin. {0} hiçbir şeyi kendiliğinden göndermez.",
@@ -408,7 +412,7 @@ public partial class SettingsPage : Page
         AppHost.SaveSettings();
         Motion.Refresh();
         UpdateAnimationsNote();
-        // Örnek: Canlı'da satırın simgesi bir kez nabız atar (Sakin ve Kapalı'da hiçbir şey oynamaz).
+        // Örnek: Canlı'da satırın simgesi bir kez nabız atar (Sakin ve Kapalı'da nabız yok).
         Motion.Attention(MotionIcon);
     }
 
@@ -431,7 +435,7 @@ public partial class SettingsPage : Page
         var choice = MotionPolicy.Chosen(s.AnimationsOff, s.CalmMotion);
         var windowsOff = choice != MotionLevel.Off && !Motion.WindowsAllows;
         string? note = null;
-        if (windowsOff) note = L.T("Windows'ta animasyon efektleri kapalı olduğu için şu an hiçbir şey oynamıyor.");
+        if (windowsOff) note = L.F("Windows'ta animasyon efektleri kapalı olduğu için şu an {0}'in kendi hareketleri oynamıyor.", AppInfo.Name);
         else if (choice == MotionLevel.Lively && Motion.EnergySaver) note = L.T("Enerji tasarrufu açıkken hareketler sakin oynar.");
         else if (choice == MotionLevel.Lively && Motion.RemoteSession) note = L.T("Uzak masaüstü bağlantısında hareketler sakin oynar.");
         AnimationsNote.Text = note ?? "";
@@ -778,8 +782,11 @@ public partial class SettingsPage : Page
         if (_loading) return;
         if (RingToggle.IsChecked != true)
         {
-            if (RingShortcut.IsOn) RingShortcut.TurnOff();
+            // Açarken çıkan "… ile imlecin yanında açılır" şeridi kapatınca ortada kalmasın (widget menüsündeki gibi söylenir).
+            var wasOn = RingShortcut.IsOn;
+            if (wasOn) RingShortcut.TurnOff();
             ReloadRingAndHotkeys();
+            if (wasOn) Notice.Show(L.T("Halka menü kısayolu kapatıldı."), NoticeKind.Info);
             return;
         }
         if (RingShortcut.IsOn)

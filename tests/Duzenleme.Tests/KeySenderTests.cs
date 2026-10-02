@@ -363,4 +363,22 @@ public class HotkeyRoutingTests
         var enter = HotkeyManager.Clashes(new HotkeySettings { NewNote = "Ctrl+Alt+Enter", QuickAdd = "Ctrl+Alt+Return" });
         Assert.Equal(HotkeyAction.NewNote, enter[HotkeyAction.QuickAdd]);
     }
+
+    /// <summary>
+    /// Test masaüstünde NESTDESK_TEST_RING=1 iken Ayarlar'dan halka kısayolunu açmak Windows'a gerçek bir kısayol (Ctrl+Alt+R)
+    /// kaydetmez: deneme kullanıcının tuşunu kapmasın; WM_HOTKEY id 8 iletiyle gönderilir. Öteki eylemler ve test dışı her şey
+    /// her zamanki gibi kaydedilir.
+    /// </summary>
+    [Fact]
+    public void Test_ring_mode_never_registers_the_ring_shortcut_with_windows()
+    {
+        Assert.False(HotkeyManager.RegistersWithWindows(HotkeyAction.Ring, testRing: true));
+        Assert.True(HotkeyManager.RegistersWithWindows(HotkeyAction.Ring, testRing: false));
+        foreach (var action in Enum.GetValues<HotkeyAction>().Where(a => a != HotkeyAction.Ring))
+        {
+            Assert.True(HotkeyManager.RegistersWithWindows(action, testRing: true));
+            Assert.True(HotkeyManager.RegistersWithWindows(action, testRing: false));
+        }
+        Assert.False(RingHotkey.TestOverride(isTestDesktop: false, "1")); // gerçek masaüstünde test kipi yok
+    }
 }

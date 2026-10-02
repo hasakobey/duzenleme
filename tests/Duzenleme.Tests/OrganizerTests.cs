@@ -18,6 +18,42 @@ public class OrganizerTests
         Assert.True(File.Exists(Path.Combine(pdfDir, "satis.pdf")));
     }
 
+    /// <summary>
+    /// Hedef klasöre yazma izni yoksa taşıma başarısız olur ve olay dosyanın yolunu ve kuralın hedef klasörünü verir (bildirim
+    /// izin vermeyen yer olarak masaüstünü değil o klasörü gösterir).
+    /// </summary>
+    [Fact]
+    public void Move_failure_reports_the_rules_target_folder()
+    {
+        using var t = new TempDesktop();
+        var pdfDir = t.Folder("PDF");
+        var file = t.File("fatura.pdf");
+        var info = new DirectoryInfo(pdfDir);
+        var security = info.GetAccessControl();
+        var me = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+        var deny = new System.Security.AccessControl.FileSystemAccessRule(me,
+            System.Security.AccessControl.FileSystemRights.CreateFiles | System.Security.AccessControl.FileSystemRights.WriteData,
+            System.Security.AccessControl.AccessControlType.Deny);
+        security.AddAccessRule(deny);
+        info.SetAccessControl(security);
+        try
+        {
+            (string Path, string? Target, Exception Error)? failed = null;
+            t.Organizer.MoveFailed += (path, target, ex) => failed = (path, target, ex);
+            Assert.Null(t.Organizer.Organize(file));
+            Assert.True(File.Exists(file));
+            Assert.NotNull(failed);
+            Assert.Equal(file, failed.Value.Path);
+            Assert.Equal(pdfDir, failed.Value.Target);
+            Assert.IsType<UnauthorizedAccessException>(failed.Value.Error);
+        }
+        finally
+        {
+            security.RemoveAccessRule(deny);
+            info.SetAccessControl(security);
+        }
+    }
+
     [Fact]
     public void Leaves_file_when_folder_does_not_exist()
     {
