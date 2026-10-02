@@ -35,23 +35,35 @@ public static class ShellIcons
     public static ImageSource? For(string path, int pixels = 0, bool preview = false, bool? isDirectory = null)
     {
         // Arka plandaki yükleyiciden çağrılır (klasör mü diye gerekirse diske burada bakılır, arayüzde değil).
-        var isDir = !TileItem.IsShellObject(path) && (isDirectory ?? Directory.Exists(path));
+        var isDir = !IsShellName(path) && (isDirectory ?? Directory.Exists(path));
         return Cache.GetOrAdd(Key(path, pixels, preview, isDir), _ => Load(path, pixels, preview, isDir));
     }
 
+    /// <summary>
+    /// Kabuk nesnesi adı mı ("::{CLSID}…" ya da "shell:…")? Bunlar dosya değildir: uzantıya göre değil, adın kendisiyle
+    /// önbelleğe alınır (yoksa "shell:AppsFolder\MSEdge" ile uzantısız bir README, ya da "…WINWORD.EXE.15" ile "…EXCEL.EXE.15"
+    /// aynı simgeyi paylaşırdı).
+    /// </summary>
+    internal static bool IsShellName(string path) =>
+        TileItem.IsShellObject(path) || path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
+
     private static ImageSource? Load(string path, int pixels, bool preview, bool isDir)
     {
-        if (TileItem.IsShellObject(path))
-            return (pixels > 0 ? LoadSized(path, pixels, preview: false) : null) ?? LoadFromPidl(path, pixels);
+        if (IsShellName(path))
+        {
+            // 2.2 Kutu: Başlat menüsü uygulaması ("::{Uygulamalar}\AUMID") kabuğun ayrıştırabildiği adla ("shell:AppsFolder\…") yüklenir.
+            var parsing = StartApps.ShellPath(path);
+            return (pixels > 0 ? LoadSized(parsing, pixels, preview: false) : null) ?? LoadFromPidl(parsing, pixels);
+        }
         return (pixels > 0 ? LoadSized(path, pixels, preview) : null)
             ?? LoadFromInfo(path, isDir, usePathOnly: !isDir && !PerFile.Contains(Path.GetExtension(path)), pixels);
     }
 
     // Klasörler kendi (özel olabilecek) simgeleriyle, program/kısayollar ve önizlemeler dosya bazında,
     // diğerleri uzantı bazında önbelleğe alınır.
-    private static string Key(string path, int pixels, bool preview, bool isDir)
+    internal static string Key(string path, int pixels, bool preview, bool isDir)
     {
-        if (TileItem.IsShellObject(path)) return "kabuk|" + path + "|" + pixels;
+        if (IsShellName(path)) return "kabuk|" + path + "|" + pixels;
         var ext = Path.GetExtension(path);
         if (preview) return "önizleme|" + path + "|" + pixels; // l10n: çevrilmez (önbellek anahtarı)
         return (isDir || PerFile.Contains(ext) ? path : ext) + "|" + pixels;

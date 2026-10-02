@@ -30,7 +30,6 @@ internal static partial class En
         new("Masaüstünde henüz widget yok. Yukarıdan birine tıkla, hemen masaüstüne gelsin.",
             "There are no widgets on your desktop yet. Click one above and it appears on your desktop right away."),
         new("Tüm widget'ların görünümü", "Appearance of all widgets"),
-        new("Arka plan, renk ve yerleşim", "Background, color and placement"),
         new("Kısayolla ya da \"Widget ekle\" penceresiyle eklenenler. Bu sayfadan eklenenler ekranın köşesine gelir.",
             "For widgets added with a shortcut or the \"Add widget\" window. Widgets added from this page go to a corner of the screen."),
         new("Tek bir widget'ı ayarlamak için ona sağ tıkla → Görünüm. Notlar kendi kağıt rengini kullanır.",

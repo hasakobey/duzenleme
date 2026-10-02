@@ -208,7 +208,7 @@ public partial class LauncherView : UserControl, IWidgetView
             {
                 Style = (Style)FindResource("PillButton"),
                 ToolTip = L.T("Sağ tık: yeniden adlandır, taşı, sil"),
-                Background = active ? _palette.Accent : new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF)),
+                Background = active ? _palette.Accent : _palette.Tint(0x1E),
                 Content = new TextBlock
                 {
                     Text = _config.Tabs[i].Name,
@@ -342,10 +342,12 @@ public partial class LauncherView : UserControl, IWidgetView
     /// <param name="look">Başka kutudan taşınan öğenin orada verilmiş adı ve simgesi.</param>
     /// <param name="then">Ekleme bittikten sonra (ör. kaynak kutudan çıkarmak): öğe önce burada olmalı, yoksa kutunun
     /// klasörüne taşınmış öğe arada masaüstüne geri konur.</param>
-    private async void AddItems(IReadOnlyList<string> paths, ItemLook? look = null, Action? then = null)
+    /// <param name="names">Bırakılan bağlantının sayfa başlığı, uygulamanın adı (yola göre; öğenin adı yoksa yazılır).</param>
+    private async void AddItems(IReadOnlyList<string> paths, ItemLook? look = null, Action? then = null, IReadOnlyDictionary<string, string>? names = null)
     {
         var tab = Current;
-        var existing = await Task.Run(() => paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList());
+        // Başlat menüsü uygulaması diskte değildir (kabuk nesnesi): denetlenmez.
+        var existing = await Task.Run(() => paths.Where(p => StartApps.IsApp(p) || File.Exists(p) || Directory.Exists(p)).ToList());
         if (!_config.Tabs.Contains(tab)) tab = Current;
         var added = new List<string>();
         Change(() =>
@@ -356,6 +358,8 @@ public partial class LauncherView : UserControl, IWidgetView
                     tab.Items.Add(path);
                     added.Add(path);
                     if (look is not null && ItemLooks.Get(_config, path) is null) ItemLooks.Restore(_config, path, look);
+                    else if (names is not null && names.TryGetValue(path, out var name) && ItemLooks.Get(_config, path) is null)
+                        ItemLooks.Restore(_config, path, new ItemLook { Name = name });
                 }
         });
         if (existing.Count > 0) then?.Invoke();
@@ -401,8 +405,13 @@ public partial class LauncherView : UserControl, IWidgetView
         rename.ToolTip = L.T("Yalnızca kutuda görünen ad değişir; dosyanın adı değişmez.");
         menu.Items.Add(rename);
         menu.Items.Add(Menus.Item(L.T("Simgeyi değiştir…"), () => PickItemIcon(item)));
-        if (ItemLooks.Get(_config, item.Path) is { IsEmpty: false })
-            menu.Items.Add(Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
+        // Başlat menüsü uygulamasının ve bırakılan bağlantının adı yalnızca kayıttadır (silinirse kimlik/özetli ad görünürdü):
+        // onlarda yalnızca simge varsayılana döner.
+        var keepName = TileItem.NameIsStored(item.Path);
+        if (ItemLooks.Get(_config, item.Path) is { IsEmpty: false } look && (!keepName || look.Icon is not null))
+            menu.Items.Add(keepName
+                ? Menus.Item(L.T("Varsayılan simge"), () => Change(() => ItemLooks.SetIcon(_config, item.Path, null)))
+                : Menus.Item(L.T("Varsayılan ad ve simge"), () => Change(() => ItemLooks.Reset(_config, item.Path))));
         menu.Items.Add(new Separator());
         var moved = BoxMover.IsMoved(item.Path);
         if (moved)
@@ -440,7 +449,9 @@ public partial class LauncherView : UserControl, IWidgetView
             var ext = System.IO.Path.GetExtension(item.Path).ToLowerInvariant();
             if (ext is ".exe" or ".lnk" or ".bat" or ".cmd" or ".msc")
                 menu.Items.Add(Menus.Item(L.T("Yönetici olarak çalıştır"), () => TileItem.Launch(item.Path, asAdmin: true)));
-            menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(item.Path)));
+            // Bırakılan bağlantının dosyası uygulamanın veri klasöründedir (paketli sürümde Gezgin o yolu göremez).
+            if (!TileItem.IsDroppedLink(item.Path))
+                menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(item.Path)));
         }
 
         if (_config.Tabs.Count > 1)
@@ -460,13 +471,37 @@ public partial class LauncherView : UserControl, IWidgetView
 
     /// <summary>
     /// Bırakılınca ne olur: kendi öğesi yer değiştirir; başka kutudan gelen buraya taşınır (Ctrl basılıysa kopyalanır);
-    /// bölmeden, Gezgin'den ya da başka uygulamadan gelen kısayol olarak eklenir.
+    /// bölmeden, Gezgin'den ya da başka uygulamadan gelen kısayol olarak eklenir. 2.2: Başlat menüsünden bırakılan uygulama
+    /// (AddShell), tarayıcıdan bırakılan bağlantı (AddLink) da eklenir; eklenemeyen türde bağlantı (file:, javascript:…)
+    /// bırakılamaz ve nedeni gösterilir (BlockedLink).
     /// </summary>
-    private enum DropKind { None, Reorder, MoveHere, Add }
+    private enum DropKind { None, Reorder, MoveHere, Add, AddShell, AddLink, BlockedLink }
+
+    // 2.2 Kutu: bırakılan verinin türü sürükleme başına bir kez (ilk DragEnter'da) belirlenir; DragOver her fare hareketinde
+    // gelir ve bağlantı biçimlerini yeniden okumaz. WPF bir sürükleme boyunca aynı veri nesnesini verir (zayıf başvuru: biten
+    // sürüklemenin verisi tutulmaz).
+    private WeakReference<IDataObject>? _dropData;
+    private DropContent _dropContent;
+
+    private DropContent ContentOf(IDataObject data)
+    {
+        if (_dropData is null || !_dropData.TryGetTarget(out var known) || !ReferenceEquals(known, data))
+        {
+            _dropData = new WeakReference<IDataObject>(data);
+            _dropContent = LauncherDrop.Classify(data);
+        }
+        return _dropContent;
+    }
 
     private DropKind PlanDrop(DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return DropKind.None;
+        switch (ContentOf(e.Data))
+        {
+            case DropContent.None: return DropKind.None;
+            case DropContent.Apps or DropContent.ShellItems: return DropKind.AddShell;
+            case DropContent.Link: return DropKind.AddLink;
+            case DropContent.BlockedLink: return DropKind.BlockedLink;
+        }
         var source = WidgetDrag.For(e.Data);
         if (source is null) return DropKind.Add;
         if (source.WidgetId == _config.Id)
@@ -480,14 +515,20 @@ public partial class LauncherView : UserControl, IWidgetView
         var kind = PlanDrop(e);
         // Kaynağın izin verdiği bir etki seçilmeli; yoksa Windows bırakmayı reddeder (yalnızca kopyalamaya izin veren uygulama).
         var allowed = e.AllowedEffects;
-        e.Effects = kind == DropKind.None ? DragDropEffects.None
+        e.Effects = kind is DropKind.None or DropKind.BlockedLink ? DragDropEffects.None
             : allowed.HasFlag(DragDropEffects.Link) ? DragDropEffects.Link
             : allowed.HasFlag(DragDropEffects.Copy) ? DragDropEffects.Copy
+            // Bağlantı ve uygulama yalnızca okunur: kaynak (tarayıcı, metin) "taşındı" sanıp kendi verisini silmesin.
+            : kind is DropKind.AddShell or DropKind.AddLink ? DragDropEffects.None
             : allowed & DragDropEffects.Move;
         var text = kind switch
         {
             DropKind.Add => L.T("Bırak, kısayol olarak eklensin"),
             DropKind.MoveHere => L.T("Bırak, bu kutuya taşınsın"),
+            DropKind.AddShell when _dropContent == DropContent.Apps => L.T("Bırak, uygulama olarak eklensin"),
+            DropKind.AddShell => L.T("Bırak, kısayol olarak eklensin"),
+            DropKind.AddLink => L.T("Bırak, bağlantı olarak eklensin"),
+            DropKind.BlockedLink => L.T("Bu bağlantı türü eklenemez (yalnızca http, https, mailto)"),
             _ => null,
         };
         if (text is not null) DropText.Text = text;
@@ -498,8 +539,25 @@ public partial class LauncherView : UserControl, IWidgetView
     private void OnDrop(object sender, DragEventArgs e)
     {
         DropOverlay.Visibility = Visibility.Collapsed;
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
         var kind = PlanDrop(e);
+        _dropData = null; // sonraki sürükleme yeniden belirlenir
+        // Veri yalnızca bırakma sırasında geçerlidir: kabuk listesi ve bağlantı burada kopyalanır, işleri arka planda sürer.
+        switch (kind)
+        {
+            case DropKind.AddShell:
+                e.Handled = true;
+                e.Effects = e.AllowedEffects.HasFlag(DragDropEffects.Link) ? DragDropEffects.Link : DragDropEffects.Copy;
+                AddShellItems(LauncherDrop.ReadShellIdList(e.Data));
+                return;
+            case DropKind.AddLink:
+                e.Handled = true;
+                e.Effects = e.AllowedEffects.HasFlag(DragDropEffects.Link) ? DragDropEffects.Link : DragDropEffects.Copy;
+                AddLink(LauncherDrop.ReadLink(e.Data, withTitle: true));
+                return;
+            case DropKind.None or DropKind.BlockedLink:
+                return;
+        }
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
         var source = WidgetDrag.For(e.Data);
         if (source is not null) WidgetDrag.MarkDropped();
         e.Handled = true;
@@ -515,6 +573,45 @@ public partial class LauncherView : UserControl, IWidgetView
                 AddItems(source is not null ? [source.Path] : paths, source?.Look);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Başlat menüsünden (ya da Gezgin'in sanal bir klasöründen) bırakılan kabuk öğeleri: uygulamalar adlarıyla, dosya sistemi
+    /// öğeleri yollarıyla eklenir. Kabuk kendi STA iş parçacığında çözer; eklenecek bir şey yoksa söylenir.
+    /// </summary>
+    private async void AddShellItems(byte[]? shellIdList)
+    {
+        var found = await LauncherDrop.ResolveAsync(shellIdList);
+        if (found.Count == 0)
+        {
+            Views.Notice.Show(L.T("Bu öğe kısayol kutusuna eklenemez."), Views.NoticeKind.Info);
+            return;
+        }
+        var names = found.Where(f => f.Name is not null)
+            .ToDictionary(f => f.Path, f => f.Name!, StringComparer.OrdinalIgnoreCase);
+        AddItems(found.Select(f => f.Path).ToList(), names: names);
+    }
+
+    /// <summary>
+    /// Bırakılan bağlantı: veri klasöründe küçük bir .url dosyası olur (arka planda; aynı adres aynı dosya) ve kutuya sayfa
+    /// başlığıyla (yoksa alan adıyla) eklenir. Açınca adres yeniden denetlenip tarayıcıyla açılır (TileItem.Launch).
+    /// </summary>
+    private async void AddLink((LinkKind Kind, string? Url, string? Title) link)
+    {
+        if (link is not { Kind: LinkKind.Allowed, Url: { } url }) return;
+        LinkFile file;
+        try
+        {
+            var directory = AppHost.LinksDirectory;
+            file = await Task.Run(() => LinkFiles.Create(url, link.Title, directory));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            DebugLog.Write($"bağlantı dosyası yazılamadı: {ex.Message}");
+            Views.Notice.Show(L.T("Bağlantı kaydedilemedi."), Views.NoticeKind.Error);
+            return;
+        }
+        AddItems([file.Path], names: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [file.Path] = file.Name });
     }
 
     /// <summary>Kendi öğesini etkin sekmede bırakıldığı öğenin önüne (sağ/alt yarısına bırakılınca arkasına) taşır.</summary>
@@ -560,7 +657,7 @@ public partial class LauncherView : UserControl, IWidgetView
         EmptyText.Foreground = palette.Secondary;
         EmptyIcon.Foreground = palette.Secondary;
         DropOverlay.BorderBrush = palette.Accent;
-        DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
+        DropOverlay.Background = palette.Overlay;
         RemoveButton.Foreground = palette.Foreground;
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
         RenderTabs();
@@ -735,6 +832,11 @@ public partial class LauncherView : UserControl, IWidgetView
                 break;
         }
     }
+
+    // 2.2 Kutu
+    /// <summary>1–9: etkin sekmede görünen n'inci öğeyi açar; seçenek açıksa (Simgeler ▸ Numara tuşlarıyla aç).</summary>
+    public bool TryQuickOpen(KeyEventArgs e) =>
+        Menus.TryQuickOpen(e, _config, Items, editing: _titleEditor.IsEditing || _rename is { IsActive: true });
 
     public void Detach()
     {

@@ -49,9 +49,9 @@
                 </Grid>
                 <StackPanel x:Name="ButtonRow" Orientation="Horizontal">
                     <Button x:Name="StartButton" Style="{StaticResource WidgetGlyphButton}" Width="34" Height="34" FontSize="14"
-                            Background="#1A808080" Click="Start_Click" AutomationProperties.AutomationId="Timer.Start" />
+                            Background="{DynamicResource WidgetButtonFillBrush}" Click="Start_Click" AutomationProperties.AutomationId="Timer.Start" />
                     <Button x:Name="ResetButton" Style="{StaticResource WidgetGlyphButton}" Width="34" Height="34" Margin="6,0,0,0"
-                            Background="#1A808080" Content="&#xE72C;" Click="Reset_Click" AutomationProperties.AutomationId="Timer.Reset" />
+                            Background="{DynamicResource WidgetButtonFillBrush}" Content="&#xE72C;" Click="Reset_Click" AutomationProperties.AutomationId="Timer.Reset" />
                     <Button x:Name="PlusButton" Style="{StaticResource WidgetTextButton}" Height="34" Margin="6,0,0,0"
                             Content="{l:T '+1 dk'}" Click="Plus_Click" AutomationProperties.AutomationId="Timer.AddMinute" />
                 </StackPanel>

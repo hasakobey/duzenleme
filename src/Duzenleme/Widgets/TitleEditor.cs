@@ -36,8 +36,10 @@ internal sealed class TitleEditor
     private IInputElement? _returnFocus;
     private Window? _window;
     private bool _ending;
-    private Brush _accent = Brushes.MediumPurple;
-    private Brush _foreground = Brushes.White;
+    // ApplyPalette'ten önce kullanılmaz (görünüm kurulurken palet gelir); yalnızca güvenli başlangıç değerleri.
+    private Brush _accent = SystemColors.HighlightBrush;
+    private Brush _foreground = SystemColors.WindowTextBrush;
+    private Brush _tint = Brushes.Transparent;
 
     /// <param name="view">Widget görünümü (pencereyi bulmak için).</param>
     /// <param name="header">Başlık satırı; kutu başlık yazısının hücresine konur.</param>
@@ -275,7 +277,7 @@ internal sealed class TitleEditor
         _iconButton.IsHitTestVisible = active;
         _iconButton.Cursor = active ? Cursors.Hand : null;
         _iconButton.BorderBrush = active ? _accent : Brushes.Transparent;
-        _iconButton.Background = active ? new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)) : Brushes.Transparent;
+        _iconButton.Background = active ? _tint : Brushes.Transparent;
         _iconButton.ToolTip = active ? L.T("Simgeyi değiştir") : null;
     }
 
@@ -298,6 +300,7 @@ internal sealed class TitleEditor
     {
         _accent = palette.Accent;
         _foreground = palette.Foreground;
+        _tint = palette.Tint(0x26); // yüksek karşıtlıkta zemin yok, vurgu çerçevesi yeter
         if (_frame is not null) _frame.BorderBrush = palette.Accent;
         if (_box is not null)
         {

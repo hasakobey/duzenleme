@@ -1105,6 +1105,11 @@ public partial class FenceView : UserControl, IWidgetView
         }
     }
 
+    // 2.2 Kutu
+    /// <summary>1–9: görünen (aramada bulunan) n'inci öğeyi açar; seçenek açıksa (Simgeler ▸ Numara tuşlarıyla aç).</summary>
+    public bool TryQuickOpen(KeyEventArgs e) =>
+        Menus.TryQuickOpen(e, _config, Items, editing: _titleEditor.IsEditing || _rename is { IsActive: true });
+
     private static bool IsInScrollBar(object? source)
     {
         for (var d = source as DependencyObject; d is not null; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
@@ -1215,6 +1220,8 @@ public partial class FenceView : UserControl, IWidgetView
         var folder = DesktopMode ? null : _folderPath;
         if (source is { FromBox: true })
         {
+            // 2.2 Kutu: bırakılan bağlantının dosyası uygulamanındır (öteki kutular da onu gösterebilir): yerinden taşınmaz.
+            if (TileItem.IsDroppedLink(source.Path)) return (DropKind.None, [], source);
             if (DesktopMode)
                 return BoxMover.IsMoved(source.Path) || OnDesktop(paths[0])
                     ? (DropKind.OutOfBox, [], source) : (DropKind.None, [], source);
@@ -1373,11 +1380,11 @@ public partial class FenceView : UserControl, IWidgetView
         SearchButton.Foreground = palette.Secondary;
         SearchBarIcon.Foreground = palette.Secondary;
         SearchBar.BorderBrush = palette.BorderBrush;
-        SearchBar.Background = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+        SearchBar.Background = palette.Field(0x22);
         SearchBox.Foreground = palette.Foreground;
         SearchBox.CaretBrush = palette.Foreground;
         DropOverlay.BorderBrush = palette.Accent;
-        DropOverlay.Background = new SolidColorBrush(Color.FromArgb(0x55, 0x10, 0x0C, 0x20));
+        DropOverlay.Background = palette.Overlay;
         RemoveButton.Foreground = palette.Foreground;
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
         UpdateIconSizes(); // ölçek değiştiyse simgeler yeni piksel boyutunda

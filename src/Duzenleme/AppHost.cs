@@ -220,6 +220,9 @@ public static class AppHost
         Organizer.MoveFailed += OnMoveFailed;
         Watcher = new DesktopWatcher(Organizer, () => Settings.Paused);
         BoxMoves = new BoxMoveLog(Path.Combine(DataDirectory, "box-moves.json"));
+        // 2.2 Kutu: kutudaki bağlantılar başka bir veri klasöründe yazılmışsa (taşınabilir sürümün sürücü harfi değişti, eski
+        // veri klasörü taşındı) bu oturumun links\ klasörünü göstersin.
+        if (LinkFiles.RebaseAll(Settings.Widgets, LinksDirectory)) SaveSettings();
         Widgets = new WidgetManager();
         Icons.FolderIconService.Changed += OnFolderIconChanged;
         // Günlük yedek; sürüm yedeklerinden fazlası silinir (az önce alınan kalır) ve anahtar yoksa onlardan da çıkarılır
@@ -907,6 +910,10 @@ public static class AppHost
 
     /// <summary>Kullanıcının seçtiği simge resimlerinin kopyaları (bkz. <see cref="IconFiles"/>).</summary>
     public static string IconsDirectory => Path.Combine(DataDirectory, IconFiles.FolderName);
+
+    // 2.2 Kutu
+    /// <summary>Kısayol kutusuna bırakılan bağlantıların .url dosyaları (bkz. <see cref="LinkFiles"/>; kendiliğinden silinmez).</summary>
+    public static string LinksDirectory => Path.Combine(DataDirectory, LinkFiles.FolderName);
 
     // --- Kutular ---
 

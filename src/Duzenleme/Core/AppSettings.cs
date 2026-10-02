@@ -310,6 +310,34 @@ public sealed class WidgetConfig
     /// <summary>Daha yeni bir sürümün yazdığı, bu sürümün bilmediği alanlar: okunur ve aynen geri yazılır (kaybolmaz).</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
+
+    // 2.2 Tema
+    // Metin alanları: 2.1 tanımaz, Extra'da aynen geri yazar ve en yakın Style/Accent'i gösterir (tema ya da özel renk
+    // seçilince ikisi de en yakın değere yazılır, bkz. WidgetLooks). Kalıcı enum'a üye eklenmedi. Boşken yazılmaz.
+
+    /// <summary>
+    /// Widget teması (<see cref="ThemePresets"/>): null = klasik (<see cref="Style"/> + <see cref="Accent"/>), "auto" = Koyu/Açık
+    /// Windows'a uyar, "neon", "gece", "kagit", "okyanus". Tanınmayan ad klasik çizilir ve korunur. Yüksek karşıtlıkta yok sayılır.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LookTheme { get; set; }
+
+    /// <summary>
+    /// Özel vurgu rengi, yalnızca "#RRGGBB" (adlı renkler <see cref="Accent"/>'te); null = <see cref="Accent"/>. Zeminde okunur
+    /// kalsın diye çizerken gerekirse açılır ya da koyulaştırılır (<see cref="ThemeMath.EnsureContrast"/>).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LookAccentColor { get; set; }
+
+    // 2.2 Kutu
+    // 2.1 tanımaz, Extra'da aynen geri yazar. Kapalıyken yazılmaz.
+
+    /// <summary>
+    /// Bölme ve kısayol kutusu: 1–9 (sayısal tuş takımı da) görünen n'inci öğeyi açar (<see cref="Duzenleme.Core.QuickKeys"/>). Varsayılan
+    /// kapalı: harfle arama rakamla başlayan adlarda da çalışsın. Rozet yok; ipucu Simgeler menüsünde.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool QuickKeys { get; set; }
 }
 
 /// <summary>Zamanlayıcı widget'ının kalıcı durumu. Zamanlar UTC: saat ve saat dilimi değişse de süre doğru kalır.</summary>

@@ -414,6 +414,9 @@ public partial class App : Application
     private DispatcherTimer? _themeDelay;
     private static (ApplicationTheme Theme, bool HighContrast)? _appliedTheme;
 
+    // Widget'ların baktığı Windows durumu (açık/koyu kip, yüksek karşıtlık ve renkleri); uygulamanın kendi temasından ayrı izlenir.
+    private static Widgets.WidgetPalette.SystemLook? _widgetLook;
+
     private void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is UserPreferenceCategory.General or UserPreferenceCategory.Color
@@ -451,13 +454,25 @@ public partial class App : Application
         SystemThemeManager.UpdateSystemThemeCache();
         var highContrast = SystemParameters.HighContrast;
         var system = ApplicationThemeManager.GetSystemTheme();
+        // Windows 11'in "Sunrise", "Flow" gibi açık temaları da açık sayılsın.
+        var systemDark = system is SystemTheme.Dark or SystemTheme.Glow or SystemTheme.CapturedMotion;
         var resolved = highContrast ? ApplicationTheme.HighContrast : theme switch
         {
             AppTheme.Dark => ApplicationTheme.Dark,
             AppTheme.Light => ApplicationTheme.Light,
-            // Windows 11'in "Sunrise", "Flow" gibi açık temaları da açık sayılsın.
-            _ => system is SystemTheme.Dark or SystemTheme.Glow or SystemTheme.CapturedMotion ? ApplicationTheme.Dark : ApplicationTheme.Light,
+            _ => systemDark ? ApplicationTheme.Dark : ApplicationTheme.Light,
         };
+        // Widget'lar uygulamanın temasına değil Windows'a bakar ("Otomatik" ve iki hâlli temalar, yüksek karşıtlık): uygulamanın
+        // teması Koyu/Açık'a sabitlenmiş olsa da (aşağıdaki erken dönüş) Windows değişince yeniden çizilirler.
+        // Bir yüksek karşıtlık temasından ötekine geçiş de sayılır (yalnızca Windows'un renkleri değişir).
+        var look = Widgets.WidgetPalette.SystemLook.Current(systemDark, highContrast);
+        if (_widgetLook != look)
+        {
+            var (restyle, all) = Widgets.WidgetPalette.SystemLook.Change(_widgetLook, look);
+            _widgetLook = look;
+            Widgets.WidgetPalette.SystemDark = systemDark;
+            if (restyle) AppHost.Widgets?.RestyleAll(all);
+        }
         if (onlyIfChanged && _appliedTheme == (resolved, highContrast)) return;
         _appliedTheme = (resolved, highContrast);
         var backdrop = highContrast ? WindowBackdropType.None : WindowBackdropType.Mica;
@@ -465,7 +480,8 @@ public partial class App : Application
         if (!highContrast) ApplicationAccentColorManager.Apply(Brand, resolved);
 
         // Apply yalnızca Application.MainWindow'u günceller; açık diğer pencereler (simge seçici vb.) de güncellensin.
-        // Widget pencerelerine dokunulmaz: onlar kendi saydam zeminlerini kullanır.
+        // Widget pencereleri (FluentWindow değiller) burada atlanır: kendi paletlerini kullanırlar ve Windows'un açık/koyu kipi ya da
+        // yüksek karşıtlık değişince yukarıda WidgetManager.RestyleAll ile yeniden çizilirler.
         foreach (var window in Current.Windows.OfType<FluentWindow>())
             if (!ReferenceEquals(window, Current.MainWindow))
                 WindowBackgroundManager.UpdateBackground(window, resolved, backdrop);

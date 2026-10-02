@@ -127,13 +127,29 @@
                 <ui:SymbolIcon Symbol="Color24" Style="{StaticResource RowIcon}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
                     <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tüm widget\'ların görünümü'}" />
-                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Arka plan, renk ve yerleşim'}" />
+                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Tema, arka plan, renk ve yerleşim'}" />
                 </StackPanel>
                 <ui:Button x:Name="LookFold" Grid.Column="2" Style="{StaticResource FoldButton}"
                            AutomationProperties.AutomationId="Widgets.LookFold" AutomationProperties.HelpText="{l:T 'Tüm widget\'ların görünümü'}" />
             </Grid>
         </Border>
         <StackPanel x:Name="LookContent">
+            <!-- 2.2 Tema: Klasik, Otomatik ve hazır temalar (seçenekler kodda, WidgetLooks/LookMenus ile aynı sırada). -->
+            <Border Style="{StaticResource SettingRow}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tema'}" />
+                        <TextBlock x:Name="ThemeNote" Style="{StaticResource Muted}" TextWrapping="Wrap" Visibility="Collapsed"
+                                   Text="{l:T 'Yüksek karşıtlık açık: widget\'lar Windows\'un renklerini kullanır.'}" />
+                    </StackPanel>
+                    <ComboBox x:Name="ThemeBox" Grid.Column="1" Width="170" SelectionChanged="ThemeBox_SelectionChanged"
+                              AutomationProperties.AutomationId="Widgets.Theme" AutomationProperties.Name="{l:T 'Tema'}" />
+                </Grid>
+            </Border>
             <Border Style="{StaticResource SettingRow}">
                 <Grid>
                     <Grid.ColumnDefinitions>

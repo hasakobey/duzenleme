@@ -92,7 +92,7 @@ internal sealed class TileRename
             SelectionBrush = palette.Accent,
             BorderBrush = palette.Accent,
             // Kutu, cam zeminde de okunabilsin diye opaktır (Gezgin'deki beyaz kutu gibi).
-            Background = palette.IsLight ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x2E)),
+            Background = palette.IsHighContrast ? palette.Background : palette.IsLight ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x24, 0x24, 0x2E)),
         };
         _panel.Children.Insert(_panel.Children.IndexOf(_label) + 1, _box);
         _label.Visibility = Visibility.Collapsed;
@@ -218,6 +218,8 @@ internal sealed class TileRename
     {
         if (_box is null) return;
         HideHint();
+        // Yüksek karşıtlıkta Windows'un ipucu renkleri (Bilgi zemini ve yazısı).
+        var highContrast = SystemParameters.HighContrast;
         _hint = new Popup
         {
             PlacementTarget = _box,
@@ -228,14 +230,18 @@ internal sealed class TileRename
             Focusable = false,
             Child = new Border
             {
-                Background = new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x33)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)),
+                Background = highContrast ? SystemColors.InfoBrush : new SolidColorBrush(Color.FromRgb(0x2B, 0x2B, 0x33)),
+                BorderBrush = highContrast ? SystemColors.InfoTextBrush : new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(8, 5, 8, 6),
                 Margin = new Thickness(0, 4, 0, 0),
                 MaxWidth = 260,
-                Child = new TextBlock { Text = text, Foreground = Brushes.White, FontSize = 12, TextWrapping = TextWrapping.Wrap },
+                Child = new TextBlock
+                {
+                    Text = text, Foreground = highContrast ? SystemColors.InfoTextBrush : Brushes.White, FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                },
             },
         };
         _hint.IsOpen = true;

@@ -58,6 +58,8 @@ public partial class WidgetsPage : Page
         Fold.Attach(LayoutsFold, LayoutsContent);
         foreach (var mode in DesktopModes.Choices)
             IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
+        foreach (var (id, label) in LookMenus.ThemeChoices)
+            ThemeBox.Items.Add(new ComboBoxItem { Content = label, Tag = id });
         foreach (var mode in PlaceModes.Choices)
             PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
         // Araçlar sabit; bölmeler (klasörler değişebilir) her açılışta yeniden kurulur.
@@ -201,9 +203,13 @@ public partial class WidgetsPage : Page
             PlacementBox.SelectedIndex = Array.IndexOf(PlaceModes.Choices, PlaceModes.Parse(AppHost.Settings.NewWidgetPlacement));
             // Notlar kendi kağıt rengini kullanır: toplu görünüm onları saymaz.
             var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
-            StyleBox.SelectedIndex = Common(targets.Select(w => Array.IndexOf(Styles, w.Style)));
-            AccentBox.SelectedIndex = Common(targets.Select(w => Array.IndexOf(Accents, w.Accent)));
-            StyleBox.IsEnabled = AccentBox.IsEnabled = targets.Count > 0;
+            // Tema açıkken "Arka plan" boş görünür (menüdeki gibi); özel vurgu rengi de adlı renklerden biri sayılmaz.
+            var themes = LookMenus.ThemeChoices.Select(c => c.Id).ToList();
+            ThemeBox.SelectedIndex = Common(targets.Select(w => themes.IndexOf(WidgetLooks.ActiveTheme(w) ?? "")));
+            StyleBox.SelectedIndex = Common(targets.Select(w => WidgetLooks.ShownStyle(w) is { } s ? Array.IndexOf(Styles, s) : -1));
+            AccentBox.SelectedIndex = Common(targets.Select(w => WidgetLooks.ShownAccent(w) is { } a ? Array.IndexOf(Accents, a) : -1));
+            ThemeBox.IsEnabled = StyleBox.IsEnabled = AccentBox.IsEnabled = targets.Count > 0;
+            ThemeNote.Visibility = SystemParameters.HighContrast ? Visibility.Visible : Visibility.Collapsed;
             SnapToggle.IsChecked = AppHost.Settings.SnapWidgets;
             OverlapToggle.IsChecked = AppHost.Settings.PreventOverlap;
         }
@@ -308,6 +314,12 @@ public partial class WidgetsPage : Page
         // "Geri al" bu widget'ı getirir: bildirim açıkken masaüstünden başka bir widget kaldırılsa da.
         Notice.Show(WidgetManager.RemovedText(L.F("{0} kaldırıldı.", name), returning, modeOff),
             NoticeKind.Info, L.T("Geri al"), () => AppHost.Widgets.UndoRemove(id));
+    }
+
+    private void ThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || ThemeBox.SelectedItem is not ComboBoxItem { Tag: string theme }) return;
+        AppHost.Widgets.SetLookForAll(null, null, theme);
     }
 
     private void StyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

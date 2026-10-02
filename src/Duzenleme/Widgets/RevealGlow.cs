@@ -44,11 +44,13 @@ internal sealed class RevealGlow : Adorner
 
     /// <summary>
     /// Kartın çevresine ışıma ekler; eklenemezse (süsleme katmanı yok) ya da Windows'ta Saydamlık efektleri kapalıyken veya
-    /// yüksek karşıtlıkta (<see cref="Views.Motion.EffectsAllowed"/>) null: vurgu yalnızca çerçeveyle verilir.
+    /// yüksek karşıtlıkta (<see cref="Views.Motion.EffectsAllowed"/>) null: vurgu yalnızca çerçeveyle verilir (yüksek
+    /// karşıtlıkta Windows'un Vurgulama rengiyle, bkz. WidgetWindow.Reveal). Yüksek karşıtlık burada da ayrıca denetlenir:
+    /// Motion'ın bayrağı ayar değişikliğini bir an geç görebilir.
     /// </summary>
     public static RevealGlow? Show(FrameworkElement card, Brush accent, double cornerRadius)
     {
-        if (!Views.Motion.EffectsAllowed || AdornerLayer.GetAdornerLayer(card) is not { } layer) return null;
+        if (!Views.Motion.EffectsAllowed || SystemParameters.HighContrast || AdornerLayer.GetAdornerLayer(card) is not { } layer) return null;
         var color = accent is SolidColorBrush solid ? solid.Color : Color.FromRgb(0xA7, 0x8B, 0xFA);
         var glow = new RevealGlow(card, color, cornerRadius);
         layer.Add(glow);

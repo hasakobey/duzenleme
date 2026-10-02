@@ -214,8 +214,35 @@ public static class Menus
         parent.Items.Add(Toggle(L.T("Önizlemeleri göster (resim, video, PDF)"), () => c.ShowPreviews, () => change(() => c.ShowPreviews = !c.ShowPreviews)));
         if (singleClickOption)
             parent.Items.Add(Toggle(L.T("Tek tıkla aç"), () => c.SingleClick, () => change(() => c.SingleClick = !c.SingleClick)));
+        // 2.2 Kutu: görünüşü değiştirmez, kutucuklar yeniden kurulmaz (yalnızca kaydedilir). Rozet yok; ipucu yalnızca açıkken.
+        parent.Items.Add(Toggle(L.T("Numara tuşlarıyla aç (1–9)"), () => c.QuickKeys, () =>
+        {
+            c.QuickKeys = !c.QuickKeys;
+            AppHost.SaveSettings();
+        }));
         parent.Items.Add(Hint(L.T("İpucu: Ctrl + fare tekerleği simgeleri büyütür/küçültür")));
+        parent.Items.Add(Live(Hint(L.T("Aç: 1–9 · Ara: harf yaz")), visible: () => c.QuickKeys));
         return parent;
+    }
+
+    /// <summary>
+    /// "Numara tuşlarıyla aç": 1–9 (sayısal tuş takımı da) listede görünen n'inci öğeyi açar. Seçenek kapalıyken, widget
+    /// katlıyken, ad düzenlenirken (<paramref name="editing"/>), yazı kutusunda (bölmenin araması), tuş basılı tutulurken ya da o
+    /// sırada öğe yoksa false: tuş harfle aramaya ve yazıya kalır. Bulunamayan öğe açılmaz.
+    /// </summary>
+    public static bool TryQuickOpen(KeyEventArgs e, WidgetConfig c, ListBox list, bool editing)
+    {
+        if (QuickOpenTarget(e, c, list, editing) is not { } item) return false;
+        TileItem.Launch(item.Path);
+        return true;
+    }
+
+    /// <summary>Tuşun açacağı öğe (<see cref="TryQuickOpen"/>'ın kararı; açmaz); açılacak bir şey yoksa null.</summary>
+    public static TileItem? QuickOpenTarget(KeyEventArgs e, WidgetConfig c, ListBox list, bool editing)
+    {
+        if (!c.QuickKeys || c.Collapsed || editing || e.IsRepeat || e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase) return null;
+        var index = QuickKeys.IndexOf(KeyInterop.VirtualKeyFromKey(e.Key));
+        return index >= 0 && index < list.Items.Count && list.Items[index] is TileItem { Missing: false } item ? item : null;
     }
 
     /// <summary>Ctrl + tekerlek: simge boyutunu bir kademe değiştirir. Değiştiyse true.</summary>
