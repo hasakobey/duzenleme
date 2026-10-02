@@ -80,13 +80,20 @@ public static class ThemeMath
     public static uint EnsureContrast(uint color, IReadOnlyList<uint> backgrounds, double min)
     {
         color |= 0xFF000000;
-        var opaque = backgrounds.Select(Opaque).ToList();
-        if (opaque.Count == 0) return color;
-        double Worst(uint c) => opaque.Min(b => Contrast(c, b));
+        // Zeminlerin parlaklığı bir kez hesaplanır (zemin listesi uzun olabilir: halkanın katmanları).
+        var grounds = backgrounds.Select(b => Luminance(Opaque(b))).ToArray();
+        if (grounds.Length == 0) return color;
+        double Worst(uint c)
+        {
+            var lc = Luminance(c);
+            var worst = double.MaxValue;
+            foreach (var lb in grounds) worst = Math.Min(worst, (Math.Max(lc, lb) + 0.05) / (Math.Min(lc, lb) + 0.05));
+            return worst;
+        }
         if (Worst(color) >= min) return color;
 
         var (h, s, l) = ToHsl(color);
-        var darkBackground = opaque.Average(Luminance) < 0.18;
+        var darkBackground = grounds.Average() < 0.18;
         uint best = color;
         var bestScore = Worst(color);
         foreach (var lighten in darkBackground ? new[] { true, false } : [false, true])

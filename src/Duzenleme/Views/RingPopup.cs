@@ -21,7 +21,8 @@ namespace Duzenleme.Views;
 /// (nişan alanına) tıklamak halkayı kapatır. Gölge degrade ile çizilir (Effect yok); renkler hedef widget'ın paletinden. Alt
 /// bırakılınca menü kipine girilmez (SC_KEYMENU yutulur).</para>
 /// <para>Hız: kısayol açıksa pencere açılıştan sonra boşta önceden kurulur (tutamaç, halka, simgeler); kapatınca yalnızca
-/// gizlenir. Ayar, kutu taşıması ya da ad değişikliği içeriği eskitir; yeniden kurulum kısayol yolunda değil boşta yapılır.
+/// gizlenir. Ayar, kutu taşıması, ad değişikliği ya da Windows'un görünüşü (<see cref="SystemLookChanged"/>) içeriği eskitir;
+/// yeniden kurulum kısayol yolunda değil boşta yapılır.
 /// Açılış: önceki pencere ve imleç okunur (yalnızca bellekte), pencere gizliyken imlecin monitörüne (önce taşınıp ölçeği
 /// düzeltilerek; WPF gizli pencerede ölçeğe geçmezse pencere o monitörde yeniden kurulur) <see cref="RingPlacement.ForPopup"/>
 /// ile yerleştirilir, gösterilir ve öne getirilir; hareket <see cref="Motion.RingOpen"/>. Girdi hareketi beklemez (isabet
@@ -61,7 +62,11 @@ internal sealed class RingPopup : Window
 
     private WidgetConfig? _config;
     private string? _signature;
-    private bool _dirty = true, _rebuildQueued, _forReal, _builtHighContrast, _builtSystemDark;
+    private bool _dirty = true, _rebuildQueued, _forReal;
+
+    // Kurulduğu andaki Windows görünüşü (açık/koyu, yüksek karşıtlık ve renkleri): App.ApplyTheme değişikliği bildirir
+    // (SystemLookChanged), boşta yeniden kurulur; Open yalnızca bildirim boşa düşmeden basıldıysa kurar.
+    private WidgetPalette.SystemLook _builtLook;
 
     // Açıkken; yalnızca bellekte (hiçbir yere yazılmaz, günlüğe girmez). Kapanınca bırakılır.
     private IntPtr _previous;
@@ -117,6 +122,17 @@ internal sealed class RingPopup : Window
             return;
         }
         (_instance ??= new RingPopup()).Open(at);
+    }
+
+    /// <summary>
+    /// Windows'un görünüşü değişti (App.ApplyTheme: açık/koyu kip, yüksek karşıtlık açıldı/kapandı ya da bir yüksek karşıtlık
+    /// temasından ötekine geçildi): önceden kurulmuş halka eskidi, boşta yeniden kurulur (kısayol yolunda kurulum olmasın;
+    /// açıksa kapanınca). Halka ve zemini Windows'un renklerini dondurulmuş fırçalarda tutar.
+    /// </summary>
+    public static void SystemLookChanged()
+    {
+        if (_exiting || _instance is not { _forReal: false } popup) return;
+        popup.MarkDirty();
     }
 
     /// <summary>Uygulama kapanıyor: pencere gerçekten kapanır.</summary>
@@ -271,8 +287,7 @@ internal sealed class RingPopup : Window
         _dirty = false;
         _config = config;
         _signature = Signature(config);
-        _builtHighContrast = SystemParameters.HighContrast;
-        _builtSystemDark = WidgetPalette.SystemDark;
+        _builtLook = LookNow();
         var palette = RingView.PaletteFor(config);
         // Önce renkler (eski halka yeniden kurulmaz), sonra halka bir kez: simgeler yeni renkle istenir.
         _ring.ApplyPalette(palette, rebuild: false);
@@ -284,6 +299,10 @@ internal sealed class RingPopup : Window
         _root.Measure(new Size(side, side));
         _root.Arrange(new Rect(0, 0, side, side));
     }
+
+    /// <summary>Şu anki Windows görünüşü (yüksek karşıtlıkta Windows'un renkleri de; App.ApplyTheme'in baktığıyla aynı).</summary>
+    private static WidgetPalette.SystemLook LookNow() =>
+        WidgetPalette.SystemLook.Current(WidgetPalette.SystemDark, SystemParameters.HighContrast);
 
     /// <summary>Halka ve gölgesi, ortaları (<paramref name="x"/>, <paramref name="y"/>) DIP'te olacak biçimde.</summary>
     private void Arrange(double x, double y)
@@ -380,8 +399,7 @@ internal sealed class RingPopup : Window
             return;
         }
         // Değişiklikler boşta işlenir (OnSettingsChanged); burada yalnızca hâlâ eskiyse (ör. boşa düşmeden basıldıysa).
-        if (_dirty || !ReferenceEquals(config, _config) || _builtHighContrast != SystemParameters.HighContrast
-            || _builtSystemDark != WidgetPalette.SystemDark) Build(config);
+        if (_dirty || !ReferenceEquals(config, _config) || _builtLook != LookNow()) Build(config);
         else if (_ring.InSubRing) _ring.SetRing(config, 0);
         if (_ring.Slots.Count == 0)
         {
@@ -731,8 +749,9 @@ internal sealed class RingBackdrop : FrameworkElement
                 (outer / reach, Color.FromArgb(0x38, 0, 0, 0)),
                 ((outer + 8) / reach, Color.FromArgb(0x12, 0, 0, 0)),
                 (1, Color.FromArgb(0, 0, 0, 0))));
+            // Cam'da koyu, neredeyse opak zemin (RingColors simgelerin rengini buna göre de denetler).
             _plate = palette.IsOpaqueBackground ? palette.Background
-                : Frozen(Radial((0, Color.FromArgb(0xFA, 0x24, 0x22, 0x32)), (1, Color.FromArgb(0xF7, 0x13, 0x12, 0x1B))));
+                : Frozen(Radial((0, ColorOf(RingColors.PopupPlateInner)), (1, ColorOf(RingColors.PopupPlateOuter))));
             _edge = Frozen(new Pen(palette.IsOpaqueBackground ? palette.BorderBrush : WidgetPalette.Solid(0x38FFFFFF), 1));
         }
         InvalidateVisual();
@@ -751,6 +770,8 @@ internal sealed class RingBackdrop : FrameworkElement
         foreach (var (offset, color) in stops) brush.GradientStops.Add(new GradientStop(color, Math.Clamp(offset, 0, 1)));
         return brush;
     }
+
+    private static Color ColorOf(uint argb) => Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb);
 
     private static T Frozen<T>(T freezable) where T : Freezable
     {

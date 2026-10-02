@@ -35,6 +35,16 @@ public sealed class HotkeyManager : IDisposable
     /// </summary>
     public bool TestRing { get; set; }
 
+    /// <summary>
+    /// Test masaüstü (--desktop): Windows'a hiçbir genel kısayol kaydedilmez (deneme örneği kullanıcının kendi NestDesk'inin
+    /// ya da başka bir uygulamanın tuşlarını kapmasın; sonradan açılan gerçek örnek "Başka bir uygulama kullanıyor" alırdı),
+    /// <see cref="TestHotkeys"/> açık değilse. "DuzenlemeHotkeys"e gönderilen WM_HOTKEY yine işlenir (<see cref="Route"/>).
+    /// </summary>
+    public bool TestDesktop { get; set; }
+
+    /// <summary>NESTDESK_TEST_HOTKEYS=1 (yalnızca test masaüstünde, <see cref="TestOverride"/>): kısayollar Windows'a kaydedilir.</summary>
+    public bool TestHotkeys { get; set; }
+
     public HotkeyManager(Action<HotkeyAction> handler)
     {
         _handler = handler;
@@ -137,10 +147,11 @@ public sealed class HotkeyManager : IDisposable
                 continue;
             }
             var id = (int)action + 1;
-            if (!RegistersWithWindows(action, TestRing))
+            if (!RegistersWithWindows(action, TestDesktop, TestHotkeys, TestRing))
             {
-                // Test masaüstünde halka kısayolu Windows'a kaydedilmez (kullanıcının gerçek tuşunu kapmasın); WM_HOTKEY id 8
-                // iletiyle gönderilir ve TestRing yine işler. Kayıt başarılı sayılır (Ayarlar'daki açma akışı denenebilsin).
+                // Test masaüstünde kısayollar Windows'a kaydedilmez (kullanıcının gerçek tuşlarını kapmasın); WM_HOTKEY
+                // (id = eylem + 1) iletiyle gönderilir ve yine işlenir. Kayıt başarılı sayılır (Ayarlar'daki akışlar, ör. halka
+                // kısayolunu açma, denenebilsin).
                 DebugLog.Write($"kısayol kaydedilmedi (test masaüstü): {action}");
                 continue;
             }
@@ -174,10 +185,18 @@ public sealed class HotkeyManager : IDisposable
     }
 
     /// <summary>
-    /// Eylemin kısayolu Windows'a kaydedilir mi (saf; testlenir): test masaüstünde NESTDESK_TEST_RING=1 iken halka kısayolu
-    /// kaydedilmez, ötekiler her zaman kaydedilir.
+    /// Eylemin kısayolu Windows'a kaydedilir mi (saf; testlenir): gerçek örnekte her zaman; test masaüstünde
+    /// (<paramref name="testDesktop"/>) hiçbiri, NESTDESK_TEST_HOTKEYS=1 (<paramref name="testHotkeys"/>) değilse. O zaman da
+    /// NESTDESK_TEST_RING=1 iken (<paramref name="testRing"/>) halka kısayolu kaydedilmez (iletiyle açılır).
     /// </summary>
-    public static bool RegistersWithWindows(HotkeyAction action, bool testRing) => !(testRing && action == HotkeyAction.Ring);
+    public static bool RegistersWithWindows(HotkeyAction action, bool testDesktop, bool testHotkeys, bool testRing) =>
+        (!testDesktop || testHotkeys) && !(testRing && action == HotkeyAction.Ring);
+
+    /// <summary>
+    /// NESTDESK_TEST_HOTKEYS: yalnızca test masaüstünde ve değeri "1" ise (saf; testlenir) test örneği kısayolları Windows'a
+    /// kaydeder (gerçek tuşla deneme; kullanıcının kendi NestDesk'i kapalıyken ve tuşlarını kapmayacağı bilinirken).
+    /// </summary>
+    public static bool TestOverride(bool isTestDesktop, string? value) => isTestDesktop && value?.Trim() == "1";
 
     public void Dispose()
     {

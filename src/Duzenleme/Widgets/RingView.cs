@@ -111,7 +111,8 @@ internal static class RingInput
 /// <para>Çizim (Kando'dan esinli, efektsiz): zemin diski, bütün dilimler hep (her biri dondurulmuş StreamGeometry halka
 /// dilimi) ve dış kenarlarında ince yay, aralarında ince ayırıcılar; öğeler halka yarıçapında daire içinde simge; orta dairede
 /// başlık ya da vurgulanan öğenin adı. Fareyle ya da klavyeyle yalnızca dolgular değişir: vurgulanan dilim vurgu renginde
-/// içten dışa koyulaşır, yayı ve öğe dairesi vurgu rengine döner. Hiçbir şey belirip kaybolmaz; yeniden çizim yalnızca vurgu
+/// içten dışa koyulaşır, yayı ve öğe dairesinin kenarı vurgu rengine döner (daire nötr kalır, simge okunsun; bkz.
+/// <see cref="RingColors"/>). Hiçbir şey belirip kaybolmaz; yeniden çizim yalnızca vurgu
 /// ya da yerleşim değişince. Yüksek karşıtlıkta sistem renkleri.</para>
 /// <para>İsabet testi öğe kutularına değil açıya bakar (<see cref="RingGeometry.HitTest"/>, görünümün kendi koordinatında):
 /// açılırken öğeler büyüyüp kayarken de doğrudur. Klavye: 1–9 (tuşa basınca vurgu, bırakınca seçim), oklar
@@ -622,17 +623,29 @@ internal sealed class RingView : FrameworkElement
 
     private void BuildBrushes()
     {
-        var c = CenterPoint;
-        var outer = _metrics.OuterRadius;
-        var inner = Math.Clamp(_metrics.CenterRadius / outer, 0, 1);
-        _disc = _colors.HighContrast ? _colors.Disc : Radial(c, outer, (0, _colors.DiscInner), (inner, _colors.DiscInner), (1, _colors.DiscOuter));
-        // Vurgulanan dilim içten dışa yumuşakça koyulaşır (orta dairenin yanında neredeyse saydam, dış kenarda en çok %28).
-        _hot = _colors.HighContrast ? _colors.HotFill
-            : Radial(c, outer, (0, WithAlpha(_colors.Accent, 0)), (inner, WithAlpha(_colors.Accent, HotInnerAlpha)),
-                (inner + (1 - inner) * 0.55, WithAlpha(_colors.Accent, 0x26)), (1, WithAlpha(_colors.Accent, HotOuterAlpha)));
+        (_disc, _hot) = LayerBrushes(_colors, _metrics);
+        (_chipShadow, _chipShadowShape) = RingItemVisual.Shadow(_metrics, _colors.ChipShadowAlpha) is { } shadow
+            ? (shadow.Brush, shadow.Shape) : ((Brush?)null, (Geometry?)null);
     }
 
-    private static Brush Radial(Point center, double radius, params (double Offset, Color Color)[] stops)
+    /// <summary>
+    /// Zemin diskinin ve vurgulanan dilimin degradeleri (görünümün koordinatında, ortası halkanın ortası; dondurulmuş). Disk
+    /// orta dairenin kenarına dek <see cref="RingColors.DiscInner"/>, dış kenarda <see cref="RingColors.DiscOuter"/>; vurgulanan
+    /// dilim içten dışa yumuşakça koyulaşır (orta dairenin yanında neredeyse saydam, dış kenarda en çok %28).
+    /// </summary>
+    internal static (Brush Disc, Brush Hot) LayerBrushes(RingColors colors, RingMetrics metrics)
+    {
+        if (colors.HighContrast) return (colors.Disc, colors.HotFill);
+        var c = new Point(metrics.OuterRadius, metrics.OuterRadius);
+        var outer = metrics.OuterRadius;
+        var inner = Math.Clamp(metrics.CenterRadius / outer, 0, 1);
+        var disc = Radial(c, outer, (0, colors.DiscInner), (inner, colors.DiscInner), (1, colors.DiscOuter));
+        var hot = Radial(c, outer, (0, WithAlpha(colors.Accent, 0)), (inner, WithAlpha(colors.Accent, HotInnerAlpha)),
+            (inner + (1 - inner) * 0.55, WithAlpha(colors.Accent, HotMidAlpha)), (1, WithAlpha(colors.Accent, HotOuterAlpha)));
+        return (disc, hot);
+    }
+
+    internal static Brush Radial(Point center, double radius, params (double Offset, Color Color)[] stops)
     {
         var brush = new RadialGradientBrush
         {
@@ -643,8 +656,15 @@ internal sealed class RingView : FrameworkElement
         return brush;
     }
 
-    /// <summary>Vurgulanan dilimin degradesi: orta dairenin yanında ve dış kenarda vurgu renginin saydamlığı.</summary>
-    internal const byte HotInnerAlpha = 0x0C, HotOuterAlpha = 0x48;
+    /// <summary>Vurgulanan dilimin degradesi: orta dairenin yanında, ortada ve dış kenarda vurgu renginin saydamlığı.</summary>
+    internal const byte HotInnerAlpha = 0x0C, HotMidAlpha = 0x26, HotOuterAlpha = 0x48;
+
+    // Öğe dairelerinin gölgesi: bütün öğe kutuları aynı boyda, tek fırça ve tek biçim (ölçü ya da palet değişince yeniden).
+    private Brush? _chipShadow;
+    private Geometry? _chipShadowShape;
+
+    internal Brush? ChipShadow => _chipShadow;
+    internal Geometry? ChipShadowShape => _chipShadowShape;
 
     internal static Color WithAlpha(Color color, byte alpha) => Color.FromArgb(alpha, color.R, color.G, color.B);
 
@@ -679,7 +699,7 @@ internal sealed class RingView : FrameworkElement
         return geometry;
     }
 
-    private static void Circle(StreamGeometryContext ctx, Point c, double r)
+    internal static void Circle(StreamGeometryContext ctx, Point c, double r)
     {
         ctx.BeginFigure(new Point(c.X, c.Y - r), isFilled: true, isClosed: true);
         ctx.ArcTo(new Point(c.X, c.Y + r), new Size(r, r), 0, false, SweepDirection.Clockwise, true, false);
@@ -944,20 +964,32 @@ internal sealed class RingView : FrameworkElement
 
 /// <summary>
 /// Halkanın renkleri (paletten; yüksek karşıtlıkta sistem renkleri). Fırçalar ve kalemler dondurulmuştur.
-/// <para>Cila (efektsiz): öğe daireleri yukarıdan hafif aydınlık bir degradeyle ve altlarında dışa doğru solan ince bir gölge
-/// halkasıyla (<see cref="ChipShadow"/>, dairenin içini koyulaştırmaz) çizilir; simgeler dairenin üstünde en az 3:1 okunur
-/// (<see cref="Glyph"/>). Yüksek karşıtlıkta vurgulanan öğe ve orta daire pencere renginde kalır (simge ve yazı Windows'un
-/// pencere yazısı rengiyle okunur), vurgu kalın Vurgulama kenarı ve dilimin Vurgulama dolgusuyla gösterilir; gölge yok.</para>
+/// <para>Cila (efektsiz): öğe daireleri yukarıdan hafif aydınlık bir degradeyle ve altlarında dışa doğru solan ince bir gölgeyle
+/// (<see cref="ChipShadowAlpha"/>, <see cref="RingItemVisual.Shadow"/>: yalnızca dairenin dışında) çizilir. Vurgulanan ve
+/// basılan daire (öğe ve orta) nötr ve neredeyse opaktır, vurgu renginde 2 DIP kenar alır: altındaki vurgu degradesi daireyi
+/// ve vurgu renginde simgeyi boyamaz. Simgeler halkanın gerçek katmanlarının üstünde en az 3:1 okunur (<see cref="Glyph"/>,
+/// <see cref="GlyphGrounds"/>). Yüksek karşıtlıkta vurgulanan öğe ve orta daire pencere renginde kalır (simge ve yazı
+/// Windows'un pencere yazısı rengiyle okunur), vurgu kalın Vurgulama kenarı ve dilimin Vurgulama dolgusuyla gösterilir; gölge
+/// yok.</para>
 /// </summary>
 internal sealed record RingColors(
     bool HighContrast, Color DiscInner, Color DiscOuter, Brush Disc, Brush Wedge, Brush HotFill, Color Accent,
     Pen Separator, Pen Rim, Pen RimHot, Pen Marker,
-    Brush Chip, Pen ChipBorder, Brush ChipHot, Pen ChipBorderHot, Brush ChipPressed, Brush? ChipShadow,
+    Brush Chip, Pen ChipBorder, Brush ChipHot, Pen ChipBorderHot, Brush ChipPressed, byte ChipShadowAlpha,
     Brush Center, Pen CenterBorder, Brush CenterHot, Pen CenterBorderHot, Brush Text, Brush TextHot, Brush Secondary,
     Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot, Pen FocusBorder, Color Glyph)
 {
-    /// <summary>Simgenin öğe dairesine karşı en az karşıtlığı (WCAG, anlamlı grafik).</summary>
+    /// <summary>Simgenin altındaki renge karşı en az karşıtlığı (WCAG, anlamlı grafik).</summary>
     public const double GlyphContrast = 3.0;
+
+    /// <summary>
+    /// Açılır halkanın Cam'daki zemini (yarı saydam kartın yerine; <c>RingBackdrop</c>): koyu ve neredeyse opak, ortadan
+    /// kenara degrade. Simgelerin rengi buna göre de denetlenir.
+    /// </summary>
+    internal const uint PopupPlateInner = 0xFA242232, PopupPlateOuter = 0xF713121B;
+
+    /// <summary>Koyu temada vurgulanan ve basılan dairenin saydamlığı (neredeyse opak; açık temada opak).</summary>
+    internal const byte SolidChipAlpha = 0xF0;
 
     public static RingColors From(WidgetPalette palette, bool highContrast)
     {
@@ -972,7 +1004,7 @@ internal sealed record RingColors(
             return new RingColors(true, window, window, Solid(window), Brushes.Transparent, Solid(highlight), highlight,
                 Separator: Line(text, 1), Rim: Line(text, 2), RimHot: Line(highlight, 4), Marker: Line(highlight, 3),
                 Chip: Solid(window), ChipBorder: Line(text, 1.5), ChipHot: Solid(window), ChipBorderHot: Line(highlight, 3),
-                ChipPressed: Solid(window), ChipShadow: null,
+                ChipPressed: Solid(window), ChipShadowAlpha: 0,
                 Center: Solid(window), CenterBorder: Line(text, 1.5), CenterHot: Solid(window), CenterBorderHot: Line(highlight, 3),
                 Text: Solid(text), TextHot: Solid(text), Secondary: Solid(text),
                 Badge: Solid(window), BadgeBorder: Line(text, 1), BadgeText: Solid(text), BadgeHot: Solid(highlight),
@@ -986,36 +1018,94 @@ internal sealed record RingColors(
         // Öğe dairesi yukarıdan hafif aydınlık: açık temada beyazdan serin griye, koyuda yazı renginin biraz daha saydamına.
         var chipTop = light ? Color.FromArgb(0xFA, 0xFF, 0xFF, 0xFF) : A(fg, 0x26);
         var chipBottom = light ? Color.FromArgb(0xF2, 0xF3, 0xF4, 0xF8) : A(fg, 0x14);
-        // Vurgulanan daire nötr kalır (biraz daha aydınlık) ve vurgu renginde kenar alır: vurgu renginde simge, vurgu renginde
-        // zeminde kaybolmasın (Okyanus gibi tek tonlu temalarda).
-        var chipHot = light ? Colors.White : A(fg, 0x30);
-        return new RingColors(false,
+        // Vurgulanan ve basılan daire (öğe ve orta) nötr ve neredeyse opak, kenarı vurgu renginde: vurgu renginde simge, altındaki
+        // vurgu degradesinin boyadığı dairede kaybolmasın (Okyanus gibi tek tonlu temalarda, koyu temalarda). Koyu temada
+        // zeminin üstündeki yazı renginden (vurgulu boştakinden biraz aydınlık, basılı biraz sönük), açık temada beyaz; basılınca
+        // yazı renginde hafif gri.
+        var ground = Average(SurfaceGrounds(palette));
+        var hotFill = Solid(light ? white : Solidish(ThemeMath.Composite(Argb(A(fg, 0x3E)), ground)));
+        var pressedFill = Solid(light ? Rgb(ThemeMath.Composite(Argb(A(fg, 0x10)), Argb(white)))
+            : Solidish(ThemeMath.Composite(Argb(A(fg, 0x2A)), ground)));
+        var hotBorder = Line(accent, 2);
+        var colors = new RingColors(false,
             DiscInner: A(fg, light ? 0x0E : 0x16), DiscOuter: A(fg, light ? 0x04 : 0x06), Disc: Brushes.Transparent,
             Wedge: Solid(A(fg, 0x04)), HotFill: Solid(A(accent, 0x40)), Accent: accent,
             Separator: Line(A(fg, light ? 0x18 : 0x22), 1), Rim: Line(A(fg, light ? 0x22 : 0x2C), 3), RimHot: Line(accent, 3.5),
             Marker: Line(accent, 3),
             Chip: Vertical(chipTop, chipBottom), ChipBorder: Line(A(fg, light ? 0x1E : 0x30), 1),
-            ChipHot: Solid(chipHot), ChipBorderHot: Line(accent, 2), ChipPressed: Solid(A(accent, light ? 0x40 : 0x50)),
-            ChipShadow: ShadowRing(light ? (byte)0x2E : (byte)0x50),
+            ChipHot: hotFill, ChipBorderHot: hotBorder, ChipPressed: pressedFill, ChipShadowAlpha: light ? (byte)0x2E : (byte)0x50,
             Center: Solid(light ? A(white, 0xF2) : A(fg, 0x14)), CenterBorder: Line(A(fg, light ? 0x22 : 0x2E), 1),
-            CenterHot: Solid(A(accent, light ? 0x3A : 0x4D)), CenterBorderHot: Line(A(fg, light ? 0x22 : 0x2E), 1),
+            CenterHot: hotFill, CenterBorderHot: hotBorder,
             Text: palette.Foreground, TextHot: palette.Foreground, Secondary: palette.Secondary,
             Badge: Solid(light ? white : Color.FromArgb(0xEE, 0x1E, 0x1C, 0x28)), BadgeBorder: Line(A(fg, light ? 0x26 : 0x34), 1),
             BadgeText: palette.Foreground, BadgeHot: palette.Accent, BadgeTextHot: accentText, Dot: Solid(A(fg, light ? 0x70 : 0x8C)),
-            FocusBorder: Line(accent, 2), Glyph: GlyphOn(accent, [chipTop, chipBottom, chipHot], palette.Background));
+            FocusBorder: Line(accent, 2), Glyph: accent);
+        return colors with { Glyph = GlyphOn(accent, colors.GlyphGrounds(Grounds(palette))) };
     }
 
     /// <summary>
-    /// Fluent simgelerin rengi: vurgu rengi, öğe dairesinin (boşta ve vurgulanınca; kartın zemini üstünde) karşısında en az
-    /// <see cref="GlyphContrast"/> okunacak biçimde gerekirse açılır ya da koyulaşır (ör. Okyanus'un deniz yeşili zemininde aynı
-    /// tonda simge).
+    /// Fluent simgelerin (öğeler, alt halkanın geri oku, ortadaki simge) rengi: vurgu rengi, altında görünebilecek her rengin
+    /// (<paramref name="grounds"/>, bkz. <see cref="GlyphGrounds"/>) karşısında en az <see cref="GlyphContrast"/> okunacak
+    /// biçimde gerekirse açılır ya da koyulaşır (ör. Okyanus'un deniz yeşili zemininde aynı tonda simge).
     /// </summary>
-    internal static Color GlyphOn(Color accent, IReadOnlyList<Color> chipFills, Brush background)
+    internal static Color GlyphOn(Color accent, IReadOnlyList<uint> grounds)
     {
-        var chips = Stops(background).SelectMany(stop => chipFills.Select(chip => ThemeMath.Composite(Argb(chip), ThemeMath.Opaque(stop)))).ToList();
-        var shown = ThemeMath.EnsureContrast(Argb(accent), chips, GlyphContrast);
+        var shown = ThemeMath.EnsureContrast(Argb(accent), grounds, GlyphContrast);
         return Color.FromRgb((byte)(shown >> 16), (byte)(shown >> 8), (byte)shown);
     }
+
+    /// <summary>
+    /// Simgelerin altında görünebilecek renkler (opak), halkanın gerçek katmanlarıyla: zemin (<paramref name="grounds"/>) →
+    /// zemin diski → boştaki dilim ya da vurgulanan dilimin degradesi → öğe dairesi (boşta, vurgulu, basılı); ortada zemin →
+    /// diskin içi → orta daire (boşta, vurgulu, basılı). Degradeler halkanın ölçüsünden bağımsız, en kötü durumla denenir: her
+    /// biri uçlarında ve ortasında. Öğe gölgesi dairenin içine düşmez (<see cref="RingItemVisual.Shadow"/>).
+    /// </summary>
+    internal IReadOnlyList<uint> GlyphGrounds(IEnumerable<uint> grounds)
+    {
+        var discs = WithMidpoints([Argb(DiscOuter), Argb(DiscInner)]);
+        var hots = new[] { RingView.HotInnerAlpha, RingView.HotMidAlpha, RingView.HotOuterAlpha }.Select(a => Argb(A(Accent, a))).ToList();
+        var idleChips = Fills(Chip).Concat(Fills(ChipPressed)).ToList();
+        var hotChips = Fills(ChipHot).Concat(Fills(ChipPressed)).ToList();
+        var centers = Fills(Center).Concat(Fills(CenterHot)).Concat(Fills(ChipPressed)).ToList();
+        var result = new HashSet<uint>();
+        foreach (var ground in grounds)
+        {
+            foreach (var disc in discs)
+            {
+                var under = ThemeMath.Composite(disc, ground);
+                foreach (var wedge in Fills(Wedge))
+                {
+                    var idle = ThemeMath.Composite(wedge, under);
+                    foreach (var chip in idleChips) result.Add(ThemeMath.Composite(chip, idle));
+                }
+                foreach (var hot in hots)
+                {
+                    var highlighted = ThemeMath.Composite(hot, under);
+                    foreach (var chip in hotChips) result.Add(ThemeMath.Composite(chip, highlighted));
+                }
+            }
+            var middle = ThemeMath.Composite(Argb(DiscInner), ground);
+            foreach (var center in centers) result.Add(ThemeMath.Composite(center, middle));
+        }
+        return [.. result];
+    }
+
+    /// <summary>
+    /// Halkanın altındaki zemin (opak): kartın zemininin durakları ve aralarındaki ortalar; Cam'da (yarı saydam kart) açılır
+    /// halkanın koyu zemini de (<see cref="PopupPlateInner"/>).
+    /// </summary>
+    internal static IReadOnlyList<uint> Grounds(WidgetPalette palette)
+    {
+        var grounds = WithMidpoints(Stops(palette.Background)).Select(ThemeMath.Opaque).ToList();
+        if (!palette.IsOpaqueBackground) grounds.AddRange(PopupGrounds);
+        return grounds;
+    }
+
+    private static IEnumerable<uint> PopupGrounds => WithMidpoints([PopupPlateInner, PopupPlateOuter]).Select(ThemeMath.Opaque);
+
+    /// <summary>Neredeyse opak dairelerin üstünde durduğu zemin: kartın zemini; Cam'da açılır halkanın koyu zemini.</summary>
+    private static IEnumerable<uint> SurfaceGrounds(WidgetPalette palette) =>
+        palette.IsOpaqueBackground ? Stops(palette.Background) : PopupGrounds;
 
     private static IReadOnlyList<uint> Stops(Brush background) => background switch
     {
@@ -1023,6 +1113,36 @@ internal sealed record RingColors(
         GradientBrush g => g.GradientStops.Select(x => Argb(x.Color)).ToList(),
         _ => [],
     };
+
+    /// <summary>Fırçanın renkleri: düz renk ya da degradenin durakları ve aralarındaki ortalar.</summary>
+    private static IReadOnlyList<uint> Fills(Brush brush) => WithMidpoints(Stops(brush));
+
+    private static IReadOnlyList<uint> WithMidpoints(IReadOnlyList<uint> stops)
+    {
+        var all = new List<uint>(stops);
+        for (var i = 1; i < stops.Count; i++) all.Add(Mix(stops[i - 1], stops[i]));
+        return all;
+    }
+
+    private static uint Mix(uint a, uint b)
+    {
+        uint Half(int shift) => (((a >> shift) & 0xFF) + ((b >> shift) & 0xFF) + 1) / 2;
+        return Half(24) << 24 | Half(16) << 16 | Half(8) << 8 | Half(0);
+    }
+
+    /// <summary>Opak renklerin kanal kanal ortalaması (saydam renkler önce siyahın üstüne konur).</summary>
+    private static uint Average(IEnumerable<uint> colors)
+    {
+        var opaque = colors.Select(ThemeMath.Opaque).ToList();
+        if (opaque.Count == 0) return 0xFF000000;
+        uint Channel(int shift) => (uint)Math.Round(opaque.Average(c => (double)((c >> shift) & 0xFF)));
+        return 0xFF000000 | Channel(16) << 16 | Channel(8) << 8 | Channel(0);
+    }
+
+    /// <summary>Opak rengin neredeyse opak hâli (<see cref="SolidChipAlpha"/>).</summary>
+    private static Color Solidish(uint opaque) => Color.FromArgb(SolidChipAlpha, (byte)(opaque >> 16), (byte)(opaque >> 8), (byte)opaque);
+
+    private static Color Rgb(uint argb) => Color.FromRgb((byte)(argb >> 16), (byte)(argb >> 8), (byte)argb);
 
     private static uint Argb(Color c) => (uint)c.A << 24 | (uint)c.R << 16 | (uint)c.G << 8 | c.B;
 
@@ -1038,22 +1158,6 @@ internal sealed record RingColors(
     private static LinearGradientBrush Vertical(Color top, Color bottom)
     {
         var brush = new LinearGradientBrush(top, bottom, new Point(0.5, 0), new Point(0.5, 1));
-        brush.Freeze();
-        return brush;
-    }
-
-    /// <summary>
-    /// Öğe dairesinin altındaki gölge: dairenin kenarında başlayıp dışa doğru solan halka (içi saydam: yarı saydam daireyi
-    /// koyulaştırmaz). Göreli eşlemeli tek fırça bütün öğelerde kullanılır; çizen, daireden <see cref="RingItemVisual.ShadowReach"/>
-    /// büyük ve biraz aşağıda çizer.
-    /// </summary>
-    private static RadialGradientBrush ShadowRing(byte alpha)
-    {
-        var brush = new RadialGradientBrush();
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0.78));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, 0, 0, 0), 0.86));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(alpha / 3), 0, 0, 0), 0.93));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 1));
         brush.Freeze();
         return brush;
     }
@@ -1087,8 +1191,44 @@ internal sealed class RingItemVisual : FrameworkElement
     /// <summary>Öğe dairesi ve çevresindeki rozet/nokta/gölge payı.</summary>
     public static double BoxSize(RingMetrics metrics) => metrics.ItemDip + 24;
 
-    /// <summary>Gölge halkasının daireden taşan payı (DIP) ve aşağı kayması: kutunun payının içinde kalır.</summary>
+    /// <summary>Gölgenin daireden taşan payı (DIP) ve aşağı kayması: kutunun payının içinde kalır.</summary>
     public const double ShadowReach = 4.5, ShadowDrop = 1.5;
+
+    /// <summary>Gölge biçiminin deliği dairenin kenarından bu kadar içeride (DIP): kenar çizgisinin altında kalır, arada ışık sızmaz.</summary>
+    public const double ShadowHoleInset = 0.5;
+
+    /// <summary>
+    /// Öğe dairesinin gölgesi (efektsiz; öğe kutusunun kendi koordinatında, bütün öğelerde aynı, dondurulmuş): daireden
+    /// <see cref="ShadowReach"/> büyük ve <see cref="ShadowDrop"/> aşağıdaki bir daireden öğe dairesi çıkarılmış biçim
+    /// (EvenOdd) ve durakları yarıçapa göre konmuş degrade: dairenin alt kenarında saydam başlar, 1,5 DIP dışarıda en koyudur,
+    /// dışa doğru solar. Dairenin içine düşmez (koyu temada yarı saydam daire ve simge koyulaşmaz); yalnızca kenar çizgisinin
+    /// altına <see cref="ShadowHoleInset"/> kadar girer. <paramref name="alpha"/> 0: gölge yok (yüksek karşıtlık).
+    /// </summary>
+    internal static (Brush Brush, Geometry Shape)? Shadow(RingMetrics metrics, byte alpha)
+    {
+        if (alpha == 0) return null;
+        var half = BoxSize(metrics) / 2;
+        var c = new Point(half, half);
+        var r = metrics.ItemDip / 2;
+        var reach = r + ShadowReach;
+        var at = new Point(c.X, c.Y + ShadowDrop);
+        // Gölgenin ortasından uzaklık (DIP) → durak: dairenin alt kenarı r - kayma uzaklıktadır.
+        var edge = r - ShadowDrop;
+        double At(double distance) => Math.Clamp(distance / reach, 0, 1);
+        var brush = RingView.Radial(at, reach,
+            (At(edge), Color.FromArgb(0, 0, 0, 0)),
+            (At(edge + 1.5), Color.FromArgb(alpha, 0, 0, 0)),
+            (At(edge + 3.5), Color.FromArgb((byte)(alpha / 3), 0, 0, 0)),
+            (1, Color.FromArgb(0, 0, 0, 0)));
+        var shape = new StreamGeometry { FillRule = FillRule.EvenOdd };
+        using (var ctx = shape.Open())
+        {
+            RingView.Circle(ctx, at, reach);
+            RingView.Circle(ctx, c, r - ShadowHoleInset);
+        }
+        shape.Freeze();
+        return (brush, shape);
+    }
 
     /// <summary>1–9 rozetinin yarıçapı (DIP): simgeyi örtmeyecek kadar küçük, rakam okunacak kadar büyük.</summary>
     public static double BadgeRadius(RingMetrics metrics) => Math.Max(7.5, metrics.ItemDip * 0.15);
@@ -1142,9 +1282,8 @@ internal sealed class RingItemVisual : FrameworkElement
                 dc.DrawEllipse(colors.Dot, null, RingView.At(c, radius + 2, a), 3.5, 3.5);
         }
 
-        // Dairenin altında dışa solan ince gölge (içi saydam; yüksek karşıtlıkta yok).
-        if (colors.ChipShadow is { } shadow)
-            dc.DrawEllipse(shadow, null, new Point(c.X, c.Y + ShadowDrop), radius + ShadowReach, radius + ShadowReach);
+        // Dairenin altında dışa solan ince gölge, yalnızca dairenin dışında (yüksek karşıtlıkta yok).
+        if (_ring.ChipShadow is { } shadow && _ring.ChipShadowShape is { } shape) dc.DrawGeometry(shadow, null, shape);
         // Yüksek karşıtlıkta kalın Vurgulama kenarı daireyi taşırmasın: kalemin yarısı kadar içeride.
         var border = hot || pressed ? colors.ChipBorderHot : colors.ChipBorder;
         var inset = border.Thickness / 2;

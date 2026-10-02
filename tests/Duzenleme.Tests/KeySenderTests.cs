@@ -365,20 +365,31 @@ public class HotkeyRoutingTests
     }
 
     /// <summary>
-    /// Test masaüstünde NESTDESK_TEST_RING=1 iken Ayarlar'dan halka kısayolunu açmak Windows'a gerçek bir kısayol (Ctrl+Alt+R)
-    /// kaydetmez: deneme kullanıcının tuşunu kapmasın; WM_HOTKEY id 8 iletiyle gönderilir. Öteki eylemler ve test dışı her şey
-    /// her zamanki gibi kaydedilir.
+    /// Test masaüstünde (--desktop) hiçbir genel kısayol Windows'a kaydedilmez: deneme örneği kullanıcının kendi NestDesk'inin
+    /// (sonradan açılınca "Başka bir uygulama kullanıyor" alıyordu) ya da başka uygulamaların tuşlarını kapmasın. Yalnızca
+    /// NESTDESK_TEST_HOTKEYS=1 ile kaydedilir; NESTDESK_TEST_RING=1 iken halka kısayolu o zaman da kaydedilmez. Gerçek örnekte
+    /// hepsi kaydedilir. "DuzenlemeHotkeys"e gönderilen WM_HOTKEY her durumda işlenir.
     /// </summary>
     [Fact]
-    public void Test_ring_mode_never_registers_the_ring_shortcut_with_windows()
+    public void Test_desktop_registers_no_global_shortcut_unless_asked()
     {
-        Assert.False(HotkeyManager.RegistersWithWindows(HotkeyAction.Ring, testRing: true));
-        Assert.True(HotkeyManager.RegistersWithWindows(HotkeyAction.Ring, testRing: false));
-        foreach (var action in Enum.GetValues<HotkeyAction>().Where(a => a != HotkeyAction.Ring))
+        var defaults = new HotkeySettings();
+        foreach (var action in Enum.GetValues<HotkeyAction>())
         {
-            Assert.True(HotkeyManager.RegistersWithWindows(action, testRing: true));
-            Assert.True(HotkeyManager.RegistersWithWindows(action, testRing: false));
+            Assert.True(HotkeyManager.RegistersWithWindows(action, testDesktop: false, testHotkeys: false, testRing: false));
+            Assert.False(HotkeyManager.RegistersWithWindows(action, testDesktop: true, testHotkeys: false, testRing: false));
+            Assert.False(HotkeyManager.RegistersWithWindows(action, testDesktop: true, testHotkeys: false, testRing: true));
+            Assert.True(HotkeyManager.RegistersWithWindows(action, testDesktop: true, testHotkeys: true, testRing: false));
+            Assert.Equal(action != HotkeyAction.Ring, HotkeyManager.RegistersWithWindows(action, testDesktop: true, testHotkeys: true, testRing: true));
+            // Gönderilen ileti yine işlenir (atanmamış halka kısayolu yalnızca halka testinde).
+            Assert.Equal((true, action == HotkeyAction.Ring ? null : (HotkeyAction?)action), HotkeyManager.Route((int)action + 1, defaults));
+            Assert.Equal((true, (HotkeyAction?)action), HotkeyManager.Route((int)action + 1, defaults, testRing: true));
         }
+        Assert.True(HotkeyManager.TestOverride(isTestDesktop: true, "1"));
+        Assert.True(HotkeyManager.TestOverride(isTestDesktop: true, " 1 "));
+        Assert.False(HotkeyManager.TestOverride(isTestDesktop: false, "1")); // gerçek örnekte yok sayılır
+        Assert.False(HotkeyManager.TestOverride(isTestDesktop: true, null));
+        Assert.False(HotkeyManager.TestOverride(isTestDesktop: true, "0"));
         Assert.False(RingHotkey.TestOverride(isTestDesktop: false, "1")); // gerçek masaüstünde test kipi yok
     }
 }

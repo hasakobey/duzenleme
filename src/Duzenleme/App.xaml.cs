@@ -209,8 +209,14 @@ public partial class App : Application
         PerfLog.Mark("Tray.created");
         // Gezgin yeniden başladı: widget'lar 3 sn'lik nöbetçiyi beklemeden yeni masaüstüne bağlansın.
         tray.TaskbarCreated += AppHost.Widgets.OnShellRestarted;
-        // NESTDESK_TEST_RING=1 (yalnızca --desktop): halka kısayolsuz da açılır (ölçüm, arayüz denemesi; gerçek tuş kapılmaz).
-        AppHost.Hotkeys = new HotkeyManager(OnHotkey) { TestRing = Views.RingPopup.TestRing };
+        // Test masaüstünde (--desktop) hiçbir genel kısayol Windows'a kaydedilmez (kullanıcının tuşları kapılmaz; WM_HOTKEY iletisi
+        // yine işlenir), NESTDESK_TEST_HOTKEYS=1 değilse. NESTDESK_TEST_RING=1: halka kısayolsuz da açılır (ölçüm, arayüz denemesi).
+        AppHost.Hotkeys = new HotkeyManager(OnHotkey)
+        {
+            TestDesktop = AppHost.IsTestDesktop,
+            TestHotkeys = HotkeyManager.TestOverride(AppHost.IsTestDesktop, AppEnvironment.Get("TEST_HOTKEYS")),
+            TestRing = Views.RingPopup.TestRing,
+        };
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
         NoticeRingHotkeyFailure();
         AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.OnDesktopDoubleClick);
@@ -490,7 +496,12 @@ public partial class App : Application
             var (restyle, all) = Widgets.WidgetPalette.SystemLook.Change(_widgetLook, look);
             _widgetLook = look;
             Widgets.WidgetPalette.SystemDark = systemDark;
-            if (restyle) AppHost.Widgets?.RestyleAll(all);
+            if (restyle)
+            {
+                AppHost.Widgets?.RestyleAll(all);
+                // Kısayolla açılan halka da (Windows'un renkleri dondurulmuş fırçalarında): boşta yeniden kurulur, kısayol yolunda değil.
+                Views.RingPopup.SystemLookChanged();
+            }
         }
         if (onlyIfChanged && _appliedTheme == (resolved, highContrast)) return;
         _appliedTheme = (resolved, highContrast);

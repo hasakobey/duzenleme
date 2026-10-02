@@ -172,8 +172,9 @@ $psi = New-Object Diagnostics.ProcessStartInfo $Exe
 $psi.Arguments = "--desktop `"$desk`" --data `"$data`" --minimized"
 $psi.UseShellExecute = $false
 # Kabuktan kalmış test değişkenleri ölçümü bozmasın (uygulama önce NESTDESK_, yoksa eski DUZENLEME_ adını okur):
-# DEBUGLOG her satırda diske yazar, LANG metinleri değiştirir, TEST_DOUBLECLICK fare girdisi dinler.
-foreach ($stale in 'TEST_DOUBLECLICK', 'TEST_RING', 'DEBUGLOG', 'LANG', 'NEWWIDGET_AT', 'PEEK_AT', 'RING_AT', 'APPDATA_ROOT', 'PERF_LOG', 'WINDOW_AT', 'QUICKADD_AT') {
+# DEBUGLOG her satırda diske yazar, LANG metinleri değiştirir, TEST_DOUBLECLICK fare girdisi dinler, TEST_HOTKEYS
+# kullanıcının kısayollarını kapar.
+foreach ($stale in 'TEST_DOUBLECLICK', 'TEST_RING', 'TEST_HOTKEYS', 'DEBUGLOG', 'LANG', 'NEWWIDGET_AT', 'PEEK_AT', 'RING_AT', 'APPDATA_ROOT', 'PERF_LOG', 'WINDOW_AT', 'QUICKADD_AT') {
     $psi.EnvironmentVariables.Remove("NESTDESK_$stale")
     $psi.EnvironmentVariables.Remove("DUZENLEME_$stale")
 }
