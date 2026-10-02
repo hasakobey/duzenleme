@@ -157,8 +157,9 @@
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock x:Name="MotionTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Animasyonlar'}" />
-                    <TextBlock Style="{StaticResource Muted}"
-                               Text="{l:T 'Canlı: widget\'lar ve sayfalar hafifçe büyüyerek ya da kayarak açılır. Sakin: yalnızca kısa solmalar. Kapalı: hiçbir şey oynamaz. Windows\'un animasyon ayarına her zaman uyar.'}" />
+                    <!-- Metin kodda (AppInfo.Name): "Kapalı" yalnızca uygulamanın kendi hareketlerini durdurur; WPF-UI'nin ComboBox,
+                         CheckBox ve ToggleSwitch'teki kısa yerleşik geçişleri sürer. -->
+                    <TextBlock x:Name="MotionDescription" Style="{StaticResource Muted}" />
                     <TextBlock x:Name="AnimationsNote" Style="{StaticResource Muted}" Margin="0,2,0,0" Visibility="Collapsed"
                                AutomationProperties.AutomationId="Settings.AnimationsNote" />
                     <TextBlock x:Name="WindowsMotionLink" Margin="0,2,0,0" Visibility="Collapsed">

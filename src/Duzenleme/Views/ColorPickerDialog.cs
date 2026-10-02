@@ -111,15 +111,16 @@ internal sealed class ColorPickerDialog : FluentWindow
         _hex.TextChanged += (_, _) => { if (!_syncing) Choose(_hex.Text, fromText: true); };
         _sample = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(6), Margin = new Thickness(10, 0, 0, 0), BorderThickness = new Thickness(1) };
         _sample.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-        var system = new Button { Content = L.T("Windows vurgu rengi"), Margin = new Thickness(12, 0, 0, 0) };
+        // "Windows vurgu rengi" kendi satırında: kodun yanında renk kutularının genişliğine sığmıyordu (düğme kırpılıyordu).
+        var system = new Button { Content = L.T("Windows vurgu rengi"), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         AutomationProperties.SetAutomationId(system, "ColorPicker.Windows");
         system.ToolTip = L.T("Windows'un Kişiselleştirme > Renkler'deki vurgu rengi");
         system.Click += (_, _) => { if (SystemAccent() is { } color) Choose(ThemeMath.ToHex(color), fromText: false); };
         codeRow.Children.Add(codeLabel);
         codeRow.Children.Add(_hex);
         codeRow.Children.Add(_sample);
-        codeRow.Children.Add(system);
         body.Children.Add(codeRow);
+        body.Children.Add(system);
 
         var note = new TextBlock
         {

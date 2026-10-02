@@ -61,7 +61,7 @@ internal sealed class RingPopup : Window
 
     private WidgetConfig? _config;
     private string? _signature;
-    private bool _dirty = true, _rebuildQueued, _forReal, _builtHighContrast;
+    private bool _dirty = true, _rebuildQueued, _forReal, _builtHighContrast, _builtSystemDark;
 
     // Açıkken; yalnızca bellekte (hiçbir yere yazılmaz, günlüğe girmez). Kapanınca bırakılır.
     private IntPtr _previous;
@@ -272,6 +272,7 @@ internal sealed class RingPopup : Window
         _config = config;
         _signature = Signature(config);
         _builtHighContrast = SystemParameters.HighContrast;
+        _builtSystemDark = WidgetPalette.SystemDark;
         var palette = RingView.PaletteFor(config);
         // Önce renkler (eski halka yeniden kurulmaz), sonra halka bir kez: simgeler yeni renkle istenir.
         _ring.ApplyPalette(palette, rebuild: false);
@@ -296,12 +297,13 @@ internal sealed class RingPopup : Window
 
     /// <summary>
     /// Halkanın görünüşünü belirleyen ayarların özeti: ilgisiz ayar değişiklikleri (konum, başka widget) yeniden kurdurmaz.
-    /// Yalnızca bellekte, karşılaştırma için.
+    /// Tema ve özel vurgu rengi de girer (2.2: "Otomatik"/"Klasik" Style/Accent'i değiştirmeyebilir; açılır halka eski temada
+    /// kalıyordu), Windows'un açık/koyu kipi de (Otomatik ve Okyanus ona uyar). Yalnızca bellekte, karşılaştırma için.
     /// </summary>
-    private static string Signature(WidgetConfig config) => JsonSerializer.Serialize(new
+    internal static string Signature(WidgetConfig config) => JsonSerializer.Serialize(new
     {
-        config.Id, config.Style, config.Accent, config.IconSize, config.Scale, config.Title, config.Icon, config.HiddenParts,
-        config.Tabs, config.ItemLooks, SystemParameters.HighContrast,
+        config.Id, config.Style, config.Accent, config.LookTheme, config.LookAccentColor, config.IconSize, config.Scale, config.Title,
+        config.Icon, config.HiddenParts, config.Tabs, config.ItemLooks, SystemParameters.HighContrast, WidgetPalette.SystemDark,
     }, JsonFile.Options);
 
     private void OnSettingsChanged()
@@ -378,7 +380,8 @@ internal sealed class RingPopup : Window
             return;
         }
         // Değişiklikler boşta işlenir (OnSettingsChanged); burada yalnızca hâlâ eskiyse (ör. boşa düşmeden basıldıysa).
-        if (_dirty || !ReferenceEquals(config, _config) || _builtHighContrast != SystemParameters.HighContrast) Build(config);
+        if (_dirty || !ReferenceEquals(config, _config) || _builtHighContrast != SystemParameters.HighContrast
+            || _builtSystemDark != WidgetPalette.SystemDark) Build(config);
         else if (_ring.InSubRing) _ring.SetRing(config, 0);
         if (_ring.Slots.Count == 0)
         {

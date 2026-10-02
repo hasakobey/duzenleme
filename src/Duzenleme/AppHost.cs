@@ -401,7 +401,7 @@ public static class AppHost
     /// denenir; yalnızca Windows yazmayı engellediyse (Denetimli klasör erişimi vb.) oturumda bir kez söylenir: yoksa
     /// dosyalar sessizce taşınmaz ve kullanıcı nedenini bilemez.
     /// </summary>
-    private static void OnMoveFailed(string path, Exception ex)
+    private static void OnMoveFailed(string path, string? targetDirectory, Exception ex)
     {
         DebugLog.Write($"taşınamadı: {path}: {ex.GetType().Name} {ex.Message}");
         // Kilitli dosya olağandır (indiriliyor, açık): hata sayılmaz, yalnızca sayaç. Engellenen yazma uyarıdır.
@@ -410,11 +410,9 @@ public static class AppHost
         else AppLog.Info("organizer", "move-failed", ex);
         if (ex is not UnauthorizedAccessException) return;
         if (Interlocked.Exchange(ref _moveBlockedWarned, 1) == 1) return;
-        var result = FolderCreation.Explain(ex, path);
-        _dispatcher?.BeginInvoke(() => Views.Notice.FolderFailed(result with
-        {
-            Error = L.F("\"{0}\" taşınamadı. {1}", Path.GetFileName(path), result.Error),
-        }));
+        // Dosya klasör sanılmaz; izin vermeyen yer masaüstü değil kuralın hedef klasörüdür.
+        var result = FolderCreation.ExplainMove(ex, path, targetDirectory);
+        _dispatcher?.BeginInvoke(() => Views.Notice.FolderFailed(result));
     }
 
     private static int _writeWarnings;
@@ -1177,6 +1175,9 @@ public static class AppHost
     /// </summary>
     private static void CheckPreviousSession(string logs, string? mode, bool logOff)
     {
+        // Bu süreç çöküyorsa önceki oturumun raporlarına dokunulmaz (çökme döngüsünde soru hiç gösterilmeden "soruldu"
+        // işaretlenmesin, bekleyenler silinip kaydedilmesin): sonraki açılış sorar.
+        if (CrashReports.Crashing) return;
         var now = DateTime.UtcNow;
         var crashes = Path.Combine(logs, CrashReports.FolderName);
         AppLog.Channel.PruneNow();
@@ -1206,6 +1207,7 @@ public static class AppHost
                 return;
         }
         // Bu oturumun kendi raporu (açılıştan hemen sonra çöktüyse) burada sorulmaz: sonraki açılış sorar.
+        if (CrashReports.Crashing) return;
         var toAsk = CrashReports.ToAsk(crashes, currentSession: AppLog.Channel.Session);
         if (toAsk.Count > 0)
             _dispatcher?.BeginInvoke(() => Views.Diagnostics.AskAboutCrashes(toAsk), DispatcherPriority.ApplicationIdle);

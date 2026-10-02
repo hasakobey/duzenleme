@@ -314,7 +314,8 @@ internal sealed class RingView : FrameworkElement
     {
         var highContrast = SystemParameters.HighContrast;
         _colors = RingColors.From(palette, highContrast);
-        var glyph = highContrast ? SystemColors.WindowTextColor : (palette.Accent as SolidColorBrush)?.Color ?? Colors.White;
+        // Simgeler öğe dairesinin üstünde okunur kalsın (vurgu rengi gerekirse açılır/koyulaşır); yüksek karşıtlıkta pencere yazısı.
+        var glyph = _colors.Glyph;
         var recolor = glyph != _glyphColor || !_paletteApplied;
         _glyphColor = glyph;
         _paletteApplied = true;
@@ -625,8 +626,10 @@ internal sealed class RingView : FrameworkElement
         var outer = _metrics.OuterRadius;
         var inner = Math.Clamp(_metrics.CenterRadius / outer, 0, 1);
         _disc = _colors.HighContrast ? _colors.Disc : Radial(c, outer, (0, _colors.DiscInner), (inner, _colors.DiscInner), (1, _colors.DiscOuter));
+        // Vurgulanan dilim içten dışa yumuşakça koyulaşır (orta dairenin yanında neredeyse saydam, dış kenarda en çok %28).
         _hot = _colors.HighContrast ? _colors.HotFill
-            : Radial(c, outer, (0, WithAlpha(_colors.Accent, 0)), (inner, WithAlpha(_colors.Accent, 0x14)), (1, WithAlpha(_colors.Accent, 0x5C)));
+            : Radial(c, outer, (0, WithAlpha(_colors.Accent, 0)), (inner, WithAlpha(_colors.Accent, HotInnerAlpha)),
+                (inner + (1 - inner) * 0.55, WithAlpha(_colors.Accent, 0x26)), (1, WithAlpha(_colors.Accent, HotOuterAlpha)));
     }
 
     private static Brush Radial(Point center, double radius, params (double Offset, Color Color)[] stops)
@@ -639,6 +642,9 @@ internal sealed class RingView : FrameworkElement
         brush.Freeze();
         return brush;
     }
+
+    /// <summary>Vurgulanan dilimin degradesi: orta dairenin yanında ve dış kenarda vurgu renginin saydamlığı.</summary>
+    internal const byte HotInnerAlpha = 0x0C, HotOuterAlpha = 0x48;
 
     internal static Color WithAlpha(Color color, byte alpha) => Color.FromArgb(alpha, color.R, color.G, color.B);
 
@@ -936,14 +942,23 @@ internal sealed class RingView : FrameworkElement
     }
 }
 
-/// <summary>Halkanın renkleri (paletten; yüksek karşıtlıkta sistem renkleri). Fırçalar ve kalemler dondurulmuştur.</summary>
+/// <summary>
+/// Halkanın renkleri (paletten; yüksek karşıtlıkta sistem renkleri). Fırçalar ve kalemler dondurulmuştur.
+/// <para>Cila (efektsiz): öğe daireleri yukarıdan hafif aydınlık bir degradeyle ve altlarında dışa doğru solan ince bir gölge
+/// halkasıyla (<see cref="ChipShadow"/>, dairenin içini koyulaştırmaz) çizilir; simgeler dairenin üstünde en az 3:1 okunur
+/// (<see cref="Glyph"/>). Yüksek karşıtlıkta vurgulanan öğe ve orta daire pencere renginde kalır (simge ve yazı Windows'un
+/// pencere yazısı rengiyle okunur), vurgu kalın Vurgulama kenarı ve dilimin Vurgulama dolgusuyla gösterilir; gölge yok.</para>
+/// </summary>
 internal sealed record RingColors(
     bool HighContrast, Color DiscInner, Color DiscOuter, Brush Disc, Brush Wedge, Brush HotFill, Color Accent,
     Pen Separator, Pen Rim, Pen RimHot, Pen Marker,
-    Brush Chip, Pen ChipBorder, Brush ChipHot, Pen ChipBorderHot, Brush ChipPressed,
-    Brush Center, Pen CenterBorder, Brush CenterHot, Brush Text, Brush TextHot, Brush Secondary,
-    Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot, Pen FocusBorder)
+    Brush Chip, Pen ChipBorder, Brush ChipHot, Pen ChipBorderHot, Brush ChipPressed, Brush? ChipShadow,
+    Brush Center, Pen CenterBorder, Brush CenterHot, Pen CenterBorderHot, Brush Text, Brush TextHot, Brush Secondary,
+    Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot, Pen FocusBorder, Color Glyph)
 {
+    /// <summary>Simgenin öğe dairesine karşı en az karşıtlığı (WCAG, anlamlı grafik).</summary>
+    public const double GlyphContrast = 3.0;
+
     public static RingColors From(WidgetPalette palette, bool highContrast)
     {
         if (highContrast)
@@ -952,36 +967,93 @@ internal sealed record RingColors(
             var text = SystemColors.WindowTextColor;
             var highlight = SystemColors.HighlightColor;
             var highlightText = SystemColors.HighlightTextColor;
+            // Vurgulanan öğe ve orta: zemin pencere rengi kalır (simge ve yazı pencere yazısı renginde okunur), kenarı kalın
+            // Vurgulama; dilim Vurgulama ile dolar. Rozet Vurgulama / Vurgulanan yazı çiftidir.
             return new RingColors(true, window, window, Solid(window), Brushes.Transparent, Solid(highlight), highlight,
-                Line(text, 1), Line(text, 2), Line(highlight, 4), Line(highlight, 3),
-                Solid(window), Line(text, 1.5), Solid(highlight), Line(highlightText, 2), Solid(highlight),
-                Solid(window), Line(text, 1.5), Solid(highlight), Solid(text), Solid(highlightText), Solid(text),
-                Solid(window), Line(text, 1), Solid(text), Solid(highlight), Solid(highlightText), Solid(text), Line(highlight, 2));
+                Separator: Line(text, 1), Rim: Line(text, 2), RimHot: Line(highlight, 4), Marker: Line(highlight, 3),
+                Chip: Solid(window), ChipBorder: Line(text, 1.5), ChipHot: Solid(window), ChipBorderHot: Line(highlight, 3),
+                ChipPressed: Solid(window), ChipShadow: null,
+                Center: Solid(window), CenterBorder: Line(text, 1.5), CenterHot: Solid(window), CenterBorderHot: Line(highlight, 3),
+                Text: Solid(text), TextHot: Solid(text), Secondary: Solid(text),
+                Badge: Solid(window), BadgeBorder: Line(text, 1), BadgeText: Solid(text), BadgeHot: Solid(highlight),
+                BadgeTextHot: Solid(highlightText), Dot: Solid(text), FocusBorder: Line(highlight, 2), Glyph: text);
         }
         var fg = (palette.Foreground as SolidColorBrush)?.Color ?? Colors.White;
         var accent = (palette.Accent as SolidColorBrush)?.Color ?? Colors.White;
         var accentText = palette.AccentForeground;
         var light = palette.IsLight;
         var white = Colors.White;
+        // Öğe dairesi yukarıdan hafif aydınlık: açık temada beyazdan serin griye, koyuda yazı renginin biraz daha saydamına.
+        var chipTop = light ? Color.FromArgb(0xFA, 0xFF, 0xFF, 0xFF) : A(fg, 0x26);
+        var chipBottom = light ? Color.FromArgb(0xF2, 0xF3, 0xF4, 0xF8) : A(fg, 0x14);
+        // Vurgulanan daire nötr kalır (biraz daha aydınlık) ve vurgu renginde kenar alır: vurgu renginde simge, vurgu renginde
+        // zeminde kaybolmasın (Okyanus gibi tek tonlu temalarda).
+        var chipHot = light ? Colors.White : A(fg, 0x30);
         return new RingColors(false,
             DiscInner: A(fg, light ? 0x0E : 0x16), DiscOuter: A(fg, light ? 0x04 : 0x06), Disc: Brushes.Transparent,
             Wedge: Solid(A(fg, 0x04)), HotFill: Solid(A(accent, 0x40)), Accent: accent,
-            Separator: Line(A(fg, light ? 0x1E : 0x26), 1), Rim: Line(A(fg, light ? 0x22 : 0x2C), 3), RimHot: Line(accent, 3.5),
+            Separator: Line(A(fg, light ? 0x18 : 0x22), 1), Rim: Line(A(fg, light ? 0x22 : 0x2C), 3), RimHot: Line(accent, 3.5),
             Marker: Line(accent, 3),
-            Chip: Solid(light ? A(white, 0xF2) : A(fg, 0x1C)), ChipBorder: Line(A(fg, light ? 0x22 : 0x33), 1),
-            ChipHot: Solid(A(accent, light ? 0x3A : 0x5C)), ChipBorderHot: Line(accent, 1.5), ChipPressed: Solid(A(accent, light ? 0x66 : 0x8C)),
+            Chip: Vertical(chipTop, chipBottom), ChipBorder: Line(A(fg, light ? 0x1E : 0x30), 1),
+            ChipHot: Solid(chipHot), ChipBorderHot: Line(accent, 2), ChipPressed: Solid(A(accent, light ? 0x40 : 0x50)),
+            ChipShadow: ShadowRing(light ? (byte)0x2E : (byte)0x50),
             Center: Solid(light ? A(white, 0xF2) : A(fg, 0x14)), CenterBorder: Line(A(fg, light ? 0x22 : 0x2E), 1),
-            CenterHot: Solid(A(accent, light ? 0x3A : 0x4D)), Text: palette.Foreground, TextHot: palette.Foreground, Secondary: palette.Secondary,
-            Badge: Solid(light ? white : Color.FromArgb(0xE6, 0x1E, 0x1C, 0x28)), BadgeBorder: Line(A(fg, light ? 0x2A : 0x38), 1),
+            CenterHot: Solid(A(accent, light ? 0x3A : 0x4D)), CenterBorderHot: Line(A(fg, light ? 0x22 : 0x2E), 1),
+            Text: palette.Foreground, TextHot: palette.Foreground, Secondary: palette.Secondary,
+            Badge: Solid(light ? white : Color.FromArgb(0xEE, 0x1E, 0x1C, 0x28)), BadgeBorder: Line(A(fg, light ? 0x26 : 0x34), 1),
             BadgeText: palette.Foreground, BadgeHot: palette.Accent, BadgeTextHot: accentText, Dot: Solid(A(fg, light ? 0x70 : 0x8C)),
-            FocusBorder: Line(accent, 2));
+            FocusBorder: Line(accent, 2), Glyph: GlyphOn(accent, [chipTop, chipBottom, chipHot], palette.Background));
     }
+
+    /// <summary>
+    /// Fluent simgelerin rengi: vurgu rengi, öğe dairesinin (boşta ve vurgulanınca; kartın zemini üstünde) karşısında en az
+    /// <see cref="GlyphContrast"/> okunacak biçimde gerekirse açılır ya da koyulaşır (ör. Okyanus'un deniz yeşili zemininde aynı
+    /// tonda simge).
+    /// </summary>
+    internal static Color GlyphOn(Color accent, IReadOnlyList<Color> chipFills, Brush background)
+    {
+        var chips = Stops(background).SelectMany(stop => chipFills.Select(chip => ThemeMath.Composite(Argb(chip), ThemeMath.Opaque(stop)))).ToList();
+        var shown = ThemeMath.EnsureContrast(Argb(accent), chips, GlyphContrast);
+        return Color.FromRgb((byte)(shown >> 16), (byte)(shown >> 8), (byte)shown);
+    }
+
+    private static IReadOnlyList<uint> Stops(Brush background) => background switch
+    {
+        SolidColorBrush s => [Argb(s.Color)],
+        GradientBrush g => g.GradientStops.Select(x => Argb(x.Color)).ToList(),
+        _ => [],
+    };
+
+    private static uint Argb(Color c) => (uint)c.A << 24 | (uint)c.R << 16 | (uint)c.G << 8 | c.B;
 
     private static Color A(Color color, int alpha) => RingView.WithAlpha(color, (byte)alpha);
 
     private static SolidColorBrush Solid(Color color)
     {
         var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static LinearGradientBrush Vertical(Color top, Color bottom)
+    {
+        var brush = new LinearGradientBrush(top, bottom, new Point(0.5, 0), new Point(0.5, 1));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// Öğe dairesinin altındaki gölge: dairenin kenarında başlayıp dışa doğru solan halka (içi saydam: yarı saydam daireyi
+    /// koyulaştırmaz). Göreli eşlemeli tek fırça bütün öğelerde kullanılır; çizen, daireden <see cref="RingItemVisual.ShadowReach"/>
+    /// büyük ve biraz aşağıda çizer.
+    /// </summary>
+    private static RadialGradientBrush ShadowRing(byte alpha)
+    {
+        var brush = new RadialGradientBrush();
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 0.78));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(alpha, 0, 0, 0), 0.86));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)(alpha / 3), 0, 0, 0), 0.93));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 1));
         brush.Freeze();
         return brush;
     }
@@ -1012,8 +1084,14 @@ internal sealed class RingItemVisual : FrameworkElement
         if (index >= 0) AutomationProperties.SetAutomationId(this, "Ring.Item." + (index + 1).ToString(CultureInfo.InvariantCulture));
     }
 
-    /// <summary>Öğe dairesi ve çevresindeki rozet/nokta payı.</summary>
+    /// <summary>Öğe dairesi ve çevresindeki rozet/nokta/gölge payı.</summary>
     public static double BoxSize(RingMetrics metrics) => metrics.ItemDip + 24;
+
+    /// <summary>Gölge halkasının daireden taşan payı (DIP) ve aşağı kayması: kutunun payının içinde kalır.</summary>
+    public const double ShadowReach = 4.5, ShadowDrop = 1.5;
+
+    /// <summary>1–9 rozetinin yarıçapı (DIP): simgeyi örtmeyecek kadar küçük, rakam okunacak kadar büyük.</summary>
+    public static double BadgeRadius(RingMetrics metrics) => Math.Max(7.5, metrics.ItemDip * 0.15);
 
     public string AccessibleName => _slot?.Name ?? _backName;
 
@@ -1064,8 +1142,13 @@ internal sealed class RingItemVisual : FrameworkElement
                 dc.DrawEllipse(colors.Dot, null, RingView.At(c, radius + 2, a), 3.5, 3.5);
         }
 
-        dc.DrawEllipse(pressed ? colors.ChipPressed : hot ? colors.ChipHot : colors.Chip, hot ? colors.ChipBorderHot : colors.ChipBorder,
-            c, radius - 0.5, radius - 0.5);
+        // Dairenin altında dışa solan ince gölge (içi saydam; yüksek karşıtlıkta yok).
+        if (colors.ChipShadow is { } shadow)
+            dc.DrawEllipse(shadow, null, new Point(c.X, c.Y + ShadowDrop), radius + ShadowReach, radius + ShadowReach);
+        // Yüksek karşıtlıkta kalın Vurgulama kenarı daireyi taşırmasın: kalemin yarısı kadar içeride.
+        var border = hot || pressed ? colors.ChipBorderHot : colors.ChipBorder;
+        var inset = border.Thickness / 2;
+        dc.DrawEllipse(pressed ? colors.ChipPressed : hot ? colors.ChipHot : colors.Chip, border, c, radius - inset, radius - inset);
 
         var image = _slot?.Icon ?? (_index < 0 ? GlyphImage.For(RingSlot.BackGlyph, _ring.GlyphColor) : null);
         if (image is not null)
@@ -1085,11 +1168,15 @@ internal sealed class RingItemVisual : FrameworkElement
         if (_index is >= 0 and < 9 && _ring.ShowsKeys)
         {
             var badge = RingView.At(c, radius * 0.95, _ring.ItemAngle(_index) + 180);
-            var r = Math.Max(8, metrics.ItemDip * 0.16);
+            var r = BadgeRadius(metrics);
             dc.DrawEllipse(hot ? colors.BadgeHot : colors.Badge, colors.BadgeBorder, badge, r, r);
             var digit = new FormattedText((_index + 1).ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, RingCenterVisual.Bold, r * 1.25, hot ? colors.BadgeTextHot : colors.BadgeText, _ring.PixelsPerDipForText);
-            dc.DrawText(digit, new Point(badge.X - digit.Width / 2, badge.Y - digit.Height / 2));
+                FlowDirection.LeftToRight, RingCenterVisual.Bold, r * 1.2, hot ? colors.BadgeTextHot : colors.BadgeText, _ring.PixelsPerDipForText);
+            // Rakamın çizilen kutusu (satır yüksekliği değil) rozetin ortasında.
+            var ink = digit.BuildGeometry(new Point(0, 0)).Bounds;
+            var at = ink.IsEmpty ? new Point(badge.X - digit.Width / 2, badge.Y - digit.Height / 2)
+                : new Point(badge.X - ink.X - ink.Width / 2, badge.Y - ink.Y - ink.Height / 2);
+            dc.DrawText(digit, at);
         }
     }
 
@@ -1116,6 +1203,9 @@ internal sealed class RingCenterVisual : FrameworkElement
 {
     private readonly RingView _ring;
 
+    /// <summary>Odak halkasının orta daireden uzaklığı (DIP; dilimlerin iç kenarı orta dairenin 3 DIP dışında başlar).</summary>
+    internal const double FocusGap = 2.5;
+
     internal static readonly Typeface Regular = new(new FontFamily("Segoe UI Variable Text, Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
     internal static readonly Typeface Bold = new(new FontFamily("Segoe UI Variable Text, Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
 
@@ -1139,10 +1229,12 @@ internal sealed class RingCenterVisual : FrameworkElement
         var r = _ring.Metrics.CenterRadius;
         var c = new Point(r, r);
         var hot = _ring.CenterHot;
-        // Odak çerçevesi: klavye odağı halkadayken orta dairenin kenarı vurgu renginde (yalnızca kalemin rengi değişir).
-        var focus = _ring.ShowsFocusCue;
-        dc.DrawEllipse(_ring.CenterPressed ? colors.ChipPressed : hot ? colors.CenterHot : colors.Center,
-            focus ? colors.FocusBorder : colors.CenterBorder, c, focus ? r - 1 : r - 0.5, focus ? r - 1 : r - 0.5);
+        var border = hot || _ring.CenterPressed ? colors.CenterBorderHot : colors.CenterBorder;
+        var inset = border.Thickness / 2;
+        dc.DrawEllipse(_ring.CenterPressed ? colors.ChipPressed : hot ? colors.CenterHot : colors.Center, border, c, r - inset, r - inset);
+        // Odak çerçevesi: klavye odağı halkadayken orta dairenin hemen dışında vurgu renginde ince bir halka (Windows'un odak
+        // çerçevesi gibi, dairenin kendisi değişmez). Yalnızca klavyeden sonra; fareyle basınca kalkar.
+        if (_ring.ShowsFocusCue) dc.DrawEllipse(null, colors.FocusBorder, c, r + FocusGap, r + FocusGap);
 
         var top = c.Y - r * 0.62;
         var bottom = c.Y + r * 0.62;

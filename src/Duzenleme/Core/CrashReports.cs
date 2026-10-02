@@ -59,6 +59,13 @@ public static class CrashReports
     internal static void ResetOnce() => Interlocked.Exchange(ref s_once, 0);
 
     /// <summary>
+    /// Bu süreç çöküyor (<see cref="WriteOnce"/> çağrıldı): açılış denetimi ve soru işaretlemesi önceki oturumun raporlarına
+    /// dokunmaz. Açılıştan hemen sonra çöken bir oturum (çökme döngüsü) önceki oturumun raporunu "soruldu" işaretleyip
+    /// şeridini hiç göstermeden kapanmasın: rapor sonraki açılışta yine sorulur.
+    /// </summary>
+    public static bool Crashing => Volatile.Read(ref s_once) != 0;
+
+    /// <summary>
     /// Raporu yazar (çağıran iş parçacığında). <paramref name="mode"/>: <see cref="AppSettings.CrashReportMode"/> (null/tanınmayan
     /// = sor). Günlük kapalıysa (<paramref name="logOff"/>) son satırlar eklenmez. Yazılan dosya ya da ("Kaydetme") null.
     /// Disk hatasını fırlatır (<see cref="WriteOnce"/> yutar; donma raporunu arka planda yazan da yakalamalı).
@@ -213,10 +220,10 @@ public static class CrashReports
             .Where(r => !r.Asked && !(currentSession is { Length: > 0 } && string.Equals(r.Session, currentSession, StringComparison.Ordinal)))
             .ToList();
 
-    /// <summary>Raporun bir kez sorulduğunu işaretler.</summary>
+    /// <summary>Raporun bir kez sorulduğunu işaretler (süreç çöküyorsa işaretlemez: bkz. <see cref="Crashing"/>).</summary>
     public static void MarkAsked(string path)
     {
-        if (Read(path) is not { IsPending: true } report || report.Asked) return;
+        if (Crashing || Read(path) is not { IsPending: true } report || report.Asked) return;
         try { DurableFile.WriteAtomic(path, Serialize(report with { Asked = true }), keepBackup: false); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
@@ -233,6 +240,7 @@ public static class CrashReports
             if (Read(pendingPath) is { } report && report.Asked)
                 DurableFile.WriteAtomic(pendingPath, Serialize(report with { Asked = false }), keepBackup: false);
             File.Move(pendingPath, target);
+            DeleteTemp(pendingPath);
             Prune(directory, utcNow, keep: target);
             return target;
         }
@@ -242,11 +250,22 @@ public static class CrashReports
         }
     }
 
-    /// <summary>"Kaydetme": bekleyen raporu siler.</summary>
+    /// <summary>"Kaydetme": bekleyen raporu (ve yarıda kalmış yazmasının .tmp kopyasını) siler.</summary>
     public static void Discard(string pendingPath)
     {
         if (!Path.GetFileName(pendingPath).StartsWith(PendingPrefix, StringComparison.OrdinalIgnoreCase)) return;
         try { File.Delete(pendingPath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        DeleteTemp(pendingPath);
+    }
+
+    /// <summary>
+    /// Raporun yarıda kalmış atomik yazmasının kopyası (<c>&lt;rapor&gt;.tmp</c>; ör. işaretlerken elektrik kesildi): rapor
+    /// kaydedilince ya da silinince o da gider (kullanıcının kaydetmemeyi seçtiği raporun tam kopyası kalmasın).
+    /// </summary>
+    private static void DeleteTemp(string reportPath)
+    {
+        try { File.Delete(reportPath + ".tmp"); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
@@ -283,7 +302,10 @@ public static class CrashReports
         }
     }
 
-    /// <summary>14 günü geçenleri siler; en çok 3 bekleyen ve 10 kaydedilmiş kalır (en eskiler gider, <paramref name="keep"/> kalır).</summary>
+    /// <summary>
+    /// 14 günü geçenleri siler; en çok 3 bekleyen ve 10 kaydedilmiş kalır (en eskiler gider, <paramref name="keep"/> kalır).
+    /// Yarıda kalmış yazmaların .tmp kopyalarından raporu artık olmayanlar ya da 14 günü geçenler de silinir.
+    /// </summary>
     public static void Prune(string crashesDirectory, DateTime utcNow, string? keep = null)
     {
         foreach (var (prefix, max) in new[] { (PendingPrefix, MaxPending), (SavedPrefix, MaxSaved) })
@@ -300,6 +322,12 @@ public static class CrashReports
                 if (string.Equals(file, keep, StringComparison.OrdinalIgnoreCase)) continue;
                 if (TryDelete(file)) files.Remove(file);
             }
+        }
+        // Raporlar silindikten sonra: az önce silinen raporun kopyası da gider.
+        foreach (var leftover in Leftovers(crashesDirectory))
+        {
+            var report = leftover[..^".tmp".Length];
+            if (!File.Exists(report) || utcNow - TimeOf(report) > TimeSpan.FromDays(RetentionDays)) TryDelete(leftover);
         }
     }
 

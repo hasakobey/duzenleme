@@ -50,6 +50,29 @@ public class ColorPickerTests
         Assert.Null(previewed[^1]); // kapanınca önizleme bırakılır (kayıtlı renk aynısı)
     });
 
+    /// <summary>
+    /// Her satır renk kutularının genişliğine sığar (Türkçe ve İngilizce): "Windows vurgu rengi" düğmesi renk kodunun yanında
+    /// kırpılıyordu ("Winc"); artık kendi satırında.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Every_row_fits_the_swatch_width(bool english) => OnSta(() =>
+    {
+        using var _ = english ? Duzenleme.Localization.L.Use(Duzenleme.Localization.Lang.En) : null;
+        var picker = new ColorPickerDialog(new NativeMethods.POINT { X = 0, Y = 0 }, () => null, "#22d3ee", _ => { }, _ => { });
+        var system = Descendants(picker).OfType<FrameworkElement>().Single(e => AutomationProperties.GetAutomationId(e) == "ColorPicker.Windows");
+        var body = (StackPanel)LogicalTreeHelper.GetParent(system);
+        Assert.False(double.IsNaN(body.Width));
+        foreach (var row in body.Children.OfType<FrameworkElement>().Where(r => r is not TextBlock { TextWrapping: TextWrapping.Wrap }))
+        {
+            row.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Assert.True(row.DesiredSize.Width <= body.Width + 0.5, $"{row.GetType().Name} {row.DesiredSize.Width} > {body.Width}");
+        }
+        var hex = Descendants(picker).OfType<FrameworkElement>().Single(e => AutomationProperties.GetAutomationId(e) == "ColorPicker.Hex");
+        Assert.NotSame(LogicalTreeHelper.GetParent(hex), body); // kod satırı ayrı, düğme ayrı
+    });
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())

@@ -63,8 +63,9 @@ public static class Notice
     private static WaitingAsk? _waitingAsk;
 
     /// <summary>
-    /// Ana pencere göründü ya da simge durumundan çıktı (MainWindow): bekleyen soru şeritte gösterilir. Pencere açılırken ilk
-    /// sayfaya geçiş şeridi kapattığı için ApplicationIdle'da.
+    /// Ana pencere göründü ya da simge durumundan çıktı (MainWindow): bekleyen soru şeritte gösterilir. ApplicationIdle'da:
+    /// pencere ilk kez kurulurken içeriği ve şerit yeri (ilk sayfa dahil) önce yerleşsin, şerit yarım kurulmuş pencereye
+    /// gelmesin. İlk sayfaya geçiş şeridi artık kapatmaz (MainWindow._firstPageShown); sonraki geçişler kapatır.
     /// </summary>
     internal static void ShowWaitingAsk()
     {
