@@ -8,7 +8,7 @@
   dilde de aynı olduğu için düz yazılır. Açıklamalar ve "Add widget" girişinin adı ms-resource: ile tools/store/Strings/
   <dil>/Resources.resw'den gelir (en-US varsayılan, tr-TR); package-msix.ps1 ve IdentityTests her anahtarın iki dilde de
   bulunduğunu denetler (makeappx eksik anahtarı fark etmez).
-  Kimlikler 2.1.0'da yeni ada geçti (paket henüz yayımlanmadı): Executable NestDesk.exe, Application Id NestDesk / AddWidget,
+  Kimlikler 2.1.0'da yeni ada geçti (Store'da bu kimliklerle yayımlandı): Executable NestDesk.exe, Application Id NestDesk / AddWidget,
   TaskId NestDeskStartup (Core/AppInfo.cs; tests/Duzenleme.Tests/IdentityTests.cs sabitler). Yayımlandıktan sonra Id'ler ve
   TaskId DEĞİŞMEZ: değişirse sabitlemeler ve başlangıç görevi kullanıcıda sıfırlanır.
 -->

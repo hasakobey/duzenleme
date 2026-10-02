@@ -404,7 +404,7 @@ if (Test-Path $perfLog) {
 }
 $exeVersion = $null
 try { $exeVersion = (Get-Item $Exe).VersionInfo.ProductVersion } catch { }
-# Sürüm numarası geliştirme derlemelerinde değişmez (2.2 dalı da sürüm çıkana dek "2.1.1" der): yönetilen DLL'in özeti ve
+# Sürüm numarası geliştirme derlemelerinde değişmez (bir dal sürüm numarası artmadan önceki sürümün numarasını taşır): yönetilen DLL'in özeti ve
 # yazılma zamanı hangi derlemenin ölçüldüğünü ayırır (docs/perf.md §5'e sürümle birlikte yazılır).
 $exeBuild = $null
 foreach ($dllName in 'NestDesk.dll', 'Duzenleme.dll') {

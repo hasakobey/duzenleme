@@ -6,26 +6,25 @@ Windows 10/11 için ücretsiz ve açık kaynaklı (MIT) masaüstü düzenleyici.
 
 [Türkçe](#türkçe) · [English](#english) · [Gizlilik / Privacy](PRIVACY.md) · [Lisans / License](#lisans--license)
 
-**İndir / Download:** [Releases](https://github.com/hasakobey/duzenleme/releases) — `NestDesk-Setup-<sürüm/version>.exe` (kurulum / installer, English + Türkçe) ya da / or `NestDesk-<sürüm/version>-<mimari/arch>-portable.zip`. Microsoft Store sürümü yayımlanınca bağlantısı buraya eklenecek. · The Microsoft Store link will be added here once it is published.
+**İndir / Download:** [Releases](https://github.com/hasakobey/duzenleme/releases) — `NestDesk-Setup-<sürüm/version>.exe` (kurulum / installer, English + Türkçe) ya da / or `NestDesk-<sürüm/version>-<mimari/arch>-portable.zip`. **Microsoft Store:** [apps.microsoft.com/detail/9PCQ9C4BBWKP](https://apps.microsoft.com/detail/9PCQ9C4BBWKP)
 
 ---
 
 ## Türkçe
 
-NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen dosyaları **senin oluşturduğun klasörlere** taşır ve duvar kâğıdının üzerine saat, takvim, not, yapılacaklar, zamanlayıcı gibi **widget'lar** ekler. Arayüz Türkçe ve İngilizcedir; Windows'un diline uyar (**Ayarlar → Genel → Dil / Language**).
+NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen dosyaları **senin oluşturduğun klasörlere** taşır, uygulamalarını bir **halka menüde** toplar ve duvar kâğıdının üzerine saat, takvim, not, yapılacaklar, zamanlayıcı gibi **widget'lar** ekler. Arayüz Türkçe ve İngilizcedir; Windows'un diline uyar (**Ayarlar → Genel → Dil / Language**).
 
-### 2.1'deki yenilikler
+### 2.2'deki yenilikler
 
-- **Daha hızlı ve akıcı:** ayarlar arka planda kaydedilir, bölmeler yalnızca değişeni günceller; yavaş bilgisayarda ve ağ klasörlerinde donma yok.
-- **Keskin görüntü:** her ekran ölçeğinde net yazı ve simgeler; widget'lar ekrana sığar, dar başlıklar kendini toplar.
-- **İngilizce arayüz:** NestDesk artık Türkçe ve İngilizce.
-- **Canlı menüler:** sağ tık menüsü seçenek değiştirirken açık kalır, değişiklik hemen görünür; arka planı, vurgu rengini, köşeleri, saydamlığı ve not rengini üzerine gelerek önizle.
-- **Ad ve simge:** eklerken adını yaz, başlıktaki simgeye tıklayıp simge seç; kısayol kutusundaki öğelere kendi adını ve simgesini ver. **F2** ile widget'ı, bölmedeki dosyayı ya da kutudaki öğeyi yerinde yeniden adlandır.
-- **Windows masaüstüne göz at** (`Ctrl+Alt+G`): Windows'un kendi simgeleri görünür, widget'lar çekilir, birkaç dakika sonra kendiliğinden geri dönülür.
-- **Yeni widget'ların yeri:** imlecin yanı, ekranın ortası ya da köşe; yeni widget birkaç saniye vurgulu durur.
-- **Kutulara eklediklerim masaüstünden kalksın:** kısayol kutusuna eklediğin masaüstü öğesi görünür bir `NestDesk` klasörüne taşınır, kutuda durur; tek tıkla geri konur.
-- **Yeni widget'lar:** aylık takvim, geri sayım, zamanlayıcı / Pomodoro / kronometre, dünya saati, sistem durumu, Geri Dönüşüm Kutusu ve herhangi bir klasörü (İndirilenler, Belgeler…) gösteren bölme.
-- Program dosyası `NestDesk.exe`, ayar klasörü `%AppData%\NestDesk` oldu; güncellemede her şey kendiliğinden taşınır.
+- **Halka menü:** uygulamaların, dosyaların, web adreslerin, komutların, tuş kısayolların ve metin parçacıkların bir halkada; tıkla ya da `1`–`9`'a bas. İstersen kendi seçtiğin kısayolla imlecin yanında açılır (varsayılan kapalı; **Ayarlar → Masaüstü → Halka menü**).
+- **Widget temaları:** Neon, Gece, Kâğıt, Okyanus ve Windows'un açık/koyu ayarına uyan Otomatik; özel vurgu rengi. Yüksek karşıtlıkta widget'lar Windows'un renklerini kullanır.
+- **Daha canlı hareket:** widget'lar hafifçe büyüyerek belirir, sayfalar ve bildirimler kayarak gelir; **Ayarlar → Genel → Animasyonlar**: Canlı, Sakin ya da Kapalı. Windows'un animasyon ayarına her zaman uyar.
+- **1–9 ve akıllı bırakma:** bölmede ve kısayol kutusunda `1`–`9` ilk dokuz öğeyi açar (**Simgeler ▸ Numara tuşlarıyla aç**); kısayol kutusuna Başlat menüsünden uygulama, tarayıcıdan bağlantı sürükleyebilirsin.
+- **Yerel tanılama:** kişisel bilgi içermeyen hata günlüğü, çökmeden sonra "rapor kaydedilsin mi?" sorusu, tanılama sayfası ve paketi. Hiçbir şey gönderilmez.
+- **Daha güvenli güncelleme:** sürüm değişince ayarların, dokunulmadan önce `yedekler` klasörüne kopyalanır.
+- **Daha az kaynak:** otomatik taşıma kapalıyken masaüstü izlenmez, ağdaki masaüstünde açılış beklemez, paket daha küçük; tepsi menüsü artık Windows'un kendi menüsü.
+
+Önceki sürümlerin notları: [Releases](https://github.com/hasakobey/duzenleme/releases).
 
 ### Kurulum
 
@@ -34,7 +33,7 @@ NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen do
 - Windows 10 (1607+) ve Windows 11; **x64, ARM64 ve 32-bit** — bilgisayara uygun sürümü kendisi seçer.
 - .NET kurulumu gerekmez (çalışma zamanı pakete dahil), **yönetici izni istemez** (kullanıcı başına `%LOCALAPPDATA%\Programs\NestDesk`'e kurulur).
 - İngilizce/Türkçe sihirbaz: dil başta sorulur. Başlat menüsü kısayolu, isteğe bağlı masaüstü kısayolu ve "Windows ile başlat".
-- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur. 2.0'dan güncellerken program dosyasının adı değiştiği için görev çubuğuna sabitlenmiş kısayolu ve tepsi simgesinin görünürlüğünü yeniden ayarlaman gerekebilir. 2.1'den 2.0'a dönmek desteklenmez: 2.0 ayarlarını eski `%AppData%\Duzenleme` klasöründe arar ve yeni kullanıcı gibi açılır; 2.1'in ayarları `%AppData%\NestDesk`'te durur ve 2.1 yeniden kurulunca kaldığı yerden devam eder.
+- Güncellerken çalışan uygulamayı düzgünce kapatır; ayarlar, notlar ve widget düzeni korunur. 2.0'dan güncellerken program dosyasının adı değiştiği için görev çubuğuna sabitlenmiş kısayolu ve tepsi simgesinin görünürlüğünü yeniden ayarlaman gerekebilir. 2.1'den 2.0'a dönmek desteklenmez: 2.0 ayarlarını eski `%AppData%\Duzenleme` klasöründe arar ve yeni kullanıcı gibi açılır; 2.1'in ayarları `%AppData%\NestDesk`'te durur ve 2.1 yeniden kurulunca kaldığı yerden devam eder. 2.2'den itibaren sürüm değişince (güncelleme ya da eski sürüme dönüş) ayar dosyası, dokunulmadan önce `yedekler\before-<yeni>-from-<eski>-<zaman>.json` olarak kopyalanır (en yeni 3 kopya kalır).
 - "Uygulamalar ve özellikler"den kaldırılır; kaldırırken gizli kalmış masaüstü simgelerini geri açar ve ayarların silinip silinmeyeceğini sorar (bkz. [Kaldırma](#kaldırma)).
 
 **Microsoft Store (MSIX):** Store sürümünü Microsoft imzalar ve günceller; uyarı çıkmaz. Aynı programdır; farklar: "Windows ile başlat" Windows'un başlangıç görevidir (Ayarlar → Uygulamalar → Başlangıç'ta da görünür), ayarlar paketin kendi klasöründe tutulur ve masaüstünün "Bu Bilgisayar, Geri Dönüşüm Kutusu…" simgeleri Windows'un Temalar → Masaüstü simgesi ayarlarından açılıp kapatılır. Windows 10 2004 ve üstü gerekir.
@@ -64,7 +63,7 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 - **Bir klasörün içi:** masaüstündeki bir klasör (ör. PDF) ya da masaüstünde olmayan herhangi bir klasör: İndirilenler, Belgeler, Resimler ya da **Başka klasör…** (en yeni üstte, en çok 300 öğe; fazlası "Klasörde aç").
 - **Yeni bölme…** kutucuğu adı, ne göstereceğini ve simgesini tek pencerede sorar.
 - Başlıktaki 🔍 ya da `Ctrl+F` ile yazdıkça ara (alt klasörler dahil); dosyaları bölmeden bölmeye sürükle; resim/video/PDF önizlemesi; en yeni, en eski, ad, tür, boyut ya da elle (sürükleyerek) sıralama; başlığa katlanma.
-- Klavye: `Enter` açar, `F2` yeniden adlandırır (diskte; gizli uzantılar korunur, çakışmada "(2)" önerilir), `Delete` Geri Dönüşüm Kutusu'na gönderir, ok tuşlarıyla gezinilir.
+- Klavye: `Enter` açar, `F2` yeniden adlandırır (diskte; gizli uzantılar korunur, çakışmada "(2)" önerilir), `Delete` Geri Dönüşüm Kutusu'na gönderir, ok tuşlarıyla gezinilir; harf yazınca o harfle başlayan öğeye gidilir. İstersen **Simgeler ▸ Numara tuşlarıyla aç (1–9)** ile `1`–`9` görünen ilk dokuz öğeyi açar (kısayol kutusunda da).
 
 #### Windows masaüstü simgeleri (üç seçenek)
 
@@ -85,7 +84,8 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 | Widget | Ne yapar |
 |---|---|
 | **Bölme** | Yukarıya bak |
-| **Kısayol kutusu** | Sekmeli uygulama, dosya ve klasör rafı; sürükle-bırak ya da **Öğe ekle → Uygulama ya da dosya… / Klasör…**. Tek tıkla aç, yönetici olarak çalıştır; her öğeye **Yeniden adlandır (F2)** ve **Simgeyi değiştir…** (Windows simgeleri ya da bir resim) |
+| **Kısayol kutusu** | Sekmeli uygulama, dosya ve klasör rafı; sürükle-bırak ya da **Öğe ekle → Uygulama ya da dosya… / Klasör…**. Başlat menüsünden uygulama, tarayıcıdan web ya da e-posta bağlantısı da bırakılabilir (bağlantı yalnızca sen açınca tarayıcıda açılır). Tek tıkla aç, yönetici olarak çalıştır; her öğeye **Yeniden adlandır (F2)** ve **Simgeyi değiştir…** (Windows simgeleri ya da bir resim) |
+| **Halka menü** | Aşağıya bak |
 | **Saat** | Büyük dijital saat, 12/24 saat, isteğe bağlı saniye ve günün selamı |
 | **Tarih** | Gün, ay, yıl ve bugünün vurgulandığı haftalık şerit |
 | **Takvim** | Aylık takvim, hafta numaraları, haftanın ilk günü; `Page Up`/`Page Down` ay değiştirir, `Home` bugüne döner |
@@ -102,6 +102,12 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 
 **Kaldırmak:** her widget'ın sağ üst köşesindeki sönük **×** hep yerindedir; bildirimdeki **Geri al** ya da tepsideki "Geri getir" ile geri gelir. × istenirse sağ tık → **Görünüm ▸ Göster ▸ Kaldır düğmesi (×)** ile gizlenir. Bölme ve kutudaki bir öğeyi kaldırmak için öğeye sağ tık → **Widget'tan kaldır** (bölmede dosyaya dokunmaz).
 
+#### Halka menü
+
+- **Widget ekle → Halka menü** masaüstüne bir halka koyar (içinde Yeni not, Windows masaüstüne göz at, Widget ekle ve NestDesk'i aç). Halkaya uygulama, dosya ya da klasör sürükle; ortasına sağ tık → **Öğe ekle** ile **Web adresi…**, **Komut…**, **Tuş kısayolu gönder…**, **Metin yapıştır…** ya da **Alt halka…** ekle. Tıkla ya da `1`–`9`'a bas; oklar, `Enter`, `Backspace` (geri) ve `Esc` de çalışır.
+- **Kısayolla imleçte açılsın** (**Ayarlar → Masaüstü → Halka menü** ya da halkaya sağ tık → **Diğer ▸**): varsayılan kapalıdır; açınca boş bir kısayol (ör. `Ctrl+Alt+R`) önerilir ve yalnızca o kısayol Windows'a kaydedilir. **Tuşu bırakınca seç** açıkken kısayolu basılı tutup imleci bir öğeye doğru götür, bırakınca o öğe açılır.
+- Tuş kısayolu ve metin öğeleri yalnızca kısayolla açılan halkada ve yalnızca halkayı açmadan önce öndeki pencereye gider. Yapıştırılan metin pano geçmişine (Win+V) ve bulut panosuna eklenmez, önceki pano içeriği geri konur. Yönetici olarak çalışan pencerelere tuş ve metin gönderilemez (Windows engeller; NestDesk söyler). Komut yalnızca sen seçince çalışır; "Yönetici olarak çalıştır" işaretliyse Windows her seferinde sorar. Parolaları metin öğesi olarak kaydetme: öğeler `settings.json`'da düz metin durur.
+
 #### Ad, simge ve F2
 
 - "Widget ekle"den eklenen bölme, kutu ve notun başlığı düzenlenir hâlde gelir: adını yaz, `Enter`. Başlıktaki simgeye tıklayınca 64 simgelik seçici açılır (seçerken önizlenir, **Vazgeç** eskiye döner).
@@ -110,8 +116,10 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 #### Sağ tık menüsü ve görünüm
 
 - Menü, seçenek değiştirirken açık kalır ve işaretler yerinde güncellenir; **Arka plan** (Cam/Koyu/Açık), **Vurgu rengi**, **Köşeler**, **Saydamlık** ve not **Renk**'i üzerine gelince önizlenir, tıklayınca uygulanır.
-- **Simgeler ▸** (bölme ve kutu): ızgara/liste, 4 boyut, hizalama, aralık, yazı boyutu, adları gizle, tek tıkla aç, önizleme. **Görünüm ▸**: göster/gizle (başlık, sayı, arama düğmesi, sekmeler, ×…), arka plan, vurgu rengi, ölçek, saydamlık, köşeler, gölge, "fare üstünde değilken soluk dursun". **Diğer ▸**: başlığa katla, konumu kilitle, mıknatıs, üst üste binmesin, düzenli yerleştir, çoğalt.
-- **Widget'lar** sayfasında bütün widget'ların arka planı ve vurgu rengi tek yerden değişir; düzenleri adıyla kaydedip tek tıkla geri dönersin ("İş", "Oyun"…).
+- **Simgeler ▸** (bölme ve kutu): ızgara/liste, 4 boyut, hizalama, aralık, yazı boyutu, adları gizle, tek tıkla aç, numara tuşlarıyla aç (1–9), önizleme. **Görünüm ▸**: göster/gizle (başlık, sayı, arama düğmesi, sekmeler, ×…), tema, arka plan, vurgu rengi, ölçek, saydamlık, köşeler, gölge, "fare üstünde değilken soluk dursun". **Diğer ▸**: başlığa katla, konumu kilitle, mıknatıs, üst üste binmesin, düzenli yerleştir, çoğalt.
+- **Tema:** Klasik (Cam/Koyu/Açık arka plan), Windows'un açık/koyu ayarına uyan **Otomatik**, **Neon**, **Gece**, **Kâğıt** ve **Okyanus**; **Vurgu rengi ▸ Özel renk…** widget'ın yanında renk seçici açar (Windows'un vurgu rengi de seçilebilir). Yüksek karşıtlık açıkken widget'lar Windows'un renklerini kullanır. Temalar yalnızca widget'ların görünüşünü değiştirir.
+- **Widget'lar** sayfasında bütün widget'ların teması, arka planı ve vurgu rengi tek yerden değişir; düzenleri adıyla kaydedip tek tıkla geri dönersin ("İş", "Oyun"…).
+- **Animasyonlar** (**Ayarlar → Genel**): Canlı (widget'lar ve sayfalar hafifçe büyüyerek ya da kayarak açılır), Sakin (yalnızca kısa solmalar) ya da Kapalı. Windows'un "Animasyon efektleri" kapalıysa NestDesk'in hareketlerinin hiçbiri oynamaz; enerji tasarrufu ve uzak masaüstünde Sakin'e iner. Fareyle üstüne gelmek hiçbir şeyi büyütmez ya da kaydırmaz.
 
 #### Yerleşim
 
@@ -132,6 +140,11 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 - Masaüstünde yeni klasör açınca öneri bildirimi gelir. **Ayarlar → Klasör simgeleri → Tüm klasörlere önerilen simgeyi ver** hepsini bir kerede güzelleştirir; **Ayarlar → Gelişmiş → Klasör simgelerinin hepsini kaldır** hepsini geri alır.
 - **İsteğe bağlı üretken yapay zekâ:** **Ayarlar → Gelişmiş → Yapay zekâ ile klasör simgesi**'ne kendi Claude (Anthropic) API anahtarını girersen, yazdığın açıklamaya göre ("retro oyun kolu, neon mor") özel simge üretilir. Anahtar DPAPI ile bu Windows hesabına bağlı şifrelenir; zorunlu değildir. Uygunsuz bir sonucu simge penceresindeki **Uygunsuz içeriği bildir** ile bildirebilirsin.
 
+#### Tanılama ve sorun bildirme
+
+- **Hata günlüğü** (**Ayarlar → Gelişmiş → Hata günlüğü**): hatalar bu bilgisayarda, kişisel bilgi olmadan kaydedilir (yollar yer tutucuyla değiştirilir; dosya adların, notların ve yazdıkların yazılmaz); en çok 4 MB, 14 gün. Kapatılabilir; **Günlükleri sil** hepsini siler. **Çökme olunca**: Her seferinde sor (varsayılan), Sormadan kaydet ya da Kaydetme.
+- **Ayarlar → Yardım → Sorun bildir:** **Tanılama sayfasını aç** (betiksiz yerel sayfa), **Tanılama paketi oluştur** (içeriği önce listelenir, zip seçtiğin yere kaydedilir) ve **GitHub'da sorun aç**. NestDesk hiçbir şeyi kendiliğinden göndermez; GitHub sorun kayıtları herkese açıktır.
+
 ### Klavye kısayolları
 
 Genel kısayollar (**Ayarlar → Gelişmiş → Klavye kısayolları**'ndan değiştirilebilir):
@@ -145,17 +158,18 @@ Genel kısayollar (**Ayarlar → Gelişmiş → Klavye kısayolları**'ndan değ
 | `Ctrl+Alt+O` | Masaüstünü şimdi düzenle |
 | `Ctrl+Alt+D` | NestDesk'i aç |
 | `Ctrl+Alt+W` | Widget'ları pencerelerin önüne getir (5 sn) |
+| (atanmamış) | Halka menüyü imleçte aç: varsayılan kapalı; **Ayarlar → Masaüstü → Halka menü → Kısayolla imleçte açılsın** boş bir kısayol önerir |
 
-Widget'ın içinde: `F2` yeniden adlandır · `Enter` aç · `Delete` Geri Dönüşüm Kutusu'na gönder (bölme) ya da kutudan kaldır · `Ctrl+F` bölmede ara · `Ctrl + tekerlek` boyut · `Shift+F10` seçili öğenin menüsü · zamanlayıcıda `Boşluk` / `R` · takvimde `Page Up` / `Page Down` / `Home`.
+Widget'ın içinde: `F2` yeniden adlandır · `Enter` aç · `Delete` Geri Dönüşüm Kutusu'na gönder (bölme) ya da kutudan kaldır · `Ctrl+F` bölmede ara · `1`–`9` öğeyi aç (bölme ve kutuda seçenek açıksa, halkada her zaman) · `Ctrl + tekerlek` boyut · `Shift+F10` seçili öğenin menüsü · zamanlayıcıda `Boşluk` / `R` · takvimde `Page Up` / `Page Down` / `Home`.
 
 ### Gizlilik
 
-Hesap, reklam ve telemetri yok; her şey bilgisayarında kalır. Dosyalar yalnızca sen otomatik taşımayı ya da kutu seçeneğini açarsan taşınır ve her taşıma geri alınır. İnternete çıkan tek özellik isteğe bağlı yapay zekâ simgesidir. Ayrıntılar: [PRIVACY.md](PRIVACY.md#türkçe).
+Hesap, reklam ve telemetri yok; her şey bilgisayarında kalır. Dosyalar yalnızca sen otomatik taşımayı ya da kutu seçeneğini açarsan taşınır ve her taşıma geri alınır. Klavye kancası yok; halka menü kısayolu varsayılan olarak kapalı. Hata günlüğü kişisel bilgi içermez ve bilgisayarından çıkmaz. İnternete çıkan tek özellik isteğe bağlı yapay zekâ simgesidir. Ayrıntılar: [PRIVACY.md](PRIVACY.md#türkçe).
 
 ### Kaldırma
 
-- **Store:** Windows uygulamayla birlikte ayarlarını da siler. **Kurulum sürümü:** kaldırma programı gizli kalmış masaüstü simgelerini geri açar ve ayarların silinip silinmeyeceğini sorar. **Taşınabilir:** klasörü sil.
-- Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (önce **Ayarlar → Masaüstü → Hepsini masaüstüne geri koy**), klasör simgeleri (önce **Ayarlar → Gelişmiş → Klasör simgelerinin hepsini kaldır**) ve otomatik taşınan dosyalar (taşındıkları klasörde).
+- **Store:** Windows uygulamayla birlikte ayarlarını, halka menülerini, ayar yedeklerini ve hata günlüklerini de siler. **Kurulum sürümü:** kaldırma programı gizli kalmış masaüstü simgelerini geri açar ve ayarların (halka menüler, temalar, bırakılan bağlantılar, yedekler ve hata günlükleri dahil) silinip silinmeyeceğini sorar. **Taşınabilir:** klasörü sil.
+- Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (önce **Ayarlar → Masaüstü → Hepsini masaüstüne geri koy**), klasör simgeleri (önce **Ayarlar → Gelişmiş → Klasör simgelerinin hepsini kaldır**), otomatik taşınan dosyalar (taşındıkları klasörde) ve kaydettiğin tanılama paketleri.
 
 ### Derleme
 
@@ -169,39 +183,38 @@ dotnet run --project src/Duzenleme            # dikkat: gerçek masaüstünü iz
 powershell -File tools/publish.ps1            # dist/: kurulum sihirbazı + 3 taşınabilir zip
 powershell -File tools/publish.ps1 -Arch x64  # hızlı deneme (yalnızca x64)
 powershell -File tools/package-msix.ps1 -Strict  # dist-store/: Microsoft Store'a yüklenecek .msixbundle (kimlik: tools/store/identity.json)
-powershell -File tools/perf/perf-run.ps1      # başarım ölçümü (test örneğiyle; gerçek masaüstüne dokunmaz)
+powershell -File tools/perf/perf-run.ps1      # başarım ölçümü (test örneğiyle; gerçek masaüstüne dokunmaz; senaryolar ve eşikler: docs/perf.md)
 ```
 
 Komut satırı: `--minimized` (tepside başla), `--add` ("Widget ekle"; uygulama çalışıyorsa ona iletilir), `--peek` (Windows masaüstüne göz at ya da NestDesk'e dön), `--welcome` (karşılamayı aç; uygulama kapalıyken), `--exit` (çalışan örneği düzgünce kapat), `--restore-desktop` (gizli kalmış Windows masaüstü simgelerini geri açıp çık; kaldırma programı kullanır), `--desktop <klasör> --data <klasör>` (test örneği: gerçek masaüstüne, "Windows ile başlat" kaydına ve Windows simgelerine dokunmaz).
 
-Ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_LANG=tr|en|pseudo` (arayüz dili; ekran görüntüleri ve testler için), `NESTDESK_DEBUGLOG=<dosya>` (tanılama günlüğü), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT="x,y"` (fiziksel piksel; pencereleri o noktanın monitöründe açar), `NESTDESK_APPDATA_ROOT` (veri klasörü taşıma denemesi için; yalnızca `--desktop` ile ve `--data` olmadan), `NESTDESK_GPU=1` (widget'larda donanım çizimi). `--desktop` ile `--data` verilmezse veriler `%TEMP%\NestDesk-test-data\<anahtar>` klasöründe tutulur (gerçek ayarlara dokunulmaz). Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. Geliştirme yardımcıları: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
+Ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_LANG=tr|en|pseudo` (arayüz dili; ekran görüntüleri ve testler için), `NESTDESK_DEBUGLOG=<dosya>` (ayrıntılı geliştirme günlüğü; hata günlüğünden ayrı), `NESTDESK_PERF_LOG=<dosya>` (başarım günlüğü), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT` / `NESTDESK_RING_AT="x,y"` (fiziksel piksel; pencereleri, göz atma çubuğunu ve kısayolla açılan halkayı o noktanın monitöründe açar), `NESTDESK_TEST_RING=1` (yalnızca `--desktop` ile: halka kısayolu atanmamışken de açılır halkayı dener), `NESTDESK_TEST_CRASH=1` (yalnızca `--desktop` ile: açılıştan birkaç saniye sonra çökme denemesi), `NESTDESK_APPDATA_ROOT` (veri klasörü taşıma denemesi için; yalnızca `--desktop` ile ve `--data` olmadan), `NESTDESK_GPU=1` (widget'larda donanım çizimi). `--desktop` ile `--data` verilmezse veriler `%TEMP%\NestDesk-test-data\<anahtar>` klasöründe tutulur (gerçek ayarlara dokunulmaz). Boş bir `--data` klasörü karşılamayı açar; atlamak için klasöre `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` içerikli bir `settings.json` koy. Geliştirme yardımcıları: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
 
 ### Yeni sürüm yayınlama
 
-1. `src/Duzenleme/Duzenleme.csproj` → `<Version>` artırılır (ör. 2.1.1). Store aynı sürümü ikinci kez kabul etmez.
+1. `src/Duzenleme/Duzenleme.csproj` → `<Version>` artırılır (ör. 2.2.0). Store aynı sürümü ikinci kez kabul etmez.
 2. `tools/store/listing.md` → "Bu sürümdeki yenilikler" (TR/EN) yazılır.
-3. `dotnet test` yeşil olmalı. Ayar dosyası geriye uyumlu kalır: yeni ayar = yeni alan; kalıcı enum'lara üye eklenmez.
-4. Commit → `git tag v2.1.1` → push. GitHub Actions kurulum dosyasını (`NestDesk-Setup-2.1.1.exe`) ve 3 zip'i üretip Releases'ta "NestDesk 2.1.1" sürümünü açar.
-5. **Store:** `powershell -File tools/package-msix.ps1 -Strict` → `dist-store\NestDesk-2.1.1.msixbundle`. Partner Center'da **yeni gönderim** açılır, yalnızca bu dosya yüklenir ve "What's new" doldurulur (adımlar: [tools/store/listing.md](tools/store/listing.md)).
+3. `dotnet test` yeşil olmalı. Ayar dosyası geriye uyumlu kalır: yeni ayar = yeni alan; kalıcı enum'lara üye eklenmez. `tools/publish.ps1` ve `package-msix.ps1 -Strict`, `PRIVACY.md`, kurulumun "verileri sil" sorusu ve Store metinleri hata günlüğünü anlatmıyorsa yayın yapmaz (deneme derlemesi: `publish.ps1 -Draft`).
+4. Commit → `git tag v2.2.0` → push. GitHub Actions kurulum dosyasını (`NestDesk-Setup-2.2.0.exe`) ve 3 zip'i üretip Releases'ta "NestDesk 2.2.0" sürümünü açar.
+5. **Store:** `powershell -File tools/package-msix.ps1 -Strict` → `dist-store\NestDesk-2.2.0.msixbundle`. Partner Center'da **Start update** ile yeni gönderim açılır, yalnızca bu dosya yüklenir ve "What's new" doldurulur (adımlar: [tools/store/listing.md](tools/store/listing.md)).
 
 ---
 
 ## English
 
-NestDesk splits your desktop into **panels**, can move files that land on the desktop into **folders you created**, and puts **widgets** such as a clock, calendar, notes, to-do lists and timers on your wallpaper. The app is in English and Turkish and follows your Windows display language (**Settings → General → Language / Dil**).
+NestDesk splits your desktop into **panels**, can move files that land on the desktop into **folders you created**, gathers your apps in a **ring menu**, and puts **widgets** such as a clock, calendar, notes, to-do lists and timers on your wallpaper. The app is in English and Turkish and follows your Windows display language (**Settings → General → Language / Dil**).
 
-### What's new in 2.1
+### What's new in 2.2
 
-- **Faster and smoother:** settings are saved in the background and panels update only what changed, so slow PCs and network folders no longer freeze the app.
-- **Crisp at any scaling:** sharp text and icons at every display scale; widgets always fit on the screen and narrow title bars tidy themselves up.
-- **English interface:** NestDesk now speaks English and Turkish.
-- **Live menus:** right-click menus stay open while you change options and show changes right away; hover to preview background, accent color, corners, transparency and note color.
-- **Name and icon:** type a name as you add, click the icon in the title bar to pick one, and give shortcut box items their own names and icons. Press **F2** to rename a widget, a file in a panel or a box item in place.
-- **Peek at the Windows desktop** (`Ctrl+Alt+G`): the Windows icons appear, widgets step aside, and NestDesk comes back on its own after a few minutes.
-- **Where new widgets appear:** next to the pointer, in the center of the screen or in a corner; a new widget stays highlighted for a few seconds.
-- **Items I add to boxes leave the desktop:** a desktop item you add to a shortcut box moves into a visible `NestDesk` folder and stays in the box; put it back with one click.
-- **New widgets:** monthly calendar, countdown, timer / Pomodoro / stopwatch, world clock, system status, Recycle Bin, and panels that show any folder (Downloads, Documents…).
-- The program file is now `NestDesk.exe` and the settings folder `%AppData%\NestDesk`; updating moves everything automatically.
+- **Ring menu:** your apps, files, web addresses, commands, keyboard shortcuts and text snippets in a ring; click or press `1`–`9`. If you like, it opens next to the pointer with a shortcut you choose (off by default; **Settings → Desktop → Ring menu**).
+- **Widget themes:** Neon, Night, Paper, Ocean and an Automatic theme that follows Windows light/dark, plus a custom accent color. In high contrast, widgets use your Windows colors.
+- **Livelier motion:** widgets pop in gently, pages and notices slide in; **Settings → General → Animations**: Lively, Calm or Off. It always follows the Windows animation setting.
+- **1–9 and smart drop:** `1`–`9` opens the first nine items of a panel or shortcut box (**Icons ▸ Open with number keys**); drag apps from the Start menu and links from your browser onto shortcut boxes.
+- **Local diagnostics:** an error log without personal information, a "save a report?" prompt after a crash, and a diagnostics page and package. Nothing is sent.
+- **Safer updates:** when the version changes, your settings are copied to the `yedekler` folder before they are touched.
+- **Lighter:** the desktop isn't watched while auto-move is off, startup no longer waits for a network desktop, the download is smaller, and the tray menu is now the native Windows menu.
+
+Notes for earlier versions: [Releases](https://github.com/hasakobey/duzenleme/releases).
 
 ### Installation
 
@@ -210,7 +223,7 @@ NestDesk splits your desktop into **panels**, can move files that land on the de
 - Windows 10 (1607+) and Windows 11; **x64, ARM64 and 32-bit** — it picks the right build automatically.
 - No .NET installation needed (the runtime is included) and **no administrator rights** (per-user install to `%LOCALAPPDATA%\Programs\NestDesk`).
 - English/Turkish setup wizard: the language is asked first. Start menu shortcut, optional desktop shortcut and "Start with Windows".
-- Updating closes the running app cleanly and keeps your settings, notes and widget layout. When updating from 2.0, the program file has a new name, so you may need to pin it to the taskbar again and set the tray icon to always show again. Going back from 2.1 to 2.0 is not supported: 2.0 looks for its settings in the old `%AppData%\Duzenleme` folder and starts like a new user; the 2.1 settings stay in `%AppData%\NestDesk` and are used again when 2.1 is reinstalled.
+- Updating closes the running app cleanly and keeps your settings, notes and widget layout. When updating from 2.0, the program file has a new name, so you may need to pin it to the taskbar again and set the tray icon to always show again. Going back from 2.1 to 2.0 is not supported: 2.0 looks for its settings in the old `%AppData%\Duzenleme` folder and starts like a new user; the 2.1 settings stay in `%AppData%\NestDesk` and are used again when 2.1 is reinstalled. From 2.2 on, whenever the version changes (an update or going back to an older version), the settings file is copied to `yedekler\before-<new>-from-<old>-<time>.json` before it is touched (the 3 newest copies are kept).
 - Uninstall from "Apps & features"; the uninstaller shows any desktop icons left hidden and asks whether to delete your settings (see [Uninstalling](#uninstalling)).
 
 **Microsoft Store (MSIX):** the Store edition is signed and updated by Microsoft, so there are no warnings. It is the same app, with these differences: "Start with Windows" is a Windows startup task (also listed in Settings → Apps → Startup), settings are kept in the package's own folder, and the "This PC, Recycle Bin…" desktop icons are turned on and off in Windows' Themes → Desktop icon settings. Requires Windows 10 version 2004 or later.
@@ -240,7 +253,7 @@ Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Tid
 - **Inside a folder:** a folder on the desktop (e.g. PDF) or any folder that isn't on the desktop: Downloads, Documents, Pictures or **Other folder…** (newest first, up to 300 items; the rest via "Open folder").
 - The **New panel…** tile asks for the name, what to show and the icon in one window.
 - Search as you type with the 🔍 button or `Ctrl+F` (including subfolders); drag files between panels; preview pictures, videos and PDFs; sort newest or oldest first, by name, type, size or by hand (drag to reorder); collapse to the title bar.
-- Keyboard: `Enter` opens, `F2` renames (on disk; hidden extensions are kept and "(2)" is suggested on a name clash), `Delete` sends to the Recycle Bin, arrow keys move the selection.
+- Keyboard: `Enter` opens, `F2` renames (on disk; hidden extensions are kept and "(2)" is suggested on a name clash), `Delete` sends to the Recycle Bin, arrow keys move the selection; type a letter to jump to the item that starts with it. Optionally, **Icons ▸ Open with number keys (1–9)** makes `1`–`9` open the first nine visible items (in shortcut boxes too).
 
 #### Windows desktop icons (three choices)
 
@@ -261,7 +274,8 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 | Widget | What it does |
 |---|---|
 | **Panel** | See above |
-| **Shortcut box** | A tabbed shelf for apps, files and folders; drag and drop, or **Add item → App or file… / Folder…**. Open with one click, run as administrator; every item has **Rename (F2)** and **Change icon…** (Windows icons or an image) |
+| **Shortcut box** | A tabbed shelf for apps, files and folders; drag and drop, or **Add item → App or file… / Folder…**. You can also drop apps from the Start menu and web or e-mail links from your browser (a link opens in the browser only when you open it). Open with one click, run as administrator; every item has **Rename (F2)** and **Change icon…** (Windows icons or an image) |
+| **Ring menu** | See below |
 | **Clock** | Large digital clock, 12/24-hour, optional seconds and a greeting |
 | **Date** | Day, month, year and a weekly strip that highlights today |
 | **Calendar** | Monthly calendar with week numbers and first day of the week; `Page Up`/`Page Down` change the month, `Home` returns to today |
@@ -278,6 +292,12 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 
 **Removing:** the dimmed **×** in each widget's top-right corner is always there; **Undo** in the notice or "Bring back" in the tray menu restores it. You can hide the × with right-click → **Appearance ▸ Show ▸ Remove button (×)**. To remove an item from a panel or box, right-click it → **Hide in this panel** / **Remove from box** (in a panel this never touches the file).
 
+#### Ring menu
+
+- **Add widget → Ring menu** puts a ring on your desktop (with New note, Peek at the Windows desktop, Add widget and Open NestDesk). Drag apps, files or folders onto the ring; right-click its centre → **Add item** to add a **Web address…**, **Command…**, **Send keyboard shortcut…**, **Paste text…** or **Sub-ring…**. Click or press `1`–`9`; the arrow keys, `Enter`, `Backspace` (back) and `Esc` work too.
+- **Open at the pointer with a shortcut** (**Settings → Desktop → Ring menu**, or right-click the ring → **More ▸**): off by default; turning it on suggests a free shortcut (e.g. `Ctrl+Alt+R`), and only that shortcut is registered with Windows. With **Select when I let go of the keys** on, hold the shortcut, move the pointer toward an item and let go to open it.
+- Keyboard shortcut and text items work only in the ring opened by the shortcut, and go only to the window that was in front before you opened it. Pasted text isn't added to clipboard history (Win+V) or the cloud clipboard, and the previous clipboard content is put back. Keys and text can't be sent to windows running as administrator (Windows blocks them; NestDesk tells you). A command runs only when you pick it; if it's marked "Run as administrator", Windows asks every time. Don't save passwords as text items: items are stored as plain text in `settings.json`.
+
 #### Name, icon and F2
 
 - A panel, box or note added from the Add widget window starts with its title in edit mode: type a name and press `Enter`. Click the icon in the title bar to open a picker with 64 icons (previewed as you choose; **Cancel** restores the old one).
@@ -286,8 +306,10 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 #### Right-click menu and look
 
 - The menu stays open while you change options, and its check marks update in place; **Background** (Glass/Dark/Light), **Accent color**, **Corners**, **Transparency** and a note's **Color** are previewed on hover and applied on click.
-- **Icons ▸** (panels and boxes): grid/list, 4 sizes, alignment, spacing, text size, hide names, single-click open, previews. **Appearance ▸**: show/hide parts (title, count, search button, tabs, ×…), background, accent color, scale, transparency, corners, shadow, "fade when the pointer isn't on it". **More ▸**: collapse to title, lock position, snapping, no overlapping, arrange all, duplicate.
-- On the **Widgets** page you can change the background and accent color of all widgets at once and save named layouts to switch back with one click ("Work", "Games"…).
+- **Icons ▸** (panels and boxes): grid/list, 4 sizes, alignment, spacing, text size, hide names, single-click open, open with number keys (1–9), previews. **Appearance ▸**: show/hide parts (title, count, search button, tabs, ×…), theme, background, accent color, scale, transparency, corners, shadow, "fade when the pointer isn't on it". **More ▸**: collapse to title, lock position, snapping, no overlapping, arrange all, duplicate.
+- **Theme:** Classic (Glass/Dark/Light background), **Automatic** (follows Windows light/dark), **Neon**, **Night**, **Paper** and **Ocean**; **Accent color ▸ Custom color…** opens a color picker next to the widget (Windows' accent color can be picked too). With high contrast on, widgets use your Windows colors. Themes only change how widgets look.
+- On the **Widgets** page you can change the theme, background and accent color of all widgets at once and save named layouts to switch back with one click ("Work", "Games"…).
+- **Animations** (**Settings → General**): Lively (widgets and pages open with a gentle zoom or slide), Calm (short fades only) or Off. If Windows "Animation effects" is off, none of NestDesk's own animations play; energy saver and Remote Desktop switch to Calm. Hovering never makes anything grow or slide.
 
 #### Layout
 
@@ -308,6 +330,11 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 - Creating a new folder on the desktop brings up a suggestion. **Settings → Folder icons → Give suggested icons to all folders** styles them all at once; **Settings → Advanced → Remove all folder icons** undoes it.
 - **Optional generative AI:** enter your own Claude (Anthropic) API key in **Settings → Advanced → AI folder icon** to generate a custom icon from a description you type ("retro game controller, neon purple"). The key is encrypted with DPAPI for your Windows account only, and it is not required. Report an inappropriate result with **Report inappropriate content** in the icon window.
 
+#### Diagnostics and reporting problems
+
+- **Error log** (**Settings → Advanced → Error log**): errors are recorded on this PC without personal information (paths are replaced with placeholders; your file names, notes and what you type are never recorded); up to 4 MB, 14 days. You can turn it off, and **Delete logs** deletes everything. **When the app crashes**: Ask every time (default), Save without asking or Don't save.
+- **Settings → Help → Report a problem:** **Open diagnostics page** (a local page without scripts), **Create diagnostic package** (lists the contents first, then saves a zip where you choose) and **Open an issue on GitHub**. NestDesk never sends anything on its own; GitHub issues are public.
+
 ### Keyboard shortcuts
 
 Global shortcuts (customizable in **Settings → Advanced → Keyboard shortcuts**):
@@ -321,17 +348,18 @@ Global shortcuts (customizable in **Settings → Advanced → Keyboard shortcuts
 | `Ctrl+Alt+O` | Tidy up the desktop now |
 | `Ctrl+Alt+D` | Open NestDesk |
 | `Ctrl+Alt+W` | Bring widgets in front of windows (5 s) |
+| (unassigned) | Open the ring menu at the pointer: off by default; **Settings → Desktop → Ring menu → Open at the pointer with a shortcut** suggests a free shortcut |
 
-Inside a widget: `F2` rename · `Enter` open · `Delete` send to the Recycle Bin (panel) or remove from the box · `Ctrl+F` search a panel · `Ctrl + wheel` size · `Shift+F10` menu for the selected item · `Space` / `R` in a timer · `Page Up` / `Page Down` / `Home` in the calendar.
+Inside a widget: `F2` rename · `Enter` open · `Delete` send to the Recycle Bin (panel) or remove from the box · `Ctrl+F` search a panel · `1`–`9` open an item (in panels and boxes when the option is on, always in a ring) · `Ctrl + wheel` size · `Shift+F10` menu for the selected item · `Space` / `R` in a timer · `Page Up` / `Page Down` / `Home` in the calendar.
 
 ### Privacy
 
-No account, no ads, no telemetry; everything stays on your PC. Files are moved only if you turn on auto-move or the box option, and every move can be undone. The only feature that uses the internet is the optional AI folder icon. Details: [PRIVACY.md](PRIVACY.md#english).
+No account, no ads, no telemetry; everything stays on your PC. Files are moved only if you turn on auto-move or the box option, and every move can be undone. No keyboard hook; the ring menu shortcut is off by default. The error log contains no personal information and never leaves your PC. The only feature that uses the internet is the optional AI folder icon. Details: [PRIVACY.md](PRIVACY.md#english).
 
 ### Uninstalling
 
-- **Store:** Windows removes your settings together with the app. **Installer edition:** the uninstaller shows any desktop icons left hidden and asks whether to delete your settings. **Portable:** delete the folder.
-- What stays as your own content: the `NestDesk` box folder (first use **Settings → Desktop → Put all back on the desktop**), folder icons (first use **Settings → Advanced → Remove all folder icons**) and files moved by auto-move (in the folders they were moved to).
+- **Store:** Windows removes your settings, ring menus, settings backups and error logs together with the app. **Installer edition:** the uninstaller shows any desktop icons left hidden and asks whether to delete your settings (including ring menus, themes, dropped links, backups and error logs). **Portable:** delete the folder.
+- What stays as your own content: the `NestDesk` box folder (first use **Settings → Desktop → Put all back on the desktop**), folder icons (first use **Settings → Advanced → Remove all folder icons**), files moved by auto-move (in the folders they were moved to) and diagnostic packages you saved.
 
 ### Building
 
@@ -345,12 +373,12 @@ dotnet run --project src/Duzenleme            # careful: watches your real deskt
 powershell -File tools/publish.ps1            # dist/: installer + 3 portable zips
 powershell -File tools/publish.ps1 -Arch x64  # quick build (x64 only)
 powershell -File tools/package-msix.ps1 -Strict  # dist-store/: .msixbundle for the Microsoft Store (identity: tools/store/identity.json)
-powershell -File tools/perf/perf-run.ps1      # performance measurement (test instance; never touches your real desktop)
+powershell -File tools/perf/perf-run.ps1      # performance measurement (test instance; never touches your real desktop; scenarios and thresholds: docs/perf.md)
 ```
 
 Command line: `--minimized` (start in the tray), `--add` ("Add widget"; forwarded to the running app), `--peek` (peek at the Windows desktop, or return to NestDesk), `--welcome` (open the welcome; while the app is closed), `--exit` (close the running instance cleanly), `--restore-desktop` (show Windows desktop icons that were left hidden and exit; used by the uninstaller), `--desktop <folder> --data <folder>` (test instance: never touches your real desktop, the "Start with Windows" entry or the Windows icons).
 
-Environment variables (the older `DUZENLEME_*` names work too): `NESTDESK_LANG=tr|en|pseudo` (interface language, for screenshots and tests), `NESTDESK_DEBUGLOG=<file>` (diagnostic log), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT="x,y"` (physical pixels; open windows on that point's monitor), `NESTDESK_APPDATA_ROOT` (for testing the data folder migration; only with `--desktop` and without `--data`), `NESTDESK_GPU=1` (hardware rendering for widgets). Without `--data`, a `--desktop` test instance keeps its data in `%TEMP%\NestDesk-test-data\<key>` (your real settings are never touched). An empty `--data` folder opens the welcome; to skip it, put a `settings.json` containing `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` in the folder. Developer helpers: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
+Environment variables (the older `DUZENLEME_*` names work too): `NESTDESK_LANG=tr|en|pseudo` (interface language, for screenshots and tests), `NESTDESK_DEBUGLOG=<file>` (detailed developer log; separate from the error log), `NESTDESK_PERF_LOG=<file>` (performance log), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT` / `NESTDESK_RING_AT="x,y"` (physical pixels; open windows, the peek bar and the shortcut ring on that point's monitor), `NESTDESK_TEST_RING=1` (only with `--desktop`: try the pop-up ring without assigning its shortcut), `NESTDESK_TEST_CRASH=1` (only with `--desktop`: a test crash a few seconds after startup), `NESTDESK_APPDATA_ROOT` (for testing the data folder migration; only with `--desktop` and without `--data`), `NESTDESK_GPU=1` (hardware rendering for widgets). Without `--data`, a `--desktop` test instance keeps its data in `%TEMP%\NestDesk-test-data\<key>` (your real settings are never touched). An empty `--data` folder opens the welcome; to skip it, put a `settings.json` containing `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` in the folder. Developer helpers: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
 
 ---
 
