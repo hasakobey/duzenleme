@@ -11,7 +11,7 @@ internal static class MoveActions
 {
     /// <summary>
     /// Masaüstündeki uygun dosyaları şimdi taşır ve sonucu bildirir. Açık bir komut olduğu için otomatik taşıma
-    /// kapalıyken de çalışır (tepsideki "Masaüstünü şimdi düzenle" ve Ctrl+Alt+O gibi).
+    /// kapalıyken de çalışır (tepsideki "Dosyaları şimdi taşı" ve Ctrl+Alt+O gibi).
     /// </summary>
     public static async Task OrganizeNowAsync()
     {

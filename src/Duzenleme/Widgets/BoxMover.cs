@@ -375,7 +375,7 @@ internal static class BoxMover
     /// <summary>
     /// Kutudan (ya da kutu kaldırıldığı için) masaüstüne dönen öğe artık hiçbir kutuda değil, ama kullanıcı onu bilerek masaüstüne
     /// geri aldı: bildirim "masaüstüne geri konuyor" der, kutunun "Geri al"ı onu orada arar. Otomatik taşıma açıkken bir kural
-    /// onu hemen taşıyacaksa bölmedeki "Masaüstüne geri taşı" gibi "geri alındı" yazılır ve bir daha otomatik taşınmaz. İzleyici
+    /// onu hemen taşıyacaksa bölmedeki "Masaüstüne geri koy" gibi "geri alındı" yazılır ve bir daha otomatik taşınmaz. İzleyici
     /// yeni dosyaya ~2 sn sonra bakar; kayıt ondan önce, eşzamanlı yazılır. Taşıma kapalıyken dokunulmaz: sonra açılınca her
     /// masaüstü dosyası gibi taşınır (kutu geri gelirse taşıma geçmişinden bulunur). Arka planda çağrılır.
     /// </summary>

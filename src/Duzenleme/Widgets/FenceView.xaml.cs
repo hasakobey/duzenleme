@@ -112,7 +112,6 @@ public partial class FenceView : UserControl, IWidgetView
     public bool Collapsible => _config.Shows("header");
     public Thickness CardPadding => new(14, 12, 14, 12);
     public event Action? CollapseToggleRequested;
-    public event Action? MenuRequested;
     public event Action? LayoutChanged;
 
     public void SetBodyVisible(bool visible) => Body.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
@@ -934,18 +933,16 @@ public partial class FenceView : UserControl, IWidgetView
         var open = Menus.Item(L.T("Aç"), () => TileItem.Launch(item.Path));
         open.InputGestureText = KeyNames.Enter;
         menu.Items.Add(open);
-        var remove = Menus.Item(L.T("Widget'tan kaldır", "bölme"), () => HideItem(item));
+        var remove = Menus.Item(L.T("Bölmeden gizle"), () => HideItem(item));
         remove.ToolTip = L.T("Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler");
         menu.Items.Add(remove);
         if (TileItem.IsShellObject(item.Path))
         {
             if (TileItem.IsRecycleBin(item.Path))
                 menu.Items.Add(Menus.Item(L.T("Geri Dönüşüm Kutusu'nu boşalt…"), RecycleBinActions.EmptyWithConfirm));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item(L.T("Bölme ayarları…"), () => MenuRequested?.Invoke()));
             return;
         }
-        menu.Items.Add(Menus.Item(L.T("Klasörde göster"), () => TileItem.Reveal(item.Path)));
+        menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(item.Path)));
         if (item.IsDirectory)
         {
             menu.Items.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(item.Path)));
@@ -953,7 +950,7 @@ public partial class FenceView : UserControl, IWidgetView
             menu.Items.Add(Menus.Item(L.T("Bu klasörü ayrı bölme yap"), () => SeparateFence(item.Path)));
         }
         if (!DesktopMode && !item.IsDirectory && !item.Missing)
-            menu.Items.Add(Menus.Item(L.T("Masaüstüne geri taşı"), () => MoveToDesktop(item)));
+            menu.Items.Add(Menus.Item(L.T("Masaüstüne geri koy"), () => MoveToDesktop(item)));
         // Masaüstü simgeleri gizliyken (bölmeler yönetirken) bu işler yalnızca buradan yapılabilir.
         var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginItemRename(item));
         rename.InputGestureText = KeyNames.F2;
@@ -961,8 +958,6 @@ public partial class FenceView : UserControl, IWidgetView
         var recycle = Menus.Item(L.T("Geri Dönüşüm Kutusu'na taşı"), () => Recycle(item));
         recycle.InputGestureText = KeyNames.Delete;
         menu.Items.Add(recycle);
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item(L.T("Bölme ayarları…"), () => MenuRequested?.Invoke()));
     }
 
     /// <summary>Klasörü kendi bölmesine alır: masaüstündeki klasör adıyla (klasik bölme), başka yerdeki klasör portal olarak.</summary>
@@ -974,14 +969,21 @@ public partial class FenceView : UserControl, IWidgetView
         else AppHost.Widgets.Add(WidgetKind.Fence, name);
     }
 
-    /// <summary>Dosya işlemini arka planda yapar; hata olursa (vazgeçme dışında) kullanıcıya gösterir.</summary>
-    private void RunFileOperation(Action work)
+    /// <summary>
+    /// Dosya işlemini arka planda yapar; hata olursa (vazgeçme dışında) kullanıcıya gösterir. <paramref name="done"/> işlem
+    /// başarıyla bitince arayüz iş parçacığında çalışır.
+    /// </summary>
+    private void RunFileOperation(Action work, Action? done = null)
     {
         var dispatcher = Dispatcher;
         ShellFileOperations.RunSta(work).ContinueWith(t =>
         {
-            if (t.Exception?.GetBaseException() is { } ex and not OperationCanceledException)
-                dispatcher.BeginInvoke(() => MessageBox.Show(ex.Message, AppInfo.Name));
+            if (t.Exception?.GetBaseException() is { } ex)
+            {
+                if (ex is not OperationCanceledException) dispatcher.BeginInvoke(() => MessageBox.Show(ex.Message, AppInfo.Name));
+                return;
+            }
+            if (done is not null && t.IsCompletedSuccessfully) dispatcher.BeginInvoke(done);
         }, TaskScheduler.Default);
     }
 
@@ -1124,8 +1126,12 @@ public partial class FenceView : UserControl, IWidgetView
     private void Recycle(TileItem item)
     {
         var path = item.Path;
+        var name = item.Name;
         var owner = Window.GetWindow(this) is { } window ? new System.Windows.Interop.WindowInteropHelper(window).Handle : IntPtr.Zero;
-        RunFileOperation(() => ShellFileOperations.RecycleWithShell(path, owner));
+        // Bittiğinde (vazgeçilmediyse) ne olduğu söylenir; geri getirme Geri Dönüşüm Kutusu'ndan (kabuğun geri alma hilesi yok).
+        RunFileOperation(() => ShellFileOperations.RecycleWithShell(path, owner),
+            () => Views.Notice.Show(L.F("\"{0}\" Geri Dönüşüm Kutusu'na taşındı.", name), Views.NoticeKind.Success,
+                L.T("Geri Dönüşüm Kutusu'nu aç"), () => TileItem.Launch(RecycleBin.ShellName)));
     }
 
     /// <summary>
@@ -1415,8 +1421,8 @@ public partial class FenceView : UserControl, IWidgetView
         menu.Primary.Add(Menus.Item(L.T("Bu bölmede ara"), OpenSearch, KeyNames.Find));
 
         // Kaynak değişince başlık, simge ve menünün kendisi ("Klasörü aç", "Yeni klasör") değişir: seçim menüyü kapatır.
+        // Gruplar (masaüstünden, masaüstü klasörleri, bilinen klasörler) başlıksız, ayraçla ayrılır.
         var pick = new MenuItem { Header = L.T("Ne gösterilsin?") };
-        pick.Items.Add(Menus.Hint(L.T("Masaüstünden")));
         foreach (var filter in DesktopItems.Filters)
             pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), () => _config.Filter == filter,
                 () => ShowSource(new FenceSource(filter, null), knownId: null), staysOpen: false));
@@ -1424,14 +1430,12 @@ public partial class FenceView : UserControl, IWidgetView
         if (folders.Count > 0)
         {
             pick.Items.Add(new Separator());
-            pick.Items.Add(Menus.Hint(L.T("Bir klasörün içi")));
             foreach (var name in folders)
                 pick.Items.Add(Menus.Toggle(Menus.Literal(name), () => !DesktopMode && !IsPortal && Core.FolderName.Equal(name, FolderName),
                     () => ShowSource(new FenceSource(DesktopFilter.None, name), knownId: null), staysOpen: false));
         }
         // Masaüstü dışındaki klasörler (klasör portalı): Windows'un bilinen klasörleri ve herhangi bir klasör.
         pick.Items.Add(new Separator());
-        pick.Items.Add(Menus.Hint(L.T("Bilinen klasörler")));
         foreach (var id in FolderPortal.KnownIds)
         {
             if (KnownFolders.PathOf(id) is not { } path) continue;
@@ -1471,13 +1475,8 @@ public partial class FenceView : UserControl, IWidgetView
         if (folder is not null)
             menu.More.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(folder)));
         menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
-        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes). Kip değişimi soru ve bildirim
-        // gösterebilir, bölme ekleyebilir: menüyü kapatır.
-        menu.More.Add(Menus.Toggle(L.T("Masaüstü simgelerini yalnızca bölmelerde göster"),
-            () => Views.DesktopModes.Current == Views.IconMode.FencesOnly,
-            () => Views.DesktopModes.Set(Views.DesktopModes.Current == Views.IconMode.FencesOnly ? Views.IconMode.ShowAll : Views.IconMode.FencesOnly,
-                null, null),
-            staysOpen: false));
+        // "Windows masaüstü simgeleri" kipi uygulama genelidir: widget menüsünde değil, Ayarlar'da, Widget'lar sayfasında ve
+        // tepside (Views.DesktopModes).
     }
 
 

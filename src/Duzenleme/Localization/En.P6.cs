@@ -130,7 +130,9 @@ internal static partial class En
         new("Tür", "Mode"),
         new("Süre", "Duration"),
         new("Başka süre…", "Other duration…"),
-        new("Odak süresi", "Focus length"),
+        new("{0} / {1} / {2} dk", "{0} / {1} / {2} min"),
+        new("Özel…", "Custom…"),
+        new("Odak / mola / uzun mola (dakika)", "Focus / break / long break (minutes)"),
         new("Sonraki aşama kendiliğinden başlasın", "Start the next phase automatically"),
         new("Süre dolunca bildir", "Notify me when time is up"),
         new("Durum satırı", "Status line"),
@@ -157,7 +159,6 @@ internal static partial class En
         new("Bu şehri kaldır", "Remove this city"),
         new("Şehir ekle…", "Add city…"),
         new("Şehir ekle", "Add city"),
-        new("Satıra sağ tık: adını değiştir, taşı, kaldır", "Right-click a row to rename, move or remove it"),
         new("Henüz şehir yok.", "No cities yet."),
         new("Şehir ya da saat dilimi ara", "Search for a city or time zone"),
         new("Ara", "Search"),
@@ -191,7 +192,6 @@ internal static partial class En
         new("Geri Dönüşüm Kutusu'nu boşalt", "Empty Recycle Bin"),
         new("Geri Dönüşüm Kutusu'nu boşalt…", "Empty Recycle Bin…"),
         new("Geri Dönüşüm Kutusu'ndaki her şeyi kalıcı olarak siler (önce sorar)", "Permanently deletes everything in the Recycle Bin (asks first)"),
-        new("Açmak için çift tıkla", "Double-click to open"),
         new("Öğe sayısı ve boyut", "Item count and size"),
         new("Boşalt düğmesi", "Empty button"),
         new("Bırak, Geri Dönüşüm Kutusu'na gitsin", "Drop to move to the Recycle Bin"),
@@ -207,17 +207,14 @@ internal static partial class En
         new("Klasör bulunamadı: {0}", "Folder not found: {0}"),
         new("Başka klasör seç…", "Choose another folder…"),
         new("… ve {0} öğe daha · Klasörde aç", "… and {0} more item · Open folder", "… and {0} more items · Open folder"),
-        new("Bilinen klasörler", "Known folders"),
         new("Başka bir klasör…", "Another folder…"),
         new("En eski üstte", "Oldest first"),
         new("Boyuta göre (büyük üstte)", "Size (largest first)"),
         new("Elle (sürükleyerek)", "Manual (drag to reorder)"),
 
         // Not
-        new("Yazı boyutu: Ctrl + tekerlek", "Text size: Ctrl + wheel"),
         new("Bitenler alta insin", "Move checked items to the bottom"),
 
         // Widget menüsü
-        new("Boyut: kenarlardan sürükle · {0} · Izgaraya hizala: Shift", "Size: drag the edges · {0} · Align to grid: Shift"),
     ]);
 }

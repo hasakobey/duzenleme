@@ -18,9 +18,9 @@ internal static partial class En
         // "Yeni bölme…": masaüstü dışındaki klasör (klasör portalı)
         new("Masaüstü dışındaki bir klasör", "A folder outside the desktop"),
         new("Gözat…", "Browse…"),
+        new("Klasör seç…", "Choose folder…"),
 
         // Widget menüsü
-        new("Yeniden adlandır: widget'a tıkla, F2'ye bas", "Rename: click the widget, then press F2"),
 
         // Denetim gözden geçirmesi: yalnızca simgeli düğmelerin ve yazı kutularının adları, ipuçları
         new("Bu bölmede ve alt klasörlerinde ara (Ctrl+F)", "Search this panel and its subfolders (Ctrl+F)"),

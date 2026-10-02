@@ -138,14 +138,42 @@ public sealed class MoveJournal : IDisposable
         lock (_lock) return _entries.LastOrDefault(e => !e.Undone);
     }
 
-    public void Clear()
+    /// <summary>
+    /// "Geçmişi temizle": geri alınmamış kayıtları siler ve döner (bildirimdeki "Geri al" <see cref="Restore"/> ile geri koyar).
+    /// Geri alınanların kaydı ("bir daha taşıma") kalır.
+    /// </summary>
+    public IReadOnlyList<MoveEntry> Clear()
     {
+        List<MoveEntry> removed;
         lock (_lock)
         {
+            removed = _entries.Where(e => !e.Undone).ToList();
             _entries.RemoveAll(e => !e.Undone);
             WriteNowLocked();
         }
         Changed?.Invoke();
+        return removed;
+    }
+
+    /// <summary>
+    /// Silinen kayıtları geri koyar (zaten duranlar ve bu arada aynı kimlikle eklenenler atlanır); sıra zamana göre kurulur,
+    /// sınır aşılırsa en eskiler gider. Bir şey geri konduysa true.
+    /// </summary>
+    public bool Restore(IEnumerable<MoveEntry> entries)
+    {
+        lock (_lock)
+        {
+            var known = _entries.Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+            var back = entries.Where(e => known.Add(e.Id)).ToList();
+            if (back.Count == 0) return false;
+            var merged = _entries.Concat(back).OrderBy(e => e.Time).ToList(); // OrderBy kararlıdır: aynı andakiler sırasını korur
+            _entries.Clear();
+            _entries.AddRange(merged);
+            Trim();
+            WriteNowLocked();
+        }
+        Changed?.Invoke();
+        return true;
     }
 
     /// <summary>Bekleyen kayıtları hemen diske yazar (çıkış, oturum kapanışı, çökme). Yazıldıysa true.</summary>

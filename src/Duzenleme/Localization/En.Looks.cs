@@ -30,7 +30,6 @@ internal static partial class En
 
         // 2.2 Kutu
         new("Numara tuşlarıyla aç (1–9)", "Open with number keys (1–9)"),
-        new("Aç: 1–9 · Ara: harf yaz", "Open: 1–9 · Find: type a letter"),
         new("Bırak, uygulama olarak eklensin", "Drop to add as an app"),
         new("Bırak, bağlantı olarak eklensin", "Drop to add as a link"),
         new("Bu bağlantı türü eklenemez (yalnızca http, https, mailto)", "This type of link can't be added (only http, https, mailto)"),

@@ -4,7 +4,7 @@ namespace Duzenleme.Localization;
 
 // 2.1 yerelleştirme taraması, widget görünümleri: Widgets/{FenceView, LauncherView, NoteView, TileStyles.xaml, BoxMover,
 // ShellIcons}, Core/{BoxMoves, AppSettings}, Desktop/{DesktopSystemIcons, ShellFileOperations}. Önceki paketlerde çevrilmiş
-// ortak metinler (Aç, Geri al, Yeniden adlandır, Widget'tan kaldır, {0} öğe…) kendi tablolarında kalır.
+// ortak metinler (Aç, Geri al, Yeniden adlandır, Bölmeden gizle, Kutudan kaldır, {0} öğe…) kendi tablolarında kalır.
 // Terimler: bölme = panel, kısayol kutusu = shortcut box.
 internal static partial class En
 {
@@ -31,10 +31,7 @@ internal static partial class En
         // Bölme: öğe menüsü
         new("Dosyaya dokunulmaz, yalnızca bu widget'ta görünmez.\nGeri getirmek için: widget'a sağ tık → Gizlenen öğeler",
             "The file isn't touched; it's just hidden in this widget.\nTo bring it back: right-click the widget → Hidden items"),
-        new("Bölme ayarları…", "Panel settings…"),
-        new("Klasörde göster", "Show in folder"),
         new("Bu klasörü ayrı bölme yap", "Make this folder its own panel"),
-        new("Masaüstüne geri taşı", "Move back to the desktop"),
 
         // Kısayol kutusu (LauncherView)
         new("Uygulama, kısayol, dosya ya da klasörü buraya sürükle. Tek tıkla açılır.",
@@ -60,7 +57,9 @@ internal static partial class En
         new("Öğe {0} klasörüne taşınır ve kutuda durur.", "The item moves to the {0} folder and stays in the box."),
         new("Yönetici olarak çalıştır", "Run as administrator"),
         new("Dosya konumunu aç", "Open file location"),
-        new("Kutu ayarları…", "Box settings…"),
+        new("\"{0}\" Geri Dönüşüm Kutusu'na taşındı.", "\"{0}\" was moved to the Recycle Bin."),
+        new("\"{0}\" sekmesi silindi.", "The \"{0}\" tab was deleted."),
+        new("Not temizlendi.", "Note cleared."),
         new("Kısayol kutusuna ekle", "Add to shortcut box"),
         new("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*",
             "Apps and shortcuts|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|All files|*.*"),
@@ -70,8 +69,6 @@ internal static partial class En
         new("Yeni madde ekle…", "Add an item…"),
         new("Yeni madde ekle", "Add an item"),
         new("Madde", "Item"),
-        new("Not ayarları…", "Note settings…"),
-        new("Liste ayarları…", "List settings…"),
         new("Bitenleri temizle ({0})", "Clear checked items ({0})"),
         new("Geri al: temizlenen maddeler geri gelsin", "Undo: bring back cleared items"),
         new("Düz nota çevir", "Convert to plain note"),

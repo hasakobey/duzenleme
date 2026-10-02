@@ -284,9 +284,7 @@ public partial class TimerView : UserControl, IWidgetView
                 menu.Primary.Add(minutes);
                 break;
             case TimerModes.Pomodoro:
-                menu.Primary.Add(MinutesChoice(L.T("Odak süresi"), () => State.FocusMinutes, value => State.FocusMinutes = value, 15, 20, 25, 30, 45, 50));
-                menu.Primary.Add(MinutesChoice(L.T("Mola"), () => State.BreakMinutes, value => State.BreakMinutes = value, 3, 5, 10, 15));
-                menu.Primary.Add(MinutesChoice(L.T("Uzun mola"), () => State.LongBreakMinutes, value => State.LongBreakMinutes = value, 10, 15, 20, 30));
+                menu.Primary.Add(PomodoroChoice());
                 menu.Primary.Add(Menus.Toggle(L.T("Sonraki aşama kendiliğinden başlasın"), () => State.AutoStartNext, () =>
                 {
                     State.AutoStartNext = !State.AutoStartNext;
@@ -317,6 +315,34 @@ public partial class TimerView : UserControl, IWidgetView
             if (!TimerLogic.IsRunning(State)) State.RemainingTicks = null;
             Changed();
         });
+
+    /// <summary>
+    /// Pomodoro "Süre ▸": iki hazır üçlü (odak / mola / uzun mola) ve "Özel…" (üçünü tek pencerede sorar; menü kapanır).
+    /// Kayıtlı süreler hazırlardan biri değilse "Özel…" işaretlidir.
+    /// </summary>
+    private MenuItem PomodoroChoice()
+    {
+        var item = Menus.Choice(L.T("Süre"), () => TimerLogic.PomodoroMinutes(State),
+            TimerLogic.PomodoroPresets.Select(p => (p, L.F("{0} / {1} / {2} dk", p.Focus, p.Break, p.LongBreak))), value =>
+            {
+                TimerLogic.SetPomodoro(State, value);
+                Changed();
+            });
+        item.Items.Add(new Separator());
+        item.Items.Add(Menus.Toggle(L.T("Özel…"), () => !TimerLogic.PomodoroPresets.Contains(TimerLogic.PomodoroMinutes(State)),
+            AskPomodoro, staysOpen: false));
+        return item;
+    }
+
+    private void AskPomodoro()
+    {
+        var (focus, rest, longRest) = TimerLogic.PomodoroMinutes(State);
+        if (InputDialog.Ask(L.T("Pomodoro"), L.T("Odak / mola / uzun mola (dakika)"), $"{focus} / {rest} / {longRest}",
+                (Window.GetWindow(this) as WidgetWindow)?.CenterPoint) is not { } text) return;
+        if (!TimerLogic.TryParsePomodoro(text, out var minutes)) return;
+        TimerLogic.SetPomodoro(State, minutes);
+        Changed();
+    }
 
     private void AskMinutes()
     {

@@ -106,8 +106,6 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     private LauncherTab CurrentTab => Tab(_ring.TabIndex);
 
-    private NativeMethods.POINT? DialogPoint => Owner?.CenterPoint;
-
     private WidgetWindow? Owner => Window.GetWindow(this) as WidgetWindow;
 
     // ---------------------------------------------------------------- çizim
@@ -192,7 +190,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.ClosePart], ApplyParts));
         // Kısayolla imleçte açılan halka (bkz. RingShortcut): yalnızca kısayolun açtığı halkada işaretli; açarken ne yaptığı
         // bildirimde anlatılır, başka halkayı açıyorsa bu halka hedef olur; menü kapanır.
-        menu.More.Add(Menus.Toggle(L.T("Kısayolla imleçte açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
+        menu.More.Add(Menus.Toggle(L.T("Tuşla imlecin yanında açılsın"), () => RingShortcut.Opens(_config), () => RingShortcut.ToggleFromMenu(_config),
             staysOpen: false));
     }
 
@@ -208,7 +206,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         add.Items.Add(new Separator());
         add.Items.Add(Menus.Item(L.T("Web adresi…"), () => AddAction(RingActionTypes.Url, tab, where)));
         add.Items.Add(Menus.Item(L.T("Komut…"), () => AddAction(RingActionTypes.Command, tab, where)));
-        add.Items.Add(Menus.Item(L.T("Tuş kısayolu gönder…"), () => AddAction(RingActionTypes.Keys, tab, where)));
+        add.Items.Add(Menus.Item(L.T("Tuşlara bas…"), () => AddAction(RingActionTypes.Keys, tab, where)));
         add.Items.Add(Menus.Item(L.T("Metin yapıştır…"), () => AddAction(RingActionTypes.Text, tab, where)));
         var app = new MenuItem { Header = L.F("{0} eylemi", AppInfo.Name) };
         foreach (var id in RingAppIds.All)
@@ -315,7 +313,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
                 menu.Items.Add(move);
             }
         }
-        menu.Items.Add(Menus.Item(L.T("Düzenle…"), () => Edit(slot, subTab)));
+        menu.Items.Add(Menus.Item(L.T("Değiştir…"), () => Edit(slot, subTab)));
         if (slot is { Kind: RingSlotKind.Path, Path: { } path } && !TileItem.IsShellObject(path))
         {
             if (BoxMover.IsMoved(path))
@@ -451,18 +449,11 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     }
 
     /// <summary>
-    /// Alt halkayı (sekmeyi) içindekilerle birlikte kaldırır; doluysa önce sorar. Masaüstünden taşınmış öğeleri başka kutuda
-    /// yoksa masaüstüne döner; bildirimdeki ve menüdeki "Geri al" alt halkayı yerine koyar.
+    /// Alt halkayı (sekmeyi) içindekilerle birlikte kaldırır (soru yok: dosyalara dokunulmaz). Masaüstünden taşınmış öğeleri
+    /// başka kutuda yoksa masaüstüne döner; bildirimdeki ve menüdeki "Geri al" alt halkayı yerine koyar.
     /// </summary>
     private void RemoveSubRing(LauncherTab tab, string name)
     {
-        if (_config.Tabs.IndexOf(tab) <= 0) return;
-        var count = LauncherEntries.Count(tab);
-        if (count > 0 && !Views.Confirm.Ask(null, L.F("\"{0}\" alt halkası kaldırılsın mı?", name),
-                L.P(count, "İçindeki {0} öğe de halkadan kalkar. Dosyalara dokunulmaz; bildirimden geri alabilirsin."), L.T("Kaldır"),
-                near: DialogPoint))
-            return;
-        // Soru açıkken değişmiş olabilir: yeri şimdi bulunur.
         var index = _config.Tabs.IndexOf(tab);
         if (index <= 0) return;
         if (_ring.TabIndex == index) _ring.GoBack();

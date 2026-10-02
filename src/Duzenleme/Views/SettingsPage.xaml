@@ -131,13 +131,13 @@
                 <ui:SymbolIcon Symbol="PaintBrush24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tema'}" />
+                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Uygulama görünümü'}" />
                     <TextBlock Style="{StaticResource Muted}"
                                Text="{l:T 'Bu pencerenin görünümü. Widget\'ların görünümü Widget\'lar sayfasından ya da widget\'a sağ tıklayarak ayarlanır.'}" />
                 </StackPanel>
                 <ComboBox x:Name="ThemeBox" Grid.Column="2" Width="160" Margin="16,0,0,0" VerticalAlignment="Center"
                           SelectionChanged="ThemeBox_SelectionChanged"
-                          AutomationProperties.AutomationId="Settings.Theme" AutomationProperties.Name="{l:T 'Tema'}">
+                          AutomationProperties.AutomationId="Settings.Theme" AutomationProperties.Name="{l:T 'Uygulama görünümü'}">
                     <ComboBoxItem Content="{l:T 'Sistem'}" />
                     <ComboBoxItem Content="{l:T 'Koyu'}" />
                     <ComboBoxItem Content="{l:T 'Açık'}" />
@@ -407,12 +407,12 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Kısayolla imleçte açılsın'}" />
+                            <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Tuşla imlecin yanında açılsın'}" />
                             <TextBlock x:Name="RingExplain" Style="{StaticResource Muted}" TextWrapping="Wrap" />
                         </StackPanel>
                         <ui:ToggleSwitch x:Name="RingToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                                          Checked="RingToggle_Changed" Unchecked="RingToggle_Changed" AutomationProperties.AutomationId="Settings.RingShortcut"
-                                         AutomationProperties.Name="{l:T 'Kısayolla imleçte açılsın'}" />
+                                         AutomationProperties.Name="{l:T 'Tuşla imlecin yanında açılsın'}" />
                     </Grid>
                     <Grid x:Name="RingTargetRow" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>

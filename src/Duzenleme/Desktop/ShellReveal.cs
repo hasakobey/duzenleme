@@ -5,7 +5,7 @@ using Duzenleme.Core;
 namespace Duzenleme.Desktop;
 
 /// <summary>
-/// Dosyayı Gezgin'de, klasörü açıp seçili olarak gösterir ("Klasörde göster"). <c>explorer.exe /select</c> yerine kabuğun
+/// Dosyayı Gezgin'de, klasörü açıp seçili olarak gösterir ("Dosya konumunu aç"). <c>explorer.exe /select</c> yerine kabuğun
 /// kendi çağrısı (SHOpenFolderAndSelectItems): yol tırnak/virgül yorumuna takılmaz, zaten açık klasör penceresi yeniden
 /// kullanılır. Kabuk çağrısı arayüzü bekletmesin diye kendi STA iş parçacığında (<see cref="ShellFileOperations.RunSta"/>).
 /// </summary>

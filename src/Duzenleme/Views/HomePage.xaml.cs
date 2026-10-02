@@ -10,7 +10,7 @@ using TextBlock = System.Windows.Controls.TextBlock;
 namespace Duzenleme.Views;
 
 /// <summary>
-/// Ana sayfa: selam, üç ana eylem (Widget ekle, Şimdi düzenle, Son taşımayı geri al), otomatik taşıma durumu ve son üç
+/// Ana sayfa: selam, üç ana eylem (Widget ekle, Dosyaları şimdi taşı, Son taşımayı geri al), otomatik taşıma durumu ve son üç
 /// taşıma. Açılışı hafif tutulur: klasörlerin içi sayılmaz, yalnızca masaüstündeki klasör adlarına bakılır.
 /// </summary>
 public partial class HomePage : Page

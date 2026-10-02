@@ -186,4 +186,44 @@ public class TimerLogicTests
         Assert.False(copy.Notify);
         Assert.True(TimerLogic.IsRunning(s));
     }
+    // Kolay NestDesk: Pomodoro'nun üç süre alt menüsü yerine tek "Süre ▸" (25/5/15 · 50/10/30 · Özel…).
+
+    [Theory]
+    [InlineData("25 / 5 / 15", 25, 5, 15)]
+    [InlineData("50/10/30", 50, 10, 30)]
+    [InlineData(" 45, 15 ; 20 dk ", 45, 15, 20)]
+    [InlineData("90 5 99999", 90, 5, TimerLogic.MaxMinutes)]
+    public void Custom_pomodoro_text_gives_three_minutes(string text, int focus, int rest, int longRest)
+    {
+        Assert.True(TimerLogic.TryParsePomodoro(text, out var minutes));
+        Assert.Equal((focus, rest, longRest), minutes);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("25 / 5")]
+    [InlineData("25 / 5 / 15 / 4")]
+    [InlineData("25 / 0 / 15")]
+    [InlineData("yirmi beş")]
+    public void Custom_pomodoro_text_needs_exactly_three_positive_numbers(string? text)
+    {
+        Assert.False(TimerLogic.TryParsePomodoro(text, out _));
+    }
+
+    [Fact]
+    public void Pomodoro_presets_set_all_three_minutes_and_show_the_new_length_when_stopped()
+    {
+        Assert.Equal([(25, 5, 15), (50, 10, 30)], TimerLogic.PomodoroPresets);
+        var s = new TimerState { Mode = TimerModes.Pomodoro };
+        Assert.Contains(TimerLogic.PomodoroMinutes(s), TimerLogic.PomodoroPresets); // varsayılan 25/5/15 hazır seçimdir
+        TimerLogic.Start(s, T0);
+        TimerLogic.Pause(s, T0.AddMinutes(1));
+        TimerLogic.SetPomodoro(s, (50, 10, 30));
+        Assert.Equal((50, 10, 30), TimerLogic.PomodoroMinutes(s));
+        Assert.Null(s.RemainingTicks);
+        Assert.Equal(TimeSpan.FromMinutes(50), TimerLogic.Remaining(s, T0.AddMinutes(2)));
+        TimerLogic.SetPomodoro(s, (0, 5000, 7));
+        Assert.Equal((TimerLogic.MinMinutes, TimerLogic.MaxMinutes, 7), TimerLogic.PomodoroMinutes(s));
+    }
 }

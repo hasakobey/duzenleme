@@ -26,7 +26,7 @@ public partial class CountdownView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
-        // Etkinliğin adı yerinde düzenlenir (F2, "Yeniden adlandır"); düzenlerken yazının gölge kopyası gizlenir.
+        // Etkinliğin adı yerinde düzenlenir (F2); düzenlerken yazının gölge kopyası gizlenir.
         _titleEditor = new TitleEditor(this, TitleBox, TitleText, iconButton: null, () => DefaultTitle,
             title =>
             {
@@ -109,7 +109,7 @@ public partial class CountdownView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        menu.Primary.Add(Menus.Item(L.T("Yeniden adlandır"), () => TryBeginRename(), KeyNames.F2));
+        // Ad ve gün tek pencerede değişir (F2 adı yerinde de düzenler).
         menu.Primary.Add(Menus.Item(L.T("Tarihi ve adı değiştir…"), Edit));
         menu.Primary.Add(Menus.Toggle(L.T("Her yıl yinele"), () => _config.CountdownYearly, () =>
         {
@@ -121,7 +121,7 @@ public partial class CountdownView : UserControl, IWidgetView
     }
 
     /// <summary>
-    /// F2 ve "Yeniden adlandır": etkinliğin adı yerinde düzenlenir; ad satırı gizliyse adı ve günü soran pencere açılır.
+    /// F2: etkinliğin adı yerinde düzenlenir; ad satırı gizliyse adı ve günü soran pencere açılır.
     /// </summary>
     public bool TryBeginRename()
     {

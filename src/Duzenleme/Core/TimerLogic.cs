@@ -178,6 +178,50 @@ public static class TimerLogic
         if (!IsRunning(s)) s.RemainingTicks = null;
     }
 
+    /// <summary>Pomodoro'nun hazır süreleri (odak / mola / uzun mola, dakika): menüdeki "Süre ▸".</summary>
+    public static IReadOnlyList<(int Focus, int Break, int LongBreak)> PomodoroPresets { get; } = [(25, 5, 15), (50, 10, 30)];
+
+    /// <summary>Pomodoro'nun üç süresi (odak, mola, uzun mola).</summary>
+    public static (int Focus, int Break, int LongBreak) PomodoroMinutes(TimerState s) => (s.FocusMinutes, s.BreakMinutes, s.LongBreakMinutes);
+
+    /// <summary>Pomodoro'nun üç süresini yazar (sınırlar içinde); çalışmıyorsa yeni süre hemen görünür.</summary>
+    public static void SetPomodoro(TimerState s, (int Focus, int Break, int LongBreak) minutes)
+    {
+        s.FocusMinutes = Clamp(minutes.Focus);
+        s.BreakMinutes = Clamp(minutes.Break);
+        s.LongBreakMinutes = Clamp(minutes.LongBreak);
+        if (!IsRunning(s)) s.RemainingTicks = null;
+    }
+
+    /// <summary>
+    /// "Özel…" penceresine yazılan üç süre ("25 / 5 / 15"; ayraç rakam olmayan her şey): odak, mola, uzun mola. Tam üç sayı
+    /// olmalı ve her biri en az <see cref="MinMinutes"/>; üst sınırı aşan <see cref="MaxMinutes"/>'e iner. Değilse false.
+    /// </summary>
+    public static bool TryParsePomodoro(string? text, out (int Focus, int Break, int LongBreak) minutes)
+    {
+        minutes = default;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var numbers = new List<int>();
+        var digits = 0;
+        long value = 0;
+        foreach (var c in text + " ")
+        {
+            if (char.IsAsciiDigit(c))
+            {
+                // Çok uzun sayı taşmasın: sınırın üstü zaten MaxMinutes'e iner.
+                value = Math.Min(value * 10 + (c - '0'), MaxMinutes + 1);
+                digits++;
+                continue;
+            }
+            if (digits > 0) numbers.Add((int)value);
+            digits = 0;
+            value = 0;
+        }
+        if (numbers.Count != 3 || numbers.Any(n => n < MinMinutes)) return false;
+        minutes = (Clamp(numbers[0]), Clamp(numbers[1]), Clamp(numbers[2]));
+        return true;
+    }
+
     /// <summary>Çoğaltılan zamanlayıcı baştan başlar (kopyası da aynı anda çalmasın).</summary>
     public static TimerState Fresh(TimerState s)
     {

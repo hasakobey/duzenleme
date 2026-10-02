@@ -105,7 +105,7 @@ public partial class SettingsPage : Page
     private static (HotkeyAction Action, string Label, SymbolRegular Icon)[] HotkeyActions =>
     [
         (HotkeyAction.ToggleDesktop, L.T("Masaüstünü gizle / göster"), SymbolRegular.EyeOff24),
-        (HotkeyAction.OrganizeNow, L.T("Masaüstünü şimdi düzenle"), SymbolRegular.Sparkle24),
+        (HotkeyAction.OrganizeNow, L.T("Dosyaları şimdi taşı"), SymbolRegular.Sparkle24),
         (HotkeyAction.OpenApp, L.F("{0}'i aç", AppInfo.Name), SymbolRegular.WindowNew24),
         (HotkeyAction.NewNote, L.T("Yeni not"), SymbolRegular.NoteAdd24),
         (HotkeyAction.PeekWidgets, L.T("Widget'ları öne getir (5 sn)"), SymbolRegular.Eye24),

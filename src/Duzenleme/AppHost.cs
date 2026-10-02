@@ -479,7 +479,7 @@ public static class AppHost
     }
 
     /// <summary>
-    /// Masaüstündeki uygun dosyaları şimdi taşır ve taşınanları döner. Açık komutlar ("Masaüstünü şimdi düzenle", tepsi,
+    /// Masaüstündeki uygun dosyaları şimdi taşır ve taşınanları döner. Açık komutlar ("Dosyaları şimdi taşı", tepsi,
     /// Ctrl+Alt+O) otomatik taşıma kapalıyken de çalışır.
     /// </summary>
     public static Task<List<MoveEntry>> OrganizeNowAsync() => Task.Run(() => Organizer.OrganizeAll());

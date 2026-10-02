@@ -51,8 +51,8 @@ internal static partial class En
         new("{0}\n{1}\n(bulunamadı)", "{0}\n{1}\n(not found)"),
         new("Geri Dönüşüm Kutusu'na taşı", "Move to Recycle Bin"),
         // Aynı Türkçe, iki anlam: bölmede öğe yalnızca bu bölmede gizlenir (dosyaya dokunulmaz), kutuda kutudan çıkar.
-        new("Widget'tan kaldır", "Hide in this panel", Context: "bölme"),
-        new("Widget'tan kaldır", "Remove from box", Context: "kutu"),
+        new("Bölmeden gizle", "Hide in this panel"),
+        new("Kutudan kaldır", "Remove from box"),
         new("Bu bölmede ara", "Search this panel"),
         new("Öğe ekle", "Add item"),
         new("Uygulama ya da dosya…", "App or file…"),
@@ -144,7 +144,6 @@ internal static partial class En
         new("Adını, ne göstereceğini ve simgesini seçerek bölme ekle", "Add a panel and choose its name, what it shows and its icon"),
         new("Ad", "Name"),
         new("ör. Projeler", "e.g. Projects"),
-        new("Ne göstersin?", "What should it show?"),
         new("Masaüstünde bu adla yeni klasör", "A new folder on the desktop with this name"),
         new("Var olan bir masaüstü klasörü", "An existing desktop folder"),
         new("Masaüstündeki öğeler", "Items on the desktop"),

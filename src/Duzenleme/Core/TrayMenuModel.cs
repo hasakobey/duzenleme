@@ -59,7 +59,7 @@ public static class TrayMenuModel
             separator,
             // İşaretli = otomatik taşıma açık (Paused'ın tersi).
             new(TrayCommand.AutoMove, L.T("Otomatik taşıma"), IsChecked: state.AutoMove),
-            new(TrayCommand.OrganizeNow, L.T("Masaüstünü şimdi düzenle")),
+            new(TrayCommand.OrganizeNow, L.T("Dosyaları şimdi taşı")),
             new(TrayCommand.UndoLastMove, L.T("Son taşımayı geri al")),
             new(TrayCommand.ToggleDesktop, state.DesktopHidden ? L.T("Masaüstünü göster") : L.T("Masaüstünü gizle")),
             new(TrayCommand.PeekDesktop, state.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at"),

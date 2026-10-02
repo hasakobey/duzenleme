@@ -1,7 +1,7 @@
 namespace Duzenleme.Core;
 
 /// <summary>
-/// Otomatik düzen yedekleri ("Düzen uygulanmadan önce", "Otomatik yerleştirmeden önce"): Kayıtlı düzenler'de adıyla durur
+/// Otomatik düzen yedekleri ("Düzen uygulanmadan önce", "Otomatik yerleştirmeden önce"): Kayıtlı yerleşimler'de adıyla durur
 /// ve adıyla tanınır. Yeni yedek arayüz dilindeki adı alır; dil değiştiyse eski dildeki yedek de tanınır ve yerine yazılır
 /// (iki yedek birikmez, yedeğin kendisi uygulanırken yeni yedek alınmaz).
 /// </summary>

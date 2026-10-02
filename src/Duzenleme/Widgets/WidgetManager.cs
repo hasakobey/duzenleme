@@ -419,7 +419,7 @@ public sealed class WidgetManager
         }
     }
 
-    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı düzenler'de durur; arayüz dilinde).</summary>
+    /// <summary>Düzen uygulanmadan önce alınan otomatik yedeğin adı (Kayıtlı yerleşimler'de durur; arayüz dilinde).</summary>
     public static string ApplyBackupName => LayoutBackup.ApplyName;
 
     /// <summary>
@@ -489,19 +489,20 @@ public sealed class WidgetManager
         window.Attention();
     }
 
-    public static string ArrangeBackupName => LayoutBackup.ArrangeName;
-
     /// <summary>
-    /// Tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü simgeleri
-    /// genelde soldadır), geniş olanlar önce. Önceki düzen "Otomatik yerleştirmeden önce" adıyla kaydedilir.
+    /// "Widget'ları hizala": tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü
+    /// simgeleri genelde soldadır), geniş olanlar önce. Önceki düzen "Otomatik yerleştirmeden önce" adıyla kaydedilir;
+    /// <paramref name="moves"/> bildirimdeki "Geri al" içindir (<see cref="UndoArrange"/>).
     /// </summary>
-    public int ArrangeAll()
+    public int ArrangeAll(out IReadOnlyList<ArrangeMove> moves)
     {
+        moves = [];
         AppHost.EnsureWidgetsShown();
         var placed = _open.Values.Select(w => (Window: w, Bounds: w.PixelBounds)).Where(t => t.Bounds is not null).ToList();
         if (placed.Count == 0) return 0;
 
         LayoutBackup.SaveBeforeArrange(AppHost.Settings.Layouts, AppHost.Settings.Widgets);
+        var record = new List<ArrangeMove>();
 
         var byMonitor = placed.GroupBy(t =>
         {
@@ -535,12 +536,46 @@ public sealed class WidgetManager
                 }
                 var x = Math.Max(area.Left, right - r.Width); // sütunda sağa yaslı
                 window.MoveTo(x, y);
+                if (window.PixelBounds is { } now) record.Add(new ArrangeMove(window.Config.Id, r.Left, r.Top, now.Left, now.Top));
                 y += r.Height;
             }
         }
         AppHost.SaveSettings();
         Changed?.Invoke();
+        moves = record;
         return placed.Count;
+    }
+
+    /// <summary>
+    /// "Widget'ları hizala"yı geri alır: hâlâ hizalamanın koyduğu yerde duran widget'lar önceki yerlerine döner (sonradan
+    /// taşınan, eklenen ya da kaldırılan widget'lara dokunulmaz) ve hizalamanın kıstığı görünen yükseklik geri gelir.
+    /// </summary>
+    public void UndoArrange(IReadOnlyList<ArrangeMove> moves)
+    {
+        // Gizli widget'ın konumu okunamaz (PixelBounds): önce görünürler.
+        AppHost.EnsureWidgetsShown();
+        var back = ArrangeUndo.Pending(moves, id =>
+            _open.TryGetValue(id, out var w) && w.PixelBounds is { } r ? (r.Left, r.Top) : null);
+        if (back.Count == 0) return;
+        foreach (var move in back)
+        {
+            var window = _open[move.Id];
+            window.MoveTo(move.FromX, move.FromY);
+            window.RefitHeight();
+        }
+        AppHost.SaveSettings();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Widget'ın konum kilidini açar ("Konum kilitli." bildirimindeki "Kilidi aç").</summary>
+    public void Unlock(string id)
+    {
+        if (_open.TryGetValue(id, out var window)) window.SetLocked(false);
+        else if (AppHost.Settings.Widgets.FirstOrDefault(w => w.Id == id) is { Locked: true } config)
+        {
+            config.Locked = false;
+            AppHost.SaveSettings();
+        }
     }
 
     public void Restyle(string id)

@@ -83,7 +83,7 @@
                 <ui:Button x:Name="RevealAllButton" Icon="{ui:SymbolIcon Eye24}" Content="{l:T 'Hepsini öne getir'}" Margin="0,0,8,0"
                            ToolTip="{l:T 'Widget\'lar pencerelerin arkasında kalır; hepsini birkaç saniyeliğine öne getirir'}"
                            AutomationProperties.AutomationId="Widgets.RevealAll" Click="RevealAll_Click" />
-                <ui:Button x:Name="ArrangeButton" Icon="{ui:SymbolIcon Grid24}" Content="{l:T 'Düzenli yerleştir'}"
+                <ui:Button x:Name="ArrangeButton" Icon="{ui:SymbolIcon Grid24}" Content="{l:T 'Widget\'ları hizala'}"
                            ToolTip="{l:T 'Widget\'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki yerleşim kaydedilir'}"
                            AutomationProperties.AutomationId="Widgets.Arrange" Click="Arrange_Click" />
             </StackPanel>
@@ -233,11 +233,11 @@
                 </Grid.ColumnDefinitions>
                 <ui:SymbolIcon Symbol="Board24" Style="{StaticResource RowIcon}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock x:Name="LayoutsTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Kayıtlı düzenler'}" />
+                    <TextBlock x:Name="LayoutsTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Kayıtlı yerleşimler'}" />
                     <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Yerleşimi bir adla sakla, tek tıkla geri dön'}" />
                 </StackPanel>
                 <ui:Button x:Name="LayoutsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                           AutomationProperties.AutomationId="Widgets.LayoutsFold" AutomationProperties.HelpText="{l:T 'Kayıtlı düzenler'}" />
+                           AutomationProperties.AutomationId="Widgets.LayoutsFold" AutomationProperties.HelpText="{l:T 'Kayıtlı yerleşimler'}" />
             </Grid>
         </Border>
         <StackPanel x:Name="LayoutsContent">

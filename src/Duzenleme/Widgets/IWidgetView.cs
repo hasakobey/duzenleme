@@ -20,9 +20,6 @@ public interface IWidgetView
     /// <summary>Parça gizlenip gösterilince pencerenin yerleşimi (katlanabilirlik, boyut) yeniden uygulanmalı.</summary>
     event Action? LayoutChanged { add { } remove { } }
 
-    /// <summary>Widget'ın ayar menüsünü açma isteği (ör. dosya menüsündeki "Bölme ayarları…").</summary>
-    event Action? MenuRequested { add { } remove { } }
-
     /// <summary>Katlanınca gizlenecek gövde.</summary>
     void SetBodyVisible(bool visible) { }
 
@@ -66,9 +63,6 @@ public interface IWidgetView
     /// İlk çağrı pencere gösterilince gelir; o zamana dek görünüm "görünmez" sayılır. WidgetWindow değişince çağırır.
     /// </summary>
     void SetLive(bool live) { }
-
-    /// <summary>Görünüm ▸ altındaki ipucunda Ctrl + tekerleğin ne yaptığı (null: widget'ın ölçeği / simge boyutu).</summary>
-    string? CtrlWheelHint => null;
 
     // 2.2 Kutu
     /// <summary>

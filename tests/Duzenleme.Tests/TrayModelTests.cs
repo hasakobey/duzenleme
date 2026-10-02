@@ -141,7 +141,7 @@ public class TrayModelTests
         Assert.Equal(
         [
             "Widget ekle…", "NestDesk'i aç", "",
-            "Otomatik taşıma", "Masaüstünü şimdi düzenle", "Son taşımayı geri al", "Masaüstünü gizle", "Windows masaüstüne göz at",
+            "Otomatik taşıma", "Dosyaları şimdi taşı", "Son taşımayı geri al", "Masaüstünü gizle", "Windows masaüstüne göz at",
             "",
             "Geri getir: Notlar", "Windows masaüstü simgeleri", "Widget'ları öne getir (5 sn)", "", "Çıkış",
         ], items.Select(i => i.Text));
@@ -237,6 +237,7 @@ public class TrayModelTests
         Assert.Equal("Back to NestDesk", items.Single(i => i.Command == TrayCommand.PeekDesktop).Text);
         Assert.Equal("Bring back: Notlar", items.Single(i => i.Command == TrayCommand.UndoRemove).Text);
         Assert.Equal("Exit", items[^1].Text);
+        Assert.Equal("Move files now", items.Single(i => i.Command == TrayCommand.OrganizeNow).Text);
         Assert.Equal("Windows desktop icons", items.Single(i => i.Command == TrayCommand.IconModes).Text);
         Assert.Equal("Bring widgets to front (5 s)", items.Single(i => i.Command == TrayCommand.RevealWidgets).Text);
         Assert.Equal("Hide desktop", TrayMenuModel.Build(State()).Single(i => i.Command == TrayCommand.ToggleDesktop).Text);

@@ -45,7 +45,7 @@
                 </Grid>
             </ui:Button>
             <ui:Button x:Name="OrganizeTile" Style="{StaticResource ActionTile}" Margin="5,0"
-                       AutomationProperties.AutomationId="Home.OrganizeNow" AutomationProperties.Name="{l:T 'Şimdi düzenle'}"
+                       AutomationProperties.AutomationId="Home.OrganizeNow" AutomationProperties.Name="{l:T 'Dosyaları şimdi taşı'}"
                        Click="OrganizeNow_Click">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -54,8 +54,8 @@
                     </Grid.ColumnDefinitions>
                     <ui:SymbolIcon Symbol="Sparkle24" FontSize="24" Margin="0,0,14,0" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Şimdi düzenle'}" />
-                        <TextBlock Style="{StaticResource TileText}" Text="{l:T 'Masaüstündeki dosyaları taşı'}" />
+                        <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Dosyaları şimdi taşı'}" />
+                        <TextBlock Style="{StaticResource TileText}" Text="{l:T 'Masaüstünden klasörlerine'}" />
                     </StackPanel>
                 </Grid>
             </ui:Button>

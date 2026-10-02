@@ -108,23 +108,16 @@ public sealed class WidgetWindow : Window
         {
             if (_resizing) QueueResizeStep();
             else if (_dragging) ContinueDrag();
-            else _card.Cursor = CursorFor(GripAt(e.GetPosition(_card)));
+            else
+            {
+                if (_lockedPress is not null) CheckLockedDrag(e);
+                _card.Cursor = CursorFor(GripAt(e.GetPosition(_card)));
+            }
         };
         _card.MouseLeave += (_, _) => { if (!_resizing) _card.Cursor = null; };
-        _card.MouseLeftButtonUp += (_, _) => { EndResize(); EndDrag(); };
+        _card.MouseLeftButtonUp += (_, _) => { _lockedPress = null; EndResize(); EndDrag(); };
         _card.LostMouseCapture += (_, _) => { EndResize(); EndDrag(); };
         PreviewMouseWheel += OnWheel;
-        View.MenuRequested += () => Dispatcher.BeginInvoke(() =>
-        {
-            var menu = _card.ContextMenu;
-            menu.PlacementTarget = _card;
-            // Klavyeyle seçildiyse (Shift+F10 → "Bölme ayarları…" → Enter) kartın ortasında, WPF'in klavyeyle açılan
-            // menüleri gibi; fareyle imlecin yanında (imleç başka ekranda olabilir).
-            menu.Placement = InputManager.Current.MostRecentInputDevice is KeyboardDevice
-                ? System.Windows.Controls.Primitives.PlacementMode.Center
-                : System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-            menu.IsOpen = true;
-        }, DispatcherPriority.Input);
 
         _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveBounds(); };
@@ -414,24 +407,18 @@ public sealed class WidgetWindow : Window
     }
 
     /// <summary>
-    /// Sağ tık menüsünün iskeleti: üstte widget'ın asıl işleri, altta "Görünüm ▸" ve seyrek kullanılanlar için
-    /// "Diğer ▸", en altta "Kaldır". Widget'a özel parçaları görünüm sınıfı <see cref="WidgetMenu"/> bölümlerine koyar.
-    /// Seçenekler (görünüş, parçalar, kilit, mıknatıs…) tıklanınca menü açık kalır ve widget hemen değişir; komutlar
-    /// (ekle, göz at, yerleştir, çoğalt, kaldır) menüyü kapatır. Arka plan, vurgu rengi, saydamlık ve köşeler fareyle
-    /// üstüne gelince önizlenir.
+    /// Sağ tık menüsünün iskeleti (Kolay NestDesk 1. dalga): üstte widget'ın asıl işleri, altta "Görünüm ▸" ve seyrek
+    /// kullanılanlar için "Diğer ▸", en altta "Kaldır". Widget'a özel parçaları görünüm sınıfı <see cref="WidgetMenu"/>
+    /// bölümlerine koyar. Seçenekler (görünüş, parçalar, kilit…) tıklanınca menü açık kalır ve widget hemen değişir; komutlar
+    /// (çoğalt, kaldır) menüyü kapatır. Menüde uygulama geneli öğe (widget ekle, göz at, mıknatıs, simge kipleri…), gri ipucu
+    /// satırı ve fareyle önizleme yoktur; fareye bağlı iki seçenek ("Fare üstünde değilken …") yalnızca açıkken görünür
+    /// (kapatılabilsin diye).
     /// </summary>
     private void FillMenu(ContextMenu menu)
     {
         var own = new WidgetMenu();
         View.AddMenuItems(own);
 
-        menu.Items.Add(Menus.Item(L.T("Yeni widget ekle…"), () => (Application.Current as App)?.ShowQuickAdd()));
-        // Windows masaüstüne göz at: kısayolu menüde yazılır (Windows'un alışılmış yeri; kısayolu kaydetmez).
-        var peek = Menus.Item(AppHost.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at"),
-            () => AppHost.TogglePeek(AppHost.PeekOrigin.Menu), AppHost.Settings.Hotkeys.PeekDesktop);
-        peek.ToolTip = L.T("Windows'un masaüstü simgeleri görünür, widget'lar kısa süre çekilir");
-        menu.Items.Add(peek);
-        menu.Items.Add(new Separator());
         if (own.Primary.Count > 0)
         {
             foreach (var item in own.Primary) menu.Items.Add(item);
@@ -448,34 +435,24 @@ public sealed class WidgetWindow : Window
         // kuralları WidgetLooks'ta (tema seçmek vurgu rengini de getirir, klasik arka plan temayı kaldırır…).
         if (View.UsesThemeColors)
         {
-            look.Items.Add(LookMenus.Theme(Config, Update, v => Preview(v), EndPreview, SystemParameters.HighContrast));
-            look.Items.Add(LookMenus.Background(Config, Update, v => Preview(v), EndPreview));
-            look.Items.Add(LookMenus.Accent(Config, Update, v => Preview(v), EndPreview, PickAccentColor));
+            look.Items.Add(LookMenus.Theme(Config, Update, SystemParameters.HighContrast));
+            look.Items.Add(LookMenus.Background(Config, Update));
+            look.Items.Add(LookMenus.Accent(Config, Update, PickAccentColor));
         }
-        // Ölçek önizlenmez: pencere boyutu ve komşuların yeri değişir.
         look.Items.Add(Menus.Choice(L.T("Ölçek"), () => Math.Round(Config.Scale, 2),
             [(0.7, L.Percent(0.7)), (0.85, L.Percent(0.85)), (1.0, L.F("Normal ({0})", L.Percent(1))), (1.25, L.Percent(1.25)),
              (1.5, L.Percent(1.5)), (2.0, L.Percent(2))],
             v => Update(() => Config.Scale = v)));
         look.Items.Add(Menus.Choice(L.T("Saydamlık"), () => Math.Round(Config.Opacity, 2),
             [(1.0, L.T("Yok")), (0.85, L.Percent(0.15)), (0.7, L.Percent(0.3)), (0.55, L.Percent(0.45))],
-            v => Update(() => Config.Opacity = v), v => Preview(new LookOverride(Opacity: v)), EndPreview));
+            v => Update(() => Config.Opacity = v)));
         look.Items.Add(Menus.Choice(L.T("Köşeler"), () => Config.Corners,
             [(CornerStyle.Round, L.T("Yuvarlak")), (CornerStyle.Soft, L.T("Hafif yuvarlak")), (CornerStyle.Square, L.T("Köşeli"))],
-            v => Update(() => Config.Corners = v), v => Preview(new LookOverride(Corners: v)), EndPreview));
+            v => Update(() => Config.Corners = v)));
         look.Items.Add(Menus.Toggle(L.T("Gölge"), () => Config.Shadow, () => Update(() => Config.Shadow = !Config.Shadow)));
-        look.Items.Add(Menus.Toggle(L.T("Fare üstünde değilken soluk dursun"), () => Config.FadeUntilHover,
-            () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)));
-        look.Items.Add(new Separator());
-        // Ctrl + tekerleğin ne yaptığını görünüm söyleyebilir (not: yazı boyutu); yoksa bölme/kutuda simgeler, diğerlerinde ölçek.
-        look.Items.Add(Menus.Hint(View.CtrlWheelHint is { } wheel
-            ? L.F("Boyut: kenarlardan sürükle · {0} · Izgaraya hizala: Shift", wheel)
-            : View.Resizable
-                ? L.T("Boyut: kenarlardan sürükle · Simgeler: Ctrl + tekerlek · Izgaraya hizala: Shift")
-                : L.T("Boyut: sağ/alt kenardan sürükle ya da Ctrl + tekerlek · Izgaraya hizala: Shift")));
-        // Yeniden adlandırılabilen widget'ta (menüsünde F2'li "Yeniden adlandır" olan) kısayolu da söylenir.
-        if (own.Primary.OfType<MenuItem>().Any(i => i.InputGestureText == KeyNames.F2))
-            look.Items.Add(Menus.Hint(L.T("Yeniden adlandır: widget'a tıkla, F2'ye bas")));
+        // Fareye bağlı seçenek yalnızca açıkken görünür: kapatılabilsin (kapatınca menüden de kalkar).
+        look.Items.Add(Menus.Live(Menus.Toggle(L.T("Fare üstünde değilken soluk dursun"), () => Config.FadeUntilHover,
+            () => Update(() => Config.FadeUntilHover = !Config.FadeUntilHover)), visible: () => Config.FadeUntilHover));
         menu.Items.Add(look);
 
         var more = new MenuItem { Header = L.T("Diğer") };
@@ -488,33 +465,23 @@ public sealed class WidgetWindow : Window
         more.Items.Add(Menus.Live(Menus.Toggle(L.T("Başlığa katla"), () => Config.Collapsed, () => SetCollapsed(!Config.Collapsed)),
             visible: () => View.Collapsible));
         more.Items.Add(Menus.Live(Menus.Toggle(L.T("Fare üstünde değilken başlığa katla"), () => Config.AutoRollup, ToggleAutoRollup),
-            visible: () => View.Collapsible));
+            visible: () => View.Collapsible && Config.AutoRollup));
         // Kilitli widget'ta kaldırma düğmesi de gizlenir (ApplyStyle görünümlere iletir).
-        more.Items.Add(Menus.Toggle(L.T("Konumu kilitle"), () => Config.Locked, () =>
-        {
-            Config.Locked = !Config.Locked;
-            AppHost.SaveSettings();
-            ApplyStyle();
-        }));
-        more.Items.Add(Menus.Toggle(L.T("Kenarlara yapışsın (mıknatıs)"), () => AppHost.Settings.SnapWidgets, () =>
-        {
-            AppHost.Settings.SnapWidgets = !AppHost.Settings.SnapWidgets;
-            AppHost.SaveSettings();
-        }));
-        more.Items.Add(Menus.Toggle(L.T("Widget'lar üst üste binmesin"), () => AppHost.Settings.PreventOverlap, () =>
-        {
-            AppHost.Settings.PreventOverlap = !AppHost.Settings.PreventOverlap;
-            AppHost.SaveSettings();
-            if (AppHost.Settings.PreventOverlap) ResolveOverlap();
-        }));
-        more.Items.Add(Menus.Item(L.T("Tüm widget'ları düzenli yerleştir"), () => AppHost.Widgets.ArrangeAll()));
+        more.Items.Add(Menus.Toggle(L.T("Konumu kilitle"), () => Config.Locked, () => SetLocked(!Config.Locked)));
         more.Items.Add(Menus.Item(L.T("Çoğalt"), () => AppHost.Widgets.Duplicate(Config.Id)));
-        more.Items.Add(new Separator());
-        more.Items.Add(Menus.Hint(L.T("Taşırken Alt: yapışmadan · Shift: ızgaraya")));
         menu.Items.Add(more);
 
         menu.Items.Add(new Separator());
         menu.Items.Add(Menus.Item(L.T("Kaldır"), () => AppHost.Widgets.RemoveWithUndo(Config.Id)));
+    }
+
+    /// <summary>Konum kilidi (Diğer ▸ Konumu kilitle, kilitliyken sürükleyince çıkan bildirimdeki "Kilidi aç").</summary>
+    internal void SetLocked(bool locked)
+    {
+        if (Config.Locked == locked) return;
+        Config.Locked = locked;
+        AppHost.SaveSettings();
+        ApplyStyle();
     }
 
     /// <summary>
@@ -653,6 +620,12 @@ public sealed class WidgetWindow : Window
         if (!NativeMethods.GetWindowRect(Handle, out var r) || r.Height <= maxWindowPixels) return;
         Height = Math.Max(maxWindowPixels / VisualTreeHelper.GetDpi(this).DpiScaleY, MinResizableHeight);
         _heightFitted = true;
+    }
+
+    /// <summary>Hizalamanın geri alınması: <see cref="LimitDisplayHeight"/>'in kıstığı görünen yükseklik kayıtlı boya döner (çalışma alanına sığarak).</summary>
+    internal void RefitHeight()
+    {
+        if (View.Resizable && !IsCollapsedNow && Handle != IntPtr.Zero) ApplyExpandedHeight();
     }
 
     /// <summary>Pencerenin boyu en çok bu kadar (DIP): kart bulunduğu monitörün çalışma alanını geçmesin.</summary>
@@ -936,15 +909,45 @@ public sealed class WidgetWindow : Window
     private NativeMethods.POINT _grabOffset; // imlecin pencere sol üstüne uzaklığı (fiziksel piksel)
     private double _grabDpi;
 
+    // Kilitli widget'a basılan yer (kart koordinatı): sürüklemeye kalkılınca bir kez "Konum kilitli." denir.
+    private Point? _lockedPress;
+
     private void BeginDrag(MouseButtonEventArgs e)
     {
-        if (Config.Locked || e.ClickCount > 1) return;
+        _lockedPress = null;
+        if (e.ClickCount > 1) return;
+        if (Config.Locked)
+        {
+            _lockedPress = e.GetPosition(_card);
+            return;
+        }
         NativeMethods.GetCursorPos(out var cursor);
         NativeMethods.GetWindowRect(Handle, out var rect);
         _grabOffset = new NativeMethods.POINT { X = cursor.X - rect.Left, Y = cursor.Y - rect.Top };
         _grabDpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
         _dragging = _card.CaptureMouse();
         e.Handled = _dragging;
+    }
+
+    /// <summary>
+    /// Kilitli widget sürüklenmeye kalkıldı (basılıyken sürükleme mesafesi aşıldı): sessizce yerinde kalmak yerine bir kez
+    /// "Konum kilitli." denir ve "Kilidi aç" sunulur. Düz tıklama bir şey söylemez.
+    /// </summary>
+    private void CheckLockedDrag(MouseEventArgs e)
+    {
+        if (_lockedPress is not { } start) return;
+        if (e.LeftButton != MouseButtonState.Pressed || !Config.Locked)
+        {
+            _lockedPress = null;
+            return;
+        }
+        var delta = e.GetPosition(_card) - start;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        _lockedPress = null;
+        var id = Config.Id;
+        Views.Notice.Show(L.T("Konum kilitli."), Views.NoticeKind.Info, L.T("Kilidi aç"),
+            () => AppHost.Widgets.Unlock(id), L.T("Kilidi açmak için buraya tıkla."));
     }
 
     private void ContinueDrag()

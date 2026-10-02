@@ -135,6 +135,40 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         return true;
     }
 
+    /// <summary>Silinen sekme: kendisi, yeri, silinmeden önceki etkin sekme ve onunla silinen ad/simge kayıtları ("Geri al" için).</summary>
+    public sealed record RemovedTab(LauncherTab Tab, int Index, int ActiveTab, IReadOnlyList<KeyValuePair<string, ItemLook>> Looks);
+
+    /// <summary>
+    /// <paramref name="index"/>. sekmeyi siler (son sekme silinmez). Başka sekmede kalmayan öğelerin adları ve simgeleri de
+    /// gider (<paramref name="keepLooks"/> hariç: son çıkarılan öğe "Geri al" için tutulur). Silinemezse null.
+    /// </summary>
+    public static RemovedTab? TakeTab(WidgetConfig config, int index, IEnumerable<string>? keepLooks = null)
+    {
+        if (config.Tabs.Count <= 1 || index < 0 || index >= config.Tabs.Count) return null;
+        var tab = config.Tabs[index];
+        var active = config.ActiveTab;
+        var before = config.ItemLooks?.ToList() ?? [];
+        config.Tabs.RemoveAt(index);
+        config.ActiveTab = Math.Clamp(config.ActiveTab, 0, config.Tabs.Count - 1);
+        ItemLooks.Prune(config, keepLooks);
+        var lost = before.Where(p => config.ItemLooks is not { } map || !map.ContainsKey(p.Key)).ToList();
+        return new RemovedTab(tab, index, active, lost);
+    }
+
+    /// <summary>
+    /// Silinen sekmeyi yerine (kısılır) koyar, etkin sekmeyi ve silinen adları/simgeleri geri verir; o arada verilmiş ad/simge
+    /// ezilmez. Sekme zaten duruyorsa false.
+    /// </summary>
+    public static bool PutTab(WidgetConfig config, RemovedTab removed)
+    {
+        if (config.Tabs.Contains(removed.Tab)) return false;
+        config.Tabs.Insert(Math.Min(removed.Index, config.Tabs.Count), removed.Tab);
+        config.ActiveTab = Math.Clamp(removed.ActiveTab, 0, config.Tabs.Count - 1);
+        foreach (var (path, look) in removed.Looks)
+            if (ItemLooks.Get(config, path) is null) ItemLooks.Restore(config, path, look);
+        return true;
+    }
+
     /// <summary>
     /// Yolları sekmeye ekler: <paramref name="at"/> sırasından başlayarak (yoksa sona), sekmede olmayanları (harf duyarsız).
     /// <paramref name="look"/> verilirse kendi adı/simgesi olmayan öğeye verilir. Eklenenleri döner.

@@ -103,22 +103,19 @@ public class QuickKeysTests
             var icons = Menus.TileOptions(c, change => { change(); changes++; }, singleClickOption: true);
             menu.Items.Add(icons);
             var option = icons.Items.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Numara tuşlarıyla aç (1–9)");
-            var hint = icons.Items.OfType<MenuItem>().Single(o => (string)o.Header == "Aç: 1–9 · Ara: harf yaz");
+            // Kolay NestDesk: rozet ve gri ipucu satırı yok (tıklanamayan satır yok).
+            Assert.DoesNotContain(icons.Items.OfType<MenuItem>(), o => !o.IsEnabled);
 
             Assert.False(option.IsChecked);
             Assert.True(option.StaysOpenOnClick);
-            Assert.Equal(System.Windows.Visibility.Collapsed, hint.Visibility); // rozet yok; ipucu yalnızca açıkken
-            Assert.False(hint.IsEnabled);
 
             Click(option);
             Assert.True(c.QuickKeys);
             Assert.True(option.IsChecked);
-            Assert.Equal(System.Windows.Visibility.Visible, hint.Visibility);
             Assert.Equal(0, changes); // görünüş değişmez: kutucuklar yeniden kurulmaz
 
             Click(option);
             Assert.False(c.QuickKeys);
-            Assert.Equal(System.Windows.Visibility.Collapsed, hint.Visibility);
         });
     }
 
@@ -130,7 +127,6 @@ public class QuickKeysTests
             using var _ = L.Use(Lang.En);
             var icons = Menus.TileOptions(new WidgetConfig { Kind = WidgetKind.Launcher, QuickKeys = true }, change => change(), singleClickOption: false);
             Assert.Contains(icons.Items.OfType<OptionMenuItem>(), o => (string)o.Header == "Open with number keys (1–9)" && o.IsChecked);
-            Assert.Contains(icons.Items.OfType<MenuItem>(), o => (string)o.Header == "Open: 1–9 · Find: type a letter");
         });
     }
 

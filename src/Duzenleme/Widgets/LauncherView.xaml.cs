@@ -66,7 +66,6 @@ public partial class LauncherView : UserControl, IWidgetView
     public bool Collapsible => _config.Shows("header");
     public Thickness CardPadding => new(14, 12, 14, 12);
     public event Action? CollapseToggleRequested;
-    public event Action? MenuRequested;
     public event Action? LayoutChanged;
 
     // Etiketler Menus.Parts'ta çevrilir (L.Dyn).
@@ -249,19 +248,29 @@ public partial class LauncherView : UserControl, IWidgetView
         if (_config.Tabs.Count > 1)
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Menus.Item(L.T("Sekmeyi sil"), () =>
-            {
-                Change(() =>
-                {
-                    _config.Tabs.RemoveAt(index);
-                    _config.ActiveTab = Math.Clamp(_config.ActiveTab, 0, _config.Tabs.Count - 1);
-                    // Başka sekmede kalmayan öğelerin adları ve simgeleri de gider (son silinen öğe "Geri al" için tutulur).
-                    ItemLooks.Prune(_config, _edits.LastRemoved?.Entry.Path is { } last ? [last] : null);
-                });
-                // Sekmedeki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
-                BoxMover.Reconcile();
-            }));
+            menu.Items.Add(Menus.Item(L.T("Sekmeyi sil"), () => DeleteTab(tab)));
         }
+    }
+
+    /// <summary>
+    /// Sekmeyi siler (soru yok): başka sekmede kalmayan öğelerin adları ve simgeleri de gider (son çıkarılan öğe "Geri al" için
+    /// tutulur), masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner. Bildirimdeki "Geri al" sekmeyi içindekiler,
+    /// adlar ve simgelerle yerine koyar (kip açıksa öğeler yeniden kutunun klasörüne taşınır).
+    /// </summary>
+    private void DeleteTab(LauncherTab tab)
+    {
+        LauncherEdits.RemovedTab? removed = null;
+        Change(() => removed = LauncherEdits.TakeTab(_config, _config.Tabs.IndexOf(tab),
+            _edits.LastRemoved?.Entry.Path is { } last ? [last] : null));
+        if (removed is not { } taken) return;
+        BoxMover.Reconcile();
+        Views.Notice.Show(L.F("\"{0}\" sekmesi silindi.", tab.Name), Views.NoticeKind.Info, L.T("Geri al"), () =>
+        {
+            if (!AppHost.Settings.Widgets.Contains(_config)) return;
+            var restored = false;
+            Change(() => restored = LauncherEdits.PutTab(_config, taken));
+            if (restored) BoxMover.Reconcile();
+        }, L.T("Geri almak için buraya tıkla."));
     }
 
     private void Swap(int a, int b)
@@ -361,7 +370,7 @@ public partial class LauncherView : UserControl, IWidgetView
         }
         else
         {
-            var remove = Menus.Item(L.T("Widget'tan kaldır", "kutu"), () => RemoveItem(item));
+            var remove = Menus.Item(L.T("Kutudan kaldır"), () => RemoveItem(item));
             remove.InputGestureText = KeyNames.Delete;
             remove.ToolTip = L.T("Yalnızca kısayol kutudan çıkar; dosyaya dokunulmaz.\nGeri almak için: kutuya sağ tık → Geri al");
             menu.Items.Add(remove);
@@ -400,8 +409,6 @@ public partial class LauncherView : UserControl, IWidgetView
                 })));
             menu.Items.Add(move);
         }
-        menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item(L.T("Kutu ayarları…"), () => MenuRequested?.Invoke()));
     }
 
     /// <summary>
@@ -617,13 +624,8 @@ public partial class LauncherView : UserControl, IWidgetView
         menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         menu.Primary.Add(Menus.TileOptions(_config, Change, singleClickOption: false));
         menu.Appearance.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
-        // Ayarlar'daki "Windows masaüstü simgeleri" seçimiyle aynı yol (Views.DesktopModes). Kip değişimi dosya taşımayı
-        // sorabilir: menüyü kapatır.
-        static bool Leaves() => Views.DesktopModes.Current == Views.IconMode.BoxItemsLeave;
-        var toggle = Menus.Toggle(L.T("Kutuya eklediklerim masaüstünden kalksın"), Leaves,
-            () => Views.DesktopModes.Set(Leaves() ? Views.IconMode.ShowAll : Views.IconMode.BoxItemsLeave, null, null), staysOpen: false);
-        toggle.ToolTip = L.F("Açıkken kutuya eklenen masaüstü öğeleri {0} klasörüne taşınır ve kutuda durur.", BoxMover.Root);
-        menu.More.Add(toggle);
+        // "Kutuya eklediklerim masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da, Widget'lar
+        // sayfasında ve tepside (Views.DesktopModes).
     }
 
     public bool OnCtrlWheel(int delta)

@@ -187,7 +187,7 @@ public partial class WidgetsPage : Page
     {
         var rows = AppHost.Settings.Layouts.OrderByDescending(l => l.Created).Select(l => new LayoutRow(l)).ToList();
         LayoutList.ItemsSource = rows;
-        LayoutsTitle.Text = L.F("Kayıtlı düzenler ({0})", rows.Count);
+        LayoutsTitle.Text = L.F("Kayıtlı yerleşimler ({0})", rows.Count);
         LayoutEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -291,11 +291,11 @@ public partial class WidgetsPage : Page
 
     private void Arrange_Click(object sender, RoutedEventArgs e)
     {
-        var count = AppHost.Widgets.ArrangeAll();
-        // Geri al yok: bildirim açık kalırken eklenen widget yedekle değiştirilince sessizce silinirdi. Yedek Kayıtlı düzenler'de.
-        if (count == 0) Notice.Show(L.T("Yerleştirilecek widget yok."), NoticeKind.Info);
-        else Notice.Show(L.P(count, "{0} widget düzenli yerleştirildi. Önceki yerleşim Kayıtlı düzenler'de \"{1}\" adıyla duruyor.",
-            WidgetManager.ArrangeBackupName));
+        var count = AppHost.Widgets.ArrangeAll(out var moves);
+        // "Geri al" yalnızca konumları geri koyar (yedeği bütünüyle uygulamak bildirim açıkken eklenen widget'ı silerdi);
+        // önceki yerleşim ayrıca Kayıtlı yerleşimler'de durur.
+        if (count == 0) Notice.Show(L.T("Hizalanacak widget yok."), NoticeKind.Info);
+        else Notice.Show(L.P(count, "{0} widget hizalandı."), NoticeKind.Success, L.T("Geri al"), () => AppHost.Widgets.UndoArrange(moves));
     }
 
     private void Reveal_Click(object sender, RoutedEventArgs e)
