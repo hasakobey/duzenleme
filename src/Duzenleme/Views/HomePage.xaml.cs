@@ -27,6 +27,8 @@ public partial class HomePage : Page
     private int _journalQueued;
     /// <summary>"Anladım"dan sonra şerit solarken: kayıt bildirimi onu yarıda kesip hemen kaldırmasın.</summary>
     private bool _howToLeaving;
+    /// <summary>Şeridin kurulduğu çift tıklama etkisi: Halka kartı ona göre yazılır; ayar değişince şerit yeniden kurulur.</summary>
+    private DoubleClickEffect? _howToFor;
 
     public HomePage()
     {
@@ -143,7 +145,12 @@ public partial class HomePage : Page
         if (HowToCards.ShouldShow(AppHost.Settings))
         {
             if (_howToLeaving) return;
-            HowToHost.Child ??= HowToCards.Create(OnHowToDismissed);
+            var doubleClick = HowToCards.CurrentDoubleClick();
+            if (HowToHost.Child is null || _howToFor != doubleClick)
+            {
+                HowToHost.Child = HowToCards.Create(doubleClick, OnHowToDismissed);
+                _howToFor = doubleClick;
+            }
             HowToHost.Visibility = Visibility.Visible;
         }
         else if (!_howToLeaving)
@@ -178,6 +185,9 @@ public partial class HomePage : Page
         StatusIcon.Symbol = on ? SymbolRegular.FolderArrowRight24 : SymbolRegular.Pause24;
         StatusIcon.SetResourceReference(IconElement.ForegroundProperty, on ? "AccentTextFillColorPrimaryBrush" : "TextFillColorTertiaryBrush");
         SetUpFolders.Visibility = setUp ? Visibility.Visible : Visibility.Collapsed;
+        // Hedef klasör yokken "Dosyaları şimdi taşı" bir şey taşımaz ("Klasör yoksa oluştur" kapalıysa): yerini "Klasörleri
+        // ayarla" alır, satırda en çok iki düğme ve anahtar kalır.
+        OrganizeButton.Visibility = setUp && !AppHost.Settings.CreateMissingFolders ? Visibility.Collapsed : Visibility.Visible;
         // "Geri al" yalnızca geri alınacak taşıma varken; ekran okuyucu hangi dosyanın döneceğini duyar.
         UndoButton.Visibility = last is null ? Visibility.Collapsed : Visibility.Visible;
         AutomationProperties.SetName(UndoButton, last is null ? L.T("Geri al") : L.F("Geri al: {0}", last.FileName));

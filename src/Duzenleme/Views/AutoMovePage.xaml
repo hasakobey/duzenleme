@@ -214,7 +214,7 @@
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Varsayılan kurallara dön'}" />
-                            <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Hazır altı kural geri gelir; eklediğin kurallar silinir.'}" />
+                            <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Eklediğin ya da değiştirdiğin kurallar silinir; hazır altı kural geri gelir.'}" />
                         </StackPanel>
                         <ui:Button Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" Content="{l:T 'Varsayılana döndür'}"
                                    AutomationProperties.AutomationId="AutoMove.ResetRules" Click="ResetRules_Click" />

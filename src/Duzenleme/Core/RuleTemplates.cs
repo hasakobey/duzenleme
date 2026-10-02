@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Duzenleme.Core;
 
 /// <summary>
@@ -27,11 +29,20 @@ public sealed record RuleOffer(RuleTemplate Template, IReadOnlyList<string> Exte
 /// <summary>Yazılan uzantının durumu (<see cref="RuleTemplates.Check"/>).</summary>
 public enum ExtensionProblem { None, Invalid, Ignored, Taken }
 
-/// <summary>Uzantı denetimi: düzgün biçimi (".PDF" → "pdf"), sorunu ve (alınmışsa) onu kullanan kuralın klasörü.</summary>
-public readonly record struct ExtensionCheck(string Extension, ExtensionProblem Problem, string? Owner = null)
+/// <summary>
+/// Uzantı denetimi: düzgün biçimi (".PDF" → "pdf"), sorunu ve (alınmışsa) onu kullanan kuralın klasörü; OwnerOff: o kural
+/// kapalı (uzantı yine onundur: kural açılınca ilk eşleşen o olur).
+/// </summary>
+public readonly record struct ExtensionCheck(string Extension, ExtensionProblem Problem, string? Owner = null, bool OwnerOff = false)
 {
     public bool Ok => Problem == ExtensionProblem.None;
 }
+
+/// <summary>
+/// "Nereye?"nin sonucu: kuralın klasörü (masaüstündeki klasörün gerçek yazılışıyla), masaüstünde var mı ve "Ekle"/"Kaydet"
+/// onu açmalı mı (<see cref="RuleTemplates.ResolveFolder"/>).
+/// </summary>
+public readonly record struct FolderTarget(string Folder, bool Exists, bool Create);
 
 /// <summary>
 /// Kural kalıpları ve uzantı kuralları ("Kural ekle" penceresi; saf, testlenir). Bir uzantı en çok bir kuralda olur:
@@ -122,14 +133,19 @@ public static class RuleTemplates
         return dot >= 0 ? ext[(dot + 1)..] : ext;
     }
 
-    /// <summary>Yazılan metindeki uzantılar (virgül, noktalı virgül ya da boşlukla ayrılmış), düzgün biçimde ve tekil.</summary>
-    public static List<string> Split(string text) =>
-        text.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Select(Normalize).Where(e => e.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+    // Uzantıları ayıran karakterler (virgül, noktalı virgül, boşluk, satır).
+    private static readonly char[] SeparatorChars = [',', ';', ' ', '\t', '\r', '\n'];
+
+    /// <summary>Metinde ayraç var mı (çip girişi: ayraç yazılınca ya da birden çok uzantı yapıştırılınca uzantılar çipe döner)?</summary>
+    public static bool HasSeparator(string text) => text.AsSpan().IndexOfAny(SeparatorChars) >= 0;
+
+    /// <summary>Yazılan metnin parçaları, yazıldığı gibi (ayraçlarla bölünmüş, boşlar atılmış); her biri <see cref="Check"/>'e gider.</summary>
+    public static string[] Parts(string text) => text.Split(SeparatorChars, StringSplitOptions.RemoveEmptyEntries);
 
     /// <summary>
     /// Uzantı eklenebilir mi: dosya adında olamayan karakter ya da çok uzun → Invalid; hiç taşınmayan tür (kısayol, yarım
-    /// indirme…) → Ignored; başka bir kuralda (editing dışında) → Taken (Owner: o kuralın klasörü).
+    /// indirme…) → Ignored; başka bir kuralda (editing dışında; kapalı kural da sayılır, OwnerOff) → Taken (Owner: o kuralın
+    /// klasörü).
     /// </summary>
     public static ExtensionCheck Check(string raw, IReadOnlyList<Rule> rules, Rule? editing = null)
     {
@@ -138,15 +154,55 @@ public static class RuleTemplates
             return new(ext, ExtensionProblem.Invalid);
         if (RuleEngine.IgnoredExtensions.Contains(ext)) return new(ext, ExtensionProblem.Ignored);
         var owner = rules.FirstOrDefault(r => !ReferenceEquals(r, editing) && r.Extensions.Any(e => Normalize(e) == ext));
-        return owner is null ? new(ext, ExtensionProblem.None) : new(ext, ExtensionProblem.Taken, owner.TargetFolder);
+        return owner is null ? new(ext, ExtensionProblem.None) : new(ext, ExtensionProblem.Taken, owner.TargetFolder, !owner.Enabled);
     }
+
+    /// <summary>
+    /// "Nereye?"de yazılan klasör adı: masaüstünde aynı adlı klasör varsa (büyük/küçük harf ve Türkçe karakter fark etmez) o,
+    /// açılmaz. Yoksa yeni klasör açılır; yalnızca düzenlenen kuralın kendi klasörü (<paramref name="ownFolder"/>) açılmaz:
+    /// "Değiştir…" → "Kaydet" bir şey değiştirmeden klasör açıp dosya taşımaya başlamasın (klasör kurala yazıldığı gibi kalır,
+    /// dosyalar o masaüstünde açılınca gider; kartın "Oluştur"u açar).
+    /// </summary>
+    public static FolderTarget ResolveFolder(string name, IEnumerable<string> desktopFolders, string? ownFolder = null)
+    {
+        name = name.Trim();
+        if (desktopFolders.FirstOrDefault(f => FolderName.Equal(f, name)) is { } same) return new(same, Exists: true, Create: false);
+        var own = ownFolder is not null && FolderName.Equal(ownFolder.Trim(), name);
+        return new(name, Exists: false, Create: !own);
+    }
+
+    /// <summary>
+    /// "Kaydet" bir şey değiştirdi mi? Klasör (yazılışıyla) ve uzantılar (düzgün biçimde, sırasıyla) aynıysa hayır: kural
+    /// yeniden yazılmaz, masaüstü taranmaz, bildirim çıkmaz.
+    /// </summary>
+    public static bool SameRule(Rule before, Rule after) =>
+        string.Equals(before.TargetFolder.Trim(), after.TargetFolder.Trim(), StringComparison.Ordinal)
+        && Clean(before.Extensions).SequenceEqual(Clean(after.Extensions));
+
+    /// <summary>
+    /// Kuralın <paramref name="since"/>'ten bu yana yaptığı, geri alınmamış taşımalar (kuralı ekleme ya da değiştirmeyi geri
+    /// alan "Geri al" bunları da geri alır): hedef klasörü kuralın klasörü, uzantısı kuralın uzantılarından biri. Bir uzantı
+    /// en çok bir kuralda olduğundan başka kuralın taşıması karışmaz.
+    /// </summary>
+    public static List<MoveEntry> MovedBy(IEnumerable<MoveEntry> entries, Rule rule, DateTime since)
+    {
+        var folder = rule.TargetFolder.Trim();
+        var extensions = Clean(rule.Extensions).ToHashSet(StringComparer.Ordinal);
+        if (folder.Length == 0 || extensions.Count == 0) return [];
+        return entries.Where(e => !e.Undone && e.Time >= since && FolderName.Equal(e.FolderName, folder)
+                                  && extensions.Contains(Normalize(Path.GetExtension(e.Destination))))
+            .ToList();
+    }
+
+    private static List<string> Clean(IEnumerable<string> extensions) =>
+        extensions.Select(Normalize).Where(e => e.Length > 0).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>Uzantıların gösterimi: ".psd .ai .fig".</summary>
     public static string Dotted(IEnumerable<string> extensions) => string.Join(" ", extensions.Select(e => "." + e));
 
     /// <summary>Yeni kural (açık).</summary>
     public static Rule Create(IEnumerable<string> extensions, string folder) =>
-        new() { TargetFolder = folder, Extensions = extensions.Select(Normalize).Where(e => e.Length > 0).Distinct().ToList() };
+        new() { TargetFolder = folder, Extensions = Clean(extensions) };
 
     /// <summary>
     /// Düzenlenen kuralın yeni hâli: yeni nesne (izleyici eskisini okurken değişmesin); açık/kapalı ve daha yeni sürümün
@@ -156,7 +212,7 @@ public static class RuleTemplates
     {
         var copy = rule.Clone();
         copy.TargetFolder = folder;
-        copy.Extensions = extensions.Select(Normalize).Where(e => e.Length > 0).Distinct().ToList();
+        copy.Extensions = Clean(extensions);
         return copy;
     }
 

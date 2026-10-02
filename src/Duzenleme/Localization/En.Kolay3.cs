@@ -16,7 +16,8 @@ internal static partial class En
         new("Kural seçenekleri: {0}", "Rule options: {0}"),
         new("Henüz kural yok.", "No rules yet."),
         new("Varsayılan kurallara dön", "Go back to the default rules"),
-        new("Hazır altı kural geri gelir; eklediğin kurallar silinir.", "The six default rules come back; rules you added are removed."),
+        new("Eklediğin ya da değiştirdiğin kurallar silinir; hazır altı kural geri gelir.",
+            "Rules you've added or changed are removed and the six default rules come back."),
 
         // "Kural ekle" / "Kuralı değiştir"
         new("Kuralı değiştir", "Change rule"),
@@ -31,12 +32,15 @@ internal static partial class En
         new("ör. psd", "e.g. psd"),
         new(".{0} dosyaları hiç taşınmaz.", ".{0} files are never moved."),
         new(".{0} zaten \"{1}\" kuralında.", ".{0} is already in the \"{1}\" rule."),
+        new(".{0} zaten \"{1}\" kuralında (kural kapalı).", ".{0} is already in the \"{1}\" rule (the rule is off)."),
         new("\"{0}\" bir uzantı olamaz.", "\"{0}\" can't be an extension."),
         new("Yeni klasör:", "New folder:"),
         new("Masaüstündeki klasör:", "Folder on the desktop:"),
         new("Dosyalar masaüstündeki \"{0}\" klasörüne gider.", "Files go to the \"{0}\" folder on the desktop."),
         new("Masaüstünde \"{0}\" klasörü var; dosyalar oraya gider.", "There's a \"{0}\" folder on the desktop; files go there."),
         new("Masaüstünde \"{0}\" klasörü oluşturulur.", "A \"{0}\" folder will be created on the desktop."),
+        new("Masaüstünde \"{0}\" klasörü yok; kartındaki \"Oluştur\" açar.",
+            "There's no \"{0}\" folder on the desktop yet; use Create on the rule's card to make it."),
         new("Klasöre bir ad ver.", "Give the folder a name."),
         new("\"{0}\" kuralı eklendi.", "The \"{0}\" rule was added."),
         new("\"{0}\" kuralı eklendi; masaüstünde \"{0}\" klasörü de oluşturuldu.",
@@ -44,6 +48,9 @@ internal static partial class En
         new("\"{0}\" kuralı değiştirildi.", "The \"{0}\" rule was changed."),
         new("\"{0}\" kuralı değiştirildi; masaüstünde \"{0}\" klasörü de oluşturuldu.",
             "The \"{0}\" rule was changed, and a \"{0}\" folder was created on the desktop."),
+        new("{0} dosya masaüstüne döndü.", "{0} file is back on the desktop.", "{0} files are back on the desktop."),
+        new("{0} dosya masaüstüne geri konamadı.", "{0} file couldn't be put back on the desktop.",
+            "{0} files couldn't be put back on the desktop."),
 
         // Kural kalıpları (klasör adı; kural oluşturulurken bir kez arayüz dilinde yazılır)
         new("E-kitaplar", "E-books"),
@@ -62,10 +69,10 @@ internal static partial class En
         new("Nasıl kullanılır kartlarını bir daha gösterme", "Don't show the How it works cards again"),
         new("Başlığından ya da boş yerinden sürükle.", "Drag it by its title or an empty spot."),
         new("Büyüt", "Resize"),
-        new("Kenarından sürükle ya da ⋯ › Boyut.", "Drag an edge, or use ⋯ › Size."),
+        new("Kenarından sürükle.", "Drag an edge."),
         new("Düzenle", "Edit"),
-        new("⋯'ye bas ya da sağ tıkla.", "Click ⋯ or right-click it."),
+        new("Üzerine sağ tıkla.", "Right-click it."),
         new("Halka", "Ring"),
-        new("Widget ekle › Halka menü.", "Add widget › Ring menu."),
+        new("Widget ekle › Hepsini göster › Halka menü.", "Add widget › Show all › Ring menu."),
     ]);
 }

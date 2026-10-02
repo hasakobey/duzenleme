@@ -34,12 +34,12 @@ public class HomePageTests
     [Fact]
     public void How_to_cards_are_four_short_static_cards()
     {
-        var cards = HowToCards.Cards;
+        var cards = HowToCards.CardsFor(DoubleClickEffect.ToggleDesktop);
         Assert.Equal(["move", "resize", "edit", "ring"], cards.Select(c => c.Key));
         Assert.Equal(["Taşı", "Büyüt", "Düzenle", "Halka"], cards.Select(c => c.Title));
         Assert.Equal("Başlığından ya da boş yerinden sürükle.", cards[0].Text);
-        Assert.Equal("Kenarından sürükle ya da ⋯ › Boyut.", cards[1].Text);
-        Assert.Equal("⋯'ye bas ya da sağ tıkla.", cards[2].Text);
+        Assert.Equal("Kenarından sürükle.", cards[1].Text);
+        Assert.Equal("Üzerine sağ tıkla.", cards[2].Text);
         Assert.All(cards, c =>
         {
             Assert.DoesNotContain(' ', c.Title);
@@ -49,23 +49,45 @@ public class HomePageTests
         });
 
         using var _ = L.Use(Lang.En);
-        Assert.Equal(["Move", "Resize", "Edit", "Ring"], HowToCards.Cards.Select(c => c.Title));
+        Assert.Equal(["Move", "Resize", "Edit", "Ring"], HowToCards.CardsFor(DoubleClickEffect.Peek).Select(c => c.Title));
     }
 
     /// <summary>
-    /// Halka kartı halkaya bugün ulaşılan yolu söyler. Boş masaüstüne çift tıklama halkayı açınca (<see cref="DoubleClickEffect"/>'e
-    /// halka eklenince) kart "Boş masaüstüne çift tıkla." demeli: bu test o gün kartla birlikte güncellenir.
+    /// Kartlar yalnızca bugün çalışan yolu söyler: widget'larda ⋯ düğmesi yokken "Büyüt" ve "Düzenle" onu anmaz. ⋯ düğmesi
+    /// (MoreHorizontal simgesi ya da "⋯") widget'lara gelince bu test düşer: kartlara ⋯ yolunu ekle ve testi güncelle.
     /// </summary>
     [Fact]
-    public void Ring_card_names_the_way_to_the_ring_that_works_today()
+    public void How_to_cards_do_not_name_a_more_button_widgets_do_not_have()
     {
-        var ring = HowToCards.Cards.Single(c => c.Key == "ring");
-        var doubleClickOpensRing = Enum.GetNames<DoubleClickEffect>().Contains("Ring");
-        Assert.False(doubleClickOpensRing,
-            "Çift tıklama halkayı açıyor: HowToCards.RingText'i \"Boş masaüstüne çift tıkla.\" yap ve bu testi güncelle.");
-        Assert.Equal("Widget ekle › Halka menü.", ring.Text);
-        // Kartın gösterdiği yol gerçekten var: "Widget ekle"de "Halka menü" kutucuğu.
+        var widgets = Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets");
+        var withMore = Directory.EnumerateFiles(widgets, "*.*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".cs", StringComparison.Ordinal) || f.EndsWith(".xaml", StringComparison.Ordinal))
+            .Where(f => File.ReadAllText(f) is var text && (text.Contains("MoreHorizontal", StringComparison.Ordinal) || text.Contains('⋯')))
+            .Select(Path.GetFileName).ToList();
+        Assert.True(withMore.Count == 0,
+            $"Widget'larda ⋯ düğmesi var ({string.Join(", ", withMore)}): HowToCards'ta \"Büyüt\" ve \"Düzenle\" kartlarına ⋯ yolunu ekle ve bu testi güncelle.");
+        Assert.All(HowToCards.CardsFor(DoubleClickEffect.ToggleDesktop), c => Assert.DoesNotContain("⋯", c.Text));
+    }
+
+    /// <summary>
+    /// Halka kartı halkaya bu kullanıcının bugün ulaştığı yolu söyler: çift tıklama ayarı halkayı açıyorsa (yalnızca o seçenekte;
+    /// <see cref="DoubleClickEffect"/>'e halka gelince) "Boş masaüstüne çift tıkla.", değilse "Widget ekle" yolu. Kart
+    /// kullanıcının gerçek ayarına bakar (eski kullanıcı kendi çift tıklama seçimini korur); her seçenek denetlenir.
+    /// </summary>
+    [Fact]
+    public void Ring_card_names_the_way_to_the_ring_that_works_for_this_user()
+    {
+        foreach (var effect in Enum.GetValues<DoubleClickEffect>())
+        {
+            var expected = effect.ToString() == "Ring" ? "Boş masaüstüne çift tıkla." : "Widget ekle › Hepsini göster › Halka menü.";
+            Assert.Equal(expected, HowToCards.RingText(effect));
+            Assert.Equal(expected, HowToCards.CardsFor(effect).Single(c => c.Key == "ring").Text);
+        }
+        // Kartın gösterdiği yol gerçekten var: "Widget ekle"de "Hepsini göster"in altında "Halka menü" kutucuğu. Kutucuk ilk
+        // sayfaya taşınırsa kart "Widget ekle › Halka menü." olmalı.
         Assert.Contains(WidgetCatalog.Tools, c => c.Key == "Ring" && c.Label == "Halka menü");
+        Assert.Contains("Ring", WidgetCatalog.MoreKeys);
+        Assert.DoesNotContain("Ring", WidgetCatalog.FeaturedKeys);
     }
 
     [Fact]
@@ -110,6 +132,17 @@ public class HomePageTests
         // Ekleme her zaman tek "Widget ekle" penceresinden; halka düğmesi tek giriş noktasından.
         Assert.Contains("ShowQuickAdd()", code);
         Assert.Contains("HomeRing.Edit(", code);
+
+        // Sayfa içeriği kadar değil pencere kadar geniş (dar düzen geri beslenip takılmasın): sütunun en çok genişliği
+        // PageRoot'un MaxWidth'i + yan boşlukları (fazlası geniş pencerede sayfayı ortalardı).
+        var app = XDocument.Parse(Read("App.xaml"));
+        var pageRoot = app.Descendants().Single(e => e.Name.LocalName == "Style"
+            && (string?)e.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "PageRoot");
+        var setters = pageRoot.Elements().ToDictionary(e => (string)e.Attribute("Property")!, e => (string)e.Attribute("Value")!);
+        var margin = setters["Margin"].Split(',').Select(v => double.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        var max = double.Parse(setters["MaxWidth"], System.Globalization.CultureInfo.InvariantCulture) + margin[0] + margin[2];
+        Assert.Contains($"<ColumnDefinition Width=\"*\" MaxWidth=\"{max.ToString(System.Globalization.CultureInfo.InvariantCulture)}\" />", xaml);
+        Assert.Contains("<StackPanel Style=\"{StaticResource PageRoot}\" HorizontalAlignment=\"Stretch\">", xaml);
     }
 
     private static string Read(params string[] parts) =>

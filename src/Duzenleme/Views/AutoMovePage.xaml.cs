@@ -352,9 +352,9 @@ public partial class AutoMovePage : Page
     }
 
     /// <summary>"+ Kural ekle": iki adımlı pencere ("Hangi dosyalar?" → "Nereye?"); kuralı o ekler, kartlar burada yenilenir.</summary>
-    private void AddRule_Click(object sender, RoutedEventArgs e)
+    private async void AddRule_Click(object sender, RoutedEventArgs e)
     {
-        RuleDialog.Add(Window.GetWindow(this));
+        await RuleDialog.AddAsync(Window.GetWindow(this));
         AfterRulesChanged();
     }
 
@@ -379,9 +379,9 @@ public partial class AutoMovePage : Page
         var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
         var edit = new MenuItem { Header = L.T("Değiştir…") };
         AutomationProperties.SetAutomationId(edit, "Rule.Edit");
-        edit.Click += (_, _) =>
+        edit.Click += async (_, _) =>
         {
-            RuleDialog.Edit(Window.GetWindow(this), row.Rule);
+            await RuleDialog.EditAsync(Window.GetWindow(this), row.Rule);
             AfterRulesChanged();
         };
         var delete = new MenuItem { Header = L.T("Sil") };
@@ -414,16 +414,24 @@ public partial class AutoMovePage : Page
     }
 
     /// <summary>Kartın "Oluştur"u: kuralın klasörünü masaüstünde açar (otomatik taşıma açıksa dosyalar hemen gider).</summary>
-    private void CreateFolder_Click(object sender, RoutedEventArgs e)
+    private async void CreateFolder_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not RuleRow row) return;
+        if (sender is not FrameworkElement { DataContext: RuleRow row } button) return;
         var name = row.Rule.TargetFolder.Trim();
         if (name.Length == 0) return;
         var waiting = row.Pending;
-        if (!RuleDialog.CreateDesktopFolder(name)) return;
-        RefreshCard();
-        RefreshStatuses();
-        ScheduleRecount();
+        // Klasör arka planda açılır: bu arada ikinci tık ikinci kez açmaya kalkmasın.
+        button.IsEnabled = false;
+        bool ok;
+        try { ok = (await RuleDialog.CreateDesktopFolderAsync(name)).Ok; }
+        finally { button.IsEnabled = true; }
+        if (!ok) return;
+        if (IsLoaded)
+        {
+            RefreshCard();
+            RefreshStatuses();
+            ScheduleRecount();
+        }
         if (!AppHost.Settings.Paused)
         {
             AppHost.OrganizeIfActive();

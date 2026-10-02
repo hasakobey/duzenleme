@@ -24,108 +24,116 @@
         </Style>
     </Page.Resources>
 
-    <!-- Sakin ana sayfa: iki büyük düğme, ilk ziyarette "Nasıl kullanılır", tek satırlık otomatik taşıma ve son taşınanlar. -->
-    <StackPanel Style="{StaticResource PageRoot}">
-        <TextBlock x:Name="Hello" Style="{StaticResource PageTitle}" Margin="0,0,0,20" />
+    <!-- Sakin ana sayfa: iki büyük düğme, ilk ziyarette "Nasıl kullanılır", tek satırlık otomatik taşıma ve son taşınanlar.
+         Sayfa pencereyle genişler (solda, en çok PageRoot'un 920 DIP'i: sütun 920 + iki yanda 32): PageRoot kendi başına sola
+         yaslı olduğundan içeriği kadar genişlerdi; dar düzene geçen satır (düğmeler alt satırda, kartlar ikişerli) sayfayı
+         daraltır, pencere büyüyünce de dar kalırdı. Genişlik içerikten değil pencereden geldiği için dar/geniş kararı geri beslenmez. -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MaxWidth="984" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Style="{StaticResource PageRoot}" HorizontalAlignment="Stretch">
+            <TextBlock x:Name="Hello" Style="{StaticResource PageTitle}" Margin="0,0,0,20" />
 
-        <UniformGrid Columns="2" Margin="-5,0">
-            <ui:Button x:Name="AddWidgetTile" Style="{StaticResource HomeTile}" Margin="5,0" Appearance="Primary"
-                       AutomationProperties.AutomationId="Home.AddWidget" AutomationProperties.Name="{l:T 'Widget ekle'}"
-                       Click="AddWidget_Click">
-                <Grid>
+            <UniformGrid Columns="2" Margin="-5,0">
+                <ui:Button x:Name="AddWidgetTile" Style="{StaticResource HomeTile}" Margin="5,0" Appearance="Primary"
+                           AutomationProperties.AutomationId="Home.AddWidget" AutomationProperties.Name="{l:T 'Widget ekle'}"
+                           Click="AddWidget_Click">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="Add24" FontSize="26" Margin="0,0,16,0" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Widget ekle'}" />
+                            <TextBlock Style="{StaticResource TileText}" Text="{l:T 'Saat, not, bölme…'}" />
+                        </StackPanel>
+                    </Grid>
+                </ui:Button>
+                <!-- Halka varsa "Halkayı düzenle", yoksa "Halka menü ekle" (metinler koddan; bkz. HomeRing). -->
+                <ui:Button x:Name="RingTile" Style="{StaticResource HomeTile}" Margin="5,0"
+                           AutomationProperties.AutomationId="Home.EditRing" Click="EditRing_Click">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="DataPie24" FontSize="26" Margin="0,0,16,0" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="RingTileTitle" Style="{StaticResource TileTitle}" />
+                            <TextBlock x:Name="RingTileText" Style="{StaticResource TileText}" />
+                        </StackPanel>
+                    </Grid>
+                </ui:Button>
+            </UniformGrid>
+
+            <!-- İlk ziyaret: "Nasıl kullanılır" (Views/HowToCards; "Anladım"dan sonra gösterilmez). -->
+            <Border x:Name="HowToHost" Margin="0,24,0,0" Visibility="Collapsed" />
+
+            <!-- Otomatik taşıma: tek satır (dar pencerede düğmeler alt satıra iner). -->
+            <Border Style="{StaticResource Surface}" Margin="0,24,0,0" Padding="16,10"
+                    AutomationProperties.AutomationId="Home.AutoMove">
+                <Grid x:Name="AutoMoveRow" SizeChanged="AutoMoveRow_SizeChanged">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="Add24" FontSize="26" Margin="0,0,16,0" VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource TileTitle}" Text="{l:T 'Widget ekle'}" />
-                        <TextBlock Style="{StaticResource TileText}" Text="{l:T 'Saat, not, bölme…'}" />
-                    </StackPanel>
-                </Grid>
-            </ui:Button>
-            <!-- Halka varsa "Halkayı düzenle", yoksa "Halka menü ekle" (metinler koddan; bkz. HomeRing). -->
-            <ui:Button x:Name="RingTile" Style="{StaticResource HomeTile}" Margin="5,0"
-                       AutomationProperties.AutomationId="Home.EditRing" Click="EditRing_Click">
-                <Grid>
-                    <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="DataPie24" FontSize="26" Margin="0,0,16,0" VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock x:Name="RingTileTitle" Style="{StaticResource TileTitle}" />
-                        <TextBlock x:Name="RingTileText" Style="{StaticResource TileText}" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ui:SymbolIcon x:Name="StatusIcon" FontSize="22" Margin="0,0,12,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="StatusLine" Grid.Column="1" FontSize="14" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               AutomationProperties.AutomationId="Home.StatusText" />
+                    <StackPanel x:Name="AutoMoveActions" Grid.Column="2" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <ui:Button x:Name="SetUpFolders" Margin="0,0,8,0" Content="{l:T 'Klasörleri ayarla'}"
+                                   AutomationProperties.AutomationId="Home.SetUpFolders" Click="SetUpFolders_Click" />
+                        <ui:Button x:Name="UndoButton" Margin="0,0,8,0" Icon="{ui:SymbolIcon ArrowUndo24}" Content="{l:T 'Geri al'}"
+                                   AutomationProperties.AutomationId="Home.UndoLast" Click="UndoLast_Click" />
+                        <ui:Button x:Name="OrganizeButton" Icon="{ui:SymbolIcon Sparkle24}" Content="{l:T 'Dosyaları şimdi taşı'}"
+                                   AutomationProperties.HelpText="{l:T 'Masaüstündeki uygun dosyaları şimdi klasörlerine taşır'}"
+                                   AutomationProperties.AutomationId="Home.OrganizeNow" Click="OrganizeNow_Click" />
                     </StackPanel>
+                    <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"
+                                     AutomationProperties.AutomationId="Home.AutoMoveToggle" AutomationProperties.Name="{l:T 'Otomatik taşıma'}"
+                                     Checked="AutoMoveToggle_Changed" Unchecked="AutoMoveToggle_Changed" />
                 </Grid>
-            </ui:Button>
-        </UniformGrid>
+            </Border>
 
-        <!-- İlk ziyaret: "Nasıl kullanılır" (Views/HowToCards; "Anladım"dan sonra gösterilmez). -->
-        <Border x:Name="HowToHost" Margin="0,24,0,0" Visibility="Collapsed" />
-
-        <!-- Otomatik taşıma: tek satır (dar pencerede düğmeler alt satıra iner). -->
-        <Border Style="{StaticResource Surface}" Margin="0,24,0,0" Padding="16,10"
-                AutomationProperties.AutomationId="Home.AutoMove">
-            <Grid x:Name="AutoMoveRow" SizeChanged="AutoMoveRow_SizeChanged">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <ui:SymbolIcon x:Name="StatusIcon" FontSize="22" Margin="0,0,12,0" VerticalAlignment="Center" />
-                <TextBlock x:Name="StatusLine" Grid.Column="1" FontSize="14" VerticalAlignment="Center"
-                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                           AutomationProperties.AutomationId="Home.StatusText" />
-                <StackPanel x:Name="AutoMoveActions" Grid.Column="2" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <ui:Button x:Name="SetUpFolders" Margin="0,0,8,0" Content="{l:T 'Klasörleri ayarla'}"
-                               AutomationProperties.AutomationId="Home.SetUpFolders" Click="SetUpFolders_Click" />
-                    <ui:Button x:Name="UndoButton" Margin="0,0,8,0" Icon="{ui:SymbolIcon ArrowUndo24}" Content="{l:T 'Geri al'}"
-                               AutomationProperties.AutomationId="Home.UndoLast" Click="UndoLast_Click" />
-                    <ui:Button x:Name="OrganizeButton" Icon="{ui:SymbolIcon Sparkle24}" Content="{l:T 'Dosyaları şimdi taşı'}"
-                               AutomationProperties.HelpText="{l:T 'Masaüstündeki uygun dosyaları şimdi klasörlerine taşır'}"
-                               AutomationProperties.AutomationId="Home.OrganizeNow" Click="OrganizeNow_Click" />
-                </StackPanel>
-                <ui:ToggleSwitch x:Name="AutoMoveToggle" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center"
-                                 AutomationProperties.AutomationId="Home.AutoMoveToggle" AutomationProperties.Name="{l:T 'Otomatik taşıma'}"
-                                 Checked="AutoMoveToggle_Changed" Unchecked="AutoMoveToggle_Changed" />
+            <!-- Son taşınanlar (birkaç satır; hepsi Otomatik taşıma sayfasında) -->
+            <Grid Margin="0,24,0,8">
+                <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="{l:T 'Son taşınanlar'}" />
+                <ui:Button x:Name="SeeAllButton" HorizontalAlignment="Right" Appearance="Transparent" Content="{l:T 'Tümünü gör'}"
+                           AutomationProperties.AutomationId="Home.SeeAllHistory" Click="SeeAll_Click" />
             </Grid>
-        </Border>
-
-        <!-- Son taşınanlar (birkaç satır; hepsi Otomatik taşıma sayfasında) -->
-        <Grid Margin="0,24,0,8">
-            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center" Text="{l:T 'Son taşınanlar'}" />
-            <ui:Button x:Name="SeeAllButton" HorizontalAlignment="Right" Appearance="Transparent" Content="{l:T 'Tümünü gör'}"
-                       AutomationProperties.AutomationId="Home.SeeAllHistory" Click="SeeAll_Click" />
-        </Grid>
-        <ItemsControl x:Name="Recent" AutomationProperties.AutomationId="Home.Recent" IsTabStop="False">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Image views:ShellIconImage.Path="{Binding IconPath}" Width="28" Height="28" Margin="0,0,12,0" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text="{Binding Route}" Style="{StaticResource Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                            <TextBlock Grid.Column="2" Text="{Binding When}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <TextBlock x:Name="RecentEmpty" Style="{StaticResource Muted}" Text="{l:T 'Henüz taşınmış bir dosya yok.'}" />
-    </StackPanel>
+            <ItemsControl x:Name="Recent" AutomationProperties.AutomationId="Home.Recent" IsTabStop="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Image views:ShellIconImage.Path="{Binding IconPath}" Width="28" Height="28" Margin="0,0,12,0" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text="{Binding Route}" Style="{StaticResource Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding When}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock x:Name="RecentEmpty" Style="{StaticResource Muted}" Text="{l:T 'Henüz taşınmış bir dosya yok.'}" />
+        </StackPanel>
+    </Grid>
 </Page>

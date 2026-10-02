@@ -129,9 +129,16 @@ public class RuleTemplatesTests
     [Fact]
     public void Typed_extensions_are_normalised_and_split()
     {
-        Assert.Equal(["psd", "ai", "fig", "gz"], RuleTemplates.Split("*.PSD, .ai;fig  psd\ttar.gz"));
+        // Parçalar yazıldığı gibi gelir (sorunlu olan kutuda aynen kalsın); her biri Check'te düzgün biçime döner.
+        Assert.Equal(["*.PSD", ".ai", "fig", "psd", "tar.gz"], RuleTemplates.Parts("*.PSD, .ai;fig  psd\ttar.gz"));
+        Assert.Equal(["psd", "ai", "fig", "psd", "gz"], RuleTemplates.Parts("*.PSD, .ai;fig  psd\ttar.gz").Select(RuleTemplates.Normalize));
         Assert.Equal("gz", RuleTemplates.Normalize(" .TAR.GZ "));
-        Assert.Empty(RuleTemplates.Split(" , ; . "));
+        Assert.Equal(["."], RuleTemplates.Parts(" , ; . "));
+        Assert.Equal("", RuleTemplates.Normalize("."));
+        Assert.True(RuleTemplates.HasSeparator("psd,"));
+        Assert.True(RuleTemplates.HasSeparator("psd ai"));
+        Assert.True(RuleTemplates.HasSeparator("psd\r\nai"));
+        Assert.False(RuleTemplates.HasSeparator(".psd"));
     }
 
     [Fact]
@@ -148,8 +155,85 @@ public class RuleTemplatesTests
         var taken = RuleTemplates.Check("*.JPG", rules);
         Assert.Equal(ExtensionProblem.Taken, taken.Problem);
         Assert.Equal("Resimler", taken.Owner);
+        Assert.False(taken.OwnerOff);
         // Düzenlenen kuralın kendi uzantısı alınmış sayılmaz.
         Assert.True(RuleTemplates.Check("jpg", rules, editing: rules[1]).Ok);
+
+        // Kapalı kural da uzantısını tutar (açılınca ilk eşleşen o olur); pencere kapalı olduğunu söyleyebilsin.
+        rules[0].Enabled = false;
+        var off = RuleTemplates.Check("pdf", rules);
+        Assert.Equal(ExtensionProblem.Taken, off.Problem);
+        Assert.Equal("PDF", off.Owner);
+        Assert.True(off.OwnerOff);
+    }
+
+    /// <summary>
+    /// "Nereye?": masaüstündeki klasör açılmaz; yeni ad açılır; "Değiştir…"de kuralın kendi (masaüstünde olmayan) klasörü
+    /// açılmaz: değişmeyen kural "Kaydet"le klasör açıp dosya taşımaya başlamasın.
+    /// </summary>
+    [Fact]
+    public void Folder_target_creates_only_new_folders_and_never_the_edited_rules_own()
+    {
+        string[] desktop = ["Oyunlar", "pdf"];
+        Assert.Equal(new FolderTarget("pdf", Exists: true, Create: false), RuleTemplates.ResolveFolder(" PDF ", desktop));
+        Assert.Equal(new FolderTarget("Videolar", Exists: false, Create: true), RuleTemplates.ResolveFolder("Videolar", desktop));
+        // Değiştirme: kuralın kendi klasörü (harf/Türkçe karakter farkı da) açılmaz; başka yeni ad açılır.
+        Assert.Equal(new FolderTarget("Videolar", Exists: false, Create: false), RuleTemplates.ResolveFolder("Videolar", desktop, ownFolder: "Videolar"));
+        Assert.False(RuleTemplates.ResolveFolder("videolar", desktop, ownFolder: "VİDEOLAR ").Create);
+        Assert.True(RuleTemplates.ResolveFolder("Filmler", desktop, ownFolder: "Videolar").Create);
+        // Kendi klasörü masaüstündeyse yine o (gerçek yazılışıyla).
+        Assert.Equal(new FolderTarget("pdf", Exists: true, Create: false), RuleTemplates.ResolveFolder("PDF", desktop, ownFolder: "PDF"));
+    }
+
+    /// <summary>
+    /// Yeni kullanıcıda klasörlerin çoğu yok: "Değiştir…" → hiçbir şeye dokunmadan "Kaydet" ne klasör açar ne kuralı yeniden
+    /// yazar (RuleDialog.EditAsync: Create değilse ve SameRule ise hiçbir şey).
+    /// </summary>
+    [Fact]
+    public void Saving_an_untouched_rule_changes_nothing()
+    {
+        var videos = Rule.Defaults(Lang.Tr).Single(r => r.TargetFolder == "Videolar");
+        var chips = videos.Extensions.Select(RuleTemplates.Normalize).Where(e => e.Length > 0).Distinct().ToList();
+        var target = RuleTemplates.ResolveFolder(videos.TargetFolder.Trim(), ["PDF"], ownFolder: videos.TargetFolder);
+        var after = RuleTemplates.Edited(videos, chips, target.Folder);
+        Assert.False(target.Create);
+        Assert.True(RuleTemplates.SameRule(videos, after));
+
+        // Yazılışı ya da uzantısı değişen kural değişmiş sayılır; uzantının yazımı (".MP4") sayılmaz.
+        Assert.False(RuleTemplates.SameRule(videos, RuleTemplates.Edited(videos, chips, "videolar")));
+        Assert.False(RuleTemplates.SameRule(videos, RuleTemplates.Edited(videos, chips.Skip(1), "Videolar")));
+        Assert.True(RuleTemplates.SameRule(R("Videolar", ".MP4", "mkv"), R(" Videolar", "mp4", "*.mkv", "MKV")));
+    }
+
+    /// <summary>
+    /// Kural eklemeyi/değiştirmeyi geri alan "Geri al" kuralın o andan beri yaptığı taşımaları da geri alır: yalnızca o kuralın
+    /// klasörüne, onun uzantısıyla, o andan sonra yapılmış ve geri alınmamış taşımalar.
+    /// </summary>
+    [Fact]
+    public void Undo_finds_only_the_moves_the_rule_made_since_it_was_added()
+    {
+        var since = new DateTime(2026, 10, 2, 12, 0, 0);
+        MoveEntry Moved(string file, string folder, int minutes, bool undone = false) => new()
+        {
+            Source = Path.Combine(@"C:\Users\x\Desktop", file),
+            Destination = Path.Combine(@"C:\Users\x\Desktop", folder, file),
+            Time = since.AddMinutes(minutes),
+            Undone = undone,
+        };
+        var design = R("Tasarım", "psd", ".AI");
+        var entries = new[]
+        {
+            Moved("logo.psd", "Tasarım", 0),
+            Moved("afiş.AI", "tasarim", 2),           // klasör adı harf/Türkçe karakter farkıyla da onun
+            Moved("eski.psd", "Tasarım", -1),         // kural eklenmeden önce
+            Moved("geri.psd", "Tasarım", 1, undone: true),
+            Moved("rapor.pdf", "Tasarım", 1),         // başka uzantı (başka kuralın)
+            Moved("çizim.psd", "PSD", 1),             // başka klasör
+            Moved("uzantısız", "Tasarım", 1),
+        };
+        Assert.Equal(["logo.psd", "afiş.AI"], RuleTemplates.MovedBy(entries, design, since).Select(e => e.FileName));
+        Assert.Empty(RuleTemplates.MovedBy(entries, R("", "psd"), since));
+        Assert.Empty(RuleTemplates.MovedBy(entries, R("Tasarım"), since));
     }
 
     [Fact]
@@ -233,11 +317,17 @@ public class RuleDialogWiringTests
     public void Folder_is_created_quietly_then_rules_are_replaced_then_desktop_is_scanned()
     {
         var dialog = Source("Views", "RuleDialog.cs");
-        InOrder(Body(dialog, "internal static bool CreateDesktopFolder("),
-            "AppHost.MarkQuietFolder(", "FolderCreation.TryCreate(", "Notice.FolderFailed(", "AppHost.NoteFolderCreated(");
+        // Klasörün disk işi arka planda; işaret ve bildirimler arayüz iş parçacığında.
+        var create = Body(dialog, "internal static async Task<FolderMade> CreateDesktopFolderAsync(");
+        InOrder(create, "AppHost.MarkQuietFolder(", "await Task.Run(", "FolderCreation.TryCreate(", "Notice.FolderFailed(", "AppHost.NoteFolderCreated(");
         // Klasör, kural listesinden önce açılır; liste yerinde değiştirilmez, yenisi atanır; tarama en sonda.
-        var apply = Body(dialog, "internal static Rule Apply(");
-        InOrder(apply, "CreateDesktopFolder(", "AppHost.Settings.Rules = ", "AppHost.SaveSettings()", "AppHost.OrganizeIfActive()");
+        var apply = Body(dialog, "internal static async Task ApplyAsync(");
+        InOrder(apply, "CreateDesktopFolderAsync(", "AppHost.Settings.Rules = ", "AppHost.SaveSettings()", "AppHost.OrganizeIfActive()", "Undo(");
+        // Değişmeyen kural yeniden yazılmaz (klasör açılmaz, masaüstü taranmaz).
+        InOrder(Body(dialog, "public static async Task EditAsync("), "!result.Target.Create && RuleTemplates.SameRule(", "ApplyAsync(");
+        // Geri al: liste, kuralın taşımaları (arka planda) ve açtığı klasör.
+        InOrder(Body(dialog, "private static async void Undo("), "AppHost.Settings.Rules = ", "RuleTemplates.MovedBy(", "await Task.Run(");
+        InOrder(Body(dialog, "private static (int Back, int Failed) PutBack("), "AppHost.Organizer.Undo(", "Directory.Delete(madeFolder, recursive: false)");
         Assert.DoesNotContain("Rules.Add(", dialog);
         Assert.DoesNotContain("Rules.Insert(", dialog);
         Assert.DoesNotContain("Rules.Remove", dialog);
@@ -251,8 +341,9 @@ public class RuleDialogWiringTests
         Assert.DoesNotContain("TextBox", xaml);
         Assert.DoesNotContain("LostFocus", xaml);
         var page = Source("Views", "AutoMovePage.xaml.cs");
-        Assert.Contains("RuleDialog.Add(", page);
-        Assert.Contains("RuleDialog.Edit(", page);
+        Assert.Contains("RuleDialog.AddAsync(", page);
+        Assert.Contains("RuleDialog.EditAsync(", page);
+        Assert.Contains("RuleDialog.CreateDesktopFolderAsync(", page);
         Assert.DoesNotContain("Rules.Add(", page);
     }
 }

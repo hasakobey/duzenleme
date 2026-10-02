@@ -22,21 +22,33 @@ internal static class HowToCards
     /// <summary>Şeridin dar düzene (iki sütun) geçtiği genişlik (DIP).</summary>
     private const double NarrowWidth = 560;
 
-    /// <summary>Kartlar, sırasıyla. Metinler arayüz dilinde: her çağrıda kurulur.</summary>
-    public static IReadOnlyList<Card> Cards =>
+    /// <summary>
+    /// Kartlar, sırasıyla. Metinler arayüz dilinde: her çağrıda kurulur. Yalnızca bugün gerçekten çalışan yollar yazılır:
+    /// widget'larda ⋯ düğmesi yokken "Büyüt" ve "Düzenle" onu anmaz (⋯ gelince HomePageTests kartları güncelletir).
+    /// </summary>
+    /// <param name="doubleClick">Kullanıcının boş masaüstüne çift tıklamasının bugünkü etkisi (<see cref="CurrentDoubleClick"/>).</param>
+    public static IReadOnlyList<Card> CardsFor(DoubleClickEffect doubleClick) =>
     [
         new("move", SymbolRegular.ArrowMove24, L.T("Taşı"), L.T("Başlığından ya da boş yerinden sürükle.")),
-        new("resize", SymbolRegular.ResizeLarge24, L.T("Büyüt"), L.T("Kenarından sürükle ya da ⋯ › Boyut.")),
-        new("edit", SymbolRegular.MoreHorizontal24, L.T("Düzenle"), L.T("⋯'ye bas ya da sağ tıkla.")),
-        new("ring", SymbolRegular.DataPie24, L.T("Halka"), RingText),
+        new("resize", SymbolRegular.ResizeLarge24, L.T("Büyüt"), L.T("Kenarından sürükle.")),
+        new("edit", SymbolRegular.Edit24, L.T("Düzenle"), L.T("Üzerine sağ tıkla.")),
+        new("ring", SymbolRegular.DataPie24, L.T("Halka"), RingText(doubleClick)),
     ];
 
     /// <summary>
-    /// Halka kartı halkaya bugün hangi yoldan ulaşıldığını söyler: halka "Widget ekle" penceresinden eklenir. Boş masaüstüne
-    /// çift tıklama halkayı açan bir seçenek olunca (<see cref="DoubleClickEffect"/>'te halka) kart "Boş masaüstüne çift
-    /// tıkla." der; HomePageTests bu ikisinin birlikte değişmesini bekler.
+    /// Halka kartı halkaya bu kullanıcının bugün hangi yoldan ulaştığını söyler. Çift tıklamanın hiçbir seçeneği halkayı açmıyor:
+    /// halka "Widget ekle" › "Hepsini göster" › "Halka menü" ile eklenir. <see cref="DoubleClickEffect"/>'e halka gelince
+    /// yalnızca o seçenekte (kullanıcının gerçek ayarı; eski kullanıcı kendi seçimini korur) kart "Boş masaüstüne çift
+    /// tıkla." der; HomePageTests her seçenek için bunu bekler.
     /// </summary>
-    private static string RingText => L.T("Widget ekle › Halka menü.");
+    internal static string RingText(DoubleClickEffect doubleClick) => L.T("Widget ekle › Hepsini göster › Halka menü.");
+
+    /// <summary>Boş masaüstüne çift tıklamanın bu kullanıcıdaki etkisi (masaüstü çift tıklamasıyla aynı çözüm).</summary>
+    public static DoubleClickEffect CurrentDoubleClick()
+    {
+        var s = AppHost.Settings;
+        return DesktopState.ResolveDoubleClick(s.DoubleClickAction, s.DoubleClickHidesDesktop, s.FencesReplaceIcons);
+    }
 
     /// <summary>Şerit gösterilmeli mi (ilk ziyaret: "Anladım"a henüz basılmadı)?</summary>
     public static bool ShouldShow(AppSettings settings) => !settings.HowToDismissed;
@@ -64,7 +76,7 @@ internal static class HowToCards
     /// Şeridi kurar: başlık ve "Anladım" (<c>Home.HowTo.Dismiss</c>), altında kartlar (geniş pencerede dört, darda iki sütun).
     /// "Anladım" önce <see cref="Dismiss"/> der, sonra <paramref name="dismissed"/>'i çağırır (sayfa şeridi soldurup kaldırır).
     /// </summary>
-    public static FrameworkElement Create(Action dismissed)
+    public static FrameworkElement Create(DoubleClickEffect doubleClick, Action dismissed)
     {
         var root = new StackPanel();
         AutomationProperties.SetAutomationId(root, "Home.HowTo");
@@ -92,7 +104,7 @@ internal static class HowToCards
         root.Children.Add(header);
 
         var grid = new UniformGrid { Columns = 4, Margin = new Thickness(-4, 0, -4, 0) };
-        foreach (var card in Cards) grid.Children.Add(CardView(card));
+        foreach (var card in CardsFor(doubleClick)) grid.Children.Add(CardView(card));
         // Dar pencerede (en küçük ana pencere ~460 DIP içerik) kartlar ikişerli dizilir; yerleşim değişir, hiçbir şey oynamaz.
         grid.SizeChanged += (_, e) =>
         {

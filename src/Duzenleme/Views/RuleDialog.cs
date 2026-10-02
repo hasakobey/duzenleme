@@ -15,9 +15,10 @@ namespace Duzenleme.Views;
 /// "Kural ekle" (iki adım) ve kural kartının "Değiştir…"i. Ekleme: "Hangi dosyalar?" (eksik hazır kurallar, Tasarım,
 /// E-kitaplar: <see cref="RuleTemplates.Offers"/>; "Başka uzantı…" çip girişi) → "Nereye?" (önceden doldurulmuş
 /// "Yeni klasör: [ad]" ya da masaüstündeki bir klasör) → "Ekle". Değiştirme tek sayfadır (uzantı çipleri + klasör).
-/// Pencere yalnızca seçimi toplar; kapandıktan sonra <see cref="Apply"/> klasörü açar (MarkQuietFolder → TryCreate →
-/// NoteFolderCreated), yeni kural listesini atar, kaydeder ve otomatik taşıma açıksa masaüstünü tarar. Sonuç bildirimde
-/// "Geri al" ile geri alınır (açılan klasör yerinde kalır). Kip pencere; sahibinin (ana pencere) ortasında açılır.
+/// Pencere yalnızca seçimi toplar; kapandıktan sonra <see cref="ApplyAsync"/> klasörü arka planda açar (MarkQuietFolder →
+/// TryCreate → NoteFolderCreated), yeni kural listesini atar, kaydeder ve otomatik taşıma açıksa masaüstünü tarar. Sonuç
+/// bildirimde "Geri al" ile geri alınır: kural listesi, kuralın o andan beri yaptığı taşımalar ve (boş kaldıysa) açılan klasör.
+/// Kip pencere; sahibinin (ana pencere) ortasında açılır.
 /// </summary>
 internal sealed class RuleDialog : FluentWindow
 {
@@ -33,24 +34,27 @@ internal sealed class RuleDialog : FluentWindow
 
     private ExtensionChips? _chips;
     private FolderChoice? _folder;
+    /// <summary>"Nereye?"ye götürülen uzantılar (seçilen kalıbınkiler ya da "Başka uzantı…"da yazılanlar).</summary>
     private List<string> _extensions = [];
+    /// <summary>"Başka uzantı…"da yazılanlar: "‹ Geri" ile çıkıp yeniden girilince yerinde dursun; kalıp seçmek bunları değiştirmez.</summary>
+    private List<string> _customExtensions = [];
     private string _suggested = "";
-    private (Rule Rule, string Folder, bool Create)? _result;
+    private (Rule Rule, FolderTarget Target)? _result;
 
-    /// <summary>"+ Kural ekle": pencereyi gösterir ve seçilen kuralı ekler. Eklenen kural (vazgeçilirse null).</summary>
-    public static Rule? Add(Window? owner)
+    /// <summary>"+ Kural ekle": pencereyi gösterir ve seçilen kuralı ekler (vazgeçilirse bir şey yapmaz).</summary>
+    public static async Task AddAsync(Window? owner)
     {
         var dialog = new RuleDialog(owner, null);
-        return dialog.ShowDialog() == true && dialog._result is { } result ? Apply(null, result.Rule, result.Folder, result.Create) : null;
+        if (dialog.ShowDialog() == true && dialog._result is { } result) await ApplyAsync(null, result.Rule, result.Target);
     }
 
-    /// <summary>Kartın "Değiştir…"i: uzantılar ve klasör tek sayfada. Kuralın yeni hâli (vazgeçilir ya da değişmezse null).</summary>
-    public static Rule? Edit(Window? owner, Rule rule)
+    /// <summary>Kartın "Değiştir…"i: uzantılar ve klasör tek sayfada. Vazgeçilir ya da bir şey değişmezse bir şey yapmaz.</summary>
+    public static async Task EditAsync(Window? owner, Rule rule)
     {
         var dialog = new RuleDialog(owner, rule);
-        if (dialog.ShowDialog() != true || dialog._result is not { } result) return null;
-        var unchanged = !result.Create && result.Rule.TargetFolder == rule.TargetFolder && result.Rule.Extensions.SequenceEqual(rule.Extensions);
-        return unchanged ? null : Apply(rule, result.Rule, result.Folder, result.Create);
+        if (dialog.ShowDialog() != true || dialog._result is not { } result) return;
+        if (!result.Target.Create && RuleTemplates.SameRule(rule, result.Rule)) return;
+        await ApplyAsync(rule, result.Rule, result.Target);
     }
 
     private RuleDialog(Window? owner, Rule? editing)
@@ -148,27 +152,34 @@ internal sealed class RuleDialog : FluentWindow
         FocusLater(tiles.Children[0]);
     }
 
-    /// <summary>"Başka uzantı…": çip girişi; "İleri" en az bir uzantı ister.</summary>
+    /// <summary>"Başka uzantı…": çip girişi; "İleri" en az bir uzantı ister. "‹ Geri" yazılan çipleri saklar.</summary>
     private void ShowCustom()
     {
         _title.Text = L.T("Hangi dosyalar?");
         _subtitle.Text = L.T("Uzantıyı yaz ve Enter'a bas. Birden çok yazabilirsin.");
-        _chips = new ExtensionChips(AppHost.Settings.Rules, editing: null, _extensions);
-        _chips.Changed += ClearError;
-        SetPage(_chips, back: ShowTemplates);
-        SetFooter(back: ShowTemplates, primary: (L.T("İleri"), "Rule.Next", () =>
+        var chips = new ExtensionChips(AppHost.Settings.Rules, editing: null, _customExtensions);
+        _chips = chips;
+        chips.Changed += ClearError;
+        void Back()
         {
-            if (!_chips.Commit()) return;
-            if (_chips.Extensions.Count == 0)
+            _customExtensions = [.. chips.Extensions];
+            ShowTemplates();
+        }
+        SetPage(chips, back: Back);
+        SetFooter(back: Back, primary: (L.T("İleri"), "Rule.Next", () =>
+        {
+            if (!chips.Commit()) return;
+            _customExtensions = [.. chips.Extensions];
+            if (chips.Extensions.Count == 0)
             {
                 ShowError(L.T("En az bir uzantı ekle."));
                 return;
             }
-            _extensions = [.. _chips.Extensions];
+            _extensions = [.. chips.Extensions];
             _suggested = RuleTemplates.SuggestFolder(_extensions, L.Current, _desktopFolders);
             ShowWhere(null);
         }));
-        FocusLater(_chips.Input);
+        FocusLater(chips.Input);
     }
 
     /// <summary>2. adım: "Nereye?" (yeni klasör ya da masaüstündeki bir klasör) ve "Ekle".</summary>
@@ -177,7 +188,7 @@ internal sealed class RuleDialog : FluentWindow
         _title.Text = L.T("Nereye?");
         var dotted = RuleTemplates.Dotted(_extensions);
         _subtitle.Text = templateName is null ? dotted : L.F("{0} · {1}", templateName, dotted);
-        _folder = new FolderChoice(_desktopFolders, _suggested);
+        _folder = new FolderChoice(_desktopFolders, _suggested, ownFolder: null);
         _folder.Changed += ClearError;
         Action back = templateName is null ? ShowCustom : ShowTemplates;
         SetPage(_folder, back);
@@ -197,7 +208,9 @@ internal sealed class RuleDialog : FluentWindow
         _chips.Changed += ClearError;
         body.Children.Add(_chips);
         body.Children.Add(SectionLabel(L.T("Nereye?"), top: 18));
-        _folder = new FolderChoice(_desktopFolders, rule.TargetFolder.Trim());
+        // Kuralın kendi klasörü masaüstünde yoksa "Kaydet" onu açmaz (RuleTemplates.ResolveFolder): değişmeyen kural dosya
+        // taşımaya başlamasın; açmak kartın "Oluştur"undadır.
+        _folder = new FolderChoice(_desktopFolders, rule.TargetFolder.Trim(), ownFolder: rule.TargetFolder);
         _folder.Changed += ClearError;
         body.Children.Add(_folder);
         SetPage(body, back: null);
@@ -226,7 +239,7 @@ internal sealed class RuleDialog : FluentWindow
         var rule = _editing is null
             ? RuleTemplates.Create(_extensions, target.Folder)
             : RuleTemplates.Edited(_editing, _extensions, target.Folder);
-        _result = (rule, target.Folder, target.Create);
+        _result = (rule, target);
         DialogResult = true;
     }
 
@@ -249,18 +262,20 @@ internal sealed class RuleDialog : FluentWindow
             DockPanel.SetDock(backButton, Dock.Left);
             _footer.Children.Add(backButton);
         }
-        var cancel = new Button { Content = L.T("Vazgeç"), IsCancel = true, MinWidth = 100, Margin = new Thickness(8, 0, 0, 0) };
-        AutomationProperties.SetAutomationId(cancel, "Rule.Cancel");
-        DockPanel.SetDock(cancel, Dock.Right);
-        _footer.Children.Add(cancel);
+        // Sağda [Ekle][Vazgeç]: Sekme sırası ekrandaki sırayla aynı (soldan sağa).
+        var right = new StackPanel { Orientation = Orientation.Horizontal };
+        DockPanel.SetDock(right, Dock.Right);
         if (primary is { } p)
         {
-            var ok = new Button { Content = p.Text, Appearance = ControlAppearance.Primary, IsDefault = true, MinWidth = 100 };
+            var ok = new Button { Content = p.Text, Appearance = ControlAppearance.Primary, IsDefault = true, MinWidth = 100, Margin = new Thickness(0, 0, 8, 0) };
             AutomationProperties.SetAutomationId(ok, p.Id);
             ok.Click += (_, _) => p.Run();
-            DockPanel.SetDock(ok, Dock.Right);
-            _footer.Children.Add(ok);
+            right.Children.Add(ok);
         }
+        var cancel = new Button { Content = L.T("Vazgeç"), IsCancel = true, MinWidth = 100 };
+        AutomationProperties.SetAutomationId(cancel, "Rule.Cancel");
+        right.Children.Add(cancel);
+        _footer.Children.Add(right);
     }
 
     private void ShowError(string text)
@@ -343,57 +358,106 @@ internal sealed class RuleDialog : FluentWindow
     // ---- Uygulama (pencere kapandıktan sonra) ----
 
     /// <summary>
-    /// Kuralı ekler (old null) ya da değiştirir: klasör gerekiyorsa önce açılır (açılamazsa kural yine eklenir, kartında
-    /// "Masaüstünde yok · Oluştur" kalır ve neden bildirilir), sonra yeni liste atanır ve kaydedilir, otomatik taşıma açıksa
-    /// masaüstü taranır. Bildirimdeki "Geri al" önceki listeye döner (kural o arada değişmediyse).
+    /// Kuralı ekler (old null) ya da değiştirir: klasör gerekiyorsa önce arka planda açılır (açılamazsa kural yine eklenir,
+    /// kartında "Masaüstünde yok · Oluştur" kalır ve neden bildirilir), sonra yeni liste atanır ve kaydedilir, otomatik taşıma
+    /// açıksa masaüstü taranır. Bildirimdeki "Geri al" (<see cref="Undo"/>) önceki listeye döner, kuralın o andan beri
+    /// taşıdığı dosyaları masaüstüne geri koyar ve bu işin açtığı klasörü boş kaldıysa kaldırır.
     /// </summary>
-    internal static Rule Apply(Rule? old, Rule rule, string folder, bool create)
+    internal static async Task ApplyAsync(Rule? old, Rule rule, FolderTarget target)
     {
-        var created = create && CreateDesktopFolder(folder);
+        var since = DateTime.Now;
+        FolderMade? folder = target.Create ? await CreateDesktopFolderAsync(target.Folder) : null;
         var rules = AppHost.Settings.Rules;
+        // Klasör açılırken düzenlenen kural başka yerden silindiyse geri getirilmez.
+        if (old is not null && !rules.Contains(old)) return;
         AppHost.Settings.Rules = old is null ? RuleTemplates.Added(rules, rule) : RuleTemplates.Replaced(rules, old, rule);
         AppHost.SaveSettings();
         AppHost.OrganizeIfActive();
-        // Klasör açılamadıysa nedeni (CreateDesktopFolder söyledi) şeritte kalsın.
-        if (create && !created) return rule;
-        var name = folder.Trim();
+        // Klasör açılamadıysa nedeni (CreateDesktopFolderAsync söyledi) şeritte kalsın.
+        if (folder is { Ok: false }) return;
+        var made = folder is { New: true } ? folder.Value.Path : null;
+        var name = target.Folder.Trim();
         string text;
         if (old is not null)
-            text = created ? L.F("\"{0}\" kuralı değiştirildi; masaüstünde \"{0}\" klasörü de oluşturuldu.", name) : L.F("\"{0}\" kuralı değiştirildi.", name);
-        else if (created) text = L.F("\"{0}\" kuralı eklendi; masaüstünde \"{0}\" klasörü de oluşturuldu.", name);
+            text = made is not null ? L.F("\"{0}\" kuralı değiştirildi; masaüstünde \"{0}\" klasörü de oluşturuldu.", name) : L.F("\"{0}\" kuralı değiştirildi.", name);
+        else if (made is not null) text = L.F("\"{0}\" kuralı eklendi; masaüstünde \"{0}\" klasörü de oluşturuldu.", name);
         else text = L.F("\"{0}\" kuralı eklendi.", name);
-        Notice.Show(text, NoticeKind.Success, L.T("Geri al"), () => Undo(old, rule));
-        return rule;
+        Notice.Show(text, NoticeKind.Success, L.T("Geri al"), () => Undo(old, rule, since, made));
     }
 
-    /// <summary>Eklemeyi ya da değişikliği geri alır (yeni liste atanır); kural o arada silindiyse ya da değiştiyse bir şey yapmaz.</summary>
-    private static void Undo(Rule? old, Rule rule)
+    /// <summary>
+    /// Eklemeyi ya da değişikliği geri alır (yeni liste atanır; kural o arada silindiyse ya da değiştiyse bir şey yapmaz).
+    /// Kuralın <paramref name="since"/>'ten beri taşıdığı dosyalar arka planda masaüstüne döner (geri alınan taşıma gibi: bir
+    /// daha otomatik taşınmaz) ve bu işin açtığı klasör (<paramref name="madeFolder"/>) boş kaldıysa kaldırılır.
+    /// </summary>
+    private static async void Undo(Rule? old, Rule rule, DateTime since, string? madeFolder)
     {
         var rules = AppHost.Settings.Rules;
         if (!rules.Contains(rule)) return;
         AppHost.Settings.Rules = old is null ? rules.Where(r => !ReferenceEquals(r, rule)).ToList() : RuleTemplates.Replaced(rules, rule, old);
         AppHost.SaveSettings();
+        var moved = RuleTemplates.MovedBy(AppHost.Journal.Snapshot(), rule, since);
+        var (back, failed) = moved.Count == 0 && madeFolder is null ? (0, 0) : await Task.Run(() => PutBack(moved, madeFolder));
+        if (failed > 0)
+            Notice.Show(L.P(failed, "{0} dosya masaüstüne geri konamadı."), NoticeKind.Warning, L.T("Geçmişi gör"), AutoMovePage.ShowHistory);
+        else if (back > 0)
+            Notice.Show(L.P(back, "{0} dosya masaüstüne döndü."), NoticeKind.Success);
         if (old is not null) AppHost.OrganizeIfActive();
     }
 
+    /// <summary>Arka planda: taşımaları geri alır, sonra (verildiyse) boş kalan klasörü kaldırır. Dönen: geri gelen ve gelemeyen dosya sayısı.</summary>
+    private static (int Back, int Failed) PutBack(IReadOnlyList<MoveEntry> moved, string? madeFolder)
+    {
+        int back = 0, failed = 0;
+        foreach (var entry in moved)
+        {
+            try
+            {
+                AppHost.Organizer.Undo(entry);
+                back++;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                failed++;
+                AppLog.Warn("rules", "undo-move-failed", ex);
+            }
+        }
+        // Yalnızca boşsa: içine bu arada konan bir şey varsa klasör yerinde kalır (Directory.Delete içi doluyken hata verir).
+        if (madeFolder is not null)
+        {
+            try { Directory.Delete(madeFolder, recursive: false); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AppLog.Count("rules.folderkept"); }
+        }
+        return (back, failed);
+    }
+
+    /// <summary>Klasör açmanın sonucu: açıldı mı (Ok), önceden yok muydu (New: geri alınınca boşsa kaldırılabilir) ve tam yolu.</summary>
+    internal readonly record struct FolderMade(bool Ok, bool New, string Path);
+
     /// <summary>
-    /// Masaüstünde klasör açar (kuralın klasörü): "simge ver" balonu çıkmaz; açılamazsa nedeni bildirilir ve false döner.
-    /// Otomatik taşımayı çağıran başlatır (kural listesi önce atanmalı).
+    /// Masaüstünde klasör açar (kuralın klasörü; disk işi arka planda): "simge ver" balonu çıkmaz; açılamazsa nedeni
+    /// bildirilir ve Ok false döner. Otomatik taşımayı çağıran başlatır (kural listesi önce atanmalı).
     /// </summary>
-    internal static bool CreateDesktopFolder(string name)
+    internal static async Task<FolderMade> CreateDesktopFolderAsync(string name)
     {
         var path = Path.Combine(AppHost.DesktopDirectory, name.Trim());
         try { AppHost.MarkQuietFolder(path); }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
-        if (FolderCreation.TryCreate(path) is { Ok: false } failed)
+        // Önce bakılır: yalnızca bu işin açtığı klasör geri alınınca kaldırılabilir.
+        var (existed, result) = await Task.Run(() =>
+        {
+            var before = Directory.Exists(path);
+            return (before, FolderCreation.TryCreate(path));
+        });
+        if (result is { Ok: false } failed)
         {
             try { AppHost.ConsumeQuietFolder(path); }
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
             Notice.FolderFailed(failed);
-            return false;
+            return new(false, false, path);
         }
         AppHost.NoteFolderCreated(path);
-        return true;
+        return new(true, !existed, path);
     }
 
     // ---- Parçalar ----
@@ -428,7 +492,7 @@ internal sealed class RuleDialog : FluentWindow
             {
                 if (_committing) return;
                 // Ayraç yazıldı ya da birden çok uzantı yapıştırıldı: hepsi çipe döner.
-                if (Input.Text.IndexOfAny([',', ';', ' ', '\t', '\r', '\n']) >= 0) Commit();
+                if (RuleTemplates.HasSeparator(Input.Text)) Commit();
                 else Changed?.Invoke();
             };
             _panel.Children.Add(Input);
@@ -461,7 +525,7 @@ internal sealed class RuleDialog : FluentWindow
             var text = Input.Text;
             var failed = new List<string>();
             string? problem = null;
-            foreach (var raw in text.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            foreach (var raw in RuleTemplates.Parts(text))
             {
                 var check = RuleTemplates.Check(raw, _rules, _editing);
                 if (check.Ok)
@@ -473,6 +537,9 @@ internal sealed class RuleDialog : FluentWindow
                 problem = check.Problem switch
                 {
                     ExtensionProblem.Ignored => L.F(".{0} dosyaları hiç taşınmaz.", check.Extension),
+                    // Kapalı kural da uzantısını tutar (açılınca ilk eşleşen o olur): kapalı olduğu söylenir, yoksa neden
+                    // alınmadığı anlaşılmaz.
+                    ExtensionProblem.Taken when check.OwnerOff => L.F(".{0} zaten \"{1}\" kuralında (kural kapalı).", check.Extension, check.Owner),
                     ExtensionProblem.Taken => L.F(".{0} zaten \"{1}\" kuralında.", check.Extension, check.Owner),
                     _ => L.F("\"{0}\" bir uzantı olamaz.", raw.Trim()),
                 };
@@ -494,10 +561,13 @@ internal sealed class RuleDialog : FluentWindow
             var label = "." + ext;
             var text = new TextBlock { Text = label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
             text.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+            // × en az 24 × 24 DIP: küçük çipte de kolay tıklansın (çip biraz yükselir).
             var remove = new Button
             {
-                Appearance = ControlAppearance.Transparent, Padding = new Thickness(3), Margin = new Thickness(4, 0, -4, 0),
-                Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss12, FontSize = 10 }, VerticalAlignment = VerticalAlignment.Center,
+                Appearance = ControlAppearance.Transparent, Padding = new Thickness(0), Margin = new Thickness(2, 0, -4, 0),
+                Width = 24, Height = 24,
+                HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
+                Icon = new SymbolIcon { Symbol = SymbolRegular.Dismiss12, FontSize = 11 }, VerticalAlignment = VerticalAlignment.Center,
             };
             AutomationProperties.SetAutomationId(remove, "Rule.Chip." + ext);
             AutomationProperties.SetName(remove, L.F("Kaldır: {0}", label));
@@ -511,7 +581,7 @@ internal sealed class RuleDialog : FluentWindow
             row.Children.Add(remove);
             var chip = new Border
             {
-                Child = row, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), Padding = new Thickness(8, 1, 6, 1),
+                Child = row, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), Padding = new Thickness(8, 0, 4, 0),
                 Margin = new Thickness(0, 2, 6, 2), Tag = ext, VerticalAlignment = VerticalAlignment.Center,
             };
             chip.SetResourceReference(Border.BackgroundProperty, "ControlFillColorSecondaryBrush");
@@ -529,11 +599,14 @@ internal sealed class RuleDialog : FluentWindow
 
     /// <summary>
     /// "Nereye?": "Yeni klasör: [ad]" ya da "Masaüstündeki klasör: [liste]". Ad masaüstündeki bir klasörle aynıysa (büyük/küçük
-    /// harf ve Türkçe karakter fark etmez) o klasör seçili gelir; yeni klasör adı yazılırken altında ne olacağı yazar.
+    /// harf ve Türkçe karakter fark etmez) o klasör seçili gelir; yeni klasör adı yazılırken altında ne olacağı yazar. Seçim
+    /// yalnızca yazınca ya da fareyle kutuya basınca "Yeni klasör"e geçer (Sekme ile üstünden geçmek seçilen klasörü değiştirmez).
+    /// Değiştirmede kuralın kendi klasörü masaüstünde yoksa açılmaz (<see cref="RuleTemplates.ResolveFolder"/>).
     /// </summary>
     private sealed class FolderChoice : StackPanel
     {
         private readonly List<string> _folders;
+        private readonly string? _own;
         private readonly RadioButton _new;
         private readonly RadioButton _existing;
         private readonly TextBox _name;
@@ -544,9 +617,10 @@ internal sealed class RuleDialog : FluentWindow
         public string? Error { get; private set; }
         public UIElement FocusTarget => _existing.IsChecked == true ? _list : _name;
 
-        public FolderChoice(List<string> folders, string suggested)
+        public FolderChoice(List<string> folders, string suggested, string? ownFolder)
         {
             _folders = folders;
+            _own = ownFolder;
             _new = new RadioButton { Content = L.T("Yeni klasör:"), GroupName = "RuleFolder", VerticalAlignment = VerticalAlignment.Center, MinWidth = 150 };
             AutomationProperties.SetAutomationId(_new, "Rule.NewFolder");
             _name = new TextBox { Text = suggested, MinWidth = 240, MaxLength = 120 };
@@ -557,7 +631,7 @@ internal sealed class RuleDialog : FluentWindow
                 if (_name.IsKeyboardFocusWithin) _new.IsChecked = true;
                 Update();
             };
-            _name.GotKeyboardFocus += (_, _) => _new.IsChecked = true;
+            _name.PreviewMouseLeftButtonDown += (_, _) => _new.IsChecked = true;
             Children.Add(Row(_new, _name));
 
             _existing = new RadioButton
@@ -616,20 +690,22 @@ internal sealed class RuleDialog : FluentWindow
             else
             {
                 var name = TypedName;
+                var target = RuleTemplates.ResolveFolder(name, _folders, _own);
                 _hint.Text = name.Length == 0 ? ""
-                    : _folders.FirstOrDefault(f => FolderName.Equal(f, name)) is { } same ? L.F("Masaüstünde \"{0}\" klasörü var; dosyalar oraya gider.", same)
-                    : L.F("Masaüstünde \"{0}\" klasörü oluşturulur.", name);
+                    : target.Exists ? L.F("Masaüstünde \"{0}\" klasörü var; dosyalar oraya gider.", target.Folder)
+                    : target.Create ? L.F("Masaüstünde \"{0}\" klasörü oluşturulur.", name)
+                    : L.F("Masaüstünde \"{0}\" klasörü yok; kartındaki \"Oluştur\" açar.", name);
             }
             Changed?.Invoke();
         }
 
         /// <summary>Seçilen klasör ve açılması gerekip gerekmediği; ad kullanılamıyorsa null (neden <see cref="Error"/>).</summary>
-        public (string Folder, bool Create)? Resolve()
+        public FolderTarget? Resolve()
         {
             Error = null;
             if (_existing.IsChecked == true)
             {
-                if (_list.SelectedItem is string folder) return (folder, false);
+                if (_list.SelectedItem is string folder) return new FolderTarget(folder, Exists: true, Create: false);
                 Error = L.T("Bir klasör seç.");
                 return null;
             }
@@ -644,7 +720,7 @@ internal sealed class RuleDialog : FluentWindow
                 Error = invalid;
                 return null;
             }
-            return _folders.FirstOrDefault(f => FolderName.Equal(f, name)) is { } same ? (same, false) : (name, true);
+            return RuleTemplates.ResolveFolder(name, _folders, _own);
         }
     }
 }
