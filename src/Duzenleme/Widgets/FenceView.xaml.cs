@@ -1426,7 +1426,8 @@ public partial class FenceView : UserControl, IWidgetView
 
         // Kaynak değişince başlık, simge ve menünün kendisi ("Klasörü aç", "Yeni klasör") değişir: seçim menüyü kapatır.
         // Gruplar (masaüstünden, masaüstü klasörleri, bilinen klasörler) başlıksız, ayraçla ayrılır.
-        var pick = new MenuItem { Header = L.T("Ne gösterilsin?") };
+        // Tek seçimli (Düzenle panelinde açılır liste); seçenekler Toggle olduğu için ayrıca işaretlenir.
+        var pick = Menus.AsChoice(new MenuItem { Header = L.T("Ne gösterilsin?") });
         foreach (var filter in DesktopItems.Filters)
             pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), () => _config.Filter == filter,
                 () => ShowSource(new FenceSource(filter, null), knownId: null), staysOpen: false));

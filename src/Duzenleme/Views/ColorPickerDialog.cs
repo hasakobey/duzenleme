@@ -54,7 +54,8 @@ internal sealed class ColorPickerDialog : FluentWindow
     public static void ForWidget(WidgetWindow anchor, string current, Action<string?> preview, Action<string> commit)
     {
         _current?.Close();
-        var picker = new ColorPickerDialog(anchor.CenterPoint, () => anchor.VisibleCardBox, current, preview, commit);
+        // Düzenle paneli açıksa kartın da panelin de yanına (ikisini de örtmesin).
+        var picker = new ColorPickerDialog(anchor.CenterPoint, () => WidgetEditorWindow.AnchorBox(anchor), current, preview, commit);
         _current = picker;
         // Widget kapanırsa (kaldırıldı, Explorer yeniden başladı) seçici de kapanır: kapanmış pencereye ve kaldırılmış ayara yazılmaz.
         void OnAnchorClosed(object? sender, EventArgs e) => picker.Close();

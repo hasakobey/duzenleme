@@ -99,6 +99,44 @@ public class AccessibilityTests
         });
     }
 
+    /// <summary>
+    /// Düzenle paneli (kodla kurulur): her etkileşimli denetimin ekran okuyucu adı ve UI Automation kimliği vardır, kimlikler
+    /// tektir ve plandaki kimliklerin hepsi bulunur (UIA ile deneme bunlarla yapılır). Seçim düğmelerinin adı kendi seçeneğidir.
+    /// </summary>
+    [Fact]
+    public void Editor_controls_are_named()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var config = new Duzenleme.Core.WidgetConfig { Kind = Duzenleme.Core.WidgetKind.Fence, Filter = Duzenleme.Core.DesktopFilter.Files };
+            var (editor, _, _) = EditorFakes.Open(config);
+            var controls = EditorFakes.All(editor).Where(d => d is System.Windows.Controls.Primitives.ButtonBase or System.Windows.Controls.Primitives.TextBoxBase
+                or System.Windows.Controls.ComboBox).ToList();
+            Assert.NotEmpty(controls);
+            foreach (var control in controls)
+            {
+                var id = System.Windows.Automation.AutomationProperties.GetAutomationId(control);
+                Assert.False(string.IsNullOrEmpty(id), $"kimliksiz denetim: {control.GetType().Name} {EditorFakes.Text(control)}");
+                var name = System.Windows.Automation.AutomationProperties.GetName(control);
+                Assert.False(string.IsNullOrWhiteSpace(name) && EditorFakes.Text(control).Trim().Length == 0, "adsız denetim: " + id);
+            }
+            var ids = EditorFakes.Ids(editor);
+            Assert.Equal(ids.Count, ids.Distinct().Count());
+            string[] required =
+            [
+                "Editor.Icon", "Editor.Name", "Editor.Accent.1", "Editor.Accent.2", "Editor.Accent.3", "Editor.Accent.4", "Editor.Accent.5",
+                "Editor.Accent.Custom", "Editor.ApplyAll", "Editor.Size.Small", "Editor.Size.Medium", "Editor.Size.Large", "Editor.Part.greeting",
+                "Editor.Part.close", "Editor.More", "Editor.Undo", "Editor.Remove", "Editor.Done",
+                .. Duzenleme.Core.LookGallery.All.Select(e => "Editor.Look." + e.Id),
+            ];
+            Assert.All(required, id => Assert.Contains(id, ids));
+        });
+
+        // Pencerenin kendisi "Editor" (UIA'da FromHandle ile bulunur).
+        var window = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Views", "WidgetEditorWindow.cs"));
+        Assert.Contains("AutomationProperties.SetAutomationId(this, \"Editor\")", window);
+    }
+
     private static string RepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

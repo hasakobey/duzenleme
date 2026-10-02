@@ -42,11 +42,42 @@ public static class Menus
     public static MenuItem Choice<T>(string header, Func<T> current, IEnumerable<(T Value, string Label)> options, Action<T> select,
         bool staysOpen = true)
     {
-        var parent = new MenuItem { Header = header };
+        var parent = AsChoice(new MenuItem { Header = header });
         foreach (var (value, label) in options)
             parent.Items.Add(new OptionMenuItem(label, () => EqualityComparer<T>.Default.Equals(current(), value), () => select(value), staysOpen));
         return parent;
     }
+
+    // 2.2 Kolay NestDesk 2. dalga: Düzenle paneli görünümlerin menü öğelerini satır olarak çizer (Views/MenuRows). Alt menünün
+    // ne olduğu yapısından anlaşılmaz (tek seçimli seçenekler de parça listesi de OptionMenuItem'dır): kuran yardımcı işaretler.
+
+    /// <summary>Alt menünün panelde nasıl çizileceği: Group = başlık ve altında satırlar, Choice = tek seçim, Parts = "Göster" listesi.</summary>
+    internal enum PanelShape { Group, Choice, Parts }
+
+    private static readonly DependencyProperty PanelShapeProperty =
+        DependencyProperty.RegisterAttached("PanelShape", typeof(PanelShape), typeof(Menus), new PropertyMetadata(PanelShape.Group));
+
+    private static readonly DependencyProperty PartKeyProperty =
+        DependencyProperty.RegisterAttached("PartKey", typeof(string), typeof(Menus));
+
+    /// <summary>Alt menünün panel biçimi (işaretlenmemişse Group).</summary>
+    internal static PanelShape ShapeOf(MenuItem item) => (PanelShape)item.GetValue(PanelShapeProperty);
+
+    /// <summary>"Göster" listesindeki seçeneğin parça anahtarı (HiddenParts); parça değilse null.</summary>
+    internal static string? PartKeyOf(MenuItem item) => item.GetValue(PartKeyProperty) as string;
+
+    /// <summary>
+    /// <see cref="Toggle"/>'larla kurulmuş tek seçimli alt menü (ör. "Ne gösterilsin?"): panelde açılır liste ya da bölümlü seçim
+    /// olarak çizilsin (işaretlenmezse her seçenek ayrı bir anahtar olurdu). Öğeyi döndürür.
+    /// </summary>
+    internal static MenuItem AsChoice(MenuItem item)
+    {
+        item.SetValue(PanelShapeProperty, PanelShape.Choice);
+        return item;
+    }
+
+    /// <summary>Öğenin <see cref="Live{T}"/> okuyucularını çalıştırır (başlık, etkinlik, görünürlük); yoksa bir şey yapmaz.</summary>
+    internal static void RefreshLive(MenuItem item) => (item.GetValue(RefreshProperty) as Action)?.Invoke();
 
     /// <summary>
     /// Durumu değişebilen herhangi bir öğe (komut ya da alt menü başlığı): <see cref="Sync"/> başlığını, etkinliğini ve
@@ -161,13 +192,18 @@ public static class Menus
     public static MenuItem Parts(WidgetConfig c, IEnumerable<(string Key, string Label)> parts, Action changed)
     {
         var parent = new MenuItem { Header = L.T("Göster") };
+        parent.SetValue(PanelShapeProperty, PanelShape.Parts);
         foreach (var (key, label) in parts)
-            parent.Items.Add(Toggle(L.Dyn(label), () => c.Shows(key), () =>
+        {
+            var toggle = Toggle(L.Dyn(label), () => c.Shows(key), () =>
             {
                 if (!c.HiddenParts.Remove(key)) c.HiddenParts.Add(key);
                 AppHost.SaveSettings();
                 changed();
-            }));
+            });
+            toggle.SetValue(PartKeyProperty, key);
+            parent.Items.Add(toggle);
+        }
         return parent;
     }
 

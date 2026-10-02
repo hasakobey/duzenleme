@@ -25,7 +25,7 @@ internal readonly record struct LookOverride(
 /// Pencerede hiçbir Effect yoktur: yazılımla çizilen katmanlı pencerede efekt, içerideki her küçük değişiklikte bütün
 /// kartı yeniden işler (gölge <see cref="CardShadow"/> ile efektsiz çizilir).
 /// </summary>
-public sealed class WidgetWindow : Window
+public sealed class WidgetWindow : Window, Views.IEditorTarget
 {
     private const double ShadowMargin = 14;
     private const double MinScale = 0.5, MaxScale = 2.5;
@@ -44,7 +44,9 @@ public sealed class WidgetWindow : Window
     private int _nudge;
 
     public WidgetConfig Config { get; }
-    public IWidgetView View { get; }
+
+    /// <summary>Kartın içindeki görünüm. Düzenle paneli adı, simgeyi ya da "Geri al"ı uygulayınca yenisi kurulur (<see cref="RebuildView"/>).</summary>
+    public IWidgetView View { get; private set; }
 
     public WidgetWindow(WidgetConfig config, IWidgetView view)
     {
@@ -125,11 +127,13 @@ public sealed class WidgetWindow : Window
         // değişince Windows'un pencereyi kaydırması kayıtlı düzeni bozmasın; ekran geri gelince eski yerine döner.
         MouseEnter += (_, _) => OnHover(true);
         MouseLeave += (_, _) => OnHover(false);
-        View.LayoutChanged += () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
+        _onLayoutChanged = () => { ApplyLayoutMode(); QueueSave(); ResolveOverlapAfterLayout(); };
+        View.LayoutChanged += _onLayoutChanged;
         PreviewDragEnter += (_, _) => OnHover(true);
         _rollupTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
         _rollupTimer.Tick += (_, _) => { _rollupTimer.Stop(); TryRollUp(); };
-        View.CollapseToggleRequested += () => SetCollapsed(!Config.Collapsed);
+        _onCollapseToggle = () => SetCollapsed(!Config.Collapsed);
+        View.CollapseToggleRequested += _onCollapseToggle;
 
         ApplyStyle();
         ApplyLayoutMode();
@@ -416,6 +420,11 @@ public sealed class WidgetWindow : Window
     /// </summary>
     private void FillMenu(ContextMenu menu)
     {
+        // Kolay NestDesk 2. dalga: her widget'ın bütün ayarları tek panelde (Views/WidgetEditorWindow); hep ilk satır.
+        var edit = Menus.Item(L.T("Düzenle…"), OpenEditor);
+        edit.FontWeight = FontWeights.SemiBold;
+        menu.Items.Add(edit);
+
         var own = new WidgetMenu();
         View.AddMenuItems(own);
 
@@ -488,13 +497,17 @@ public sealed class WidgetWindow : Window
     /// Görünüm ▸ Vurgu rengi ▸ Özel renk…: renk seçici kartın yanında açılır; seçilen renk widget'ta hemen önizlenir, Kaydet yazar
     /// (adlı renk 2.1 için en yakın değere), Vazgeç kayıtlı renge döner.
     /// </summary>
-    private void PickAccentColor() =>
+    private void PickAccentColor() => PickAccentColor(null);
+
+    /// <param name="saved">Renk yazıldıktan sonra (Düzenle paneli kendini tazeler).</param>
+    private void PickAccentColor(Action? saved) =>
         Views.ColorPickerDialog.ForWidget(this, WidgetLooks.CustomAccent(Config) ?? CurrentAccentHex(),
             hex => HoldPreview(hex is null ? null : new LookOverride(AccentColor: hex)),
             hex =>
             {
                 _heldPreview = null;
                 Update(() => WidgetLooks.SetAccentColor(Config, hex));
+                saved?.Invoke();
             });
 
     /// <summary>Kayıtlı görünüşün vurgu rengi ("#RRGGBB"; önizlemesiz, yüksek karşıtlık yokmuş gibi): seçici bununla açılır.</summary>
@@ -515,7 +528,7 @@ public sealed class WidgetWindow : Window
     }
 
     /// <summary>Görünüş ayarını değiştirir, uygular ve kaydettirir; menüdeki önizleme (varsa) seçilen değerle biter.</summary>
-    private void Update(Action change)
+    internal void Update(Action change)
     {
         change();
         _preview = _wantedPreview = _heldPreview;
@@ -523,6 +536,135 @@ public sealed class WidgetWindow : Window
         AppHost.SaveSettings();
         ResolveOverlapAfterLayout(); // ölçek büyüdüyse komşusunun üstüne binmesin
     }
+
+    // ---------------------------------------------------------------- 2.2 Kolay NestDesk: Düzenle paneli
+
+    /// <summary>"Düzenle…" (menünün ilk satırı): panel kartın yanında açılır; başka bir kartta açıksa bu karta geçer.</summary>
+    internal void OpenEditor() => Dispatcher.BeginInvoke(() =>
+    {
+        // Menü kapandıktan sonra: kapanan menü odağı karta geri verirken paneli arkaya itmesin.
+        if (!_leaving && !_closed) Views.WidgetEditorWindow.ShowFor(this);
+    }, DispatcherPriority.Background);
+
+    private Action _onLayoutChanged, _onCollapseToggle;
+
+    /// <summary>
+    /// Görünümü ayardan yeniden kurar (Düzenle panelinde ad, simge ve "Geri al"): görünümlerin başlığı, simgesi ve parçaları
+    /// ayarı okuyarak çizilir, her görünümün kendi yenileme yolu yoktur. Önce bekleyen içerik yazılır; yeni görünüm eskisi
+    /// bırakılmadan kurulur (paylaşılan klasör izleyicisi kapanıp yeniden açılmasın). Kartın yeri ve boyutu değişmez.
+    /// </summary>
+    internal void RebuildView()
+    {
+        if (_closed) return;
+        var old = View;
+        old.Flush();
+        var view = WidgetViews.Create(Config);
+        old.LayoutChanged -= _onLayoutChanged;
+        old.CollapseToggleRequested -= _onCollapseToggle;
+        View = view;
+        _card.Padding = view.CardPadding;
+        _card.Child = (UIElement)view;
+        view.LayoutChanged += _onLayoutChanged;
+        view.CollapseToggleRequested += _onCollapseToggle;
+        old.Detach();
+        ApplyStyle();
+        ApplyLayoutMode();
+        if (_live == true) view.SetLive(true);
+        if (IsActive) FocusCard();
+    }
+
+    // Değişince görünümün yeniden kurulması gerekmeyen alanlar (ApplyStyle/yerleşim yeter).
+    private static readonly HashSet<string> StyleOnly =
+    [
+        nameof(WidgetConfig.Style), nameof(WidgetConfig.Accent), nameof(WidgetConfig.LookTheme), nameof(WidgetConfig.LookAccentColor),
+        nameof(WidgetConfig.Scale), nameof(WidgetConfig.Opacity), nameof(WidgetConfig.Corners), nameof(WidgetConfig.Shadow),
+        nameof(WidgetConfig.FadeUntilHover), nameof(WidgetConfig.AutoRollup), nameof(WidgetConfig.Collapsed),
+        nameof(WidgetConfig.Locked), nameof(WidgetConfig.NoteColor),
+    ];
+
+    /// <summary>
+    /// Düzenle panelinin "Geri al"ı: ayar panel açıldığındaki hâline döner (<see cref="ConfigSnapshot"/>: yer, boyut ve notun
+    /// metni hariç). Yalnızca görünüş değiştiyse yeniden çizilir, başka bir şey de değiştiyse görünüm yeniden kurulur; kutunun
+    /// öğeleri değiştiyse masaüstündeki taşınmış öğeler ve kutudaki dosyaların listesi uzlaştırılır.
+    /// </summary>
+    internal void RestoreFrom(ConfigSnapshot snapshot)
+    {
+        if (_closed || snapshot.Id != Config.Id) return;
+        View.Flush();
+        var collapsed = Config.Collapsed;
+        var changed = snapshot.Restore(Config);
+        if (changed.Count == 0) return;
+        AppHost.SaveSettings();
+        if (changed.Contains(nameof(WidgetConfig.Tabs)) || changed.Contains(nameof(WidgetConfig.ItemLooks)))
+        {
+            BoxMover.Reconcile();
+            AppHost.RefreshPinnedPaths();
+        }
+        if (changed.Any(name => !StyleOnly.Contains(name))) RebuildView();
+        if (Config.Collapsed != collapsed)
+        {
+            var wanted = Config.Collapsed;
+            Config.Collapsed = collapsed;
+            if (View.Collapsible) SetCollapsed(wanted);
+            else Config.Collapsed = wanted;
+        }
+        if (!Config.AutoRollup) _rolledUp = false;
+        _preview = _wantedPreview = _heldPreview = null;
+        ApplyStyle();
+        ApplyLayoutMode();
+        ResolveOverlapAfterLayout();
+    }
+
+    void Views.IEditorTarget.Update(Action change) => Update(change);
+
+    void Views.IEditorTarget.SetLocked(bool locked) => SetLocked(locked);
+
+    void Views.IEditorTarget.SetAutoRollup(bool on)
+    {
+        if (Config.AutoRollup != on) ToggleAutoRollup();
+    }
+
+    void Views.IEditorTarget.Rename(string? title)
+    {
+        if (string.Equals(Config.Title, title, StringComparison.Ordinal)) return;
+        Config.Title = title;
+        AppHost.SaveSettings();
+        RebuildView();
+        AppHost.Widgets?.NotifyChanged();
+    }
+
+    void Views.IEditorTarget.PickIcon(Action<string?> preview, Action saved) =>
+        Views.IconPicker.ForWidget(this, Config, WidgetText.DisplayName(Config), preview, icon =>
+        {
+            if (string.Equals(icon, Config.Icon, StringComparison.Ordinal)) return;
+            Config.Icon = icon;
+            AppHost.SaveSettings();
+            RebuildView();
+            AppHost.Widgets?.NotifyChanged();
+            saved();
+        });
+
+    void Views.IEditorTarget.PickAccentColor(Action saved) => PickAccentColor(saved);
+
+    void Views.IEditorTarget.Restore(ConfigSnapshot snapshot)
+    {
+        RestoreFrom(snapshot);
+        AppHost.Widgets?.NotifyChanged();
+    }
+
+    IReadOnlyList<(string Id, LookFields Before)> Views.IEditorTarget.ApplyLookToAll() =>
+        AppHost.Widgets?.CopyLookToAll(Config) ?? [];
+
+    void Views.IEditorTarget.UndoLookToAll(IReadOnlyList<(string Id, LookFields Before)> before) =>
+        AppHost.Widgets?.UndoLookCopy(before);
+
+    void Views.IEditorTarget.Duplicate() => AppHost.Widgets?.Duplicate(Config.Id);
+
+    void Views.IEditorTarget.Remove() => AppHost.Widgets?.RemoveWithUndo(Config.Id);
+
+    Box? Views.IEditorTarget.CardBox => VisibleCardBox;
+
+    NativeMethods.POINT Views.IEditorTarget.CenterPoint => CenterPoint;
 
     /// <summary>Kaydedilmiş fiziksel konum hâlâ bağlı bir monitörün çalışma alanında mı?</summary>
     private static bool IsOnSomeMonitor(int x, int y)

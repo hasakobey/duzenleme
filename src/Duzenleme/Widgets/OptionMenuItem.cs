@@ -41,6 +41,14 @@ public sealed class OptionMenuItem : MenuItem
     /// <summary>İşareti modelden yeniden okur.</summary>
     public void Refresh() => CoerceValue(IsCheckedProperty);
 
+    // 2.2 Kolay NestDesk 2. dalga: Düzenle paneli aynı seçeneği menüsüz bir anahtar/bölüm olarak çizer (Views/MenuRows).
+
+    /// <summary>Seçenek şu an açık mı (modelden)?</summary>
+    internal bool IsOn => _isOn();
+
+    /// <summary>Tıklamayla aynı iş: seçeneği uygular ve bulunduğu menünün işaretlerini tazeler (menü açık olmasa da).</summary>
+    internal void Choose() => Apply();
+
     private void Apply()
     {
         _apply();

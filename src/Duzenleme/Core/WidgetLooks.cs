@@ -60,6 +60,17 @@ public static class WidgetLooks
         c.LookTheme = null;
     }
 
+    /// <summary>
+    /// Düzenle panelindeki Cam/Koyu/Açık kartı (<see cref="LookGallery"/>): klasik arka plan, ama hazır temanın kendi rengi
+    /// (kullanıcı seçmedi) temayla birlikte gider; adlı vurgu rengi (tema seçilirken en yakın değere yazılan) geçerli olur.
+    /// Kullanıcının seçtiği özel renk kalır. Menüdeki "Arka plan" (<see cref="SetStyle"/>) rengi olduğu gibi bırakır.
+    /// </summary>
+    public static void SetClassicLook(WidgetConfig c, WidgetStyle style)
+    {
+        if (!CustomAccentChosen(c)) c.LookAccentColor = null;
+        SetStyle(c, style);
+    }
+
     /// <summary>Adlı vurgu rengi: özel rengi siler.</summary>
     public static void SetAccent(WidgetConfig c, WidgetAccent accent)
     {
