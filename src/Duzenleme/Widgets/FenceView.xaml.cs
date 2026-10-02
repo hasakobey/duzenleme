@@ -632,6 +632,18 @@ public partial class FenceView : UserControl, IWidgetView
             _config.ItemOrder = null;
             _relocating = false;
         });
+        KeepDesktopCovered();
+    }
+
+    /// <summary>
+    /// "Masaüstünü bölmeler yönetsin" açıkken bölmenin kaynağı değişti (panel, "Geri al"): bir tür (klasörler, kısayollar,
+    /// dosyalar) artık hiçbir bölmede görünmüyorsa mod kapanır ve Windows'un simgeleri geri gelir (<see cref="AppHost.EnsureNothingInvisible"/>).
+    /// </summary>
+    internal static void KeepDesktopCovered()
+    {
+        if (AppHost.EnsureNothingInvisible(notify: false))
+            Views.Notice.Show(L.T("Bazı masaüstü öğeleri artık hiçbir bölmede görünmüyordu: Windows'un masaüstü simgeleri yeniden gösteriliyor."),
+                Views.NoticeKind.Info);
     }
 
     /// <summary>Bölme bu kaynağı zaten gösteriyor mu (masaüstü türü, masaüstündeki klasör ya da portalın klasörü)?</summary>
@@ -1002,6 +1014,15 @@ public partial class FenceView : UserControl, IWidgetView
         if (Items.IsKeyboardFocusWithin && Items.SelectedItem is TileItem item)
             return !TileItem.IsShellObject(item.Path) && BeginItemRename(item);
         return BeginTitleEdit();
+    }
+
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        TitleText.Text = !string.IsNullOrWhiteSpace(_config.Title) ? _config.Title : DefaultTitle;
+        HeaderIcon.Symbol = WidgetIcons.For(_config);
+        ApplyParts();
+        return true;
     }
 
     /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>
@@ -1420,7 +1441,7 @@ public partial class FenceView : UserControl, IWidgetView
     /// <summary>
     /// Menüde: klasör bölmesinde "Klasörü aç" ve "Bu bölmede ara"; masaüstü bölmesinde "Bu bölmede ara" ve (Klasörler, Tümü)
     /// "Yeni klasör". Kaynak, görünüş ve sıra Düzenle panelinde (<see cref="AddEditorContent"/>); seyrek simge seçenekleri, klasör
-    /// simgesi, yenileme ve gizlenen öğeler "Daha fazla"da.
+    /// bölmesinin "Yeni klasör"ü ve klasör simgesi, yenileme ve gizlenen öğeler "Daha fazla"da.
     /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
@@ -1434,7 +1455,11 @@ public partial class FenceView : UserControl, IWidgetView
 
         menu.More.AddRange(Menus.TileOptions(_config, Set, singleClickOption: true));
         if (folder is not null)
+        {
+            // Klasör bölmesinin menüsünde yer yok ("Klasörü aç", ara): alt klasör buradan açılır.
+            menu.More.Add(Menus.Item(L.T("Yeni klasör"), NewFolder));
             menu.More.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(folder)));
+        }
         menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
         if (_config.HiddenItems.Count > 0)
         {
@@ -1552,6 +1577,7 @@ public partial class FenceView : UserControl, IWidgetView
         _config.Title = state.Title;
         _config.ItemOrder = state.Order;
         _relocating = false;
+        KeepDesktopCovered();
     });
 
     /// <summary>Kaynağın görünen adı (bildirim, yonga): tür adı, masaüstündeki klasörün adı ya da portalın klasörü.</summary>

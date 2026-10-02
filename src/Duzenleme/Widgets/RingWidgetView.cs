@@ -168,6 +168,12 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     /// <summary>F2: halkanın adı (bkz. <see cref="WidgetNameLine"/>; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
 
+    public bool RefreshTitle()
+    {
+        _name.Refresh();
+        return true;
+    }
+
     public void Detach()
     {
         _name.Cancel();

@@ -173,7 +173,7 @@
                 </Grid>
             </Border>
             <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                       Text="{l:T 'Tek bir widget\'ı ayarlamak için ona sağ tıkla → Görünüm. Notlar kendi kağıt rengini kullanır.'}" />
+                       Text="{l:T 'Tek bir widget\'ı ayarlamak için kartındaki ⋯ düğmesine bas (ya da ona sağ tıkla → Düzenle). Notlar kendi kağıt rengini kullanır.'}" />
         </StackPanel>
 
         <!-- Kayıtlı düzenler (katlanır) -->

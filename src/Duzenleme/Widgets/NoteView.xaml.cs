@@ -93,6 +93,9 @@ public partial class NoteView : UserControl, IWidgetView
 
     private string DefaultTitle => _config.NoteChecklist ? L.T("Yapılacaklar") : L.T("Not");
 
+    // Görünümün o an gösterdiği kip (ApplyMode yazar): Save yalnızca ayardaki kip bununla aynıyken yazar.
+    private bool _shownChecklist;
+
     private void QueueSave()
     {
         if (_applying) return;
@@ -103,8 +106,11 @@ public partial class NoteView : UserControl, IWidgetView
     private void Save()
     {
         _saveTimer.Stop();
-        if (_applying) return;
-        var text = _config.NoteChecklist ? ChecklistText.Format(CurrentItems()) : Editor.Text;
+        // Gösterilen kip ayardakinden farklıysa ayar bu görünümün altından değişti (Düzenle panelinin "Geri al"ı listeyi düz nota
+        // ya da düz notu listeye geri aldı; metni de geri yazmış olabilir): bu görünüm eskidir, yerine yenisi kurulur. Yazarsa
+        // ayardaki metni boş yazı alanıyla ya da eski maddelerle ezerdi.
+        if (_applying || _shownChecklist != _config.NoteChecklist) return;
+        var text = _shownChecklist ? ChecklistText.Format(CurrentItems()) : Editor.Text;
         if (_config.NoteText == text) return;
         _config.NoteText = text;
         AppHost.SaveSettings();
@@ -117,6 +123,7 @@ public partial class NoteView : UserControl, IWidgetView
         try
         {
             // Önce yeni içerik hazırlanır, sonra görünürlük değişir: gizlenen alanın odak kaybı (kayıt) eksik içerik görmesin.
+            _shownChecklist = _config.NoteChecklist;
             if (_config.NoteChecklist)
             {
                 // "Bitenler alta" açıksa liste açılırken de öyle dizilir (metin başka yerde, ör. 2.0'da değişmiş olabilir).
@@ -291,6 +298,13 @@ public partial class NoteView : UserControl, IWidgetView
     {
         if (_titleEditor.IsEditing) return true;
         return BeginTitleEdit();
+    }
+
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        UpdateTitle();
+        return true;
     }
 
     /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>

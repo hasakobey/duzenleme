@@ -52,6 +52,13 @@ public interface IWidgetView
     /// </summary>
     bool AddEditorContent(Views.EditorContent content) => false;
 
+    /// <summary>
+    /// Ad ya da simge Düzenle panelinden değişti (<see cref="WidgetConfig.Title"/>/<see cref="WidgetConfig.Icon"/> yazıldı):
+    /// başlık yerinde tazelenir, görünüm yeniden kurulmaz (büyük bölme yeniden dolmaz; panelde ya da kartta basılmakta olan düğme
+    /// yerinden kalkıp tıklama kaybolmaz). false (varsayılan): WidgetWindow görünümü ayardan yeniden kurar.
+    /// </summary>
+    bool RefreshTitle() => false;
+
     /// <summary>Bekleyen değişiklikleri (ör. notun son yazılanları) ayarlara hemen yazar.</summary>
     void Flush() { }
 

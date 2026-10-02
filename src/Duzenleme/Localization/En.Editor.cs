@@ -13,7 +13,7 @@ internal static partial class En
         new("Düzenle", "Edit"),
         new("Düzenle…", "Edit…"),
         new("Klasör bölmesi", "Folder panel"),
-        new("Widget'ı panel açıldığındaki hâline döndürür", "Returns the widget to how it was when you opened this panel"),
+        new("Widget'ı panel açıldığındaki hâline döndürür", "Returns the widget to how it was when you opened Edit"),
 
         // Görünüm: galeri, renk ve boyut
         new("Otomatik", "Auto"),
@@ -31,6 +31,9 @@ internal static partial class En
         new("Düzenle düğmesi (⋯)", "Edit button (⋯)"),
         new("Görünüm ve diğer ayarlar artık \"Düzenle\"de.", "Look and other settings are now in \"Edit\"."),
         new("Listeye çevir", "Convert to list"),
+        new("Bazı masaüstü öğeleri artık hiçbir bölmede görünmüyordu: Windows'un masaüstü simgeleri yeniden gösteriliyor.",
+            "Some desktop items no longer showed in any panel, so Windows desktop icons are shown again."),
+        new("\"{0}\" kutudan çıkarıldı.", "\"{0}\" was removed from the box."),
         new("{0} biten madde temizlendi.", "Cleared {0} done item.", "Cleared {0} done items."),
 
         // Widget'ların kendi ayarları

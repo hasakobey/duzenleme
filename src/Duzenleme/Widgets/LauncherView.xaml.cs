@@ -70,7 +70,7 @@ public partial class LauncherView : UserControl, IWidgetView
 
     // Etiketler Menus.Parts'ta çevrilir (L.Dyn).
     private static readonly (string Key, string Label)[] LauncherParts =
-        [("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("tabs", L.N("Sekmeler")), Menus.ClosePart];
+        [("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("tabs", L.N("Sekmeler")), Menus.EditPart, Menus.ClosePart];
 
     /// <summary>
     /// Kullanıcının kapattığı parçaları gizler. Dar kutuda başlık okunsun diye öğe sayısı ve başlık simgesi (bu sırayla)
@@ -652,7 +652,11 @@ public partial class LauncherView : UserControl, IWidgetView
         content.Items(L.T("Öğeler"), _config.Tabs.Count > 1 ? L.T("Bu sekme boş.") : L.T("Kutu boş."), () => _tiles,
             path =>
             {
-                if (_tiles.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is { } item) RemoveItem(item);
+                // Panelden çıkarılanın "Geri al"ı panelin kendi bildiriminde (masaüstüne geri konan da, yalnızca listeden çıkan da).
+                if (_tiles.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is not { } item) return;
+                if (_edits.Remove(Current, LauncherEntries.IndexOfPath(Current, item.Path)) is not { } movedBack) return;
+                content.Notice(movedBack ? L.F("\"{0}\" kutudan çıkarıldı ve masaüstüne geri konuyor.", item.Name)
+                    : L.F("\"{0}\" kutudan çıkarıldı.", item.Name), UndoRemove);
             },
             MoveItem);
         content.Buttons(
@@ -709,6 +713,15 @@ public partial class LauncherView : UserControl, IWidgetView
         if (_titleEditor.IsEditing || _rename is { IsActive: true }) return true;
         if (Items.IsKeyboardFocusWithin && Items.SelectedItem is TileItem item) return BeginLabelRename(item);
         return BeginTitleEdit();
+    }
+
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title;
+        HeaderIcon.Symbol = WidgetIcons.For(_config);
+        ApplyParts();
+        return true;
     }
 
     /// <summary>Başlığı yerinde düzenler; başlık satırı gizliyse küçük pencereyle sorar (widget'ın monitöründe).</summary>

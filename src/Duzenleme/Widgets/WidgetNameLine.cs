@@ -117,4 +117,12 @@ internal sealed class WidgetNameLine
     }
 
     public void Cancel() => _editor.Cancel();
+
+    /// <summary>Ad başka yerden (Düzenle panelinin ad kutusu) değişti: satır ve görünüm (erişilebilirlik adı dahil) yeniden çizilir.</summary>
+    public void Refresh()
+    {
+        _editor.Cancel();
+        Render();
+        _changed();
+    }
 }

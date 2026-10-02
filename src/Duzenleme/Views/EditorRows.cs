@@ -329,6 +329,16 @@ internal static class EditorRows
         };
         AutomationProperties.SetAutomationId(picker, automationId);
         AutomationProperties.SetName(picker, label());
+        // Açık takvimde Esc ve Enter yalnızca takvimi kapatır. WPF tuşu işlenmiş saymaz: kabarıp paneli kapatırdı (Esc) ya da
+        // "Bitti"ye basardı (Enter).
+        var wasOpen = false;
+        picker.PreviewKeyDown += (_, _) => wasOpen = picker.IsDropDownOpen;
+        picker.KeyDown += (_, e) =>
+        {
+            if (!wasOpen || e.Key is not (Key.Escape or Key.Enter)) return;
+            picker.IsDropDownOpen = false;
+            e.Handled = true;
+        };
         var syncing = false;
         picker.SelectedDateChanged += (_, _) =>
         {
@@ -602,8 +612,8 @@ internal static class EditorRows
 /// <summary>
 /// Düzenle panelinin uyarlayıcısı (Kolay NestDesk 2. dalga): görünümün kendi menü öğelerini (<see cref="IWidgetView.AddMenuItems"/>)
 /// panel satırı olarak çizer; bütün görünümler ilk günden panelde ayarlanır, menüyle panel ayrı ayrı yazılıp birbirinden
-/// sapmaz. Seçenek (<see cref="OptionMenuItem"/>) → anahtar; tek seçimli alt menü (<see cref="Menus.Choice{T}"/>,
-/// <see cref="Menus.AsChoice"/>) → bölümlü seçim ya da açılır liste; komut (<see cref="Menus.Item"/>) → düğme; başka alt menü →
+/// sapmaz. Seçenek (<see cref="OptionMenuItem"/>) → anahtar; tek seçimli alt menü (<see cref="Menus.Choice{T}"/>) → bölümlü
+/// seçim ya da açılır liste; komut (<see cref="Menus.Item"/>) → düğme; başka alt menü →
 /// başlıklı grup. "Göster" listesi (<see cref="Menus.Parts"/>) panelin kendi "Göster" bölümüne gider (<see cref="PartsIn"/>).
 /// İşler menüdekiyle aynı yoldan çalışır (seçeneğin kendi işi, komutun Click'i); ardından panel tazelenir, menünün yapısını
 /// değiştiren seçenek (<c>staysOpen: false</c>) ve komut paneli yeniden kurdurur.

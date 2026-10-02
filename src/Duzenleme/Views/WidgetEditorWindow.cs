@@ -129,7 +129,10 @@ internal sealed class WidgetEditorWindow : FluentWindow
         Hook(widget);
         MaxHeight = MaxHeightAt(widget.CenterPoint);
         _editor.Edit(widget);
-        if (IsLoaded) Dispatcher.BeginInvoke(PlaceNextToCard, DispatcherPriority.Loaded);
+        if (!IsLoaded) return;
+        Dispatcher.BeginInvoke(PlaceNextToCard, DispatcherPriority.Loaded);
+        // Panelin içi yeniden kuruldu (odaktaki denetim kalktı): klavyeyle gelen ilk denetimde başlar.
+        Dispatcher.BeginInvoke(() => _editor.MoveFocus(new TraversalRequest(FocusNavigationDirection.First)), DispatcherPriority.Input);
     }
 
     private void Hook(WidgetWindow widget)

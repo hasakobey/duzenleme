@@ -45,7 +45,10 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
 
     public WidgetConfig Config { get; }
 
-    /// <summary>Kartın içindeki görünüm. Düzenle paneli adı, simgeyi ya da "Geri al"ı uygulayınca yenisi kurulur (<see cref="RebuildView"/>).</summary>
+    /// <summary>
+    /// Kartın içindeki görünüm. Düzenle panelinin "Geri al"ı (ad ve simgeyi yerinde tazeleyemeyen görünümde bunlar da) yenisini
+    /// kurar (<see cref="RebuildView"/>).
+    /// </summary>
     public IWidgetView View { get; private set; }
 
     public WidgetWindow(WidgetConfig config, IWidgetView view)
@@ -529,7 +532,8 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
     private Action _onLayoutChanged, _onCollapseToggle;
 
     /// <summary>
-    /// Görünümü ayardan yeniden kurar (Düzenle panelinde ad, simge ve "Geri al"): görünümlerin başlığı, simgesi ve parçaları
+    /// Görünümü ayardan yeniden kurar (Düzenle panelinin "Geri al"ı; ad ve simgeyi yerinde tazeleyemeyen görünümde bunlar da):
+    /// görünümlerin başlığı, simgesi ve parçaları
     /// ayarı okuyarak çizilir, her görünümün kendi yenileme yolu yoktur. Önce bekleyen içerik yazılır; yeni görünüm eskisi
     /// bırakılmadan kurulur (paylaşılan klasör izleyicisi kapanıp yeniden açılmasın). Kartın yeri ve boyutu değişmez.
     /// </summary>
@@ -562,6 +566,18 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
         nameof(WidgetConfig.Locked), nameof(WidgetConfig.NoteColor),
     ];
 
+    // Görünümün başlığı yerinde tazeleyebildiği alanlar (IWidgetView.RefreshTitle).
+    private static readonly HashSet<string> TitleOnly = [nameof(WidgetConfig.Title), nameof(WidgetConfig.Icon)];
+
+    /// <summary>
+    /// Ad ya da simge değişti: görünüm başlığı yerinde tazeler (<see cref="IWidgetView.RefreshTitle"/>), yapamıyorsa yeniden
+    /// kurulur. Görünüm yerinde kalınca panelin ya da kartın o an basılan düğmesi kaybolmaz, büyük bölme yeniden dolmaz.
+    /// </summary>
+    private void ShowTitleAndIcon()
+    {
+        if (!View.RefreshTitle()) RebuildView();
+    }
+
     /// <summary>
     /// Düzenle panelinin "Geri al"ı: ayar panel açıldığındaki hâline döner (<see cref="ConfigSnapshot"/>: yer, boyut ve notun
     /// metni hariç). Yalnızca görünüş değiştiyse yeniden çizilir, başka bir şey de değiştiyse görünüm yeniden kurulur; kutunun
@@ -580,7 +596,10 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
             BoxMover.Reconcile();
             AppHost.RefreshPinnedPaths();
         }
-        if (changed.Any(name => !StyleOnly.Contains(name))) RebuildView();
+        if (changed.Any(name => !StyleOnly.Contains(name) && !TitleOnly.Contains(name))) RebuildView();
+        else if (changed.Any(TitleOnly.Contains)) ShowTitleAndIcon();
+        // "Masaüstünü bölmeler yönetsin": geri gelen kaynakla bir tür hiçbir bölmede kalmadıysa mod kapanır.
+        if (changed.Contains(nameof(WidgetConfig.Filter))) FenceView.KeepDesktopCovered();
         if (Config.Collapsed != collapsed)
         {
             var wanted = Config.Collapsed;
@@ -609,7 +628,7 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
         if (string.Equals(Config.Title, title, StringComparison.Ordinal)) return;
         Config.Title = title;
         AppHost.SaveSettings();
-        RebuildView();
+        ShowTitleAndIcon();
         AppHost.Widgets?.NotifyChanged();
     }
 
@@ -619,7 +638,7 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
             if (string.Equals(icon, Config.Icon, StringComparison.Ordinal)) return;
             Config.Icon = icon;
             AppHost.SaveSettings();
-            RebuildView();
+            ShowTitleAndIcon();
             AppHost.Widgets?.NotifyChanged();
             saved();
         });

@@ -246,6 +246,13 @@ public partial class RecycleBinView : UserControl, IWidgetView
     /// <summary>F2: başlık yerinde düzenlenir (boş bırakılırsa varsayılan ada döner; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _titleEditor.Begin();
 
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        Render();
+        return true;
+    }
+
     public void Detach()
     {
         if (_clickWindow is not null) _clickWindow.PreviewMouseLeftButtonUp -= OnWindowMouseUp;

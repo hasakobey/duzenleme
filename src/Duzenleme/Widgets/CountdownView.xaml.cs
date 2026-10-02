@@ -147,6 +147,13 @@ public partial class CountdownView : UserControl, IWidgetView
         return true;
     }
 
+    public bool RefreshTitle()
+    {
+        _titleEditor.Cancel();
+        Render();
+        return true;
+    }
+
     private void Edit()
     {
         if (Views.CountdownDialog.Ask(_config.Title, Target, _config.CountdownYearly, AnchorOf(this)) is not { } result) return;

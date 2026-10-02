@@ -136,6 +136,70 @@ public class ConfigSnapshotTests
     }
 
     [Fact]
+    public void Undoing_the_source_brings_back_its_manual_order()
+    {
+        // Panelde kaynak değişti (FenceView.ShowSource: başlık ve elle sıra kaynağa aitti, silinir).
+        var config = new WidgetConfig { Kind = WidgetKind.Fence, Filter = DesktopFilter.Folders, SortBy = FenceOrder.Manual, ItemOrder = ["b", "a"] };
+        var snapshot = ConfigSnapshot.Take(config);
+        config.Filter = DesktopFilter.All;
+        config.ItemOrder = null;
+
+        var changed = snapshot.Restore(config);
+        Assert.Contains(nameof(WidgetConfig.Filter), changed);
+        Assert.Contains(nameof(WidgetConfig.ItemOrder), changed);
+        Assert.Equal(["b", "a"], config.ItemOrder);
+        Assert.Empty(snapshot.Restore(config));
+
+        // Kaynak gidip geri geldi (Filter yine aynı) ama sıra silindi: silinen sıra da döner.
+        config.ItemOrder = null;
+        Assert.Equal([nameof(WidgetConfig.ItemOrder)], snapshot.Restore(config));
+        Assert.Equal(["b", "a"], config.ItemOrder);
+
+        // Yeni kaynakta elle verilen sıra o kaynağındır: eski kaynak geri gelince eski sırası (yoksa sırasızlık) döner.
+        var portal = new WidgetConfig { Kind = WidgetKind.Fence, FolderName = "PDF" };
+        var before = ConfigSnapshot.Take(portal);
+        portal.FolderName = @"C:\İndirilenler";
+        portal.ItemOrder = ["x"];
+        before.Restore(portal);
+        Assert.Equal("PDF", portal.FolderName);
+        Assert.Null(portal.ItemOrder);
+    }
+
+    [Fact]
+    public void Undoing_convert_to_list_brings_back_the_plain_text_unless_it_was_edited()
+    {
+        const string plain = "süt\n- ekmek\n\nyumurta";
+        var config = new WidgetConfig { Kind = WidgetKind.Note, NoteText = plain };
+        var snapshot = ConfigSnapshot.Take(config);
+        // NoteView.ToChecklist: her dolu satır "☐ " önekli bir madde olur.
+        config.NoteText = ChecklistText.Format(ChecklistText.Parse(plain));
+        config.NoteChecklist = true;
+        Assert.NotEqual(plain, config.NoteText);
+
+        var changed = snapshot.Restore(config);
+        Assert.Contains(nameof(WidgetConfig.NoteText), changed);
+        Assert.False(config.NoteChecklist);
+        Assert.Equal(plain, config.NoteText);
+
+        // Listeye çevrildikten sonra yazılan (ya da işaretlenen) kalır; yalnızca tür geri gelir.
+        config.NoteText = ChecklistText.Format(ChecklistText.Parse(plain)) + "\n☐ peynir";
+        config.NoteChecklist = true;
+        changed = snapshot.Restore(config);
+        Assert.DoesNotContain(nameof(WidgetConfig.NoteText), changed);
+        Assert.False(config.NoteChecklist);
+        Assert.EndsWith("☐ peynir", config.NoteText);
+
+        // Listeyi düz nota çevirmek metne dokunmaz: geri alma da dokunmaz.
+        var list = new WidgetConfig { Kind = WidgetKind.Note, NoteChecklist = true, NoteText = "☐ a\n☑ b" };
+        var opened = ConfigSnapshot.Take(list);
+        list.NoteChecklist = false;
+        list.NoteText = "☐ a\n☑ b\nyazılan";
+        opened.Restore(list);
+        Assert.True(list.NoteChecklist);
+        Assert.Equal("☐ a\n☑ b\nyazılan", list.NoteText);
+    }
+
+    [Fact]
     public void Kept_fields_are_real_properties()
     {
         var names = typeof(WidgetConfig).GetProperties().Select(p => p.Name).ToHashSet();

@@ -76,6 +76,28 @@ public class WidgetMenuTests
         });
     }
 
+    [Theory]
+    [MemberData(nameof(Kinds))]
+    public void Every_widget_can_hide_its_edit_and_remove_buttons_in_the_panel(string kind)
+    {
+        EditorFakes.OnSta(() =>
+        {
+            // Panelin "Göster" ve "Daha fazla" listesi menü öğelerinden gelir: parçalar listesinin sonu ⋯ ve × (CLAUDE.md kuralı).
+            var (view, _) = Create(kind);
+            if (view is RingWidgetView ring)
+            {
+                // Panelin "Öğe ekle"si gösterilen halkayı okur: kökü olan halka ve çizimsiz halka görünümü.
+                ((WidgetConfig)Field(typeof(RingWidgetView), "_config").GetValue(ring)!).Tabs = [new LauncherTab { Name = "Halka" }];
+                Field(typeof(RingWidgetView), "_ring").SetValue(ring, RuntimeHelpers.GetUninitializedObject(typeof(RingView)));
+            }
+            var menu = new WidgetMenu { ForEditor = true };
+            view.AddMenuItems(menu);
+            var keys = Views.MenuRows.PartsIn([.. menu.Primary, .. menu.Settings, .. menu.More]).Select(p => p.Key).ToList();
+            Assert.True(keys.Count >= 2, kind);
+            Assert.Equal([Menus.EditPart.Key, Menus.ClosePart.Key], keys[^2..]);
+        });
+    }
+
     [Fact]
     public void Menu_rows_are_translated()
     {
@@ -162,7 +184,7 @@ public class WidgetMenuTests
     /// Görünüm, kurucusu çalışmadan (XAML ve pencere yok): ayarı ve verilen alanları yazılır; alan başlatıcıları çalışmadığından
     /// boş listeler kurulur (notun maddeleri).
     /// </summary>
-    private static T View<T>(WidgetConfig config, params (string Field, object? Value)[] fields) where T : IWidgetView
+    internal static T View<T>(WidgetConfig config, params (string Field, object? Value)[] fields) where T : IWidgetView
     {
         var view = RuntimeHelpers.GetUninitializedObject(typeof(T));
         foreach (var field in typeof(T).GetFields(BindingFlags.Instance | BindingFlags.NonPublic))

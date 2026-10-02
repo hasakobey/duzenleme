@@ -10,7 +10,9 @@ namespace Duzenleme.Core;
 /// bir kez yazmakla aynıdır.
 /// <para>Ayar değil içerik ve yer olan alanlara dokunulmaz (<see cref="Kept"/>): panel açıkken yazılan not, taşınan ya da
 /// büyütülen kart, elle verilen sıra, kutu klasörü. Zamanlayıcının çalışma durumu (bitiş anı, kalan süre…) de korunur;
-/// yalnızca türü panelde değiştirildiyse bütünüyle geri gelir (tür değişince çalışma durumu zaten sıfırlanmıştır).</para>
+/// yalnızca türü panelde değiştirildiyse bütünüyle geri gelir (tür değişince çalışma durumu zaten sıfırlanmıştır). İki istisna
+/// bir ayarın kendisinin değiştirdiği içeriktir: bölmenin kaynağı geri gelince (ya da kaynak değişirken silindiyse) elle sıra
+/// da döner; listeye çevrilen not, o arada yazılmadıysa liste geri alınınca ilk metnine döner.</para>
 /// </summary>
 public sealed class ConfigSnapshot
 {
@@ -65,8 +67,31 @@ public sealed class ConfigSnapshot
             property.SetValue(target, then);
             changed.Add(property.Name);
         }
+
+        // Elle sıra bölmenin kaynağına aittir: kaynak geri gelince onunla döner; kaynak değişimi (yalnızca o) sırayı siler, kaynak
+        // sonra eski hâline getirildiyse de silinen sıra geri gelir. Öğeleri sürükleyerek verilen sıra kalır.
+        if ((changed.Any(SourceFields.Contains) || target.ItemOrder is null) &&
+            !SameJson(copy.ItemOrder, target.ItemOrder, typeof(List<string>)))
+        {
+            target.ItemOrder = copy.ItemOrder;
+            changed.Add(nameof(WidgetConfig.ItemOrder));
+        }
+
+        // Listeye çevrilen not "☐ " önekleriyle yeniden yazılır: metin hâlâ tam o çevrilmiş hâlindeyse (o arada yazılmadı,
+        // işaretlenmedi) liste geri alınınca ilk metin de döner; yazıldıysa yazılan kalır.
+        if (changed.Contains(nameof(WidgetConfig.NoteChecklist)) && !target.NoteChecklist &&
+            !string.Equals(target.NoteText, copy.NoteText, StringComparison.Ordinal) &&
+            string.Equals(target.NoteText, ChecklistText.Format(ChecklistText.Parse(copy.NoteText)), StringComparison.Ordinal))
+        {
+            target.NoteText = copy.NoteText;
+            changed.Add(nameof(WidgetConfig.NoteText));
+        }
         return changed;
     }
+
+    // Bölmenin kaynağı (elle sıra ona aittir).
+    private static readonly string[] SourceFields =
+        [nameof(WidgetConfig.Filter), nameof(WidgetConfig.FolderName), nameof(WidgetConfig.FolderKnownId)];
 
     /// <summary>Geri alınacak bir şey var mı (<see cref="Kept"/> dışında kopyadan farklı bir alan)?</summary>
     public bool Differs(WidgetConfig current)

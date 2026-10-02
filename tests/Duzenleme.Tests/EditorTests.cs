@@ -188,6 +188,99 @@ public class EditorTests
     }
 
     [Fact]
+    public void Saving_the_name_keeps_the_panel_rows_while_the_card_keeps_its_view()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            // Ad kutusu odağı panelde bir denetime basılırken bırakır ve kaydeder: kartın başlığı yerinde tazelenir
+            // (IWidgetView.RefreshTitle), panel yeniden kurulmaz; basılan denetim yerinde kalır, tıklama kaybolmaz.
+            var config = new WidgetConfig { Kind = WidgetKind.Fence, Filter = DesktopFilter.Files };
+            var (editor, target, _) = EditorFakes.Open(config);
+            var shadow = EditorFakes.Find(editor, "Editor.Shadow");
+            ((TextBox)EditorFakes.Find(editor, "Editor.Name")).Text = "Belgeler";
+            editor.CommitPending();
+            EditorFakes.Pump();
+            Assert.Equal("Belgeler", config.Title);
+            Assert.Same(shadow, EditorFakes.Find(editor, "Editor.Shadow"));
+
+            // Görünümü yeniden kurulan kartta (başlığını yerinde tazeleyemeyen görünüm) panel de yeniden kurulur.
+            target.ReplaceView();
+            editor.Refresh();
+            EditorFakes.Pump();
+            Assert.NotSame(shadow, EditorFakes.Find(editor, "Editor.Shadow"));
+        });
+    }
+
+    [Fact]
+    public void More_tells_screen_readers_whether_it_is_open()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var (editor, _, _) = EditorFakes.Open(EditorFakes.Clock());
+            var more = (UIElement)EditorFakes.Find(editor, "Editor.More");
+            var shadow = (UIElement)EditorFakes.Find(editor, "Editor.Shadow");
+            var peer = System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(more);
+            var fold = Assert.IsAssignableFrom<System.Windows.Automation.Provider.IExpandCollapseProvider>(
+                peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.ExpandCollapse));
+            Assert.Equal(ExpandCollapseState.Collapsed, fold.ExpandCollapseState);
+            Assert.True(Folded(shadow));
+
+            fold.Expand();
+            Assert.Equal(ExpandCollapseState.Expanded, fold.ExpandCollapseState);
+            Assert.False(Folded(shadow));
+
+            EditorFakes.Click(more);
+            Assert.Equal(ExpandCollapseState.Collapsed, fold.ExpandCollapseState);
+            Assert.True(Folded(shadow));
+        });
+    }
+
+    /// <summary>Öğe ya da üstlerinden biri gizli mi (katlı "Daha fazla")?</summary>
+    private static bool Folded(DependencyObject d)
+    {
+        for (var at = d; at is not null; at = LogicalTreeHelper.GetParent(at))
+            if (at is UIElement { Visibility: not Visibility.Visible }) return true;
+        return false;
+    }
+
+    [Fact]
+    public void Scale_changed_elsewhere_shows_up_as_custom_size_when_the_panel_refreshes()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var config = EditorFakes.Clock();
+            var (editor, _, _) = EditorFakes.Open(config);
+            Assert.DoesNotContain("Editor.Size.Custom", EditorFakes.Ids(editor));
+
+            config.Scale = 1.5; // Ctrl + tekerlek
+            editor.Refresh();
+            EditorFakes.Pump();
+            Assert.True(((RadioButton)EditorFakes.Find(editor, "Editor.Size.Custom")).IsChecked);
+
+            config.Scale = 1.0;
+            editor.Refresh();
+            EditorFakes.Pump();
+            Assert.DoesNotContain("Editor.Size.Custom", EditorFakes.Ids(editor));
+            Assert.True(((RadioButton)EditorFakes.Find(editor, "Editor.Size.Medium")).IsChecked);
+        });
+    }
+
+    [Fact]
+    public void Note_view_left_behind_by_undo_does_not_overwrite_the_restored_text()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            // Görünüm liste gösteriyordu; panelin "Geri al"ı ayarı düz nota (ve ilk metnine) döndürdü. Görünüm yeniden kurulurken
+            // eskisi bırakılır (Flush, Detach): boş yazı alanını ya da eski maddeleri ayarın üstüne yazmamalı.
+            var config = new WidgetConfig { Kind = WidgetKind.Note, NoteChecklist = false, NoteText = "ilk metin" };
+            var note = WidgetMenuTests.View<NoteView>(config,
+                ("_saveTimer", new DispatcherTimer()), ("Editor", new TextBox()), ("_shownChecklist", true));
+            note.Flush();
+            Assert.Equal("ilk metin", config.NoteText);
+        });
+    }
+
+    [Fact]
     public void Look_for_all_shows_a_notice_whose_undo_puts_the_others_back()
     {
         EditorFakes.OnSta(() =>

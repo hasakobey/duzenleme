@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -35,7 +37,7 @@ internal interface IEditorTarget
 
     void SetAutoRollup(bool on);
 
-    /// <summary>Ad (null: türün varsayılan adı); görünüm yeniden kurulur.</summary>
+    /// <summary>Ad (null: türün varsayılan adı); kartın başlığı yerinde tazelenir (yapamayan görünüm yeniden kurulur).</summary>
     void Rename(string? title);
 
     /// <summary>Simge seçici (kartın ve panelin yanında): seçerken <paramref name="preview"/>, kaydedince <paramref name="saved"/>.</summary>
@@ -90,6 +92,7 @@ internal sealed class WidgetEditor : UserControl
     private SymbolIcon? _icon;
     private bool _moreOpen;
     private bool _rebuildQueued;
+    private bool _rebuildAfterRelease;
     private bool _syncing;
     private Action? _noticeUndo;
 
@@ -166,6 +169,13 @@ internal sealed class WidgetEditor : UserControl
         Content = root;
 
         PreviewKeyDown += OnKey;
+        // Fare panelde basılıyken ertelenen yeniden kurulum bırakınca (tıklama işlendikten sonra) yapılır (QueueRebuild).
+        AddHandler(Mouse.LostMouseCaptureEvent, new MouseEventHandler((_, _) =>
+        {
+            if (!_rebuildAfterRelease || IsMouseCaptureWithin) return;
+            _rebuildAfterRelease = false;
+            QueueRebuild();
+        }), handledEventsToo: true);
     }
 
     /// <summary>Düzenlenen widget (yoksa null).</summary>
@@ -200,6 +210,7 @@ internal sealed class WidgetEditor : UserControl
         _target = null;
         _builtView = null;
         _snapshot = null;
+        _rebuildAfterRelease = false;
         _refreshers.Clear();
         _body.Children.Clear();
         _name = null;
@@ -258,10 +269,19 @@ internal sealed class WidgetEditor : UserControl
     {
         if (_rebuildQueued) return;
         _rebuildQueued = true;
-        // Komut pencere açtıysa (ad, süre…) kapandıktan sonra; menünün yapısı değişmiş olabilir.
+        // Komut pencere açtıysa (ad, süre…) kapandıktan sonra; menünün yapısı değişmiş olabilir. Fare paneldeki bir denetime
+        // basılıyken (ör. ad kutusu odağı bırakıp kaydedildi, kart yeniden kuruldu) beklenir: basılan düğme kaldırılırsa
+        // tıklama kaybolurdu. Bırakılınca kurulur.
         Dispatcher.BeginInvoke(() =>
         {
             _rebuildQueued = false;
+            if (_target is null) return;
+            if (IsMouseCaptureWithin)
+            {
+                _rebuildAfterRelease = true;
+                return;
+            }
+            _rebuildAfterRelease = false;
             Rebuild();
         }, DispatcherPriority.Background);
     }
@@ -350,7 +370,7 @@ internal sealed class WidgetEditor : UserControl
         var shownIcon = _icon;
         icon.Click += (_, _) => target.PickIcon(
             preview: chosen => shownIcon.Symbol = WidgetIcons.Symbol(chosen) ?? WidgetIcons.DefaultFor(config),
-            saved: QueueRebuild);
+            saved: Refresh);
 
         var column = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         if (HasName(config))
@@ -397,7 +417,11 @@ internal sealed class WidgetEditor : UserControl
         return row;
     }
 
-    /// <summary>Yazılan ad değiştiyse kaydeder (boş: türün varsayılan adı); görünüm yeniden kurulur.</summary>
+    /// <summary>
+    /// Yazılan ad değiştiyse kaydeder (boş: türün varsayılan adı). Kartın başlığı yerinde tazelenir; panel yalnızca kartın görünümü
+    /// yeniden kurulduysa yeniden kurulur (<see cref="Refresh"/>): ad kutusu odağı panelde bir denetime basılırken bırakır, basılan
+    /// denetim yerinde kalmalı.
+    /// </summary>
     private void CommitName()
     {
         if (_name is not { } name || _target is not { } target) return;
@@ -405,7 +429,7 @@ internal sealed class WidgetEditor : UserControl
         var title = text.Length == 0 ? null : text;
         if (string.Equals(title, target.Config.Title, StringComparison.Ordinal)) return;
         target.Rename(title);
-        QueueRebuild();
+        Refresh();
     }
 
     /// <summary>Adı olan widget: saat ve tarihin başlığı yoktur.</summary>
@@ -471,6 +495,11 @@ internal sealed class WidgetEditor : UserControl
             target.Update(() => c.Scale = preset.Scale);
             Changed(structural: custom is not null); // "Özel" seçeneği kalkar
         }, _refreshers));
+        // Ölçek başka yerden (Ctrl + tekerlek) hazır olmayan bir değere geçtiyse ya da ondan döndüyse "Özel" seçeneği kurulur/kalkar.
+        _refreshers.Add(() =>
+        {
+            if (!string.Equals(SizePresets.CustomLabel(c.Scale), custom, StringComparison.Ordinal)) QueueRebuild();
+        });
 
         if (themed && !SystemParameters.HighContrast)
             _body.Children.Add(EditorRows.Link(L.T("Bu görünümü tüm widget'lara uygula"), "Editor.ApplyAll", () =>
@@ -582,7 +611,7 @@ internal sealed class WidgetEditor : UserControl
         var chevron = new SymbolIcon { Symbol = _moreOpen ? SymbolRegular.ChevronUp24 : SymbolRegular.ChevronDown24, FontSize = 14, Margin = new Thickness(8, 0, 0, 0) };
         var heading = new TextBlock { Text = L.T("Daha fazla"), FontSize = 14, FontWeight = FontWeights.SemiBold };
         heading.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-        var toggle = new Button
+        var toggle = new FoldButton
         {
             Content = new StackPanel { Orientation = Orientation.Horizontal, Children = { heading, chevron } },
             Appearance = ControlAppearance.Transparent, HorizontalAlignment = HorizontalAlignment.Left,
@@ -596,6 +625,7 @@ internal sealed class WidgetEditor : UserControl
             _moreOpen = open;
             body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
             chevron.Symbol = open ? SymbolRegular.ChevronUp24 : SymbolRegular.ChevronDown24;
+            toggle.IsExpanded = open;
         }
         toggle.Click += (_, _) => Show(!_moreOpen);
         Show(_moreOpen);
@@ -687,6 +717,57 @@ internal sealed class WidgetEditor : UserControl
     {
         _noticeUndo = null;
         _notice.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// "Daha fazla" düğmesi: ekran okuyucu bölümün açık mı kapalı mı olduğunu duyar ve açıp kapatabilir (ExpandCollapse; düz düğme
+    /// bunu söylemez). Türetilmiş denetim örtük stili almaz: WPF-UI düğmesinin stili verilir.
+    /// </summary>
+    private sealed class FoldButton : Button
+    {
+        private bool _expanded;
+
+        public FoldButton() => SetResourceReference(StyleProperty, typeof(Button));
+
+        public bool IsExpanded
+        {
+            get => _expanded;
+            set
+            {
+                if (_expanded == value) return;
+                _expanded = value;
+                (UIElementAutomationPeer.FromElement(this) as Peer)?.RaiseStateChanged(!value, value);
+            }
+        }
+
+        private void Toggle() => OnClick();
+
+        protected override AutomationPeer OnCreateAutomationPeer() => new Peer(this);
+
+        private sealed class Peer(FoldButton owner) : ButtonAutomationPeer(owner), IExpandCollapseProvider
+        {
+            public override object GetPattern(PatternInterface patternInterface) =>
+                patternInterface == PatternInterface.ExpandCollapse ? this : base.GetPattern(patternInterface);
+
+            public ExpandCollapseState ExpandCollapseState => State(owner.IsExpanded);
+
+            public void Expand()
+            {
+                if (!owner.IsEnabled) throw new ElementNotEnabledException();
+                if (!owner.IsExpanded) owner.Toggle();
+            }
+
+            public void Collapse()
+            {
+                if (!owner.IsEnabled) throw new ElementNotEnabledException();
+                if (owner.IsExpanded) owner.Toggle();
+            }
+
+            internal void RaiseStateChanged(bool was, bool now) =>
+                RaisePropertyChangedEvent(ExpandCollapsePatternIdentifiers.ExpandCollapseStateProperty, State(was), State(now));
+
+            private static ExpandCollapseState State(bool expanded) => expanded ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed;
+        }
     }
 
     /// <summary>Görsel ağaçta AutomationId'si verilen ilk öğe (yeniden kurulduktan sonra odağı geri vermek için).</summary>

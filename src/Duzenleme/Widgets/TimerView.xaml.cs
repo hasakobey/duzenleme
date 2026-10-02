@@ -357,6 +357,12 @@ public partial class TimerView : UserControl, IWidgetView
     /// <summary>F2: zamanlayıcının adı (bkz. <see cref="WidgetNameLine"/>; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
 
+    public bool RefreshTitle()
+    {
+        _name.Refresh();
+        return true;
+    }
+
     private void AskPomodoro()
     {
         var (focus, rest, longRest) = TimerLogic.PomodoroMinutes(State);

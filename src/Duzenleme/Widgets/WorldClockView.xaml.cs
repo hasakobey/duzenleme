@@ -209,6 +209,12 @@ public partial class WorldClockView : UserControl, IWidgetView
     /// <summary>F2: widget'ın adı (şehirlerin adı satır menüsünden değişir; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
 
+    public bool RefreshTitle()
+    {
+        _name.Refresh();
+        return true;
+    }
+
     public void Detach()
     {
         _name.Cancel();
