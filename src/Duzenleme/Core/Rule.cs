@@ -30,9 +30,10 @@ public sealed class Rule
 
     /// <summary>
     /// Hazır kuralların klasörleri, iki dilde (Windows kitaplıklarının o dildeki adları gibi). Veri: çeviri tablosundan
-    /// geçmez; kural bir kez oluşturulunca kullanıcı verisidir, dil değişince yeniden adlandırılmaz.
+    /// geçmez; kural bir kez oluşturulunca kullanıcı verisidir, dil değişince yeniden adlandırılmaz. Kural kalıpları
+    /// (<see cref="RuleTemplates"/>) uzantıları buradan alır.
     /// </summary>
-    private static readonly (string Tr, string En, string[] Extensions)[] Categories =
+    internal static readonly (string Tr, string En, string[] Extensions)[] Categories =
     [
         ("PDF", "PDF", ["pdf"]),
         ("Resimler", "Pictures", ["jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "svg"]),

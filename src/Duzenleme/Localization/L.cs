@@ -181,6 +181,14 @@ public static class L
         return en is null || en == tr ? [tr] : [tr, en];
     }
 
+    /// <summary><see cref="Variants"/>'ın <see cref="N"/> ile işaretlenmiş anahtar için olanı (değişken alabilir; ör. kural kalıbının
+    /// klasör adı iki dilde de tanınsın).</summary>
+    public static IReadOnlyList<string> DynVariants(string markedKey)
+    {
+        var en = En.Find(markedKey, null)?.En;
+        return en is null || en == markedKey ? [markedKey] : [markedKey, en];
+    }
+
     /// <summary>Sıralı birleştirme: "", "A", "A ve B", "A, B ve C" / "A and B", "A, B and C".</summary>
     public static string Join(IReadOnlyList<string> items)
     {

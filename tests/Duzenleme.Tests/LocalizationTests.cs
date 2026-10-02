@@ -20,7 +20,7 @@ public class LocalizationTests
     private static readonly HashSet<string> KeyedMethods = ["T", "F", "P", "N", "Variants"];
 
     /// <summary>Dil o an neyse donduran yöntemler: static alan/özellik başlatıcısında ve const'ta yasak (N serbest).</summary>
-    private static readonly HashSet<string> RuntimeMethods = ["T", "F", "P", "Dyn", "Variants", "Join", "Percent"];
+    private static readonly HashSet<string> RuntimeMethods = ["T", "F", "P", "Dyn", "Variants", "DynVariants", "Join", "Percent"];
 
     // ---------------------------------------------------------------- tablolar
 

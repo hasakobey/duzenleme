@@ -129,7 +129,7 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 
 #### Otomatik taşıma (isteğe bağlı)
 
-- Masaüstünde `PDF` adında bir klasör varsa masaüstüne düşen PDF'ler oraya gider. Resimler, belgeler, arşivler, videolar ve müzik için de hazır kurallar var; **Otomatik taşıma** sayfasında klasör adı ↔ uzantı kurallarını değiştir. Klasörü olmayan kuralın satırında kaç dosyanın beklediği görünür; **Klasörü oluştur** ile tek tıkla açılır.
+- Masaüstünde `PDF` adında bir klasör varsa masaüstüne düşen PDF'ler oraya gider. Resimler, belgeler, arşivler, videolar ve müzik için de hazır kurallar var; **Otomatik taşıma** sayfasında her kural bir karttır (`PDF ← .pdf`): **Kural ekle** hazır türlerle (Tasarım, E-kitaplar…) ya da kendi yazdığın uzantıyla iki adımda kural ekler, ⋯ › **Değiştir…** uzantıları ve klasörü değiştirir. Klasörü olmayan kuralın kartında kaç dosyanın beklediği görünür; **Oluştur** ile tek tıkla açılır.
 - Klasör masaüstünde yoksa dosyaya dokunulmaz (istersen **Gelişmiş → Klasör yoksa oluştur**). Büyük/küçük harf ve Türkçe karakter fark etmez: `Arşivler` = `arsivler`.
 - Kısayollar, gizli ve sistem dosyaları, klasörler ve inmekte olan dosyalar (`.crdownload`, `.part`) asla taşınmaz; aynı adlı dosyanın üzerine yazılmaz (`ad (1).pdf`). Kısayol kutusundaki masaüstü dosyaları da kurallarla taşınmaz.
 - Her taşıma geri alınabilir; geri alınan dosya bir daha kendiliğinden taşınmaz.
@@ -319,7 +319,7 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 
 #### Auto-move (optional)
 
-- If your desktop has a folder named `PDF`, PDFs saved to the desktop go there. Ready-made rules also cover pictures, documents, archives, videos and music; change the folder name ↔ extension rules on the **Auto-move** page. A rule whose folder doesn't exist shows how many files are waiting, and **Create folder** creates it with one click.
+- If your desktop has a folder named `PDF`, PDFs saved to the desktop go there. Ready-made rules also cover pictures, documents, archives, videos and music; on the **Auto-move** page each rule is a card (`PDF ← .pdf`): **Add rule** adds one in two steps from a ready-made type (Design, E-books…) or your own extensions, and ⋯ › **Change…** changes its extensions and folder. A rule whose folder doesn't exist shows how many files are waiting, and **Create** creates it with one click.
 - If the folder doesn't exist on the desktop, the file is left alone (optionally, turn on creating missing folders under **Advanced**). Matching ignores letter case and Turkish accents: `Arşivler` = `arsivler`. With English as the interface language, the default folders are PDF, Pictures, Documents, Archives, Videos and Music; existing folders in either language are reused.
 - Shortcuts, hidden and system files, folders and downloads in progress (`.crdownload`, `.part`) are never moved, and no file is overwritten (`name (1).pdf`). Desktop files that are in a shortcut box are not moved by rules either.
 - Every move can be undone; a file you moved back is never moved automatically again.
