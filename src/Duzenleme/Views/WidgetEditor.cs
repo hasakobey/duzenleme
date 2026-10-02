@@ -66,7 +66,8 @@ internal interface IEditorTarget
 
 /// <summary>
 /// "Düzenle" paneli (Kolay NestDesk 2. dalga): bir widget'ın bütün ayarları tek yerde, sabit sırayla. Üstte simge, ad ve türü;
-/// sonra widget'ın kendi ayarları (görünümün menü öğelerinden, <see cref="MenuRows"/>), "Görünüm" (galeri, renk, boyut),
+/// sonra widget'ın kendi ayarları (görünümün kendi denetimleri, <see cref="IWidgetView.AddEditorContent"/>; yoksa menü öğeleri,
+/// <see cref="MenuRows"/>), "Görünüm" (galeri, renk, boyut),
 /// "Göster" (parçalar) ve kapalı "Daha fazla" (saydamlık, köşeler, gölge, kilit…); altta "Geri al" · "Kaldır" · "Bitti".
 /// Her denetim widget'a hemen uygulanır (widget'ın kendisi önizlemedir; fareyle önizleme yok), "Geri al" widget'ı panel
 /// açıldığındaki hâline döndürür (Ctrl+Z de). Kendi penceresinde (<see cref="WidgetEditorWindow"/>) ya da bir sayfanın içinde
@@ -83,6 +84,7 @@ internal sealed class WidgetEditor : UserControl
     private readonly List<Action> _refreshers = [];
 
     private IEditorTarget? _target;
+    private IWidgetView? _builtView;
     private ConfigSnapshot? _snapshot;
     private TextBox? _name;
     private SymbolIcon? _icon;
@@ -115,7 +117,8 @@ internal sealed class WidgetEditor : UserControl
             var undo = _noticeUndo;
             HideNotice();
             undo?.Invoke();
-            Refresh();
+            // Geri alınan iş panelin yapısını da değiştirmiş olabilir (bölmenin kaynağı): yeniden kurulur.
+            QueueRebuild();
         };
         var noticeRow = new DockPanel();
         DockPanel.SetDock(noticeAction, Dock.Right);
@@ -195,6 +198,7 @@ internal sealed class WidgetEditor : UserControl
     {
         CommitName();
         _target = null;
+        _builtView = null;
         _snapshot = null;
         _refreshers.Clear();
         _body.Children.Clear();
@@ -221,6 +225,12 @@ internal sealed class WidgetEditor : UserControl
     public void Refresh()
     {
         if (_target is null) return;
+        // Kartın görünümü yeniden kuruldu (ad, simge, "Geri al"): satırlar eski görünümün öğelerine bağlıydı.
+        if (!ReferenceEquals(_target.View, _builtView))
+        {
+            QueueRebuild();
+            return;
+        }
         _syncing = true;
         try
         {
@@ -291,20 +301,25 @@ internal sealed class WidgetEditor : UserControl
         _body.Children.Clear();
         if (_target is not { } target) return;
 
-        var menu = new WidgetMenu();
+        var menu = new WidgetMenu { ForEditor = true };
         target.View.AddMenuItems(menu);
+        _builtView = target.View;
 
         _body.Children.Add(Header(target));
 
-        // Widget'ın kendi ayarları: menünün üst bölümündeki seçenekler (komutlar menüde kalır) ve Görünüm ▸'deki öteki öğeler.
+        // Widget'ın kendi ayarları: görünümün kendi denetimleri (bölme, kutu, not, zamanlayıcı, geri sayım) ya da menü öğeleri
+        // (menünün üst bölümündeki seçenekler; işleri menüde kalır) ve Settings'teki öbür öğeler.
         var content = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
-        MenuRows.Add(content, menu.Primary, optionsOnly: true, "Editor.Option.P", _refreshers, Changed);
-        MenuRows.Add(content, menu.Appearance, optionsOnly: false, "Editor.Option.A", _refreshers, Changed);
+        if (!target.View.AddEditorContent(new EditorContent(content, _refreshers, Changed, ShowNotice)))
+        {
+            MenuRows.Add(content, menu.Primary, optionsOnly: true, "Editor.Option.P", _refreshers, Changed);
+            MenuRows.Add(content, menu.Settings, optionsOnly: false, "Editor.Option.S", _refreshers, Changed);
+        }
         if (content.Children.Count > 0) _body.Children.Add(content);
 
         AddLook(target);
 
-        var parts = MenuRows.PartsIn([.. menu.Primary, .. menu.Appearance, .. menu.More]).ToList();
+        var parts = MenuRows.PartsIn([.. menu.Primary, .. menu.Settings, .. menu.More]).ToList();
         var shown = parts.Where(p => !IsChromePart(p.Key)).ToList();
         if (shown.Count > 0)
         {
@@ -652,7 +667,7 @@ internal sealed class WidgetEditor : UserControl
                 Refresh();
             }, _refreshers));
 
-        // Widget'ın seyrek kullanılanları (Diğer ▸: Panoya kopyala, Klasör simgesi…, Yenile).
+        // Widget'ın seyrek kullanılanları (Panoya kopyala, simge seçenekleri, Klasör simgesi…, Yenile).
         MenuRows.Add(body, more, optionsOnly: false, "Editor.Option.M", _refreshers, Changed);
 
         body.Children.Add(EditorRows.ActionButton(L.T("Çoğalt"), "Editor.Duplicate", target.Duplicate));
@@ -660,7 +675,7 @@ internal sealed class WidgetEditor : UserControl
 
     // ------------------------------------------------------------------ bildirim
 
-    /// <summary>Panelin içindeki bildirim satırı: metin ve "Geri al" (basılınca satır kalkar).</summary>
+    /// <summary>Panelin içindeki bildirim satırı: metin ve "Geri al" (basılınca satır kalkar; panel yeniden kurulur).</summary>
     private void ShowNotice(string text, Action undo)
     {
         _noticeText.Text = text;

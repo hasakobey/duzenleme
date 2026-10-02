@@ -260,6 +260,8 @@ public class OnboardingTests
         Assert.True(Onboarding.PrepareNewUser(settings));
         Assert.True(settings.Paused);
         Assert.True(settings.RenameNoticeShown);
+        // Kolay NestDesk: eski "Görünüm ▸" menüsünü hiç görmedi; "artık Düzenle'de" bildirimi ona gösterilmez.
+        Assert.True(settings.EditPanelNoticeShown);
     }
 
     [Fact]
@@ -270,6 +272,17 @@ public class OnboardingTests
         Assert.False(Onboarding.PrepareNewUser(settings));
         Assert.False(settings.Paused);
         Assert.False(settings.RenameNoticeShown);
+        Assert.False(settings.EditPanelNoticeShown); // eski kullanıcı ilk kart menüsünde bir kez görür
+    }
+
+    [Fact]
+    public void Edit_panel_notice_flag_is_written_only_once_shown()
+    {
+        static string Json(AppSettings settings) => System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(settings));
+        var settings = new AppSettings { FirstRunDone = true };
+        Assert.DoesNotContain(nameof(AppSettings.EditPanelNoticeShown), Json(settings));
+        settings.EditPanelNoticeShown = true;
+        Assert.Matches(nameof(AppSettings.EditPanelNoticeShown) + @"""\s*:\s*true", Json(settings));
     }
 
     // FencePlanText

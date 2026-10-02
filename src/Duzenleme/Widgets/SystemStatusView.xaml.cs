@@ -49,7 +49,11 @@ public partial class SystemStatusView : UserControl, IWidgetView
     {
         _config = config;
         InitializeComponent();
-        _name = new WidgetNameLine(this, config, NameBox, NameText, shadow: null, UpdateName);
+        _name = new WidgetNameLine(this, config, NameBox, NameText, shadow: null, () =>
+        {
+            UpdateName();
+            FitCorner();
+        });
         foreach (var (key, label, hasBar) in RowDefs) AddRow(key, label, hasBar);
         _timer = new DispatcherTimer(DispatcherPriority.Background);
         _timer.Tick += (_, _) => Sample();
@@ -199,9 +203,14 @@ public partial class SystemStatusView : UserControl, IWidgetView
         // Son görünen satırın altında boşluk kalmasın.
         var visible = _rows.Values.Where(r => r.Root.Visibility == Visibility.Visible).ToList();
         foreach (var row in _rows.Values) row.Root.Margin = new Thickness(0, 0, 0, row == visible.LastOrDefault() ? 0 : 11);
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         _name.Render();
+        FitCorner();
     }
+
+    /// <summary>Ad satırı yokken ilk satırın değeri sağ üstteki ⋯ ve ×'in altına girmesin.</summary>
+    private void FitCorner() =>
+        Rows.Margin = new Thickness(0, _name.IsShown || Corner.Visibility != Visibility.Visible ? 0 : 18, 0, 0);
 
     public void ApplyPalette(WidgetPalette palette)
     {
@@ -214,14 +223,15 @@ public partial class SystemStatusView : UserControl, IWidgetView
             row.Track.Background = palette.BorderBrush;
             ClearTypeText.Follow(this, row.Label, row.Value);
         }
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         ApplyParts();
     }
 
     public void AddMenuItems(WidgetMenu menu)
     {
         menu.Primary.Add(Menus.Item(L.T("Görev Yöneticisi'ni aç"), OpenTaskManager));
-        menu.Primary.Add(Menus.Choice(L.T("Güncelleme sıklığı"), () => IntervalSeconds,
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Choice(L.T("Güncelleme sıklığı"), () => IntervalSeconds,
             new[] { 2, 3, 5, 10 }.Select(s => (s, L.F("{0} saniyede bir", s))), value =>
             {
                 _config.StatusIntervalSeconds = value == DefaultInterval ? null : value;
@@ -230,7 +240,7 @@ public partial class SystemStatusView : UserControl, IWidgetView
             }));
         var drives = _drives ?? [SystemStats.SystemDrive];
         if (drives.Count > 1)
-            menu.Primary.Add(Menus.Choice(L.T("Disk"), () => DriveRoot, drives.Select(d => (d, d.TrimEnd('\\'))), value =>
+            menu.Settings.Add(Menus.Choice(L.T("Disk"), () => DriveRoot, drives.Select(d => (d, d.TrimEnd('\\'))), value =>
             {
                 _config.StatusDrive = string.Equals(value, SystemStats.SystemDrive, StringComparison.OrdinalIgnoreCase) ? null : value;
                 AppHost.SaveSettings();
@@ -238,10 +248,9 @@ public partial class SystemStatusView : UserControl, IWidgetView
                 _diskAt = DateTime.MinValue;
                 RefreshDisk();
             }));
-        menu.Primary.Add(_name.MenuItem());
-        menu.Appearance.Add(Menus.Parts(_config,
+        menu.Settings.Add(Menus.Parts(_config,
             [WidgetNameLine.Part, ("cpu", L.N("İşlemci")), ("memory", L.N("Bellek")), ("disk", L.N("Disk")), ("battery", L.N("Pil")),
-             ("uptime", L.N("Açık kalma süresi")), Menus.ClosePart],
+             ("uptime", L.N("Açık kalma süresi")), Menus.EditPart, Menus.ClosePart],
             () =>
             {
                 ApplyParts();
@@ -260,10 +269,8 @@ public partial class SystemStatusView : UserControl, IWidgetView
         }
     });
 
-    /// <summary>F2 ve "Yeniden adlandır": widget'ın adı (bkz. <see cref="WidgetNameLine"/>).</summary>
+    /// <summary>F2: widget'ın adı (bkz. <see cref="WidgetNameLine"/>; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach()
     {

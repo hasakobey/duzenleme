@@ -63,8 +63,8 @@ public partial class DateView : UserControl, IWidgetView
         SubText.Text = $"{today.Year} · {today.ToString("dddd", Culture)}";
         SubBox.Visibility = _config.Shows("sub") ? Visibility.Visible : Visibility.Collapsed;
         Week.Visibility = _config.Shows("week") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Foreground = _palette.Foreground;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Paint(_palette);
+        Corner.Update(_config);
         DayText.Foreground = _palette.Accent;
         SubText.Foreground = _palette.Secondary;
         // Küçük yazılar opak kartta ClearType ile çizilsin (ipucunu WidgetWindow görünüme verir; kırpılan alanda yazının
@@ -112,10 +112,13 @@ public partial class DateView : UserControl, IWidgetView
         Render();
     }
 
-    public void AddMenuItems(WidgetMenu menu) =>
-        menu.Appearance.Add(Menus.Parts(_config, [("sub", L.N("Yıl ve gün adı")), ("week", L.N("Haftalık şerit")), Menus.ClosePart], Render));
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
+    /// <summary>Tarihin menüde işi yok; Düzenle panelinde yalnızca parçalar.</summary>
+    public void AddMenuItems(WidgetMenu menu)
+    {
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Parts(_config,
+            [("sub", L.N("Yıl ve gün adı")), ("week", L.N("Haftalık şerit")), Menus.EditPart, Menus.ClosePart], Render));
+    }
 
     public void Detach() => WidgetTicker.DayChanged -= OnDayChanged;
 }

@@ -32,7 +32,8 @@
                     <local:ShadowText x:Name="DayShadow" Style="{StaticResource DayStyle}" Text="{Binding Text, ElementName=DayText}" />
                     <TextBlock x:Name="DayText" Style="{StaticResource DayStyle}" Text="1" />
                 </Grid>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <!-- Sağ pay: uzun ay adı sağ üstteki ⋯ ve ×'in altına girmesin. -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,30,0">
                     <Grid>
                         <local:ShadowText x:Name="MonthShadow" Style="{StaticResource MonthStyle}" Text="{Binding Text, ElementName=MonthText}" />
                         <TextBlock x:Name="MonthText" Style="{StaticResource MonthStyle}" />
@@ -45,8 +46,7 @@
             </Grid>
             <UniformGrid x:Name="Week" Columns="7" Rows="1" Margin="0,14,0,0" />
         </StackPanel>
-        <!-- Sağ üst köşede hep yerinde, sönük: fareyle belirip kaybolmaz. -->
-        <Button x:Name="RemoveButton" Style="{StaticResource WidgetCloseButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                Margin="0,-10,-12,0" Click="RemoveWidget_Click" />
+        <!-- Sağ üst köşede hep yerinde, sönük: ⋯ Düzenle ve × (kilitliyken kilit); fareyle belirip kaybolmaz. -->
+        <local:CardButtons x:Name="Corner" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-10,-12,0" />
     </Grid>
 </UserControl>

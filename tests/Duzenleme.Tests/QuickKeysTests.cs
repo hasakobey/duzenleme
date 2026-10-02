@@ -101,10 +101,10 @@ public class QuickKeysTests
             var changes = 0;
             var menu = new ContextMenu();
             var icons = Menus.TileOptions(c, change => { change(); changes++; }, singleClickOption: true);
-            menu.Items.Add(icons);
-            var option = icons.Items.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Numara tuşlarıyla aç (1–9)");
+            foreach (var item in icons) menu.Items.Add(item);
+            var option = icons.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Numara tuşlarıyla aç (1–9)");
             // Kolay NestDesk: rozet ve gri ipucu satırı yok (tıklanamayan satır yok).
-            Assert.DoesNotContain(icons.Items.OfType<MenuItem>(), o => !o.IsEnabled);
+            Assert.DoesNotContain(icons, o => !o.IsEnabled);
 
             Assert.False(option.IsChecked);
             Assert.True(option.StaysOpenOnClick);
@@ -126,7 +126,7 @@ public class QuickKeysTests
         {
             using var _ = L.Use(Lang.En);
             var icons = Menus.TileOptions(new WidgetConfig { Kind = WidgetKind.Launcher, QuickKeys = true }, change => change(), singleClickOption: false);
-            Assert.Contains(icons.Items.OfType<OptionMenuItem>(), o => (string)o.Header == "Open with number keys (1–9)" && o.IsChecked);
+            Assert.Contains(icons.OfType<OptionMenuItem>(), o => (string)o.Header == "Open with number keys (1–9)" && o.IsChecked);
         });
     }
 

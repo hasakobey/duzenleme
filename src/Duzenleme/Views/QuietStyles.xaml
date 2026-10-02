@@ -58,7 +58,7 @@
 
     <!-- ================================================================ Menü öğesi -->
 
-    <!-- Alt menüsü olan öğe (Görünüm ▸, Renk ▸…). WPF-UI: alt menü açılınca 167 ms'de yukarıdan kayardı. -->
+    <!-- Alt menüsü olan öğe (öğe menülerinde "Sekmeye taşı ▸", "Öğe ekle ▸"). WPF-UI: alt menü açılınca 167 ms'de yukarıdan kayardı. -->
     <ControlTemplate x:Key="QuietSubmenuHeaderTemplate" TargetType="{x:Type MenuItem}">
         <Grid>
             <Grid.RowDefinitions>

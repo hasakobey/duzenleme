@@ -26,11 +26,11 @@
         <Grid>
             <StackPanel MinWidth="220">
                 <!-- Adı (verildiyse; F2 yerinde düzenler): iki zamanlayıcı ayırt edilsin. Ad yoksa satır yok. -->
-                <Grid x:Name="NameBox" Margin="1,0,22,2" Visibility="Collapsed">
+                <Grid x:Name="NameBox" Margin="1,0,44,2" Visibility="Collapsed">
                     <local:ShadowText x:Name="NameShadow" Style="{StaticResource PhaseStyle}" FontSize="15" Text="{Binding Text, ElementName=NameText}" />
                     <TextBlock x:Name="NameText" Style="{StaticResource PhaseStyle}" FontSize="15" />
                 </Grid>
-                <Grid x:Name="PhaseBox" Margin="1,0,22,0">
+                <Grid x:Name="PhaseBox" Margin="1,0,44,0">
                     <local:ShadowText x:Name="PhaseShadow" Style="{StaticResource PhaseStyle}" Text="{Binding Text, ElementName=PhaseText}" />
                     <TextBlock x:Name="PhaseText" Style="{StaticResource PhaseStyle}" />
                 </Grid>
@@ -56,8 +56,8 @@
                             Content="{l:T '+1 dk'}" Click="Plus_Click" AutomationProperties.AutomationId="Timer.AddMinute" />
                 </StackPanel>
             </StackPanel>
-            <Button x:Name="RemoveButton" Style="{StaticResource WidgetCloseButton}" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Margin="0,-10,-12,0" Click="RemoveWidget_Click" />
+            <!-- Sağ üst köşede hep yerinde, sönük: ⋯ Düzenle ve × (kilitliyken kilit); fareyle belirip kaybolmaz. -->
+            <local:CardButtons x:Name="Corner" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-10,-12,0" />
         </Grid>
     </Border>
 </UserControl>

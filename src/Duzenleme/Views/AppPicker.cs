@@ -40,6 +40,30 @@ internal static class AppPicker
         public override string ToString() => app.Name;
     }
 
+    /// <summary>
+    /// Dosya seçici (birden çok; kısayollar çözülmez, masaüstünde açılır): "Uygulama seç"in "Dosya seç…"i ve kutunun Düzenle
+    /// panelindeki "+ Dosya". Vazgeçilirse null.
+    /// </summary>
+    public static IReadOnlyList<string>? AskFiles(Window? owner, string title)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = title,
+            Multiselect = true,
+            DereferenceLinks = false,
+            Filter = L.T("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*"),
+            InitialDirectory = AppHost.DesktopDirectory,
+        };
+        return (owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner)) == true && dialog.FileNames.Length > 0 ? dialog.FileNames : null;
+    }
+
+    /// <summary>Klasör seçici (birden çok, masaüstünde açılır): "Klasör seç…" ve kutunun panelindeki "+ Klasör". Vazgeçilirse null.</summary>
+    public static IReadOnlyList<string>? AskFolders(Window? owner, string title)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = title, Multiselect = true, InitialDirectory = AppHost.DesktopDirectory };
+        return (owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner)) == true && dialog.FolderNames.Length > 0 ? dialog.FolderNames : null;
+    }
+
     /// <param name="near">Pencerenin ortalanacağı nokta (widget'ın ortası); yoksa imleç.</param>
     /// <param name="existing">Hedefte zaten duran yollar ("Zaten ekli").</param>
     /// <param name="fileTitle">Dosya seçicinin başlığı ("Kısayol kutusuna ekle", "Halkaya ekle").</param>
@@ -181,25 +205,16 @@ internal static class AppPicker
         AutomationProperties.SetAutomationId(pickFiles, "AppPicker.PickFiles");
         pickFiles.Click += (_, _) =>
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = fileTitle,
-                Multiselect = true,
-                DereferenceLinks = false,
-                Filter = L.T("Uygulamalar ve kısayollar|*.exe;*.lnk;*.url;*.appref-ms;*.bat;*.cmd|Tüm dosyalar|*.*"),
-                InitialDirectory = AppHost.DesktopDirectory,
-            };
-            if (dialog.ShowDialog(window) != true || dialog.FileNames.Length == 0) return;
-            result = new AppPick(dialog.FileNames, new Dictionary<string, string>());
+            if (AskFiles(window, fileTitle) is not { } files) return;
+            result = new AppPick(files, new Dictionary<string, string>());
             window.DialogResult = true;
         };
         var pickFolders = new MenuItem { Header = L.T("Klasör seç…") };
         AutomationProperties.SetAutomationId(pickFolders, "AppPicker.PickFolders");
         pickFolders.Click += (_, _) =>
         {
-            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = folderTitle, Multiselect = true, InitialDirectory = AppHost.DesktopDirectory };
-            if (dialog.ShowDialog(window) != true || dialog.FolderNames.Length == 0) return;
-            result = new AppPick(dialog.FolderNames, new Dictionary<string, string>());
+            if (AskFolders(window, folderTitle) is not { } folders) return;
+            result = new AppPick(folders, new Dictionary<string, string>());
             window.DialogResult = true;
         };
         choose.Items.Add(pickFiles);

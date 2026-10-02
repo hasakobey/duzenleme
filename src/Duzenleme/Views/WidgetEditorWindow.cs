@@ -11,7 +11,7 @@ using Wpf.Ui.Controls;
 namespace Duzenleme.Views;
 
 /// <summary>
-/// "Düzenle" panelinin kendi penceresi (widget menüsünün ilk satırı "Düzenle…"; 2. dalganın devamında kartın ⋯ düğmesi): 360 DIP
+/// "Düzenle" panelinin kendi penceresi (widget menüsünün ilk satırı "Düzenle…" ve kartın ⋯ düğmesi, <see cref="CardButtons"/>): 360 DIP
 /// genişliğinde, kartın yanında ve onun monitöründe (<see cref="AnchorPlacement.NextTo"/>), ekrandan uzunsa içi kayar. Aynı anda
 /// tek panel açıktır; başka bir kartta "Düzenle…" aynı paneli o karta geçirir. Kip değildir ve odak gidince kapanmaz (simge ve
 /// renk seçici, karta tıklamak onu kapatmasın): Esc, "Bitti" (Enter), başlıktaki ×, widget kaldırılınca ya da kapanınca ve

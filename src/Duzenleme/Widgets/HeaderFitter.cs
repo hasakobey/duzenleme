@@ -9,7 +9,8 @@ namespace Duzenleme.Widgets;
 /// <summary>
 /// Dar widget'ın başlık satırı: başlık yazısı "…" olmasın diye isteğe bağlı parçaları (sayı, düğmeler, simge) verilen
 /// sırayla geçici olarak gizler (<see cref="HeaderFit"/>). Parçaların görünürlüğü her çağrıdan önce kullanıcının
-/// seçimine (Göster ▸) göre yeniden kurulmalıdır; gizleme hiçbir yere kaydedilmez.
+/// seçimine (Düzenle ▸ Göster) göre yeniden kurulmalıdır; gizleme hiçbir yere kaydedilmez. Kartın köşe düğmeleri (⋯, ×;
+/// <see cref="CardButtons"/>) sabit parçadır: hiç gizlenmez.
 /// </summary>
 internal static class HeaderFitter
 {

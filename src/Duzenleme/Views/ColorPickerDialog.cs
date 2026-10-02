@@ -16,7 +16,7 @@ using TextBox = System.Windows.Controls.TextBox;
 namespace Duzenleme.Views;
 
 /// <summary>
-/// Özel vurgu rengi seçici (Görünüm ▸ Vurgu rengi ▸ Özel renk…): büyük renk kutuları (4 × 6), renk kodu ("#RRGGBB") ve
+/// Özel vurgu rengi seçici (Düzenle ▸ Renk ▸ Özel…): büyük renk kutuları (4 × 6), renk kodu ("#RRGGBB") ve
 /// "Windows vurgu rengi". Widget'ın yanında, onun monitöründe açılır; seçilen renk widget'ta hemen görünür (önizleme,
 /// kaydedilmez), Kaydet yazar, Vazgeç/Esc/kapatma kayıtlı renge döner. Renk widget'ın zemininde okunur kalsın diye çizerken
 /// gerekirse açılır ya da koyulaştırılır (<see cref="ThemeMath.EnsureContrast"/>). Aynı anda tek seçici açıktır. Renk

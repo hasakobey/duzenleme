@@ -157,7 +157,7 @@ public class MenuTests
             Assert.False(Menus.Item("Kaldır", () => { }).StaysOpenOnClick);
 
             var icons = Menus.TileOptions(c, change => change(), singleClickOption: true);
-            var options = Descendants(icons).OfType<OptionMenuItem>().ToList();
+            var options = icons.SelectMany(i => Descendants(i).Prepend(i)).OfType<OptionMenuItem>().ToList();
             Assert.NotEmpty(options);
             Assert.All(options, o => Assert.True(o.StaysOpenOnClick));
 
@@ -178,20 +178,22 @@ public class MenuTests
     {
         OnSta(() =>
         {
-            var c = new WidgetConfig { Kind = WidgetKind.Fence, IconSize = IconSize.Medium };
+            var c = new WidgetConfig { Kind = WidgetKind.Fence, Align = TileAlign.Left };
             var changes = 0;
             var menu = new ContextMenu();
             var icons = Menus.TileOptions(c, change => { change(); changes++; }, singleClickOption: false);
-            menu.Items.Add(icons);
-            var size = icons.Items.OfType<MenuItem>().Single(m => (string)m.Header == "Boyut");
-            var large = size.Items.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Büyük");
+            foreach (var item in icons) menu.Items.Add(item);
+            // Görünüş (Izgara/Liste) ve simge boyutu panelin üst bölümünde (EditorContent.TileLook); burada seyrek olanlar.
+            Assert.DoesNotContain(icons, m => (string)m.Header is "Düzen" or "Boyut");
+            var align = icons.Single(m => (string)m.Header == "Hizalama");
+            var center = align.Items.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Ortaya");
 
-            Click(large);
-            Assert.Equal(IconSize.Large, c.IconSize);
+            Click(center);
+            Assert.Equal(TileAlign.Center, c.Align);
             Assert.Equal(1, changes);
-            Assert.Equal(["Büyük"], size.Items.OfType<OptionMenuItem>().Where(o => o.IsChecked).Select(o => (string)o.Header));
+            Assert.Equal(["Ortaya"], align.Items.OfType<OptionMenuItem>().Where(o => o.IsChecked).Select(o => (string)o.Header));
 
-            var hideNames = icons.Items.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Adları gizle");
+            var hideNames = icons.OfType<OptionMenuItem>().Single(o => (string)o.Header == "Adları gizle");
             Click(hideNames);
             Assert.True(c.HideLabels);
             Assert.True(hideNames.IsChecked);
@@ -224,8 +226,8 @@ public class MenuTests
 
     /// <summary>
     /// Kolay NestDesk: fareyle (ya da klavyeyle) bir seçeneğin üstüne gelmek hiçbir şeyi değiştirmez; önizleme yok. Bütün
-    /// seçenek türleri (Choice, Toggle, Parts, Simgeler, Tema/Arka plan/Vurgu) üstüne gelme, ayrılma, odak ve alt menünün
-    /// kapanması olaylarını alır; ne ayar ne işaret değişir, hiçbir değişiklik bildirilmez.
+    /// seçenek türleri (Choice, Toggle, Parts, simge seçenekleri) üstüne gelme, ayrılma, odak ve alt menünün kapanması
+    /// olaylarını alır; ne ayar ne işaret değişir, hiçbir değişiklik bildirilmez.
     /// </summary>
     [Fact]
     public void Options_never_react_to_hover()
@@ -239,14 +241,11 @@ public class MenuTests
             menu.Items.Add(Menus.Choice("Ölçek", () => 1.0, [(1.0, "Normal"), (2.0, "%200")], _ => calls++));
             menu.Items.Add(Menus.Toggle("Gölge", () => false, () => calls++));
             menu.Items.Add(Menus.Parts(c, [("header", "Başlık satırı"), Menus.ClosePart], () => calls++));
-            menu.Items.Add(Menus.TileOptions(c, change => { change(); calls++; }, singleClickOption: true));
-            menu.Items.Add(LookMenus.Theme(c, change => { change(); calls++; }, highContrast: false));
-            menu.Items.Add(LookMenus.Background(c, change => { change(); calls++; }));
-            menu.Items.Add(LookMenus.Accent(c, change => { change(); calls++; }, () => calls++));
+            foreach (var item in Menus.TileOptions(c, change => { change(); calls++; }, singleClickOption: true)) menu.Items.Add(item);
 
             var all = menu.Items.OfType<MenuItem>().SelectMany(i => Descendants(i).Prepend(i)).ToList();
             var options = all.OfType<OptionMenuItem>().ToList();
-            Assert.True(options.Count > 30);
+            Assert.True(options.Count > 15);
             var checks = options.Select(o => o.IsChecked).ToList();
             foreach (var item in all)
             {
@@ -264,29 +263,35 @@ public class MenuTests
     }
 
     /// <summary>
-    /// Kolay NestDesk: widget menülerinde gri ipucu satırı ve uygulama geneli öğe yok. Durum satırı (Menus.Hint) yalnızca
-    /// yüksek karşıtlıkta Tema ▸'de; iskelet (FillMenu) widget ekleme, göz atma, mıknatıs, çakışma, hizalama ve masaüstü simge
-    /// kiplerini içermez; görünümler simge kipini değiştirmez.
+    /// Kolay NestDesk: widget menülerinde gri ipucu satırı, alt menü ve uygulama geneli öğe yok. İskelet (FillMenu → BuildMenu)
+    /// "Görünüm ▸", "Diğer ▸", widget ekleme, göz atma, mıknatıs, çakışma, hizalama ve masaüstü simge kiplerini içermez;
+    /// görünümler simge kipini değiştirmez. Fareye bağlı iki seçenek ("Fare üstünde değilken …") menüde hiç yok, Düzenle
+    /// panelinde yalnızca açıkken.
     /// </summary>
     [Fact]
     public void Widget_menus_have_no_hint_rows_and_no_app_wide_items()
     {
         var widgets = Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets");
-        var hints = Directory.GetFiles(widgets, "*.cs")
-            .Where(f => Path.GetFileName(f) != "LookMenus.cs" && File.ReadAllText(f).Contains("Menus.Hint(", StringComparison.Ordinal))
+        var hints = Directory.GetFiles(widgets, "*.cs").Where(f => File.ReadAllText(f).Contains("Menus.Hint(", StringComparison.Ordinal))
             .Select(Path.GetFileName).ToList();
         Assert.Empty(hints);
-        var menus = File.ReadAllText(Path.Combine(widgets, "Menus.cs"));
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(menus, @"\bHint\("));   // yalnızca tanımı
+        Assert.DoesNotContain("Hint(", File.ReadAllText(Path.Combine(widgets, "Menus.cs")));
 
         var window = File.ReadAllText(Path.Combine(widgets, "WidgetWindow.cs"));
         var fill = System.Text.RegularExpressions.Regex.Match(window, @"private void FillMenu\(ContextMenu menu\)\s*\{(?<body>[\s\S]*?)\n    \}").Groups["body"].Value;
+        var build = System.Text.RegularExpressions.Regex.Match(window, @"internal static void BuildMenu\((?<body>[\s\S]*?)\n    \}").Groups["body"].Value;
         Assert.NotEmpty(fill);
-        foreach (var banned in new[] { "ShowQuickAdd", "TogglePeek", "SnapWidgets", "PreventOverlap", "ArrangeAll", "DesktopModes", "Hint(", "Preview(" })
+        Assert.NotEmpty(build);
+        Assert.Contains("BuildMenu(", fill);
+        foreach (var banned in new[] { "ShowQuickAdd", "TogglePeek", "SnapWidgets", "PreventOverlap", "ArrangeAll", "DesktopModes", "Hint(", "Preview(",
+                     "LookMenus", "\"Görünüm\"", "\"Diğer\"", "Appearance", "Settings", "More", "FadeUntilHover", "AutoRollup", "Fare üstünde" })
+        {
             Assert.DoesNotContain(banned, fill);
-        // Fareye bağlı seçenekler yalnızca açıkken görünür.
-        Assert.Contains("visible: () => Config.FadeUntilHover", fill);
-        Assert.Contains("visible: () => View.Collapsible && Config.AutoRollup", fill);
+            Assert.DoesNotContain(banned, build);
+        }
+        var editor = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Views", "WidgetEditor.cs"));
+        Assert.Contains("if (c.FadeUntilHover)", editor);
+        Assert.Contains("if (c.AutoRollup && target.View.Collapsible)", editor);
 
         foreach (var file in Directory.GetFiles(widgets, "*View*.cs"))
             Assert.DoesNotContain("DesktopModes.Set(", File.ReadAllText(file));
@@ -305,105 +310,7 @@ public class MenuTests
         });
     }
 
-    // ---------------------------------------------------------------- 2.2 Tema
-
-    [Fact]
-    public void Theme_menu_commits_on_click()
-    {
-        OnSta(() =>
-        {
-            var c = new WidgetConfig { Kind = WidgetKind.Fence, Style = WidgetStyle.Glass, Accent = WidgetAccent.Violet };
-            var updates = 0;
-            var menu = new ContextMenu();
-            var theme = LookMenus.Theme(c, change => { change(); updates++; }, highContrast: false);
-            menu.Items.Add(theme);
-            var options = theme.Items.OfType<OptionMenuItem>().ToList();
-            Assert.Equal(["Klasik", "Otomatik (Windows'a uyar)", "Neon", "Gece", "Kâğıt", "Okyanus"], options.Select(o => (string)o.Header));
-            Assert.Equal(["Klasik"], options.Where(o => o.IsChecked).Select(o => (string)o.Header));
-            Assert.All(options, o => Assert.True(o.StaysOpenOnClick));
-
-            var neon = options.Single(o => (string)o.Header == "Neon");
-            Click(neon);
-            Assert.Equal(1, updates);
-            Assert.Equal("neon", c.LookTheme);
-            Assert.Equal("#22D3EE", c.LookAccentColor);
-            Assert.Equal(["Neon"], options.Where(o => o.IsChecked).Select(o => (string)o.Header));
-
-            // Klasik temayı da, onunla gelen rengi de kaldırır.
-            Click(options[0]);
-            Assert.Null(c.LookTheme);
-            Assert.Null(c.LookAccentColor);
-        });
-    }
-
-    [Fact]
-    public void Theme_menu_says_why_themes_do_nothing_in_high_contrast()
-    {
-        OnSta(() =>
-        {
-            var c = new WidgetConfig { Kind = WidgetKind.Clock };
-            var normal = LookMenus.Theme(c, change => change(), highContrast: false);
-            Assert.DoesNotContain(normal.Items.OfType<MenuItem>(), i => !i.IsEnabled);
-            var contrast = LookMenus.Theme(c, change => change(), highContrast: true);
-            var hint = Assert.Single(contrast.Items.OfType<MenuItem>(), i => !i.IsEnabled);
-            Assert.Equal("Yüksek karşıtlık açık: widget'lar Windows'un renklerini kullanır.", hint.Header);
-        });
-    }
-
-    [Fact]
-    public void Background_shows_nothing_checked_while_a_theme_is_on_and_choosing_one_clears_it()
-    {
-        OnSta(() =>
-        {
-            var c = new WidgetConfig { Kind = WidgetKind.Fence, Style = WidgetStyle.Glass };
-            WidgetLooks.SetTheme(c, "gece", systemDark: true);
-            var menu = new ContextMenu();
-            var background = LookMenus.Background(c, change => change());
-            var theme = LookMenus.Theme(c, change => change(), highContrast: false);
-            menu.Items.Add(theme);
-            menu.Items.Add(background);
-            var styles = background.Items.OfType<OptionMenuItem>().ToList();
-            Assert.DoesNotContain(styles, o => o.IsChecked);
-
-            Click(styles[2]); // Açık
-            Assert.Null(c.LookTheme);
-            Assert.Equal(WidgetStyle.Light, c.Style);
-            Assert.Equal(["Açık"], styles.Where(o => o.IsChecked).Select(o => (string)o.Header));
-            // Aynı menüdeki Tema seçimi de tazelenir: artık Klasik.
-            Assert.Equal(["Klasik"], theme.Items.OfType<OptionMenuItem>().Where(o => o.IsChecked).Select(o => (string)o.Header));
-        });
-    }
-
-    [Fact]
-    public void Accent_menu_ends_with_custom_color_which_opens_the_picker()
-    {
-        OnSta(() =>
-        {
-            var c = new WidgetConfig { Kind = WidgetKind.Fence, Accent = WidgetAccent.Blue };
-            var picked = 0;
-            var menu = new ContextMenu();
-            var accent = LookMenus.Accent(c, change => change(), () => picked++);
-            menu.Items.Add(accent);
-            var options = accent.Items.OfType<OptionMenuItem>().ToList();
-            var custom = options[^1];
-            Assert.Equal("Özel renk…", custom.Header);
-            Assert.False(custom.StaysOpenOnClick); // pencere açar: menü kapanır
-            Assert.Equal(["Mavi"], options.Where(o => o.IsChecked).Select(o => (string)o.Header));
-
-            Click(custom);
-            Assert.Equal(1, picked);
-
-            // Özel renk seçiliyken adlı renklerin hiçbiri işaretli değil, "Özel renk…" işaretli.
-            WidgetLooks.SetAccentColor(c, "#0D9488");
-            Menus.Sync(custom);
-            Assert.Equal(["Özel renk…"], options.Where(o => o.IsChecked).Select(o => (string)o.Header));
-
-            Click(options[4]); // Pembe
-            Assert.Null(c.LookAccentColor);
-            Assert.Equal(WidgetAccent.Pink, c.Accent);
-            Assert.Equal(["Pembe"], options.Where(o => o.IsChecked).Select(o => (string)o.Header));
-        });
-    }
+    // ---------------------------------------------------------------- 2.2 Tema (widget'ın teması Düzenle panelinin galerisinde: LookGalleryTests)
 
     [Fact]
     public void Theme_names_are_translated_in_english()

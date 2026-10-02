@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Shapes;
 using System.Windows.Threading;
 using Duzenleme.Core;
 
@@ -66,7 +65,7 @@ public partial class NoteView : UserControl, IWidgetView
             FocusText(AddBox);
         };
 
-        // Başlık yerinde düzenlenir (F2, "Yeniden adlandır"); notun başlık simgesi yok. Yeni not adlandırmaya açılmaz: yazı
+        // Başlık yerinde düzenlenir (F2; Düzenle panelinde ad kutusu); notun başlık simgesi yok. Yeni not adlandırmaya açılmaz: yazı
         // alanıyla açılır (WidgetManager.FocusNote).
         _titleEditor = new TitleEditor(this, HeaderRow, TitleText, null, () => DefaultTitle, CommitTitle, null, () => { });
 
@@ -85,8 +84,6 @@ public partial class NoteView : UserControl, IWidgetView
             Loaded += loaded;
         }
     }
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public bool Resizable => true;
     public Thickness CardPadding => new(16, 12, 16, 14);
@@ -136,7 +133,6 @@ public partial class NoteView : UserControl, IWidgetView
                 ChecklistScroll.Visibility = Visibility.Collapsed;
                 Editor.Visibility = Visibility.Visible;
             }
-            _cleared = null;
         }
         finally
         {
@@ -149,7 +145,7 @@ public partial class NoteView : UserControl, IWidgetView
     {
         TitleText.Text = string.IsNullOrWhiteSpace(_config.Title) ? DefaultTitle : _config.Title;
         HeaderRow.Visibility = _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         UpdateProgress();
     }
 
@@ -215,28 +211,13 @@ public partial class NoteView : UserControl, IWidgetView
         Editor.SelectionBrush = palette.Accent;
         TitleText.Foreground = palette.Secondary;
         ProgressText.Foreground = palette.Secondary;
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         AddGlyph.Foreground = palette.Foreground;
         PaintText(AddBox);
         foreach (var row in _rows) PaintRow(row);
         ApplyFont();
         ApplyClearType();
         UpdateTitle();
-
-        // Başlıktaki renk seçici noktalar.
-        Swatches.Children.Clear();
-        foreach (var (color, label) in Colors)
-        {
-            var p = WidgetPalette.ForNote(color);
-            var dot = new Ellipse
-            {
-                Width = 12, Height = 12, Margin = new Thickness(3, 0, 0, 0), Cursor = Cursors.Hand, ToolTip = L.Dyn(label),
-                Fill = p.Background, Stroke = color == _config.NoteColor ? palette.Foreground : palette.BorderBrush,
-                StrokeThickness = color == _config.NoteColor ? 1.6 : 1,
-            };
-            dot.MouseLeftButtonDown += (_, e) => { e.Handled = true; SetColor(color); };
-            Swatches.Children.Add(dot);
-        }
     }
 
     private void SetColor(NoteColor color)
@@ -246,35 +227,63 @@ public partial class NoteView : UserControl, IWidgetView
         AppHost.Widgets.Restyle(_config.Id);
     }
 
+    /// <summary>
+    /// Menüde: notta "Listeye çevir"; listede "Bitenleri temizle (n)" (biten varsa) ve "Düz nota çevir". Renk, liste kipi, yazı
+    /// boyutu ve "Bitenler alta insin" Düzenle panelinde (<see cref="AddEditorContent"/>); kopyalama ve temizleme "Daha fazla"da.
+    /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
-        // Renk ▸ açık kalır; renk yalnızca tıklanınca değişir (fareyle önizleme yok).
-        menu.Primary.Add(Menus.Choice(L.T("Renk"), () => _config.NoteColor, Colors.Select(c => (c.Color, L.Dyn(c.Label))), SetColor));
         if (_config.NoteChecklist)
         {
             var done = CurrentItems().Count(i => i.Done && i.Text.Trim().Length > 0);
             if (done > 0) menu.Primary.Add(Menus.Item(L.F("Bitenleri temizle ({0})", done), ClearDone));
-            if (_cleared is not null) menu.Primary.Add(Menus.Item(L.T("Geri al: temizlenen maddeler geri gelsin"), UndoClear));
-            menu.Primary.Add(Menus.Toggle(L.T("Bitenler alta insin"), () => _config.ChecklistDoneLast, () =>
-            {
-                _config.ChecklistDoneLast = !_config.ChecklistDoneLast;
-                if (_config.ChecklistDoneLast) MoveDoneLast();
-                AppHost.SaveSettings();
-                Save();
-            }));
             menu.Primary.Add(Menus.Item(L.T("Düz nota çevir"), ToPlainNote));
         }
-        else menu.Primary.Add(Menus.Item(L.T("Onay kutulu listeye çevir"), ToChecklist));
-        var rename = Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit());
-        rename.InputGestureText = KeyNames.F2;
-        menu.Primary.Add(rename);
-        if (!_config.NoteChecklist) menu.Primary.Add(Menus.Item(L.T("Notu temizle"), ClearNote));
-
-        menu.Appearance.Add(Menus.Parts(_config, [("header", L.N("Başlık ve renkler")), Menus.ClosePart], UpdateTitle));
-        menu.Appearance.Add(Menus.Choice(L.T("Yazı boyutu"), () => _config.LabelSize,
-            [(LabelSize.Small, L.T("Küçük")), (LabelSize.Normal, L.T("Normal")), (LabelSize.Large, L.T("Büyük"))], SetFontSize));
-        // Üst düzey not menüsü kısa kalsın (en çok 8 öğe): kopyalama seyrek kullanılır.
+        else menu.Primary.Add(Menus.Item(L.T("Listeye çevir"), ToChecklist));
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Parts(_config, [("header", L.N("Başlık")), Menus.EditPart, Menus.ClosePart], UpdateTitle));
         menu.More.Add(Menus.Item(L.T("Panoya kopyala"), CopyToClipboard));
+        if (!_config.NoteChecklist) menu.More.Add(Menus.Item(L.T("Notu temizle"), ClearNote));
+    }
+
+    /// <summary>
+    /// Düzenle paneli: "Renk" (kâğıt örnekleri), "Onay kutulu liste" (panel yeniden kurulur), "Yazı: Küçük · Orta · Büyük" ve
+    /// listede "Bitenler alta insin". Hepsi hemen uygulanır.
+    /// </summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        content.Swatches(L.T("Renk"),
+            Colors.Select(c => (c.Color.ToString(), L.Dyn(c.Label), WidgetPalette.ForNote(c.Color).Background, "Editor.Note.Color." + c.Color)).ToList(),
+            () => _config.NoteColor.ToString(), id =>
+            {
+                if (Enum.TryParse<NoteColor>(id, out var color) && color != _config.NoteColor) SetColor(color);
+            });
+        content.Switch(L.T("Onay kutulu liste"), "Editor.Note.Checklist", () => _config.NoteChecklist, on =>
+        {
+            if (on == _config.NoteChecklist) return;
+            if (on) ToChecklist();
+            else ToPlainNote();
+        }, rebuild: true);
+        content.Segments(L.T("Yazı"),
+            [
+                new(nameof(LabelSize.Small), L.T("Küçük"), "Editor.Note.Font.Small"),
+                new(nameof(LabelSize.Normal), L.T("Orta"), "Editor.Note.Font.Normal"),
+                new(nameof(LabelSize.Large), L.T("Büyük"), "Editor.Note.Font.Large"),
+            ],
+            () => _config.LabelSize.ToString(), id =>
+            {
+                if (Enum.TryParse<LabelSize>(id, out var size) && size != _config.LabelSize) SetFontSize(size);
+            });
+        if (_config.NoteChecklist)
+            content.Switch(L.T("Bitenler alta insin"), "Editor.Note.DoneLast", () => _config.ChecklistDoneLast, on =>
+            {
+                if (on == _config.ChecklistDoneLast) return;
+                _config.ChecklistDoneLast = on;
+                if (on) MoveDoneLast();
+                AppHost.SaveSettings();
+                Save();
+            });
+        return true;
     }
 
     /// <summary>F2 (yazarken de: F2'nin metinde bir anlamı yok): başlık yerinde düzenlenir; önce yazılanlar kaydedilir.</summary>
@@ -398,9 +407,6 @@ public partial class NoteView : UserControl, IWidgetView
     // Satırların ve "Yeni madde ekle…" kutusunun ortak sağ tık menüsü; hangi metin kutusunda açıldığı ContextMenuOpening'de yazılır.
     private readonly ContextMenu _rowMenu;
     private TextBox? _menuTarget;
-
-    // "Bitenleri temizle" geri alınabilsin: özgün sıradaki yerleri ve maddeler (yalnızca bellekte).
-    private List<(int Index, ChecklistItem Item)>? _cleared;
 
     // Uzun liste açılırken önce ekranı dolduracak kadar satır kurulur, gerisi hemen ardından (boşta) eklenir: widget
     // maddelerin sayısından bağımsız olarak beklemeden görünür. Henüz kurulmamış maddeler (_pending) listenin sonudur;
@@ -700,16 +706,19 @@ public partial class NoteView : UserControl, IWidgetView
             else kept.Add(items[i]);
         }
         if (cleared.Count == 0) return;
-        _cleared = cleared;
         RebuildRows(kept);
         Save();
+        // Soru yok: bildirimdeki "Geri al" maddeleri geri koyar. Not kimliğiyle bulunur (WidgetManager.ViewOf): widget o arada
+        // yeniden kurulduysa yeni görünüme yazılır, kaldırıldıysa bir şey olmaz.
+        var id = _config.Id;
+        Views.Notice.Show(L.P(cleared.Count, "{0} biten madde temizlendi."), Views.NoticeKind.Info, L.T("Geri al"),
+            () => (AppHost.Widgets.ViewOf(id) as NoteView)?.UndoClear(cleared), L.T("Geri almak için buraya tıkla."));
     }
 
-    /// <summary>Temizlenen maddeleri eski yerlerine koyar (özgün sıra geri gelir).</summary>
-    private void UndoClear()
+    /// <summary>Temizlenen maddeleri eski yerlerine koyar (özgün sıra geri gelir); not o arada düz nota döndüyse bir şey yapmaz.</summary>
+    private void UndoClear(List<(int Index, ChecklistItem Item)> cleared)
     {
-        if (_cleared is not { } cleared) return;
-        _cleared = null;
+        if (!_config.NoteChecklist) return;
         foreach (var (index, item) in cleared.OrderBy(c => c.Index)) InsertRow(index, item);
         UpdateProgress();
         Save();
@@ -876,8 +885,9 @@ public partial class NoteView : UserControl, IWidgetView
     }
 
     /// <summary>
-    /// Başlığı gizli notta (Göster ▸ Başlık ve renkler kapalı) kartı yazı alanı ya da maddeler doldurur; notun menüsüne fareyle
-    /// başka yol kalmaz: yazı alanı ve madde menülerinin sonunda "Not/Liste ayarları…" onu açar. Başlık görünürken yok.
+    /// Başlığı gizli notta (Düzenle ▸ Göster ▸ Başlık kapalı; ⋯ ve × de başlıktadır) kartı yazı alanı ya da maddeler doldurur;
+    /// notun menüsüne fareyle başka yol kalmaz: yazı alanı ve madde menülerinin sonunda "Not/Liste ayarları…" onu açar ("Düzenle…"
+    /// orada ilk satırdır). Başlık görünürken yok.
     /// </summary>
     private void AddNoteMenuRow(ContextMenu menu)
     {

@@ -26,16 +26,17 @@ public class EditorTests
             var (editor, target, view) = EditorFakes.Open(EditorFakes.Clock());
             var ids = EditorFakes.Ids(editor);
 
-            Assert.Contains("Editor.Option.P.1", ids);        // Saniyeyi göster (anahtar)
-            Assert.Contains("Editor.Option.P.2", ids);        // Saat biçimi (uzun seçenekler: açılır liste)
-            Assert.Contains("Editor.Option.P.3.1", ids);      // Tür (kısa seçenekler: bölümlü seçim)
-            Assert.Contains("Editor.Option.M.1", ids);        // Diğer ▸ Panoya kopyala (düğme, Daha fazla'da)
+            Assert.Contains("Editor.Option.S.1", ids);        // Saniyeyi göster (anahtar)
+            Assert.Contains("Editor.Option.S.2", ids);        // Saat biçimi (uzun seçenekler: açılır liste)
+            Assert.Contains("Editor.Option.S.3.1", ids);      // Tür (kısa seçenekler: bölümlü seçim)
+            Assert.Contains("Editor.Option.M.1", ids);        // Panoya kopyala (düğme, Daha fazla'da)
             Assert.Contains("Editor.Part.greeting", ids);      // Göster
             Assert.Contains("Editor.Part.close", ids);         // Daha fazla: Kaldır düğmesi (×)
+            Assert.Contains("Editor.Part.edit", ids);          // Daha fazla: Düzenle düğmesi (⋯)
             Assert.DoesNotContain(EditorFakes.Named(editor), n => n == "Başlat"); // widget'ın işi menüde kalır
-            Assert.IsType<Wpf.Ui.Controls.ToggleSwitch>(EditorFakes.Find(editor, "Editor.Option.P.1"));
-            Assert.IsType<ComboBox>(EditorFakes.Find(editor, "Editor.Option.P.2"));
-            Assert.IsType<RadioButton>(EditorFakes.Find(editor, "Editor.Option.P.3.2"));
+            Assert.IsType<Wpf.Ui.Controls.ToggleSwitch>(EditorFakes.Find(editor, "Editor.Option.S.1"));
+            Assert.IsType<ComboBox>(EditorFakes.Find(editor, "Editor.Option.S.2"));
+            Assert.IsType<RadioButton>(EditorFakes.Find(editor, "Editor.Option.S.3.2"));
             Assert.Equal(0, view.Runs);
         });
     }
@@ -75,16 +76,16 @@ public class EditorTests
         {
             var (editor, _, view) = EditorFakes.Open(EditorFakes.Clock());
 
-            ((ToggleButton)EditorFakes.Find(editor, "Editor.Option.P.1")).IsChecked = true;
+            ((ToggleButton)EditorFakes.Find(editor, "Editor.Option.S.1")).IsChecked = true;
             Assert.True(view.Seconds);
 
-            ((ComboBox)EditorFakes.Find(editor, "Editor.Option.P.2")).SelectedIndex = 2;
+            ((ComboBox)EditorFakes.Find(editor, "Editor.Option.S.2")).SelectedIndex = 2;
             Assert.True(view.Hour12);
 
-            ((RadioButton)EditorFakes.Find(editor, "Editor.Option.P.3.2")).IsChecked = true;
+            ((RadioButton)EditorFakes.Find(editor, "Editor.Option.S.3.2")).IsChecked = true;
             Assert.Equal("pomodoro", view.Mode);
             EditorFakes.Pump(); // tür menünün yapısını değiştirir: panel yeniden kurulur
-            Assert.True(((RadioButton)EditorFakes.Find(editor, "Editor.Option.P.3.2")).IsChecked);
+            Assert.True(((RadioButton)EditorFakes.Find(editor, "Editor.Option.S.3.2")).IsChecked);
 
             var greeting = (ToggleButton)EditorFakes.Find(editor, "Editor.Part.greeting");
             Assert.True(greeting.IsChecked);
@@ -237,7 +238,6 @@ public class EditorTests
             var parts = Menus.Parts(new WidgetConfig(), [("count", L.N("Öğe sayısı"))], () => { });
             var group = new MenuItem { Header = "Simgeler", Items = { Menus.Toggle("Adları gizle", () => false, () => { }) } };
             var commands = new MenuItem { Header = "Öğe ekle", Items = { Menus.Item("Web adresi…", () => { }) } };
-            var marked = Menus.AsChoice(new MenuItem { Header = "Ne gösterilsin?", Items = { Menus.Toggle("Dosyalar", () => true, () => { }) } });
 
             Assert.Equal(MenuRows.RowKind.Skip, MenuRows.Classify(command, optionsOnly: true));
             Assert.Equal(MenuRows.RowKind.Command, MenuRows.Classify(command, optionsOnly: false));
@@ -248,7 +248,6 @@ public class EditorTests
             Assert.Equal(MenuRows.RowKind.Group, MenuRows.Classify(group, optionsOnly: true));
             Assert.Equal(MenuRows.RowKind.Skip, MenuRows.Classify(commands, optionsOnly: true));
             Assert.Equal(MenuRows.RowKind.Group, MenuRows.Classify(commands, optionsOnly: false));
-            Assert.Equal(MenuRows.RowKind.Choice, MenuRows.Classify(marked, optionsOnly: true));
             Assert.Equal([("count", "Öğe sayısı")], MenuRows.PartsIn([parts]).Select(p => (p.Key, MenuRows.Label(p.Option))));
             Assert.Equal("İş_Dosyaları", MenuRows.Label(Menus.Item(Menus.Literal("İş_Dosyaları"), () => { })));
         });
@@ -260,9 +259,9 @@ public class EditorTests
         var widgets = Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets");
         var window = File.ReadAllText(Path.Combine(widgets, "WidgetWindow.cs"));
         var fill = System.Text.RegularExpressions.Regex.Match(window, @"private void FillMenu\(ContextMenu menu\)\s*\{(?<body>[\s\S]*?)\n    \}").Groups["body"].Value;
-        var edit = fill.IndexOf("Menus.Item(L.T(\"Düzenle…\"), OpenEditor)", StringComparison.Ordinal);
-        Assert.True(edit >= 0, "FillMenu'nün ilk satırı Düzenle… olmalı");
-        Assert.True(edit < fill.IndexOf("View.AddMenuItems", StringComparison.Ordinal));
+        // Menü "Düzenle…" ile başlar (WidgetMenuTests satırları dener); "Düzenle…" ve kartın ⋯ düğmesi aynı paneli açar.
+        Assert.Contains("BuildMenu(menu, own.Primary, Config.Locked, OpenEditor,", fill);
+        Assert.Contains("OpenEditor()", File.ReadAllText(Path.Combine(widgets, "CardButtons.cs")));
         // Panelin görünüş değişiklikleri menüdekiyle aynı yoldan (uygula + kısa sürede kaydet; önizleme biter).
         Assert.Contains("void Views.IEditorTarget.Update(Action change) => Update(change);", window);
         // "Geri al" kutunun öğelerini değiştirdiyse taşınmış öğeler ve kutudaki dosyalar uzlaştırılır.
@@ -274,6 +273,125 @@ public class EditorTests
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
             if (File.Exists(Path.Combine(dir.FullName, "Duzenleme.sln"))) return dir.FullName;
         throw new DirectoryNotFoundException("Duzenleme.sln");
+    }
+
+    // ---------------------------------------------------------------- görünümün kendi panel içeriği (bölme, kutu, not…)
+
+    [Fact]
+    public void Native_content_replaces_the_menu_rows_and_keeps_show_and_more()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var config = new WidgetConfig { Kind = WidgetKind.Fence, Filter = DesktopFilter.Files };
+            var view = new FakeNativeView(config);
+            var (editor, _) = EditorFakes.Open(view);
+            var ids = EditorFakes.Ids(editor);
+
+            Assert.Contains("Editor.Test.Files", ids);
+            Assert.Contains("Editor.Test.Flag", ids);
+            Assert.Contains("Editor.Items", ids);
+            Assert.DoesNotContain(ids, id => id.StartsWith("Editor.Option.S", StringComparison.Ordinal)); // menünün ayarları çizilmez
+            Assert.Contains("Editor.Part.count", ids);    // Göster yine menünün parçalarından
+            Assert.Contains("Editor.Part.edit", ids);     // Daha fazla: ⋯
+            Assert.Contains("Editor.Option.M.1", ids);    // Daha fazla: Yenile
+            Assert.DoesNotContain(EditorFakes.Named(editor), n => n == "Ara"); // widget'ın işi menüde kalır
+
+            // Yongalar: seçim uygulanır, panel yeniden kurulur, kaynak değişince panelde "Geri al".
+            ((RadioButton)EditorFakes.Find(editor, "Editor.Test.All")).IsChecked = true;
+            EditorFakes.Pump();
+            Assert.Equal("All", view.Source);
+            Assert.True(((RadioButton)EditorFakes.Find(editor, "Editor.Test.All")).IsChecked);
+            Assert.Equal(Visibility.Visible, ((FrameworkElement)EditorFakes.Find(editor, "Editor.Notice")).Visibility);
+            EditorFakes.Click(EditorFakes.Find(editor, "Editor.Notice.Undo"));
+            Assert.Equal("Files", view.Source);
+            Assert.True(((RadioButton)EditorFakes.Find(editor, "Editor.Test.Files")).IsChecked);
+
+            // Menü açan yonga seçmez: menüyü açar, işaret modelde kalır.
+            ((RadioButton)EditorFakes.Find(editor, "Editor.Test.Folder")).IsChecked = true;
+            EditorFakes.Pump();
+            Assert.Equal(1, view.MenusOpened);
+            Assert.Equal("Files", view.Source);
+            Assert.False(((RadioButton)EditorFakes.Find(editor, "Editor.Test.Folder")).IsChecked);
+
+            ((ToggleButton)EditorFakes.Find(editor, "Editor.Test.Flag")).IsChecked = true;
+            Assert.True(view.Flag);
+        });
+    }
+
+    [Fact]
+    public void Item_list_shows_actions_only_on_the_selected_row()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var view = new FakeNativeView(new WidgetConfig { Kind = WidgetKind.Launcher });
+            var (editor, _) = EditorFakes.Open(view);
+            Assert.DoesNotContain("Editor.Item.Remove", EditorFakes.Ids(editor)); // seçili satır yok: düğme de yok
+
+            EditorFakes.Click(EditorFakes.Find(editor, "Editor.Item.1"));
+            var ids = EditorFakes.Ids(editor);
+            Assert.Single(ids, id => id == "Editor.Item.Remove");
+            Assert.False(((UIElement)EditorFakes.Find(editor, "Editor.Item.Up")).IsEnabled);   // ilk satır
+            Assert.True(((UIElement)EditorFakes.Find(editor, "Editor.Item.Down")).IsEnabled);
+
+            EditorFakes.Click(EditorFakes.Find(editor, "Editor.Item.Down"));
+            Assert.Equal(["Not Defteri", "Hesap"], view.Tiles.Select(t => t.Name));
+            // Taşınan öğe seçili kalır (artık ikinci satır).
+            Assert.Equal("Hesap", AutomationProperties.GetName(EditorFakes.Find(editor, "Editor.Item.2")));
+            Assert.Equal("Seçili", AutomationProperties.GetItemStatus(EditorFakes.Find(editor, "Editor.Item.2")));
+
+            EditorFakes.Click(EditorFakes.Find(editor, "Editor.Item.Remove"));
+            Assert.Equal(["Not Defteri"], view.Tiles.Select(t => t.Name));
+            Assert.DoesNotContain("Editor.Item.Remove", EditorFakes.Ids(editor));
+
+            // Kutu dışarıdan değişince (sürükle-bırak) tazeleme listeyi yeniden kurar.
+            view.Tiles.Add(new TileItem { Name = "Paint", Path = @"C:\Uygulamalar\Paint.exe" });
+            editor.Refresh();
+            Assert.Equal("Paint", AutomationProperties.GetName(EditorFakes.Find(editor, "Editor.Item.2")));
+        });
+    }
+
+    [Fact]
+    public void Panel_rebuilds_when_the_card_view_was_replaced()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var (editor, target, _) = EditorFakes.Open(EditorFakes.Clock());
+            var before = EditorFakes.Find(editor, "Editor.Option.S.1");
+            target.ReplaceView();
+            editor.Refresh();
+            EditorFakes.Pump();
+            Assert.NotSame(before, EditorFakes.Find(editor, "Editor.Option.S.1"));
+        });
+    }
+
+    [Fact]
+    public void Card_buttons_show_edit_and_close_or_a_lock()
+    {
+        EditorFakes.OnSta(() =>
+        {
+            var config = new WidgetConfig { Kind = WidgetKind.Clock };
+            var corner = new CardButtons();
+            corner.Paint(WidgetPalette.Glass);
+            corner.Update(config);
+            Assert.Equal("Widget.Edit", AutomationProperties.GetAutomationId(corner.EditButton));
+            Assert.Equal("Widget.Remove", AutomationProperties.GetAutomationId(corner.CloseButton));
+            Assert.True(corner.EditButton.Width >= 28 || double.IsNaN(corner.EditButton.Width)); // stil 28 DIP verir
+            // ⋯ sönük renkle (ikincil yazı rengi), saydamlıkla değil: ClearType'lı kartta keskin kalır.
+            Assert.Same(WidgetPalette.Glass.Secondary, corner.EditButton.Foreground);
+            Assert.Equal(1.0, corner.EditButton.Opacity);
+
+            config.Locked = true;
+            corner.Update(config);
+            Assert.True(corner.ShowsLock);
+            Assert.Equal("Widget.Unlock", AutomationProperties.GetAutomationId(corner.CloseButton));
+            Assert.Equal("Kilidi aç", AutomationProperties.GetName(corner.CloseButton));
+            Assert.Equal(Visibility.Visible, corner.EditButton.Visibility); // kilitliyken de düzenlenebilir
+
+            config.HiddenParts.Add("edit");
+            config.HiddenParts.Add("close");
+            corner.Update(config);
+            Assert.Equal(Visibility.Collapsed, corner.Visibility);
+        });
     }
 
     [Fact]
@@ -307,6 +425,15 @@ internal static class EditorFakes
         var editor = new WidgetEditor();
         editor.Edit(target);
         return (editor, target, view);
+    }
+
+    /// <summary>Kendi panel içeriği olan görünümle açar.</summary>
+    public static (WidgetEditor Editor, FakeTarget Target) Open(FakeNativeView view)
+    {
+        var target = new FakeTarget(view.Config, view, []);
+        var editor = new WidgetEditor();
+        editor.Edit(target);
+        return (editor, target);
     }
 
     public static IEnumerable<DependencyObject> All(DependencyObject root)
@@ -360,7 +487,7 @@ internal static class EditorFakes
     }
 }
 
-/// <summary>Saat benzeri sahte görünüm: menüsünde bir komut, iki seçenek, bir tür seçimi, "Göster" ve "Diğer" komutu var.</summary>
+/// <summary>Saat benzeri sahte görünüm: menüde bir işi; panelde iki seçenek, bir tür seçimi, "Göster" ve "Daha fazla"da bir komut.</summary>
 internal sealed class FakeView(WidgetConfig config) : IWidgetView
 {
     public WidgetConfig Config { get; } = config;
@@ -380,21 +507,25 @@ internal sealed class FakeView(WidgetConfig config) : IWidgetView
     public void AddMenuItems(WidgetMenu menu)
     {
         menu.Primary.Add(Menus.Item("Başlat", () => Runs++));
-        menu.Primary.Add(Menus.Toggle("Saniyeyi göster", () => Seconds, () => Seconds = !Seconds));
-        menu.Primary.Add(Menus.Choice<bool?>("Saat biçimi", () => Hour12,
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Toggle("Saniyeyi göster", () => Seconds, () => Seconds = !Seconds));
+        menu.Settings.Add(Menus.Choice<bool?>("Saat biçimi", () => Hour12,
             [(null, "Windows'taki gibi"), (false, "24 saat (15:30)"), (true, "12 saat (3:30 ÖS)")], v => Hour12 = v));
-        menu.Primary.Add(Menus.Choice("Tür", () => Mode,
+        menu.Settings.Add(Menus.Choice("Tür", () => Mode,
             [("countdown", "Zamanlayıcı"), ("pomodoro", "Pomodoro"), ("stopwatch", "Kronometre")], v => Mode = v, staysOpen: false));
-        menu.Appearance.Add(Menus.Parts(Config, [("greeting", L.N("Selam ve gün")), Menus.ClosePart], () => PartsChanged++));
+        menu.Settings.Add(Menus.Parts(Config, [("greeting", L.N("Selam ve gün")), Menus.EditPart, Menus.ClosePart], () => PartsChanged++));
         menu.More.Add(Menus.Item("Panoya kopyala", () => Copies++));
     }
 }
 
 /// <summary>Sahte düzenleme hedefi: değişiklikleri doğrudan ayara yazar ve sayar (pencere, kayıt yok).</summary>
-internal sealed class FakeTarget(WidgetConfig config, FakeView view, List<WidgetConfig> others) : IEditorTarget
+internal sealed class FakeTarget(WidgetConfig config, IWidgetView view, List<WidgetConfig> others) : IEditorTarget
 {
     public WidgetConfig Config { get; } = config;
-    public IWidgetView View => view;
+    public IWidgetView View { get; private set; } = view;
+
+    /// <summary>Kartın görünümü yeniden kuruldu (WidgetWindow.RebuildView gibi).</summary>
+    public void ReplaceView() => View = new FakeView(Config);
     public int Updates { get; private set; }
     public int Renames { get; private set; }
     public int Restores { get; private set; }
@@ -432,4 +563,64 @@ internal sealed class FakeTarget(WidgetConfig config, FakeView view, List<Widget
     public void Remove() => Removes++;
     public Box? CardBox => null;
     public NativeMethods.POINT CenterPoint => default;
+}
+
+/// <summary>
+/// Kendi panel içeriği olan sahte görünüm (bölme ve kutu gibi): yongalar (biri menü açar; kaynak değişince panelde "Geri al"),
+/// bir anahtar ve öğe listesi. Menüde bir işi, "Göster"de parçaları, "Daha fazla"da bir komutu var; Settings'teki seçenek panele
+/// çizilmez (kendi içeriği onun yerini alır).
+/// </summary>
+internal sealed class FakeNativeView(WidgetConfig config) : IWidgetView
+{
+    public WidgetConfig Config { get; } = config;
+    public bool Resizable => true;
+    public string Source { get; private set; } = "Files";
+    public bool Flag { get; private set; }
+    public int MenusOpened { get; private set; }
+    public List<TileItem> Tiles { get; } =
+    [
+        new TileItem { Name = "Hesap", Path = @"C:\Uygulamalar\Hesap.exe" },
+        new TileItem { Name = "Not Defteri", Path = @"C:\Uygulamalar\Not.exe" },
+    ];
+
+    public void ApplyPalette(WidgetPalette palette) { }
+
+    public void Detach() { }
+
+    public void AddMenuItems(WidgetMenu menu)
+    {
+        menu.Primary.Add(Menus.Item("Ara", () => { }));
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Toggle("Menüden gelen seçenek", () => false, () => { }));
+        menu.Settings.Add(Menus.Parts(Config, [("count", L.N("Öğe sayısı")), Menus.EditPart, Menus.ClosePart], () => { }));
+        menu.More.Add(Menus.Item("Yenile", () => { }));
+    }
+
+    public bool AddEditorContent(EditorContent content)
+    {
+        content.Chips("Ne gösterilsin?",
+            [
+                new("Files", "Dosyalar", "Editor.Test.Files"), new("All", "Tümü", "Editor.Test.All"),
+                new("folder", "Bir klasör seç…", "Editor.Test.Folder", Menu: () =>
+                {
+                    MenusOpened++;
+                    return new ContextMenu();
+                }),
+            ],
+            () => Source, id =>
+            {
+                var before = Source;
+                Source = id;
+                content.Notice("Kaynak değişti.", () => Source = before);
+            }, rebuild: true);
+        content.Switch("Bayrak", "Editor.Test.Flag", () => Flag, on => Flag = on);
+        content.Items("Öğeler", "Boş", () => Tiles, path => Tiles.RemoveAll(t => t.Path == path), (path, delta) =>
+        {
+            var from = Tiles.FindIndex(t => t.Path == path);
+            var item = Tiles[from];
+            Tiles.RemoveAt(from);
+            Tiles.Insert(from + delta, item);
+        });
+        return true;
+    }
 }

@@ -110,8 +110,10 @@ public partial class WorldClockView : UserControl, IWidgetView
             row.Sub.Visibility = _config.Shows("day") || _config.Shows("offset") ? Visibility.Visible : Visibility.Collapsed;
             AutomationProperties.SetName(row.Root, string.Join(", ", new[] { name, row.Time.Text, WorldClock.DayText(at.DayDelta) }.Where(s => s.Length > 0)));
         }
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         _name.Render();
+        // Ad satırı yokken ilk şehrin saati sağ üstteki ⋯ ve ×'in altına girmesin.
+        Rows.Margin = new Thickness(0, _name.IsShown || Corner.Visibility != Visibility.Visible ? 0 : 18, 0, 0);
         AutomationProperties.SetName(this, WidgetText.DisplayName(_config));
     }
 
@@ -133,7 +135,7 @@ public partial class WorldClockView : UserControl, IWidgetView
         }
         EmptyText.Foreground = _palette.Secondary;
         AddButton.Foreground = _palette.Foreground;
-        RemoveButton.Foreground = _palette.Foreground;
+        Corner.Paint(_palette);
         ClearTypeText.Follow(this, EmptyText, AddButton);
     }
 
@@ -198,15 +200,14 @@ public partial class WorldClockView : UserControl, IWidgetView
     public void AddMenuItems(WidgetMenu menu)
     {
         menu.Primary.Add(Menus.Item(L.T("Şehir ekle…"), AddCity));
-        menu.Primary.Add(ClockView.HourFormatChoice(_config, Update));
-        menu.Primary.Add(_name.MenuItem());
-        menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, ("day", L.N("Dün / yarın")), ("offset", L.N("Saat farkı")), Menus.ClosePart], Update));
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(ClockView.HourFormatChoice(_config, Update));
+        menu.Settings.Add(Menus.Parts(_config,
+            [WidgetNameLine.Part, ("day", L.N("Dün / yarın")), ("offset", L.N("Saat farkı")), Menus.EditPart, Menus.ClosePart], Update));
     }
 
-    /// <summary>F2 ve "Yeniden adlandır": widget'ın adı (şehirlerin adı satır menüsünden değişir).</summary>
+    /// <summary>F2: widget'ın adı (şehirlerin adı satır menüsünden değişir; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _name.Begin();
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach()
     {

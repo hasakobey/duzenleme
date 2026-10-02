@@ -38,8 +38,19 @@ public interface IWidgetView
 
     void ApplyPalette(WidgetPalette palette);
 
-    /// <summary>Sağ tık menüsünün widget'a özel bölümlerini doldurur (iskeleti WidgetWindow kurar).</summary>
+    /// <summary>
+    /// Sağ tık menüsünün ve Düzenle panelinin widget'a özel öğelerini doldurur (iskeleti WidgetWindow ve panel kurar). Menü için
+    /// (<see cref="WidgetMenu.ForEditor"/> false) yalnızca <see cref="WidgetMenu.Primary"/> gerekir.
+    /// </summary>
     void AddMenuItems(WidgetMenu menu);
+
+    // 2.2 Kolay NestDesk
+    /// <summary>
+    /// Düzenle panelinin "widget'ın ayarları" bölümünü görünümün kendi denetimleriyle kurar (bölme, kısayol kutusu, not,
+    /// zamanlayıcı, geri sayım). false (varsayılan): panel <see cref="WidgetMenu.Settings"/> öğelerini satır olarak çizer.
+    /// "Göster" ve "Daha fazla" her durumda menü öğelerinden gelir. Panel yeniden kurulunca yeniden çağrılır.
+    /// </summary>
+    bool AddEditorContent(Views.EditorContent content) => false;
 
     /// <summary>Bekleyen değişiklikleri (ör. notun son yazılanları) ayarlara hemen yazar.</summary>
     void Flush() { }

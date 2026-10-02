@@ -180,7 +180,7 @@ public partial class RecycleBinView : UserControl, IWidgetView
         EmptyButton.Foreground = EmptyButton.IsEnabled ? _palette.Foreground : _palette.Secondary;
         SizeText.Visibility = _config.Shows("size") ? Visibility.Visible : Visibility.Collapsed;
         EmptyButton.Visibility = _config.Shows("empty") ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         AutomationProperties.SetName(this, $"{Title}, {SizeText.Text}");
     }
 
@@ -190,7 +190,7 @@ public partial class RecycleBinView : UserControl, IWidgetView
         _titleEditor.ApplyPalette(palette);
         TitleText.Foreground = palette.Foreground;
         SizeText.Foreground = palette.Secondary;
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = palette.Background;
         DropText.Foreground = palette.Foreground;
@@ -232,19 +232,19 @@ public partial class RecycleBinView : UserControl, IWidgetView
 
     public void AddMenuItems(WidgetMenu menu)
     {
-        menu.Primary.Add(Menus.Item(L.T("Geri Dönüşüm Kutusu'nu aç"), () => TileItem.Launch(RecycleBin.ShellName)));
-        var empty = Menus.Item(L.T("Geri Dönüşüm Kutusu'nu boşalt…"), RecycleBinActions.EmptyWithConfirm);
+        // Widget Geri Dönüşüm Kutusu'nun kendisi: kısa adlar yeter. Boşaltmak yine sorar (tek geri alınamaz iş).
+        menu.Primary.Add(Menus.Item(L.T("Aç"), () => TileItem.Launch(RecycleBin.ShellName)));
+        var empty = Menus.Item(L.T("Boşalt…"), RecycleBinActions.EmptyWithConfirm);
         empty.IsEnabled = _info is not { IsEmpty: true };
         menu.Primary.Add(empty);
-        menu.Primary.Add(Menus.Item(L.T("Yeniden adlandır"), () => TryBeginRename(), KeyNames.F2));
-        menu.Appearance.Add(Menus.Parts(_config, [("size", L.N("Öğe sayısı ve boyut")), ("empty", L.N("Boşalt düğmesi")), Menus.ClosePart], Render));
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(Menus.Parts(_config,
+            [("size", L.N("Öğe sayısı ve boyut")), ("empty", L.N("Boşalt düğmesi")), Menus.EditPart, Menus.ClosePart], Render));
         menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
     }
 
-    /// <summary>F2 ve "Yeniden adlandır": başlık yerinde düzenlenir (boş bırakılırsa varsayılan ada döner).</summary>
+    /// <summary>F2: başlık yerinde düzenlenir (boş bırakılırsa varsayılan ada döner; Düzenle panelinde ad kutusu).</summary>
     public bool TryBeginRename() => _titleEditor.Begin();
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public void Detach()
     {

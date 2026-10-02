@@ -130,6 +130,22 @@ public class AccessibilityTests
                 .. Duzenleme.Core.LookGallery.All.Select(e => "Editor.Look." + e.Id),
             ];
             Assert.All(required, id => Assert.Contains(id, ids));
+
+            // Görünümün kendi içeriği (yongalar, öğe listesi ve seçili satırın düğmeleri) de adlı ve kimlikli.
+            var (native, _) = EditorFakes.Open(new FakeNativeView(config));
+            EditorFakes.Click(EditorFakes.Find(native, "Editor.Item.1"));
+            var nativeControls = EditorFakes.All(native).Where(d => d is System.Windows.Controls.Primitives.ButtonBase).ToList();
+            foreach (var control in nativeControls)
+            {
+                var id = System.Windows.Automation.AutomationProperties.GetAutomationId(control);
+                Assert.False(string.IsNullOrEmpty(id), $"kimliksiz denetim: {control.GetType().Name} {EditorFakes.Text(control)}");
+                var name = System.Windows.Automation.AutomationProperties.GetName(control);
+                Assert.False(string.IsNullOrWhiteSpace(name) && EditorFakes.Text(control).Trim().Length == 0, "adsız denetim: " + id);
+            }
+            var nativeIds = EditorFakes.Ids(native);
+            Assert.Equal(nativeIds.Count, nativeIds.Distinct().Count());
+            Assert.All(["Editor.Items", "Editor.Item.1", "Editor.Item.2", "Editor.Item.Remove", "Editor.Item.Up", "Editor.Item.Down", "Editor.Part.edit"],
+                id => Assert.Contains(id, nativeIds));
         });
 
         // Pencerenin kendisi "Editor" (UIA'da FromHandle ile bulunur).

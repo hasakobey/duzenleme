@@ -63,14 +63,12 @@ public partial class ClockView : UserControl, IWidgetView
         GreetingRow.Visibility = _config.Shows("greeting") ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Parçalar değişince (Göster ▸): selam satırı ve kaldırma düğmesi.</summary>
+    /// <summary>Parçalar değişince (Göster): selam satırı ve köşe düğmeleri (⋯, ×).</summary>
     private void ApplyParts()
     {
         Update();
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
     }
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     public static string Greeting(int hour) => hour switch
     {
@@ -90,21 +88,23 @@ public partial class ClockView : UserControl, IWidgetView
         ClearTypeText.Follow(this, GreetingText, DesignatorText);
         // Cam: yazıların altında efektsiz gölge kopyası (bkz. ShadowText).
         foreach (var shadow in new[] { TimeShadow, SecondsShadow, GreetingShadow, DesignatorShadow }) shadow.Show(palette.TextShadow);
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         ApplyParts();
     }
 
+    /// <summary>Saatin menüde işi yok ("Düzenle…" · "Kaldır"); Düzenle panelinde saat biçimi, saniye ve parçalar.</summary>
     public void AddMenuItems(WidgetMenu menu)
     {
-        menu.Primary.Add(Menus.Toggle(L.T("Saniyeyi göster"), () => _config.ShowSeconds, () =>
+        if (!menu.ForEditor) return;
+        menu.Settings.Add(HourFormatChoice(_config, Update));
+        menu.Settings.Add(Menus.Toggle(L.T("Saniyeyi göster"), () => _config.ShowSeconds, () =>
         {
             _config.ShowSeconds = !_config.ShowSeconds;
             AppHost.SaveSettings();
             if (_live) Subscribe(true);
             Update();
         }));
-        menu.Primary.Add(HourFormatChoice(_config, Update));
-        menu.Appearance.Add(Menus.Parts(_config, [("greeting", L.N("Selam ve gün")), Menus.ClosePart], ApplyParts));
+        menu.Settings.Add(Menus.Parts(_config, [("greeting", L.N("Selam ve gün")), Menus.EditPart, Menus.ClosePart], ApplyParts));
     }
 
     /// <summary>"Saat biçimi ▸ Windows'taki gibi / 24 saat / 12 saat" (saat ve dünya saati).</summary>

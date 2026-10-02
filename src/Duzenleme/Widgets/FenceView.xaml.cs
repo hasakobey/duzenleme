@@ -595,16 +595,25 @@ public partial class FenceView : UserControl, IWidgetView
 
     private void PickFolder_Click(object sender, RoutedEventArgs e) => PickOtherFolder();
 
-    /// <summary>"Başka bir klasör…": seçilen klasörü gösterir (masaüstünün kendisi "Tümü", masaüstündeki klasör adıyla, gerisi portal).</summary>
+    /// <summary>"Başka bir klasör…" (klasörü bulunamayan bölmedeki düğme): seçilen klasörü gösterir.</summary>
     private void PickOtherFolder()
+    {
+        if (AskFolder(Window.GetWindow(this)) is { } source) ShowSource(source, knownId: null);
+    }
+
+    /// <summary>
+    /// Bölmede gösterilecek klasörü sorar: masaüstünün kendisi "Tümü", masaüstündeki klasör adıyla, gerisi portal
+    /// (<see cref="FolderPortal.Normalize"/>). Vazgeçilirse null.
+    /// </summary>
+    private FenceSource? AskFolder(Window? owner)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog
         {
             Title = L.T("Bölmede gösterilecek klasörü seç"),
             InitialDirectory = _folderPath ?? KnownFolders.PathOf(FolderPortal.Downloads) ?? AppHost.DesktopDirectory,
         };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true || string.IsNullOrWhiteSpace(dialog.FolderName)) return;
-        ShowSource(FolderPortal.Normalize(dialog.FolderName, AppHost.DesktopDirectory), knownId: null);
+        if ((owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner)) != true || string.IsNullOrWhiteSpace(dialog.FolderName)) return null;
+        return FolderPortal.Normalize(dialog.FolderName, AppHost.DesktopDirectory);
     }
 
     /// <summary>
@@ -633,14 +642,6 @@ public partial class FenceView : UserControl, IWidgetView
         return System.IO.Path.IsPathFullyQualified(folder)
             ? IsPortal && FolderPortal.SamePath(FolderName, folder)
             : !IsPortal && Core.FolderName.Equal(folder, FolderName);
-    }
-
-    /// <summary>Bilinen klasörü gösterir; masaüstündeyse (bazı kurulumlarda Belgeler) klasik klasör bölmesi olur.</summary>
-    private void ShowKnownFolder(string id, string path)
-    {
-        var source = FolderPortal.Normalize(path, AppHost.DesktopDirectory);
-        var portal = source.Filter == DesktopFilter.None && source.FolderName is { } folder && System.IO.Path.IsPathFullyQualified(folder);
-        ShowSource(source, portal ? id : null);
     }
 
     // --- Elle sıralama: bölmedeki öğeyi sürükleyip başka bir öğenin önüne bırakmak ---
@@ -676,37 +677,40 @@ public partial class FenceView : UserControl, IWidgetView
         ForceUpdate();
     }
 
-    /// <summary>"Sırala ▸": 2.0'ın üç sırası ve 2.1'in SortBy seçenekleri tek listede.</summary>
-    private MenuItem SortChoice()
+    /// <summary>"Sırala" (Düzenle paneli): 2.0'ın üç sırası ve 2.1'in SortBy seçenekleri tek listede.</summary>
+    private static IReadOnlyList<(string Id, string Label)> SortOptions =>
+    [
+        ("newest", L.T("En yeni üstte")), (FenceOrder.Oldest, L.T("En eski üstte")), ("name", L.T("Ada göre")),
+        ("type", L.T("Türe göre")), (FenceOrder.Size, L.T("Boyuta göre (büyük üstte)")), (FenceOrder.Manual, L.T("Elle (sürükleyerek)")),
+    ];
+
+    private string CurrentSort() => FenceOrder.Normalize(_config.SortBy) ?? _config.Sort switch
     {
-        string Current() => FenceOrder.Normalize(_config.SortBy) ?? _config.Sort switch
+        FenceSort.Name => "name",
+        FenceSort.Type => "type",
+        _ => "newest",
+    };
+
+    private void SetSort(string value)
+    {
+        if (value == CurrentSort()) return;
+        Set(() =>
         {
-            FenceSort.Name => "name",
-            FenceSort.Type => "type",
-            _ => "newest",
-        };
-        return Menus.Choice(L.T("Sırala"), Current,
-            [
-                ("newest", L.T("En yeni üstte")), (FenceOrder.Oldest, L.T("En eski üstte")), ("name", L.T("Ada göre")),
-                ("type", L.T("Türe göre")), (FenceOrder.Size, L.T("Boyuta göre (büyük üstte)")), (FenceOrder.Manual, L.T("Elle (sürükleyerek)")),
-            ],
-            value => Set(() =>
+            switch (value)
             {
-                switch (value)
-                {
-                    case "newest": _config.SortBy = null; _config.Sort = FenceSort.Newest; break;
-                    case "name": _config.SortBy = null; _config.Sort = FenceSort.Name; break;
-                    case "type": _config.SortBy = null; _config.Sort = FenceSort.Type; break;
-                    default:
-                        // Elle sıraya geçerken şu anki sıra başlangıç olur: öğeler yerinden oynamaz.
-                        if (value == FenceOrder.Manual && FenceOrder.Normalize(_config.SortBy) != FenceOrder.Manual)
-                            _config.ItemOrder = _all.Select(i => i.Path).Where(p => !TileItem.IsShellObject(p)).ToList();
-                        _config.SortBy = value;
-                        _config.Sort = FenceOrder.Legacy(value);
-                        break;
-                }
-                _orderVersion++;
-            }));
+                case "newest": _config.SortBy = null; _config.Sort = FenceSort.Newest; break;
+                case "name": _config.SortBy = null; _config.Sort = FenceSort.Name; break;
+                case "type": _config.SortBy = null; _config.Sort = FenceSort.Type; break;
+                default:
+                    // Elle sıraya geçerken şu anki sıra başlangıç olur: öğeler yerinden oynamaz.
+                    if (value == FenceOrder.Manual && FenceOrder.Normalize(_config.SortBy) != FenceOrder.Manual)
+                        _config.ItemOrder = _all.Select(i => i.Path).Where(p => !TileItem.IsShellObject(p)).ToList();
+                    _config.SortBy = value;
+                    _config.Sort = FenceOrder.Legacy(value);
+                    break;
+            }
+            _orderVersion++;
+        });
     }
 
     // --- Arama ---
@@ -871,7 +875,7 @@ public partial class FenceView : UserControl, IWidgetView
     private static readonly (string Key, string Label)[] FenceParts =
     [
         ("header", L.N("Başlık satırı")), ("count", L.N("Öğe sayısı")), ("search", L.N("Arama düğmesi")),
-        ("open", L.N("Klasörü aç düğmesi")), ("divider", L.N("Ayraç çizgisi")), Menus.ClosePart,
+        ("open", L.N("Klasörü aç düğmesi")), ("divider", L.N("Ayraç çizgisi")), Menus.EditPart, Menus.ClosePart,
     ];
 
     /// <summary>
@@ -886,9 +890,9 @@ public partial class FenceView : UserControl, IWidgetView
         OpenButton.Visibility = !DesktopMode && _config.Shows("open") ? Visibility.Visible : Visibility.Collapsed;
         Divider.Visibility = _config.Shows("divider") && _config.Shows("header") ? Visibility.Visible : Visibility.Collapsed;
         CountBadge.Visibility = _config.Shows("count") && _stamp is not null ? Visibility.Visible : Visibility.Collapsed;
-        RemoveButton.Visibility = !_config.Locked && _config.Shows(Menus.ClosePart.Key) ? Visibility.Visible : Visibility.Collapsed;
+        Corner.Update(_config);
         // Başlık düzenlenirken kutuya yer açılır, simge düğmesi (seçiciyi açar) gizlenmez.
-        _titleEditor.Fit([CountBadge, OpenButton, SearchButton, HeaderIconButton], [RemoveButton]);
+        _titleEditor.Fit([CountBadge, OpenButton, SearchButton, HeaderIconButton], [Corner]);
     }
 
     private void Items_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -905,8 +909,6 @@ public partial class FenceView : UserControl, IWidgetView
             Items.SelectedItem = null;
         }
     }
-
-    private void RemoveWidget_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RemoveWithUndo(_config.Id);
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)
     {
@@ -1108,7 +1110,7 @@ public partial class FenceView : UserControl, IWidgetView
     }
 
     // 2.2 Kutu
-    /// <summary>1–9: görünen (aramada bulunan) n'inci öğeyi açar; seçenek açıksa (Simgeler ▸ Numara tuşlarıyla aç).</summary>
+    /// <summary>1–9: görünen (aramada bulunan) n'inci öğeyi açar; seçenek açıksa (Düzenle ▸ Daha fazla ▸ Numara tuşlarıyla aç).</summary>
     public bool TryQuickOpen(KeyEventArgs e) =>
         Menus.TryQuickOpen(e, _config, Items, editing: _titleEditor.IsEditing || _rename is { IsActive: true });
 
@@ -1395,7 +1397,7 @@ public partial class FenceView : UserControl, IWidgetView
         SearchBox.CaretBrush = palette.Foreground;
         DropOverlay.BorderBrush = palette.Accent;
         DropOverlay.Background = palette.Overlay;
-        RemoveButton.Foreground = palette.Foreground;
+        Corner.Paint(palette);
         ApplyParts(); // kilit kaldırma düğmesini gizleyebilir: başlık yeniden sığdırılır
         UpdateIconSizes(); // ölçek değiştiyse simgeler yeni piksel boyutunda
     }
@@ -1415,55 +1417,34 @@ public partial class FenceView : UserControl, IWidgetView
         return true;
     }
 
+    /// <summary>
+    /// Menüde: klasör bölmesinde "Klasörü aç" ve "Bu bölmede ara"; masaüstü bölmesinde "Bu bölmede ara" ve (Klasörler, Tümü)
+    /// "Yeni klasör". Kaynak, görünüş ve sıra Düzenle panelinde (<see cref="AddEditorContent"/>); seyrek simge seçenekleri, klasör
+    /// simgesi, yenileme ve gizlenen öğeler "Daha fazla"da.
+    /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
         var folder = DesktopMode ? null : _folderPath;
-        if (folder is not null)
-            menu.Primary.Add(Menus.Item(L.T("Klasörü aç"), () => TileItem.Launch(folder)));
-        if (_config.Filter is DesktopFilter.None or DesktopFilter.Folders or DesktopFilter.All)
-            menu.Primary.Add(Menus.Item(L.T("Yeni klasör"), NewFolder));
+        if (folder is not null) menu.Primary.Add(Menus.Item(L.T("Klasörü aç"), () => TileItem.Launch(folder)));
         menu.Primary.Add(Menus.Item(L.T("Bu bölmede ara"), OpenSearch, KeyNames.Find));
+        if (_config.Filter is DesktopFilter.Folders or DesktopFilter.All) menu.Primary.Add(Menus.Item(L.T("Yeni klasör"), NewFolder));
+        if (!menu.ForEditor) return;
 
-        // Kaynak değişince başlık, simge ve menünün kendisi ("Klasörü aç", "Yeni klasör") değişir: seçim menüyü kapatır.
-        // Gruplar (masaüstünden, masaüstü klasörleri, bilinen klasörler) başlıksız, ayraçla ayrılır.
-        // Tek seçimli (Düzenle panelinde açılır liste); seçenekler Toggle olduğu için ayrıca işaretlenir.
-        var pick = Menus.AsChoice(new MenuItem { Header = L.T("Ne gösterilsin?") });
-        foreach (var filter in DesktopItems.Filters)
-            pick.Items.Add(Menus.Toggle(DesktopItems.Description(filter), () => _config.Filter == filter,
-                () => ShowSource(new FenceSource(filter, null), knownId: null), staysOpen: false));
-        var folders = AppHost.DesktopFolders().OrderBy(n => n, L.Sorter).ToList();
-        if (folders.Count > 0)
-        {
-            pick.Items.Add(new Separator());
-            foreach (var name in folders)
-                pick.Items.Add(Menus.Toggle(Menus.Literal(name), () => !DesktopMode && !IsPortal && Core.FolderName.Equal(name, FolderName),
-                    () => ShowSource(new FenceSource(DesktopFilter.None, name), knownId: null), staysOpen: false));
-        }
-        // Masaüstü dışındaki klasörler (klasör portalı): Windows'un bilinen klasörleri ve herhangi bir klasör.
-        pick.Items.Add(new Separator());
-        foreach (var id in FolderPortal.KnownIds)
-        {
-            if (KnownFolders.PathOf(id) is not { } path) continue;
-            pick.Items.Add(Menus.Toggle(Menus.Literal(FolderPortal.KnownName(id)),
-                () => !DesktopMode && _folderPath is { } current && FolderPortal.SamePath(current, path),
-                () => ShowKnownFolder(id, path), staysOpen: false));
-        }
-        pick.Items.Add(Menus.Item(L.T("Başka bir klasör…"), PickOtherFolder));
-        menu.Primary.Add(pick);
+        menu.Settings.Add(Menus.Parts(_config, FenceParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
 
-        menu.Primary.Add(Menus.Item(L.T("Yeniden adlandır"), () => BeginTitleEdit(), KeyNames.F2));
-        menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
-        menu.Primary.Add(Menus.TileOptions(_config, Set, singleClickOption: true, first: SortChoice()));
+        menu.More.AddRange(Menus.TileOptions(_config, Set, singleClickOption: true));
+        if (folder is not null)
+            menu.More.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(folder)));
+        menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
         if (_config.HiddenItems.Count > 0)
         {
-            // Menü açıldığında gizli olanlar listelenir. Her biri açık kalan seçenektir: işaretlenince öğe bölmede yeniden görünür,
-            // yeniden tıklanınca yine gizlenir (menü açık kalır, sayı yerinde güncellenir).
+            // Gizli olanlar listelenir. Her biri bir seçenektir: açılınca öğe bölmede yeniden görünür, kapanınca yine gizlenir
+            // (sayı yerinde güncellenir).
             var listed = _config.HiddenItems.ToList();
             var hidden = Menus.Live(new MenuItem(),
                 header: () => L.F("Gizlenen öğeler ({0})", listed.Count(IsHidden)));
             hidden.Items.Add(Menus.Live(Menus.Item(L.T("Hepsini yeniden göster"), () => UnhideItems(_config.HiddenItems)),
                 enabled: () => listed.Any(IsHidden)));
-            hidden.Items.Add(new Separator());
             foreach (var path in listed)
             {
                 var label = TileItem.IsShellObject(path)
@@ -1472,18 +1453,112 @@ public partial class FenceView : UserControl, IWidgetView
                 hidden.Items.Add(Menus.Toggle(L.F("{0} — göster", Menus.Literal(label)), () => !IsHidden(path),
                     () => { if (IsHidden(path)) UnhideItems([path]); else HidePath(path); }));
             }
-            menu.Primary.Add(hidden);
+            menu.More.Add(hidden);
         }
-
-        menu.Appearance.Add(Menus.Parts(_config, FenceParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
-
-        if (folder is not null)
-            menu.More.Add(Menus.Item(L.T("Klasör simgesi…"), () => Icons.FolderIconWindow.ShowFor(folder)));
-        menu.More.Add(Menus.Item(L.T("Yenile"), Refresh));
         // "Windows masaüstü simgeleri" kipi uygulama genelidir: widget menüsünde değil, Ayarlar'da ve karşılamada
         // (Views.DesktopModes).
     }
 
+    /// <summary>
+    /// Düzenle paneli: "Ne gösterilsin?" (Klasörler · Kısayollar · Dosyalar · Tümü yongaları ve masaüstü klasörlerini, Windows'un
+    /// bilinen klasörlerini ve "Başka klasör…"ü açan "Bir klasör seç…"; değişince panelde "Geri al"), portalda klasörün yolu ve
+    /// "Klasör seç…", görünüş (Izgara/Liste, simge boyutu) ve "Sırala".
+    /// </summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        var choices = DesktopItems.Filters
+            .Select(f => new Views.EditorChoice(f.ToString(), f == DesktopFilter.All ? L.T("Tümü") : DesktopItems.Label(f), "Editor.Fence." + f,
+                HelpText: DesktopItems.Description(f)))
+            .ToList();
+        // Gösterilen klasör, yongada adıyla (basınca yine menü açılır).
+        var folderLabel = DesktopMode ? L.T("Bir klasör seç…") : SourceName(new FenceSource(DesktopFilter.None, FolderName)) + " ▾";
+        choices.Add(new Views.EditorChoice("folder", folderLabel, "Editor.Fence.Folder", Menu: () => FolderMenu(content),
+            HelpText: L.T("Bir klasör seç…")));
+        content.Chips(L.T("Ne gösterilsin?"), choices, () => DesktopMode ? _config.Filter.ToString() : "folder", id =>
+        {
+            if (Enum.TryParse<DesktopFilter>(id, out var filter)) ShowSourceFromPanel(new FenceSource(filter, null), knownId: null, content);
+        }, rebuild: true);
+        if (IsPortal)
+        {
+            content.Text(() => FolderName);
+            content.Button(L.T("Klasör seç…"), "Editor.Fence.PickFolder", () =>
+            {
+                if (AskFolder(content.Owner) is { } source) ShowSourceFromPanel(source, knownId: null, content);
+            }, rebuild: true);
+        }
+        content.TileLook(_config, Set);
+        var sorts = SortOptions;
+        content.Dropdown(L.T("Sırala"), "Editor.Fence.Sort", sorts.Select(o => o.Label).ToList(),
+            () => sorts.ToList().FindIndex(o => o.Id == CurrentSort()), index => SetSort(sorts[index].Id));
+        return true;
+    }
+
+    /// <summary>"Bir klasör seç…" yongasının menüsü: masaüstü klasörleri, Windows'un bilinen klasörleri ve "Başka klasör…".</summary>
+    private ContextMenu FolderMenu(Views.EditorContent content)
+    {
+        var menu = new ContextMenu();
+        void Pick(FenceSource source, string? knownId)
+        {
+            ShowSourceFromPanel(source, knownId, content);
+            content.Changed(rebuild: true);
+        }
+        var folders = AppHost.DesktopFolders().OrderBy(n => n, L.Sorter).ToList();
+        foreach (var name in folders)
+            menu.Items.Add(Menus.Toggle(Menus.Literal(name), () => !DesktopMode && !IsPortal && Core.FolderName.Equal(name, FolderName),
+                () => Pick(new FenceSource(DesktopFilter.None, name), knownId: null), staysOpen: false));
+        if (folders.Count > 0) menu.Items.Add(new Separator());
+        foreach (var id in FolderPortal.KnownIds)
+        {
+            if (KnownFolders.PathOf(id) is not { } path) continue;
+            menu.Items.Add(Menus.Toggle(Menus.Literal(FolderPortal.KnownName(id)),
+                () => !DesktopMode && _folderPath is { } current && FolderPortal.SamePath(current, path),
+                () =>
+                {
+                    // Masaüstündeyse (bazı kurulumlarda Belgeler) klasik klasör bölmesi olur, değilse portal.
+                    var source = FolderPortal.Normalize(path, AppHost.DesktopDirectory);
+                    var portal = source.Filter == DesktopFilter.None && source.FolderName is { } f && System.IO.Path.IsPathFullyQualified(f);
+                    Pick(source, portal ? id : null);
+                }, staysOpen: false));
+        }
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Menus.Item(L.T("Başka klasör…"), () =>
+        {
+            if (AskFolder(content.Owner) is { } source) Pick(source, knownId: null);
+        }));
+        return menu;
+    }
+
+    /// <summary>
+    /// Panelden kaynak değişimi: kaynak değişir (<see cref="ShowSource"/>: başlık ve elle sıra kaynağa aitti) ve panelde "Geri al"
+    /// sunulur; geri alma bölmeyi kimliğiyle bulur (<see cref="WidgetManager.ViewOf"/>): görünüm o arada yeniden kurulduysa yenisine.
+    /// </summary>
+    private void ShowSourceFromPanel(FenceSource source, string? knownId, Views.EditorContent content)
+    {
+        if (IsShowing(source)) return;
+        var before = new SourceState(_config.Filter, _config.FolderName, _config.FolderKnownId, _config.Title, _config.ItemOrder?.ToList());
+        ShowSource(source, knownId);
+        var id = _config.Id;
+        content.Notice(L.F("Bölme artık \"{0}\" gösteriyor.", SourceName(source)), () => (AppHost.Widgets.ViewOf(id) as FenceView)?.RestoreSource(before));
+    }
+
+    /// <summary>Kaynağın değiştirilmeden önceki hâli (panelin "Geri al"ı).</summary>
+    private sealed record SourceState(DesktopFilter Filter, string? FolderName, string? KnownId, string? Title, List<string>? Order);
+
+    private void RestoreSource(SourceState state) => Set(() =>
+    {
+        _config.Filter = state.Filter;
+        _config.FolderName = state.FolderName;
+        _config.FolderKnownId = state.KnownId;
+        _config.Title = state.Title;
+        _config.ItemOrder = state.Order;
+        _relocating = false;
+    });
+
+    /// <summary>Kaynağın görünen adı (bildirim, yonga): tür adı, masaüstündeki klasörün adı ya da portalın klasörü.</summary>
+    private static string SourceName(FenceSource source) =>
+        source.Filter != DesktopFilter.None ? (source.Filter == DesktopFilter.All ? L.T("Tümü") : DesktopItems.Label(source.Filter))
+        : source.FolderName is { } folder && System.IO.Path.IsPathFullyQualified(folder) ? FolderPortal.DisplayName(folder)
+        : source.FolderName ?? "";
 
     public void Detach()
     {

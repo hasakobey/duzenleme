@@ -28,8 +28,8 @@
         belirip kaybolmaz, başlıktaki düğmeler kaymaz (bölme, kutu, notta başlıkta; saat ve tarihte sağ üst köşede).
         Yalnızca düğmenin kendisinin üstüne gelince kırmızılaşır: kırmızı zemin ve üstündeki beyaz × birlikte, kısa bir
         solmayla (Views.Motion.HoverFill; Sakin ve Kapalı'da hemen). Sönük × hep yerinde kalır, beyazı onun üstüne biner.
-        Menüde "Görünüm ▸ Göster ▸ Kaldır düğmesi (×)" ile kapatılır; "Konumu kilitle" de gizler. Renk kodda (ApplyPalette)
-        Foreground ile verilir.
+        Düzenle panelinde "Daha fazla ▸ Kaldır düğmesi (×)" ile kapatılır; kilitli widget'ta yerinde kilit durur (CardButtons,
+        ⋯ "Düzenle" ile birlikte). Renk kodda (ApplyPalette) Foreground ile verilir.
     -->
     <Style x:Key="WidgetCloseButton" TargetType="Button">
         <Setter Property="Focusable" Value="False" />
