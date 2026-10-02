@@ -188,10 +188,9 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         menu.Primary.Add(_name.MenuItem());
         menu.Primary.Add(Menus.Item(L.T("Simgeyi değiştir…"), PickIcon));
         menu.Appearance.Add(Menus.Parts(_config, [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.ClosePart], ApplyParts));
-        // Kısayolla imleçte açılan halka: akış bağlanınca (bkz. RingShortcut). Açıklamalı akış soru sorabilir: menü kapanır.
-        if (RingShortcut.Available)
-            menu.More.Add(Menus.Toggle(L.T("Kısayolla imleçte açılsın"), () => RingShortcut.IsOn, () => RingShortcut.Toggle?.Invoke(_config),
-                staysOpen: false));
+        // Kısayolla imleçte açılan halka (bkz. RingShortcut): açarken ne yaptığı bildirimde anlatılır; menü kapanır.
+        menu.More.Add(Menus.Toggle(L.T("Kısayolla imleçte açılsın"), () => RingShortcut.IsOn, () => RingShortcut.ToggleFromMenu(_config),
+            staysOpen: false));
     }
 
     /// <summary>"Öğe ekle ▸": <paramref name="tab"/> sekmesine, <paramref name="at"/> sırasına (yoksa sona).</summary>
@@ -302,6 +301,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
                 back.ToolTip = L.T("Öğe masaüstüne döner ve halkada kalır.");
                 menu.Items.Add(back);
             }
+            if (RingRunner.CanRunAsAdmin(path))
+                menu.Items.Add(Menus.Item(L.T("Yönetici olarak çalıştır"), () => TileItem.Launch(path, asAdmin: true)));
             menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(path)));
         }
         menu.Items.Add(new Separator());

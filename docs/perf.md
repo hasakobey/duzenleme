@@ -15,16 +15,19 @@ Bu belge betiğin başlığından (`perf-run.ps1:1`) ve CLAUDE.md'deki "Kayıt v
 powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenario startup
 powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenario scale -Widgets 15 -Name scale-15
 powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenario motion -Name motion-sakin -Set CalmMotion=true
+powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenario ring
+powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenario ring -RingOff -Name ring-off
 ```
 
 | Parametre | Varsayılan | Anlamı |
 |---|---|---|
 | `-Exe` | (zorunlu) | Ölçülecek `NestDesk.exe` |
-| `-Scenario` | (zorunlu) | `startup`, `clicks`, `churn`, `idle`, `bigfence`, `scale`, `motion` (§2) |
+| `-Scenario` | (zorunlu) | `startup`, `clicks`, `churn`, `idle`, `bigfence`, `scale`, `motion`, `ring` (§2) |
 | `-Name` | senaryo adı | Çıktı klasörünün adı (`-Out\<Name>`); aynı senaryoyu farklı ayarla ölçerken değiştir |
 | `-Files` | 600 (`startup`), 1500 (`bigfence`), 60 (diğerleri) | Test masaüstündeki dosya sayısı |
-| `-Seconds` | 40 (`scale`: 10) | Senaryo süresi (`startup` ve `bigfence` hep 5 sn) |
+| `-Seconds` | 40 (`scale`: 10, `ring`: 20) | Senaryo süresi (`startup` ve `bigfence` hep 5 sn) |
 | `-Widgets` | 5 | Yalnızca `scale`: 1, 5 ya da 15 widget |
+| `-RingOff` | kapalı | Yalnızca `ring`: aynı düzen, `NESTDESK_TEST_RING` verilmez (açılır halka kurulmaz); kalıcı maliyetin tabanı |
 | `-Set` | yok | Test örneğinin `settings.json`'ına eklenecek ayarlar: `Ad=değer` (değer JSON: `true`, `5`, `"metin"`), virgülle ayrılır |
 | `-Out` | `%TEMP%\nestdesk-perf` | Çıktı kökü (göreli yol PowerShell'in o anki klasörüne göre çözülür) |
 
@@ -66,7 +69,7 @@ powershell -NoProfile -File tools\perf\perf-run.ps1 -Exe <NestDesk.exe> -Scenari
 | `bigfence` | 1500 dosya | Tek "Tümü" bölmesi, 600×800 DIP, orta simgeler | 5 sn boşta yoklama | `StartupIdleMs`, `StartupLongestPingMs`, `LongestPingMs`, bellek, GDI/USER |
 | `scale` | 60 | `-Widgets` 1/5/15: bölme, saat, not, tarih, kutu sırayla (5 sütunlu ızgara) | 10 sn boşta | Bellek, GDI/USER, `AllWidgetsVisibleMs` (widget başına maliyet §4) |
 | `motion` | 60 | Standart 9'un ilk 6'sı (solma sınırı 8'in altında) | 2 sn'de bir `WM_HOTKEY` id 1 (masaüstünü gizle/göster), `-Seconds` boyunca; sonra widget'lar görünür bırakılıp 5 sn boşta | `UiThreadPercent`, `UiMsPerToggle`, `LongestPingMs`, `AfterCpuPercentOfOneCore`, `MotionCounters`, GDI/USER |
-| `ring` | — | — | Dalga 3 (halka menü) ekler: `WM_HOTKEY` id 8 → ilk kare | §4 halka bütçesi |
+| `ring` | 60 | Standart 9 + halka menü widget'ı (5 yol, 1 web adresi, 1 alt halka) | `NESTDESK_TEST_RING=1` ve `NESTDESK_RING_AT=-960,540` ile açılır; 600 ms'de bir `WM_HOTKEY` id 8 (aç / kapat), `-Seconds` boyunca (varsayılan 20); hiçbir öğe seçilmez | `RingColdMs`, `RingWarmMedianMs`, `RingWarmP95Ms`, `RingOpens`, `RingMemoryDelta`; `-RingOff` ile `MemoryAtStartupIdle` farkı = kalıcı maliyet |
 
 ¹ Standart 9: "Tümü" bölmesi 400×470, "Dosyalar" ve "Klasörler" bölmeleri, `PDF` klasör bölmesi, iki sekmeli kısayol
 kutusu, saniyeli saat, tarih, not ve yapılacaklar listesi.
@@ -74,6 +77,13 @@ kutusu, saniyeli saat, tarih, not ve yapılacaklar listesi.
 **Hareket düzeyleri:** `motion` aynı makinede üç kez çalıştırılır:
 `-Name motion-canli` (varsayılan), `-Name motion-sakin -Set CalmMotion=true`, `-Name motion-kapali -Set AnimationsOff=true`.
 Windows'un "Animasyon efektleri" açık olmalı (kapalıysa üçü de "Kapalı" ölçer).
+
+**Halka:** `NESTDESK_TEST_RING=1` yalnızca test masaüstünde (`--desktop`) geçerlidir: halka kısayolu atanmamışken de
+`WM_HOTKEY` id 8 işlenir ve açılır halka boşta önceden kurulur; genel kısayol kaydedilmez (gerçek tuş kapılmaz). Her açılış
+`perf.log`'a `mark Ring.hotkey` (iletinin işlenmeye başladığı an) ve `mark Ring.firstFrame` (gösterildikten sonraki ilk kare)
+yazar; betik bunları sırayla eşler. İlk açılış **soğuk** sayılır (pencere önceden kurulu ama ilk kez gösteriliyor), sonrakiler
+**sıcak**. Kalıcı maliyet: `ring` ile `ring -RingOff` çalıştırmalarının `MemoryAtStartupIdle.PrivateMB` farkı (açılır halka
+ölçülen açılışta boşa düşülürken kurulur). `RingMemoryDelta`: açılışlar boyunca artış (sızıntı olmamalı).
 
 ## 3. Makine ve kurulum
 
@@ -101,7 +111,7 @@ Karşılaştırmalar aynı makinede, aynı senaryo ve aynı derleme türüyle ya
 | Widget başına maliyet | `scale` 1/5/15 | (15 widget − 1 widget) / 14: PrivateMB, GDI, USER ve `AllWidgetsVisibleMs` için 2.1.1'inkinden en çok **+%10** | `MemoryAtStartupIdle.*`, `AllWidgetsVisibleMs` |
 | Pencere nesneleri | 50 ekle/kaldır turu | 50. turdan sonra GDI ve USER nesneleri 1. turdakinden **artmaz** (±10 ölçüm payı) | `GdiObjects`, `UserObjects` |
 | Hareket | `motion` | Canlı'nın arayüz iş parçacığı yükü Sakin'den en çok **5 puan** fazla; **100 ms**'yi aşan takılma yok; geçişler bitince boşta yük < **%0,5** | `UiThreadPercent` (canlı − sakin), `LongestPingMs`, `AfterCpuPercentOfOneCore` |
-| Halka (Dalga 3) | `ring` | Kısayol → ilk kare p95 ≤ **50 ms** sıcak, ≤ **250 ms** soğuk; halka kısayolu açıkken kalıcı maliyet ≤ **8 MB** PrivateBytes | (senaryoyla gelir) |
+| Halka (Dalga 3) | `ring`, `ring -RingOff` | Kısayol → ilk kare p95 ≤ **50 ms** sıcak, ≤ **250 ms** soğuk; halka kısayolu açıkken kalıcı maliyet ≤ **8 MB** PrivateBytes; açılışlar boyunca artış ≤ **1 MB**, GDI/USER artmaz | `RingWarmP95Ms`, `RingColdMs`, `MemoryAtStartupIdle.PrivateMB` (ring − ring-off), `RingMemoryDelta` |
 
 Notlar:
 - **Pencere nesneleri:** 50 ekle/kaldır turu henüz betikte değil: arayüz doğrulaması sırasında test örneğinde UIA ile
@@ -154,6 +164,7 @@ derlemeleri sürüm çıkana dek eski sürüm numarasını taşır) ve commit.
 | `MemoryAtStartupIdle`, `MemoryAtEnd` | `PrivateMB`, `WorkingSetMB`, `PeakWorkingSetMB`, `Handles`, `Threads`, `GdiObjects`, `UserObjects`, `GdiObjectsPeak`, `UserObjectsPeak` |
 | `Toggles`, `UiMsPerToggle`, `HotkeyMisses` | `motion`: gönderilen gizle/göster sayısı, geçiş başına arayüz ms'si, kısayol penceresinin bulunamadığı sayı |
 | `AfterCpuPercentOfOneCore`, `AfterUiThreadPercent`, `AfterPings` | `motion`: geçişler bittikten sonraki 5 sn |
+| `RingOff`, `RingOpens`, `RingColdMs`, `RingWarmMedianMs`, `RingWarmP95Ms`, `RingMemoryDelta` | `ring`: taban mı, ölçülen açılış sayısı, ilk açılışın ve sonrakilerin kısayol → ilk kare süresi (ms), açılışlar boyunca bellek ve GDI/USER artışı (`MemoryAtEnd − MemoryAtStartupIdle`); `HotkeyMisses` burada da |
 | `MotionCounters`, `MotionEvents` | `perf.log`'daki `Motion.X=n` sayaçları ve tek tek yazılan `Motion.X` olayları (2.2 Hareket ile) |
 | `Marks`, `MarkDetails` | `perf.log`'daki açılış işaretleri, süreç başından ms (her işaretin ilki; §7) ve ayrıntıları (`load=`, `widgets=`, açılıştaki GC) |
 | `GcAtExit` | Çıkıştaki yönetilen bellek: `gcHeapKB`, `gcCommittedKB`, `gcFragmentedKB`, `managedKB`, `gc0..2`, `gcPauseMs` (yalnızca çıkıştaki sayaç satırından; örnek sonlandırıldıysa boş) |

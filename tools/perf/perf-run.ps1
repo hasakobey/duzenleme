@@ -22,7 +22,12 @@
     motion    6 widget (solma sınırının altında); 2 sn'de bir WM_HOTKEY id 1 (masaüstünü gizle/göster), -Seconds boyunca:
               arayüz iş parçacığı yükü, 100 ms'yi aşan takılmalar, sonrasında 5 sn boşta yük, Motion.* sayaçları
               (destekleyen sürümde). Canlı / Sakin / Kapalı: -Set CalmMotion=true ya da -Set AnimationsOff=true.
-    (ring     halka menüyle gelir: kısayol → ilk kare.)
+    ring      standart 9 widget + bir halka menü widget'ı; test örneğine NESTDESK_TEST_RING=1 (yalnızca --desktop ile geçerli:
+              halka yolu kısayol kaydedilmeden açılır, gerçek tuş kapılmaz) ve NESTDESK_RING_AT (test monitörünün ortası)
+              verilir. -Seconds boyunca (varsayılan 20) 600 ms'de bir WM_HOTKEY id 8 (aç / kapat): kısayol → ilk kare süresi
+              ("mark Ring.hotkey" → "mark Ring.firstFrame"; ilk açılış soğuk, sonrakiler sıcak: ortanca ve p95), açılışlar
+              boyunca bellek artışı (başta ve sonda). -RingOff: aynı düzen, NESTDESK_TEST_RING verilmez (açılır halka hiç
+              kurulmaz; iletiler yok sayılır): iki çalıştırmanın MemoryAtStartupIdle farkı halkanın kalıcı maliyetidir.
 
   Her senaryoda bellek ölçütleri (PrivateBytes, WorkingSet, tepe WorkingSet, tutamaç, iş parçacığı, GDI ve USER
   nesneleri) açılışta boşa düşünce ve senaryo sonunda alınır. NESTDESK_PERF_LOG'daki açılış işaretleri ("mark ...") ve
@@ -49,12 +54,13 @@
 #>
 param(
     [Parameter(Mandatory)] [string] $Exe,
-    [Parameter(Mandatory)] [ValidateSet('startup', 'clicks', 'churn', 'idle', 'bigfence', 'scale', 'motion')] [string] $Scenario,
+    [Parameter(Mandatory)] [ValidateSet('startup', 'clicks', 'churn', 'idle', 'bigfence', 'scale', 'motion', 'ring')] [string] $Scenario,
     [string] $Name = $Scenario,
     [int] $Files = -1,
     [int] $Seconds = 40,
     [ValidateSet(1, 5, 15)] [int] $Widgets = 5,
     [string[]] $Set = @(),
+    [switch] $RingOff,
     [string] $Out = (Join-Path $env:TEMP 'nestdesk-perf')
 )
 $ErrorActionPreference = 'Stop'
@@ -67,6 +73,7 @@ if ($Files -lt 0) {
     $Files = switch ($Scenario) { 'startup' { 600 } 'bigfence' { 1500 } default { 60 } }
 }
 if ($Scenario -ne 'scale' -and $PSBoundParameters.ContainsKey('Widgets')) { Write-Warning '-Widgets yalnızca scale senaryosunda kullanılır.' }
+if ($Scenario -ne 'ring' -and $RingOff) { Write-Warning '-RingOff yalnızca ring senaryosunda kullanılır.' }
 
 $run = Join-Path $Out $Name
 if (Test-Path $run) { Remove-Item -Recurse -Force $run }
@@ -133,6 +140,16 @@ switch ($Scenario) {
     'bigfence' { $layout = @((W 'Fence' -1915 5 @{ Filter = 'All'; Sort = 'Name'; IconSize = 'Medium'; Width = 600; Height = 800 })) }
     'scale' { $layout = @(ScaleSet $Widgets) }
     'motion' { $layout = @(StandardSet)[0..5] }
+    # Halka: öğeler masaüstünün ilk dosyaları ve bir web adresi (yalnızca açılıp kapanır; hiçbir öğe seçilmez).
+    'ring' {
+        $ringItems = @($launchItems | Select-Object -First 5)
+        $layout = @(StandardSet) + @((W 'Launcher' -430 520 @{
+                    Variant = 'ring'; Title = 'Halka menü'
+                    Tabs = @(@{ Name = 'Uygulamalar'; Items = $ringItems
+                            Actions = @(@{ Id = 'a1b2c3d4'; Type = 'url'; Url = 'https://example.com'; PathsBefore = $ringItems.Count }) },
+                        @{ Name = 'Belgeler'; Items = @($launchItems | Select-Object -Skip 5 -First 1) })
+                }))
+    }
     default { $layout = @(StandardSet) }
 }
 
@@ -156,13 +173,18 @@ $psi.Arguments = "--desktop `"$desk`" --data `"$data`" --minimized"
 $psi.UseShellExecute = $false
 # Kabuktan kalmış test değişkenleri ölçümü bozmasın (uygulama önce NESTDESK_, yoksa eski DUZENLEME_ adını okur):
 # DEBUGLOG her satırda diske yazar, LANG metinleri değiştirir, TEST_DOUBLECLICK fare girdisi dinler.
-foreach ($stale in 'TEST_DOUBLECLICK', 'DEBUGLOG', 'LANG', 'NEWWIDGET_AT', 'PEEK_AT', 'RING_AT', 'APPDATA_ROOT', 'PERF_LOG', 'WINDOW_AT', 'QUICKADD_AT') {
+foreach ($stale in 'TEST_DOUBLECLICK', 'TEST_RING', 'DEBUGLOG', 'LANG', 'NEWWIDGET_AT', 'PEEK_AT', 'RING_AT', 'APPDATA_ROOT', 'PERF_LOG', 'WINDOW_AT', 'QUICKADD_AT') {
     $psi.EnvironmentVariables.Remove("NESTDESK_$stale")
     $psi.EnvironmentVariables.Remove("DUZENLEME_$stale")
 }
 $psi.EnvironmentVariables['NESTDESK_WINDOW_AT'] = '-1500,300'
 $psi.EnvironmentVariables['NESTDESK_QUICKADD_AT'] = '-1500,300'
 $psi.EnvironmentVariables['NESTDESK_PERF_LOG'] = (Join-Path $run 'perf.log')
+if ($Scenario -eq 'ring') {
+    # Halka test monitörünün ortasında açılır; kısayol kaydedilmez (WM_HOTKEY id 8 yalnızca bu test örneğine gönderilir).
+    $psi.EnvironmentVariables['NESTDESK_RING_AT'] = '-960,540'
+    if (-not $RingOff) { $psi.EnvironmentVariables['NESTDESK_TEST_RING'] = '1' }
+}
 $clock = [Diagnostics.Stopwatch]::StartNew()
 
 function Close-Instance($process) {
@@ -251,11 +273,12 @@ $ui0 = UiCpu
 $writes0 = Writes
 $pings = New-Object System.Collections.Generic.List[double]
 $m = [Diagnostics.Stopwatch]::StartNew()
-$next = 0; $n = 0; $toggles = 0; $hotkeyMisses = 0
+$next = 0; $n = 0; $toggles = 0; $hotkeyMisses = 0; $ringPosts = 0
 $scenarioSeconds = switch ($Scenario) {
     'startup' { 5 }
     'bigfence' { 5 }
     'scale' { if ($PSBoundParameters.ContainsKey('Seconds')) { $Seconds } else { 10 } }
+    'ring' { if ($PSBoundParameters.ContainsKey('Seconds')) { $Seconds } else { 20 } }
     default { $Seconds }
 }
 while ($m.Elapsed.TotalSeconds -lt $scenarioSeconds) {
@@ -271,6 +294,11 @@ while ($m.Elapsed.TotalSeconds -lt $scenarioSeconds) {
                 # id 1 = HotkeyAction.ToggleDesktop + 1: widget'lar (simgelerle birlikte; test örneği gerçek simgelere dokunmaz) gizlenir/görünür.
                 if ([PerfNative]::PostHotkey($p.Id, 1)) { $toggles++ } else { $hotkeyMisses++ }
                 $next += 2000
+            }
+            'ring' {
+                # id 8 = HotkeyAction.Ring + 1: sırayla aç, kapat (açık kalma süresi 600 ms).
+                if ([PerfNative]::PostHotkey($p.Id, 8)) { $ringPosts++ } else { $hotkeyMisses++ }
+                $next += 600
             }
             default { $next += 1000 }
         }
@@ -302,6 +330,11 @@ if ($Scenario -eq 'motion') {
     $afterCpu = [math]::Round(($p.TotalProcessorTime.TotalMilliseconds - $afterCpu0) / ($afterSeconds * 10), 2)
     $afterUi = [math]::Round(((UiCpu) - $afterUi0) / ($afterSeconds * 10), 2)
 }
+if ($Scenario -eq 'ring') {
+    # Açık kaldıysa kapat; bellek kapalı halkayla ölçülür.
+    if ($ringPosts % 2 -eq 1) { [PerfNative]::PostHotkey($p.Id, 8) | Out-Null }
+    Start-Sleep -Milliseconds 1500
+}
 $memoryEnd = Memory
 
 # --- Kapat ---
@@ -332,6 +365,7 @@ $markDetails = [ordered]@{}
 $gcAtExit = [ordered]@{}
 $motionCounters = [ordered]@{}
 $motionEvents = [ordered]@{}
+$ringLatencies = New-Object System.Collections.Generic.List[double]
 if (Test-Path $perfLog) {
     $fenceUpdates = @(Select-String -Path $perfLog -Pattern 'bölme güncellendi' -Encoding UTF8).Count
     # Her işaretin ilki geçerli (asıl örneğin açılışı); ayrıntı (load=, widgets=, açılıştaki gc...) ayrıca.
@@ -348,6 +382,15 @@ if (Test-Path $perfLog) {
         Where-Object { $_.Line -notmatch '\bmark \S+ -?\d+ ms' }) | Select-Object -Last 1
     if ($summary) {
         foreach ($kv in [regex]::Matches($summary.Line, '\b(gc\w+|managedKB)=(\d+)')) { $gcAtExit[$kv.Groups[1].Value] = [long]$kv.Groups[2].Value }
+    }
+    # Halka (2.2): her açılış bir "Ring.hotkey" ve ardından bir "Ring.firstFrame" işareti yazar; sırayla eşlenir.
+    if ($Scenario -eq 'ring') {
+        $pending = $null
+        foreach ($hit in @(Select-String -Path $perfLog -Pattern 'mark (Ring\.hotkey|Ring\.firstFrame) (-?\d+) ms' -Encoding UTF8)) {
+            $groups = $hit.Matches[0].Groups
+            if ($groups[1].Value -eq 'Ring.hotkey') { $pending = [double]$groups[2].Value }
+            elseif ($null -ne $pending) { $ringLatencies.Add([double]$groups[2].Value - $pending); $pending = $null }
+        }
     }
     # Hareket (2.2): sayaçlar "Motion.X=n" (son değer geçerli), tek tek yazılan olaylar "Motion.X" (sayılır).
     foreach ($line in [IO.File]::ReadAllLines($perfLog)) {
@@ -375,6 +418,19 @@ foreach ($dllName in 'NestDesk.dll', 'Duzenleme.dll') {
     }
 }
 
+# Halka: ilk açılış soğuk (pencere önceden kurulu ama ilk kez gösteriliyor), sonrakiler sıcak.
+$ringWarm = @($ringLatencies | Select-Object -Skip 1 | Sort-Object)
+function Pct($sorted, [double]$q) { if ($sorted.Count -eq 0) { return $null }; return $sorted[[math]::Min($sorted.Count - 1, [math]::Floor($sorted.Count * $q))] }
+$ringMemory = $null
+if ($Scenario -eq 'ring') {
+    $ringMemory = [ordered]@{
+        PrivateMB = [math]::Round($memoryEnd.PrivateMB - $memoryIdle.PrivateMB, 1)
+        WorkingSetMB = [math]::Round($memoryEnd.WorkingSetMB - $memoryIdle.WorkingSetMB, 1)
+        GdiObjects = $memoryEnd.GdiObjects - $memoryIdle.GdiObjects
+        UserObjects = $memoryEnd.UserObjects - $memoryIdle.UserObjects
+    }
+}
+
 $result = [pscustomobject]@{
     Name = $Name; Scenario = $Scenario; Exe = $Exe; ExeVersion = $exeVersion; ExeBuild = $exeBuild; Settings = ($Set -join ',')
     DesktopFiles = $Files; Widgets = $layout.Count
@@ -387,7 +443,12 @@ $result = [pscustomobject]@{
     MemoryAtStartupIdle = $memoryIdle; MemoryAtEnd = $memoryEnd
     Toggles = $(if ($Scenario -eq 'motion') { $toggles } else { $null })
     UiMsPerToggle = $(if ($Scenario -eq 'motion' -and $toggles -gt 0) { [math]::Round($uiMs / $toggles, 1) } else { $null })
-    HotkeyMisses = $(if ($Scenario -eq 'motion') { $hotkeyMisses } else { $null })
+    HotkeyMisses = $(if ($Scenario -in @('motion', 'ring')) { $hotkeyMisses } else { $null })
+    RingOff = $(if ($Scenario -eq 'ring') { [bool]$RingOff } else { $null })
+    RingOpens = $(if ($Scenario -eq 'ring') { $ringLatencies.Count } else { $null })
+    RingColdMs = $(if ($ringLatencies.Count -gt 0) { [math]::Round($ringLatencies[0], 1) } else { $null })
+    RingWarmMedianMs = (Pct $ringWarm 0.5); RingWarmP95Ms = (Pct $ringWarm 0.95)
+    RingMemoryDelta = $ringMemory
     AfterCpuPercentOfOneCore = $afterCpu; AfterUiThreadPercent = $afterUi
     AfterPings = $(if ($Scenario -eq 'motion') { Stats $afterPings } else { $null })
     MotionCounters = $motionCounters; MotionEvents = $motionEvents
@@ -396,5 +457,6 @@ $result = [pscustomobject]@{
     RealDesktopIcons = "$iconsBefore -> $([PerfNative]::DesktopIconsState())"
 }
 $result | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $run 'result.json') -Encoding UTF8
-if ($Scenario -eq 'motion' -and $hotkeyMisses -gt 0) { Write-Warning "Kısayol penceresi (DuzenlemeHotkeys) $hotkeyMisses kez bulunamadı." }
+if (($Scenario -in @('motion', 'ring')) -and $hotkeyMisses -gt 0) { Write-Warning "Kısayol penceresi (DuzenlemeHotkeys) $hotkeyMisses kez bulunamadı." }
+if ($Scenario -eq 'ring' -and -not $RingOff -and $ringLatencies.Count -eq 0) { Write-Warning 'Halka hiç açılmadı (Ring.hotkey işareti yok): sürüm halka menüyü desteklemiyor olabilir.' }
 $result

@@ -29,6 +29,12 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>Kaydedilemeyen kısayollar (başka bir uygulama kullanıyor olabilir).</summary>
     public Dictionary<HotkeyAction, string> Failures { get; } = [];
 
+    /// <summary>
+    /// Yalnızca test masaüstünde NESTDESK_TEST_RING=1 (<see cref="RingHotkey.TestOverride"/>): halka kısayolu atanmamışken de
+    /// WM_HOTKEY id 8 işlenir; genel kısayol kaydedilmez (ölçüm ve arayüz denemesi iletiyle yapılır).
+    /// </summary>
+    public bool TestRing { get; set; }
+
     public HotkeyManager(Action<HotkeyAction> handler)
     {
         _handler = handler;
@@ -140,7 +146,7 @@ public sealed class HotkeyManager : IDisposable
     {
         if (msg == WM_HOTKEY)
         {
-            var (ours, run) = Route((int)wParam, _applied);
+            var (ours, run) = Route((int)wParam, _applied, TestRing);
             if (ours) handled = true;
             if (run is { } action) _handler(action);
         }
@@ -150,12 +156,13 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>
     /// WM_HOTKEY kimliğinin eylemi (saf; testlenir): kimlik bizimse Ours, işlenecekse Run. Kapalı (atanmamış) halka
     /// kısayolunun iletisi yok sayılır (<see cref="HotkeySettings.Accepts"/>); ayar henüz uygulanmadıysa halka da kapalıdır.
+    /// <paramref name="testRing"/> (yalnızca test masaüstü, bkz. <see cref="TestRing"/>) halkanın iletisini kısayolsuz da işler.
     /// </summary>
-    public static (bool Ours, HotkeyAction? Run) Route(int id, HotkeySettings? applied)
+    public static (bool Ours, HotkeyAction? Run) Route(int id, HotkeySettings? applied, bool testRing = false)
     {
         var action = (HotkeyAction)(id - 1);
         if (!Enum.IsDefined(action)) return (false, null);
-        var accepts = applied?.Accepts(action) ?? action != HotkeyAction.Ring;
+        var accepts = (testRing && action == HotkeyAction.Ring) || (applied?.Accepts(action) ?? action != HotkeyAction.Ring);
         return (true, accepts ? action : null);
     }
 

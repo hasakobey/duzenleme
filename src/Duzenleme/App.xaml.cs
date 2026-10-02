@@ -209,8 +209,10 @@ public partial class App : Application
         PerfLog.Mark("Tray.created");
         // Gezgin yeniden başladı: widget'lar 3 sn'lik nöbetçiyi beklemeden yeni masaüstüne bağlansın.
         tray.TaskbarCreated += AppHost.Widgets.OnShellRestarted;
-        AppHost.Hotkeys = new HotkeyManager(OnHotkey);
+        // NESTDESK_TEST_RING=1 (yalnızca --desktop): halka kısayolsuz da açılır (ölçüm, arayüz denemesi; gerçek tuş kapılmaz).
+        AppHost.Hotkeys = new HotkeyManager(OnHotkey) { TestRing = Views.RingPopup.TestRing };
         AppHost.Hotkeys.Apply(AppHost.Settings.Hotkeys);
+        NoticeRingHotkeyFailure();
         AppHost.DoubleClick = new DesktopDoubleClick(Dispatcher, AppHost.OnDesktopDoubleClick);
         AppHost.ApplyDoubleClickSetting();
         AppHost.Widgets.RestoreAll();
@@ -238,6 +240,8 @@ public partial class App : Application
         // İlk masaüstü taraması (otomatik taşıma açıksa) ve klasör simgesi onarımı: widget'lar göründükten sonra, düşük
         // disk önceliğiyle; Windows ile başlarken oturum açılışıyla yarışmasın diye daha geç.
         AppHost.StartDeferredWork(autostart: args.Minimized);
+        // Kısayolla açılan halka: kısayol açıksa pencere boşta önceden kurulur (ilk basışta beklenmesin).
+        Views.RingPopup.Sync();
         MigrateFromLegacyNameInBackground();
         // Hata günlüğü: oturum başı kaydı (sürüm, kanal, Windows derlemesi, ekranlar, tema; kişisel bilgi yok) ve arayüz nöbetçisi.
         AppLog.Session(Views.Diagnostics.CurrentEnvironment());
@@ -301,6 +305,21 @@ public partial class App : Application
                             AppInfo.Name, newer.Version),
                         Views.NoticeKind.Info);
             }, DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>
+    /// Halka menü kısayolu açılışta kaydedilemediyse (başka bir uygulama kullanıyor, AltGr çakışması…) oturumda bir kez söylenir;
+    /// kısayol Ayarlar'dan değiştirilebilir.
+    /// </summary>
+    private void NoticeRingHotkeyFailure()
+    {
+        if (AppHost.Hotkeys?.Failures.TryGetValue(HotkeyAction.Ring, out var failure) != true) return;
+        var hotkey = AppHost.Settings.Hotkeys.Ring;
+        Dispatcher.BeginInvoke(() => Views.Notice.Show(
+                L.F("Halka menü kısayolu ({0}) kaydedilemedi: {1}. Ayarlar'dan başka bir birleşim seçebilirsin.", hotkey ?? "", failure),
+                Views.NoticeKind.Warning, L.T("Ayarları aç"), () => ShowPage(typeof(Views.SettingsPage)),
+                L.T("Kısayolu seçmek için buraya tıkla.")),
+            DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>
@@ -520,13 +539,11 @@ public partial class App : Application
         _mainWindow.Activate();
     }
 
-    /// <summary>Kısayolun işini kısayolsuz yapar (halka menünün NestDesk eylemleri; bkz. Core.RingAppIds).</summary>
+    /// <summary>
+    /// Kısayolun işini yapar (kısayol ve halka menünün NestDesk eylemleri; bkz. Core.RingAppIds). Halkanın kendisi burada
+    /// değildir (halkadan halka açılmaz): yalnızca kısayol açar (<see cref="OnHotkey"/>).
+    /// </summary>
     internal void RunAction(HotkeyAction action)
-    {
-        if (action != HotkeyAction.Ring) OnHotkey(action);
-    }
-
-    private void OnHotkey(HotkeyAction action)
     {
         switch (action)
         {
@@ -538,6 +555,16 @@ public partial class App : Application
             case HotkeyAction.QuickAdd: ShowQuickAdd(); break;
             case HotkeyAction.PeekDesktop: TogglePeek(AppHost.PeekOrigin.Hotkey); break;
         }
+    }
+
+    private void OnHotkey(HotkeyAction action)
+    {
+        if (action == HotkeyAction.Ring)
+        {
+            if (_started && !_exiting) Views.RingPopup.Toggle();
+            return;
+        }
+        RunAction(action);
     }
 
     /// <summary>
@@ -571,6 +598,7 @@ public partial class App : Application
             AppHost.RestoreDesktopOnExit();
             Views.PeekBar.CloseBar();
             AppHost.DoubleClick?.Dispose();
+            Views.RingPopup.CloseForReal();
             _watchdog?.Dispose();
             _newFolders?.Dispose();
             AppHost.Hotkeys?.Dispose();

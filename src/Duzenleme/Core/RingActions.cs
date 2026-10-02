@@ -271,5 +271,53 @@ public static class RingHotkey
         return Candidates.FirstOrDefault(c => Suggestable(c) && !used.Contains(Normalize(c)!));
     }
 
+    /// <summary><see cref="TurnOn"/>'un sonucu: atanan kısayol (yoksa null), son kayıt hatası ve denenip kaydedilemeyenler.</summary>
+    public sealed record TurnOnResult(string? Hotkey, string? Failure, IReadOnlyList<string> Tried);
+
+    /// <summary>
+    /// "Kısayolla imleçte açılsın" akışı (saf; testlenir): <see cref="Suggest"/> → Set(Ring) → <paramref name="apply"/> (kaydeder,
+    /// kaydedilemeyenleri döner) → Ring kaydedilemediyse denenenlere eklenip sıradaki öneri. Yalnızca Ring'in hatasına bakılır
+    /// (başka eylemin kaydedilememesi öneriyi reddetmez). Hiçbiri kaydedilemezse halka kapalı kalır (Set(Ring, "") ve bir kez
+    /// daha <paramref name="apply"/>) ve son hata döner.
+    /// </summary>
+    public static TurnOnResult TurnOn(HotkeySettings settings, Func<HotkeySettings, IReadOnlyDictionary<HotkeyAction, string>> apply)
+    {
+        var tried = new List<string>();
+        string? failure = null;
+        IReadOnlyDictionary<HotkeyAction, string>? failures = null;
+        while (tried.Count < Candidates.Count && Suggest(settings, failures, tried) is { } candidate)
+        {
+            settings.Set(HotkeyAction.Ring, candidate);
+            failures = apply(settings);
+            if (!failures.TryGetValue(HotkeyAction.Ring, out var why)) return new TurnOnResult(candidate, null, tried);
+            failure = why;
+            tried.Add(candidate);
+        }
+        settings.Set(HotkeyAction.Ring, "");
+        apply(settings);
+        return new TurnOnResult(null, failure, tried);
+    }
+
+    /// <summary>
+    /// Ölçüm ve arayüz denemesi: NESTDESK_TEST_RING=1 yalnızca test masaüstünde (--desktop) halka yolunu açar; genel kısayol
+    /// kaydedilmez (WM_HOTKEY id 8 kısayol atanmamışken de işlenir, açılır halka önceden kurulur). Gerçek örnekte yok sayılır.
+    /// </summary>
+    public static bool TestOverride(bool isTestDesktop, string? value) => isTestDesktop && value?.Trim() == "1";
+
     private static string? Normalize(string? text) => Hotkey.TryParse(text, out var hk) ? hk.ToString() : null;
+}
+
+/// <summary>Kısayolla açılan halkanın hedefi (saf; testlenir): seçilen halka (<see cref="AppSettings.RingWidgetId"/>), yoksa ilk halka.</summary>
+public static class RingTargets
+{
+    /// <summary>Halka menü widget'ları, ayardaki sırayla.</summary>
+    public static List<WidgetConfig> All(IEnumerable<WidgetConfig> widgets) =>
+        widgets.Where(w => WidgetVariants.Is(w, WidgetVariants.Ring)).ToList();
+
+    /// <summary>Kimliği <paramref name="id"/> olan halka; bulunamazsa (silindi, halka değil, boş) ilk halka; hiç yoksa null.</summary>
+    public static WidgetConfig? Pick(IEnumerable<WidgetConfig> widgets, string? id)
+    {
+        var rings = All(widgets);
+        return rings.FirstOrDefault(w => id is not null && string.Equals(w.Id, id, StringComparison.Ordinal)) ?? rings.FirstOrDefault();
+    }
 }

@@ -367,6 +367,12 @@ internal sealed class RingView : FrameworkElement
         else ItemInvoked?.Invoke(slot);
     }
 
+    /// <summary>
+    /// Vurgulanan yeri seçer (açılır halkada nişan alanına tıklama, "tuşu bırakınca seç"): öğe → <see cref="Activate"/>, geri
+    /// yeri ya da ortası → <see cref="GoBack"/>; vurgu yoksa bir şey yapmaz.
+    /// </summary>
+    public void CommitHighlight() => Commit(_highlight);
+
     /// <summary>Alt halkaya girer.</summary>
     public void OpenSubRing(int tab)
     {
@@ -698,7 +704,8 @@ internal sealed class RingView : FrameworkElement
     {
         base.OnMouseMove(e);
         var point = e.GetPosition(this);
-        if (_pressed.Kind == RingGeometry.HitKind.Item && e.LeftButton == MouseButtonState.Pressed && IsMouseCaptured)
+        // Açılır halkadan dışarı sürüklenmez: basıp başka öğeye götürmek oradaki öğeyi seçer (bkz. OnMouseLeftButtonUp).
+        if (!IsPopup && _pressed.Kind == RingGeometry.HitKind.Item && e.LeftButton == MouseButtonState.Pressed && IsMouseCaptured)
         {
             var delta = point - _pressPoint;
             if (Math.Abs(delta.X) >= SystemParameters.MinimumHorizontalDragDistance ||
@@ -748,7 +755,8 @@ internal sealed class RingView : FrameworkElement
         var hit = HitAt(e.GetPosition(this));
         EndPress();
         e.Handled = true;
-        if (hit != pressed) return;
+        // Açılır halkada basıp bir öğeye doğru götürüp bırakmak o öğeyi seçer (pasta menülerindeki gibi).
+        if (hit != pressed && !(IsPopup && hit.Kind == RingGeometry.HitKind.Item)) return;
         Commit(hit);
     }
 

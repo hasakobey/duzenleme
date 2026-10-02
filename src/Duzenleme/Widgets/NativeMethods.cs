@@ -274,6 +274,11 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool AllowSetForegroundWindow(int processId);
 
+    // 2.2 Halka: kısayolla açılan halka kendini ve kapanınca önceki pencereyi öne getirir (iş parçacığı girdisi bağlanmaz).
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hwnd);
+
     /// <summary>Kabuğa değişiklik bildirir; yol gerektirmeyen olaylarda <paramref name="item1"/> null.</summary>
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern void SHChangeNotify(int eventId, uint flags, string? item1, IntPtr item2);
