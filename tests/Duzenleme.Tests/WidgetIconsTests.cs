@@ -62,6 +62,17 @@ public class WidgetIconsTests
         Assert.Equal(expected, WidgetIcons.DefaultFor(new WidgetConfig { Kind = kind, NoteChecklist = checklist, Filter = filter, FolderName = "Projeler" }));
 
     [Fact]
+    public void Ring_menu_default_icon_and_chosen_icon()
+    {
+        var ring = WidgetSeeds.Create(WidgetSeeds.Ring)!;
+        Assert.Equal(SymbolRegular.DataPie24, WidgetIcons.DefaultFor(ring));
+        Assert.True(WidgetIcons.IsDrawable(SymbolRegular.DataPie24));
+        ring.Icon = "sym:Rocket24";
+        Assert.Equal(SymbolRegular.Rocket24, WidgetIcons.For(ring));
+        Assert.Equal(SymbolRegular.DataPie24, WidgetIcons.DefaultFor(ring));
+    }
+
+    [Fact]
     public void Snapshot_shows_a_renamed_item_at_once()
     {
         var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "nestdesk-snap-" + Guid.NewGuid().ToString("N"))).FullName;

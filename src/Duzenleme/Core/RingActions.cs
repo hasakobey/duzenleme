@@ -200,6 +200,43 @@ public static class RingActions
     /// <summary>Metin öğesi: boş değil, en çok <see cref="MaxTextLength"/> karakter.</summary>
     public static bool ValidText(string? text) => !string.IsNullOrEmpty(text) && text.Length <= MaxTextLength;
 
+    // Yolun sonunu belli eden uzantılar: "C:\Program Files\x.exe -f" tırnaksız da ayrılır.
+    private static readonly string[] ProgramExtensions = [".exe", ".com", ".bat", ".cmd", ".msc", ".lnk", ".ps1", ".vbs", ".appref-ms"];
+
+    /// <summary>
+    /// Komut öğesinin "Program ya da komut" metnini program ve bağımsız değişkenlere ayırır (Windows'un komut satırı gibi):
+    /// tırnaklı ilk parça program; tırnaksızsa metnin tamamı (var olan bir dosyaysa, boşluklu yol), sonra program uzantısıyla
+    /// biten ilk parça ("C:\Program Files\x.exe -f"), sonra program uzantısıyla biten boşluklu tam yol ("C:\Program Files\x.exe"),
+    /// sonra var olan en kısa boşluklu ön ek, yoksa ilk boşluğa kadarı ("notepad C:\a.txt", "ping 8.8.8.8").
+    /// <paramref name="exists"/> dosya denetimidir (yalnızca arka planda; ad için null: diske dokunmaz).
+    /// </summary>
+    public static (string Program, string Arguments) SplitCommand(string? command, Func<string, bool>? exists = null)
+    {
+        var text = command?.Trim() ?? "";
+        if (text.Length == 0) return ("", "");
+        if (text[0] == '"')
+        {
+            var close = text.IndexOf('"', 1);
+            return close < 0 ? (text.Trim('"').Trim(), "") : (text[1..close].Trim(), text[(close + 1)..].Trim());
+        }
+        if (exists?.Invoke(text) == true) return (text, "");
+        for (var space = text.IndexOf(' '); space > 0; space = text.IndexOf(' ', space + 1))
+        {
+            var head = text[..space];
+            if (EndsWithProgramExtension(head)) return (head, text[(space + 1)..].Trim());
+        }
+        // Boşluklu tam yol, bağımsız değişkensiz: ilk parça bir yol başlangıcıysa ("C:\Program", "\\sunucu\…").
+        var firstSpace = text.IndexOf(' ');
+        if (firstSpace > 0 && EndsWithProgramExtension(text) && text[..firstSpace].IndexOfAny(['\\', '/']) >= 0) return (text, "");
+        if (exists is not null)
+            for (var space = text.IndexOf(' '); space > 0; space = text.IndexOf(' ', space + 1))
+                if (exists(text[..space])) return (text[..space], text[(space + 1)..].Trim());
+        return firstSpace < 0 ? (text, "") : (text[..firstSpace], text[(firstSpace + 1)..].Trim());
+    }
+
+    private static bool EndsWithProgramExtension(string text) =>
+        ProgramExtensions.Any(e => text.EndsWith(e, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
     /// Öğe çalıştırılabilir mi: tür tanınıyor, kapalı (onaylanmamış) değil ve içeriği geçerli. Tanınmayan tür, geçersiz adres
     /// (elle düzenlenmiş dosyadaki "C:\x.exe" dahil) ve sınırı aşan öğe asla çalışmaz.
@@ -271,5 +308,57 @@ public static class RingHotkey
         return Candidates.FirstOrDefault(c => Suggestable(c) && !used.Contains(Normalize(c)!));
     }
 
+    /// <summary><see cref="TurnOn"/>'un sonucu: atanan kısayol (yoksa null), son kayıt hatası ve denenip kaydedilemeyenler.</summary>
+    public sealed record TurnOnResult(string? Hotkey, string? Failure, IReadOnlyList<string> Tried);
+
+    /// <summary>
+    /// "Kısayolla imleçte açılsın" akışı (saf; testlenir): <see cref="Suggest"/> → Set(Ring) → <paramref name="apply"/> (kaydeder,
+    /// kaydedilemeyenleri döner) → Ring kaydedilemediyse denenenlere eklenip sıradaki öneri. Yalnızca Ring'in hatasına bakılır
+    /// (başka eylemin kaydedilememesi öneriyi reddetmez). Hiçbiri kaydedilemezse halka kapalı kalır (Set(Ring, "") ve bir kez
+    /// daha <paramref name="apply"/>) ve son hata döner.
+    /// </summary>
+    public static TurnOnResult TurnOn(HotkeySettings settings, Func<HotkeySettings, IReadOnlyDictionary<HotkeyAction, string>> apply)
+    {
+        var tried = new List<string>();
+        string? failure = null;
+        IReadOnlyDictionary<HotkeyAction, string>? failures = null;
+        while (tried.Count < Candidates.Count && Suggest(settings, failures, tried) is { } candidate)
+        {
+            settings.Set(HotkeyAction.Ring, candidate);
+            failures = apply(settings);
+            if (!failures.TryGetValue(HotkeyAction.Ring, out var why)) return new TurnOnResult(candidate, null, tried);
+            failure = why;
+            tried.Add(candidate);
+        }
+        settings.Set(HotkeyAction.Ring, "");
+        apply(settings);
+        return new TurnOnResult(null, failure, tried);
+    }
+
+    /// <summary>
+    /// Ölçüm ve arayüz denemesi: NESTDESK_TEST_RING=1 yalnızca test masaüstünde (--desktop) halka yolunu açar; genel kısayol
+    /// kaydedilmez (WM_HOTKEY id 8 kısayol atanmamışken de işlenir, açılır halka önceden kurulur). Gerçek örnekte yok sayılır.
+    /// </summary>
+    public static bool TestOverride(bool isTestDesktop, string? value) => isTestDesktop && value?.Trim() == "1";
+
     private static string? Normalize(string? text) => Hotkey.TryParse(text, out var hk) ? hk.ToString() : null;
+}
+
+/// <summary>Kısayolla açılan halkanın hedefi (saf; testlenir): seçilen halka (<see cref="AppSettings.RingWidgetId"/>), yoksa ilk halka.</summary>
+public static class RingTargets
+{
+    /// <summary>Halka menü widget'ları, ayardaki sırayla.</summary>
+    public static List<WidgetConfig> All(IEnumerable<WidgetConfig> widgets) =>
+        widgets.Where(w => WidgetVariants.Is(w, WidgetVariants.Ring)).ToList();
+
+    /// <summary>Kimliği <paramref name="id"/> olan halka; bulunamazsa (silindi, halka değil, boş) ilk halka; hiç yoksa null.</summary>
+    public static WidgetConfig? Pick(IEnumerable<WidgetConfig> widgets, string? id)
+    {
+        var rings = All(widgets);
+        return rings.FirstOrDefault(w => id is not null && string.Equals(w.Id, id, StringComparison.Ordinal)) ?? rings.FirstOrDefault();
+    }
+
+    /// <summary>Kısayol <paramref name="ring"/> halkasını mı açar (widget menüsündeki seçenek yalnızca o halkada işaretli)?</summary>
+    public static bool Opens(IEnumerable<WidgetConfig> widgets, string? id, WidgetConfig ring) =>
+        Pick(widgets, id) is { } target && string.Equals(target.Id, ring.Id, StringComparison.Ordinal);
 }

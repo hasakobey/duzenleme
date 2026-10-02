@@ -38,6 +38,24 @@ public static class RingPlacement
         return new Result(left, top, cx, cy);
     }
 
+    /// <summary>Açılır halkanın penceresi: yeri, kenarı (fiziksel piksel) ve halkanın ortası pencerede (DIP).</summary>
+    public readonly record struct Popup(Result Place, int SidePx, double CenterXDip, double CenterYDip);
+
+    /// <summary>
+    /// Açılır halka penceresinin yerleşimi (saf; testlenir): kare pencere = 2 × (çember + nişan alanı), ikisi de pencerenin
+    /// ölçeğiyle fiziksel piksele çevrilir; yer <see cref="Place"/> ile; çizim için halkanın ortası pencerenin sol üstüne göre
+    /// DIP'e geri çevrilir (pencere aynı ölçekte çizilir).
+    /// </summary>
+    /// <param name="scale">Pencerenin ölçeği (1.25 = %125).</param>
+    public static Popup ForPopup(Box monitor, Box work, int cursorX, int cursorY, double outerRadiusDip, double aimDip, double scale)
+    {
+        if (scale <= 0 || double.IsNaN(scale)) scale = 1;
+        var radiusPx = (int)Math.Ceiling(Math.Max(0, outerRadiusDip) * scale);
+        var side = 2 * (radiusPx + (int)Math.Ceiling(Math.Max(0, aimDip) * scale));
+        var place = Place(monitor, work, cursorX, cursorY, radiusPx, side, side);
+        return new Popup(place, side, place.OffsetX / scale, place.OffsetY / scale);
+    }
+
     /// <summary>Değer [min + reach, max - reach] aralığına; aralık çemberden darsa alanın ortası.</summary>
     private static int Fit(int value, int min, int max, int reach)
     {

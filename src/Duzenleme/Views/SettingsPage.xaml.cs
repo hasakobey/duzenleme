@@ -26,6 +26,9 @@ public sealed class HotkeyRow(HotkeyAction action, string label, SymbolRegular i
     public Brush StatusBrush => (Brush)Application.Current.FindResource(failure is null ? "TextFillColorTertiaryBrush" : "SystemFillColorCriticalBrush");
 }
 
+/// <summary>"Açılacak halka" seçeneği: halka widget'ının kimliği ve görünen adı (ad TextBlock'ta düz metin olarak çizilir).</summary>
+public sealed record RingChoice(string Id, string Name);
+
 /// <summary>Windows'un bir masaüstü simgesi (Bu Bilgisayar, Geri Dönüşüm Kutusu…): açık/kapalı durumu kayıt defterinden okunur.</summary>
 public sealed class SystemIconRow(SystemIcon icon) : INotifyPropertyChanged
 {
@@ -108,6 +111,7 @@ public partial class SettingsPage : Page
         (HotkeyAction.PeekWidgets, L.T("Widget'ları öne getir (5 sn)"), SymbolRegular.Eye24),
         (HotkeyAction.QuickAdd, L.T("Widget ekle penceresi"), SymbolRegular.Add24),
         (HotkeyAction.PeekDesktop, L.T("Windows masaüstüne göz at"), SymbolRegular.Glance24),
+        (HotkeyAction.Ring, L.T("Halka menüyü imleçte aç"), SymbolRegular.DataPie24),
     ];
 
     private bool _loading;
@@ -130,6 +134,8 @@ public partial class SettingsPage : Page
             AppInfo.Name);
         RemoveIconsText.Text = L.F("Masaüstündeki klasörlere {0}'in verdiği simgeleri kaldırır. {0}'i kaldırmadan önce kullanabilirsin: simgeler klasörlerin içinde durduğu için kendiliğinden silinmez.",
             AppInfo.Name);
+        RingExplain.Text = L.F("Kısayola basınca halka imlecin yanında açılır. Tıkla ya da 1–9'a bas; Esc kapatır. {0} klavyeni izlemez: yalnızca bu kısayol Windows'a kaydedilir. Kilit ekranında ve yönetici onayı ekranında açılmaz.",
+            AppInfo.Name);
         ReportProblemText.Text = L.F("Bir şey ters gittiyse tanılama paketini oluşturup sorun kaydına ekleyebilirsin. {0} hiçbir şeyi kendiliğinden göndermez.",
             AppInfo.Name);
         LoadAbout();
@@ -137,6 +143,7 @@ public partial class SettingsPage : Page
         Fold.Attach(SystemIconsFold, SystemIconsContent, LoadSystemIcons);
         Fold.Attach(FolderIconsFold, FolderIconsContent, LoadFolderIcons);
         Fold.Attach(HotkeysFold, HotkeysContent);
+        Fold.Attach(RingFold, RingContent);
         Fold.Attach(AiFold, AiContent);
         Fold.Attach(LocationsFold, LocationsContent);
         Fold.Attach(ErrorLogFold, ErrorLogContent, LoadErrorLog);
@@ -187,6 +194,16 @@ public partial class SettingsPage : Page
         }
         UpdateFencesNote();
         LoadDesktopChoices();
+        // Halka widget'ı eklendi/kaldırıldı ya da adı değişti; kısayol widget menüsünden açıldı/kapatıldı.
+        var loading = _loading;
+        _loading = true;
+        try
+        {
+            LoadRing();
+            // Liste yalnızca halka kısayolu başka yerden değiştiyse yenilenir (kutuya yazarken odak kaybolmasın).
+            if (!string.Equals(AppHost.Settings.Hotkeys.Ring, _listedRing, StringComparison.Ordinal)) LoadHotkeys();
+        }
+        finally { _loading = loading; }
     }
 
     private void Load()
@@ -205,6 +222,7 @@ public partial class SettingsPage : Page
             DesktopPath.Text = AppHost.DesktopDirectory;
             LoadDataFolder();
             LoadHotkeys();
+            LoadRing();
             UpdateKeyStatus();
             UpdateHideNow();
             UpdatePeek();
@@ -668,8 +686,12 @@ public partial class SettingsPage : Page
 
     // ---- Gelişmiş: kısayollar ----
 
+    // Listede gösterilen halka kısayolu (widget menüsünden değişince liste yenilenir).
+    private string? _listedRing;
+
     private void LoadHotkeys()
     {
+        _listedRing = AppHost.Settings.Hotkeys.Ring;
         var failures = AppHost.Hotkeys?.Failures ?? [];
         HotkeyList.ItemsSource = HotkeyActions
             .Select(a => new HotkeyRow(a.Action, a.Label, a.Icon, AppHost.Settings.Hotkeys.Get(a.Action), failures.GetValueOrDefault(a.Action)))
@@ -680,9 +702,9 @@ public partial class SettingsPage : Page
     {
         AppHost.SaveSettings();
         AppHost.Hotkeys?.Apply(AppHost.Settings.Hotkeys);
-        LoadHotkeys();
-        UpdateHideNow();
-        UpdatePeek();
+        // Halka kısayolu kutudan atandı ya da silindi: açılır halka önceden kurulur ya da kapanır.
+        RingPopup.Sync();
+        ReloadRingAndHotkeys();
     }
 
     private void HotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -709,14 +731,143 @@ public partial class SettingsPage : Page
         if (mods == HotkeyModifiers.None) return;
 
         var keyName = key is >= Key.D0 and <= Key.D9 ? ((int)(key - Key.D0)).ToString() : key.ToString();
+        var ringWasOn = RingShortcut.IsOn;
         AppHost.Settings.Hotkeys.Set(row.Action, new Hotkey(mods, keyName).ToString());
         ApplyHotkeys();
+        // Halka kısayolu listeden açıldı: ne yaptığı anlatılır (widget menüsünden açılınca olduğu gibi; Store matrisi 2b).
+        if (row.Action == HotkeyAction.Ring && !ringWasOn && RingShortcut.Current is { } ring && RingShortcut.Failure is null)
+            Notice.Show(RingShortcut.TurnedOnText(ring), NoticeKind.Info);
     }
 
     private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
     {
+        // Varsayılanlarda halka kısayolu yoktur (Store: kapalı ve atanmamış): açıksa kapanır ve bu söylenir.
+        var ringWasOn = RingShortcut.IsOn;
         AppHost.Settings.Hotkeys = new HotkeySettings();
         ApplyHotkeys();
+        if (ringWasOn)
+            Notice.Show(L.T("Kısayollar varsayılana döndü. Halka menü kısayolu kapatıldı; istersen Halka menü bölümünden yeniden açabilirsin."),
+                NoticeKind.Info);
+    }
+
+    // ---- Masaüstü: halka menü ----
+
+    /// <summary>Halka menü bölümü: kısayolun durumu, açılacak halka, "tuşu bırakınca seç", halka yoksa ekleme düğmesi.</summary>
+    private void LoadRing()
+    {
+        var hotkey = RingShortcut.Current;
+        var failure = RingShortcut.Failure;
+        RingStatus.Text = hotkey is null ? L.T("Kapalı")
+            : failure is not null ? L.F("{0} kaydedilemedi: {1}", hotkey, failure)
+            : L.F("{0} ile imlecin yanında açılır", hotkey);
+        RingStatus.Foreground = (Brush)Application.Current.FindResource(failure is null ? "TextFillColorTertiaryBrush" : "SystemFillColorCriticalBrush");
+        RingToggle.IsChecked = hotkey is not null;
+        RingHoldToggle.IsChecked = !AppHost.Settings.RingHoldSelectOff;
+
+        var rings = RingTargets.All(AppHost.Settings.Widgets);
+        var choices = rings.Select(r => new RingChoice(r.Id, WidgetText.DisplayName(r))).ToList();
+        RingTargetBox.ItemsSource = choices;
+        var target = RingTargets.Pick(rings, AppHost.Settings.RingWidgetId);
+        RingTargetBox.SelectedItem = choices.FirstOrDefault(c => c.Id == target?.Id);
+        RingTargetRow.Visibility = rings.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        RingAddRow.Visibility = rings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RingToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        if (RingToggle.IsChecked != true)
+        {
+            if (RingShortcut.IsOn) RingShortcut.TurnOff();
+            ReloadRingAndHotkeys();
+            return;
+        }
+        if (RingShortcut.IsOn)
+        {
+            ReloadRingAndHotkeys();
+            return;
+        }
+        var result = RingShortcut.TurnOn();
+        ReloadRingAndHotkeys();
+        if (result.Hotkey is { } hotkey)
+        {
+            Notice.Show(L.F("Halka menü {0} ile imlecin yanında açılır.", hotkey), NoticeKind.Success);
+            return;
+        }
+        // Önerilerin hepsi kullanılıyor: kullanıcı kendi birleşimini seçsin (kısayol kutusu açılır ve odaklanır).
+        Notice.Show(RingShortcut.NoShortcutText(result.Failure), NoticeKind.Warning);
+        FocusHotkeyBox(HotkeyAction.Ring);
+    }
+
+    /// <summary>Kısayol listesi ve halka bölümü ayardan yeniden okunur (koddan atama anahtarları tetiklemez).</summary>
+    private void ReloadRingAndHotkeys()
+    {
+        LoadHotkeys();
+        UpdateHideNow();
+        UpdatePeek();
+        var loading = _loading;
+        _loading = true;
+        try { LoadRing(); }
+        finally { _loading = loading; }
+    }
+
+    /// <summary>Klavye kısayolları bölümünü açar ve eylemin kutusuna odaklanır.</summary>
+    private void FocusHotkeyBox(HotkeyAction action)
+    {
+        if (HotkeysContent.Visibility != Visibility.Visible)
+            HotkeysFold.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, HotkeysFold));
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (HotkeyList.ItemsSource is not IEnumerable<HotkeyRow> rows) return;
+            var index = rows.ToList().FindIndex(r => r.Action == action);
+            if (index < 0 || HotkeyList.ItemContainerGenerator.ContainerFromIndex(index) is not DependencyObject container) return;
+            if (FindChild<System.Windows.Controls.TextBox>(container) is { } box)
+            {
+                box.BringIntoView();
+                box.Focus();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindChild<T>(child) is { } nested) return nested;
+        }
+        return null;
+    }
+
+    private void RingTargetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || RingTargetBox.SelectedItem is not RingChoice choice || choice.Id == AppHost.Settings.RingWidgetId) return;
+        AppHost.Settings.RingWidgetId = choice.Id;
+        AppHost.SaveSettings();
+    }
+
+    private void RingHoldToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        var off = RingHoldToggle.IsChecked != true;
+        if (AppHost.Settings.RingHoldSelectOff == off) return;
+        AppHost.Settings.RingHoldSelectOff = off;
+        AppHost.SaveSettings();
+    }
+
+    private void RingAdd_Click(object sender, RoutedEventArgs e)
+    {
+        if (RingShortcut.AddRing(RingAddPoint()) is not null) ReloadRingAndHotkeys();
+    }
+
+    /// <summary>Ayarlar penceresinin ortası (fiziksel piksel): yeni halka o ekrana eklenir.</summary>
+    private NativeMethods.POINT? RingAddPoint()
+    {
+        if (Window.GetWindow(this) is not { } window) return null;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero || !NativeMethods.GetWindowRect(hwnd, out var r)) return null;
+        return new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 };
     }
 
     // ---- Gelişmiş: yapay zekâ ----

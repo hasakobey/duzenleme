@@ -257,4 +257,29 @@ public class RingActionsTests
         Assert.Equal("Ctrl+Alt+J", RingHotkey.Suggest(settings, ringFailed, tried: ["Ctrl+Alt+K"]));
         Assert.Null(RingHotkey.Suggest(settings, ringFailed, tried: ["Ctrl+Alt+K", "Ctrl+Alt+J", "Ctrl+Alt+Y"]));
     }
+
+    [Theory]
+    [InlineData("notepad", "notepad", "")]
+    [InlineData(@"notepad C:\a.txt", "notepad", @"C:\a.txt")]
+    [InlineData("ping 8.8.8.8", "ping", "8.8.8.8")]
+    [InlineData(@"""C:\Program Files\App\app.exe"" -flag x", @"C:\Program Files\App\app.exe", "-flag x")]
+    [InlineData(@"""C:\Program Files\App\app.exe""", @"C:\Program Files\App\app.exe", "")]
+    [InlineData(@"""C:\yarım tırnak", @"C:\yarım tırnak", "")]
+    [InlineData(@"C:\Program Files\App\app.exe -flag", @"C:\Program Files\App\app.exe", "-flag")]
+    [InlineData(@"C:\Program Files\App\app.exe", @"C:\Program Files\App\app.exe", "")]
+    [InlineData(@"C:\Windows\system32\cmd.exe /c dir", @"C:\Windows\system32\cmd.exe", "/c dir")]
+    [InlineData(@"notepad C:\betik.bat", "notepad", @"C:\betik.bat")]    // yalnızca sondaki uzantı programı belirlemez
+    [InlineData("  ", "", "")]
+    public void Command_line_splits_into_program_and_arguments_without_touching_the_disk(string command, string program, string args) =>
+        Assert.Equal((program, args), RingActions.SplitCommand(command));
+
+    [Fact]
+    public void Command_line_split_prefers_an_existing_file_with_spaces()
+    {
+        // Arka planda dosya denetimiyle: boşluklu ve uzantısız var olan program bütünüyle, ön eki var olan yol oraya kadar.
+        static bool Exists(string path) => path is @"C:\Araçlar\Benim Aracım" or @"C:\Araçlar\Benim Aracım\çalıştır";
+        Assert.Equal((@"C:\Araçlar\Benim Aracım", ""), RingActions.SplitCommand(@"C:\Araçlar\Benim Aracım", Exists));
+        Assert.Equal((@"C:\Araçlar\Benim Aracım", "--x"), RingActions.SplitCommand(@"C:\Araçlar\Benim Aracım --x", Exists));
+        Assert.Equal(("cmd", "/c dir"), RingActions.SplitCommand("cmd /c dir", Exists));
+    }
 }

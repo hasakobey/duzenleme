@@ -28,6 +28,7 @@ internal static class WidgetIcons
         WidgetVariants.World => SymbolRegular.GlobeClock24,
         WidgetVariants.System => SymbolRegular.Gauge24,
         WidgetVariants.Recycle => SymbolRegular.Delete24,
+        WidgetVariants.Ring => SymbolRegular.DataPie24,
         _ => config.Kind switch
         {
             WidgetKind.Clock => SymbolRegular.Clock24,

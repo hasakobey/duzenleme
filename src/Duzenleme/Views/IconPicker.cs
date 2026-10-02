@@ -47,6 +47,14 @@ internal sealed class IconPicker : FluentWindow
     public static void ForItem(WidgetWindow anchor, TileItem item, string? current, Action<string?> preview, Action<string?> commit) =>
         Open(new IconPicker(anchor, L.F("\"{0}\" için simge", item.Name), current, null, item.Path, preview, commit));
 
+    /// <summary>
+    /// Halka menünün yol olmayan öğesi (web adresi, komut…): "Varsayılan" türün simgesidir; Fluent simgeleri, Windows simgeleri
+    /// ve resim dosyası seçilebilir.
+    /// </summary>
+    public static void ForAction(WidgetWindow anchor, string name, string? current, SymbolRegular defaultSymbol, Action<string?> preview,
+        Action<string?> commit) =>
+        Open(new IconPicker(anchor, L.F("\"{0}\" için simge", name), current, defaultSymbol, null, preview, commit, allowFiles: true));
+
     private static void Open(IconPicker picker)
     {
         _current?.Close();
@@ -57,8 +65,9 @@ internal sealed class IconPicker : FluentWindow
 
     /// <param name="defaultSymbol">"Varsayılan" hücresinde gösterilecek simge (widget); öğede dosyanın kendi simgesi.</param>
     /// <param name="itemPath">Kısayol kutusu öğesinin yolu; widget başlığında null.</param>
+    /// <param name="allowFiles">Windows simgeleri ve resim dosyası da seçilebilir (öğe yolu olmasa da; halkanın yol olmayan öğesi).</param>
     private IconPicker(WidgetWindow? anchor, string heading, string? current, SymbolRegular? defaultSymbol, string? itemPath,
-        Action<string?> preview, Action<string?> commit)
+        Action<string?> preview, Action<string?> commit, bool allowFiles = false)
     {
         _anchor = anchor;
         _original = current;
@@ -117,7 +126,7 @@ internal sealed class IconPicker : FluentWindow
         body.Children.Add(_error);
 
         var buttons = new DockPanel { Margin = new Thickness(20, 14, 20, 18), Width = width, LastChildFill = false };
-        if (itemPath is not null)
+        if (itemPath is not null || allowFiles)
         {
             var fromWindows = new Button { Content = L.T("Windows simgelerinden…"), Margin = new Thickness(0, 0, 8, 0) };
             AutomationProperties.SetAutomationId(fromWindows, "IconPicker.FromWindows");
