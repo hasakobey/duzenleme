@@ -1,25 +1,28 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Duzenleme.Core;
 using Wpf.Ui.Controls;
-using TextBox = System.Windows.Controls.TextBox;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace Duzenleme.Views;
 
 /// <summary>
-/// Kural düzenleme satırı; değişiklikler anında ayarlara yazılır. Durum (klasör masaüstünde var mı, kaç dosya bekliyor)
-/// sayfa tarafından <see cref="SetStatus"/> ile verilir: satır diske kendisi bakmaz.
+/// Kural kartı ("PDF ← .pdf"): klasör, uzantı çipleri, durum ("Masaüstünde yok · Oluştur"), anahtar ve ⋯. Kartta yazı
+/// kutusu yok: klasör ve uzantılar "Değiştir…" ile (<see cref="RuleDialog"/>) değişir. Durum (klasör masaüstünde var mı,
+/// kaç dosya bekliyor) sayfa tarafından <see cref="SetStatus"/> ile verilir: kart diske kendisi bakmaz.
 /// </summary>
 public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INotifyPropertyChanged
 {
     private static readonly string[] StatusProperties =
     [
-        nameof(StatusIcon), nameof(StatusFilled), nameof(StatusBrush), nameof(StatusText), nameof(CreateVisibility),
-        nameof(RowOpacity), nameof(EnabledName), nameof(DeleteName), nameof(CreateName),
+        nameof(Exists), nameof(FolderIcon), nameof(IconBrush), nameof(StatusText), nameof(CreateVisibility), nameof(RowOpacity),
     ];
 
     private bool _exists;
@@ -29,6 +32,7 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
     public Rule Rule { get; } = rule;
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    /// <summary>Açık/kapalı: yerinde yazılır (tek bool; izleyici aynı kuralı okurken yarım değer görmez) ve hemen kaydedilir.</summary>
     public bool Enabled
     {
         get => Rule.Enabled;
@@ -40,46 +44,18 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
         }
     }
 
-    public string TargetFolder
-    {
-        get => Rule.TargetFolder;
-        set
-        {
-            var clean = string.Concat(value.Trim().Where(c => !Path.GetInvalidFileNameChars().Contains(c)));
-            if (clean != Rule.TargetFolder)
-            {
-                Rule.TargetFolder = clean;
-                changed(this);
-            }
-            // Ayıklanan karakterler kutudan da silinsin.
-            Raise(nameof(TargetFolder));
-        }
-    }
-
-    public string ExtensionsText
-    {
-        get => string.Join(", ", Rule.Extensions);
-        set
-        {
-            var list = value.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries)
-                .Select(Rule.NormalizeExtension).Where(e => e.Length > 0).Distinct().ToList();
-            if (!list.SequenceEqual(Rule.Extensions))
-            {
-                Rule.Extensions = list;
-                changed(this);
-            }
-            // Kutuda düzgün biçim görünsün ("*.PDF;.Png" → "pdf, png").
-            Raise(nameof(ExtensionsText));
-        }
-    }
-
-    public int Pending => _pending;
-
     private bool HasFolderName => !string.IsNullOrWhiteSpace(Rule.TargetFolder);
 
-    public SymbolRegular StatusIcon => _exists ? SymbolRegular.CheckmarkCircle24 : SymbolRegular.Circle24;
-    public bool StatusFilled => _exists;
-    public Brush StatusBrush => (Brush)Application.Current.FindResource(_exists ? "SystemFillColorSuccessBrush" : "TextFillColorTertiaryBrush");
+    public string FolderText => HasFolderName ? Rule.TargetFolder.Trim() : L.T("Klasör adı yok");
+
+    /// <summary>Uzantı çipleri: ".pdf", ".xps".</summary>
+    public IReadOnlyList<string> Chips =>
+        Rule.Extensions.Select(RuleTemplates.Normalize).Where(e => e.Length > 0).Distinct().Select(e => "." + e).ToList();
+
+    public int Pending => _pending;
+    public bool Exists => _exists;
+    public SymbolRegular FolderIcon => SymbolRegular.Folder24;
+    public Brush IconBrush => (Brush)Application.Current.FindResource(_exists ? "AccentTextFillColorPrimaryBrush" : "TextFillColorTertiaryBrush");
 
     public string StatusText =>
         !Rule.Enabled ? L.T("Kapalı")
@@ -90,21 +66,19 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
         : L.T("Masaüstünde yok");
 
     public Visibility CreateVisibility => _exists || !HasFolderName ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Kapalı kuralın klasörü ve çipleri soluk (anahtar ve ⋯ değil).</summary>
     public double RowOpacity => Rule.Enabled ? 1 : 0.6;
 
-    // UI Automation: her satırın denetimleri sırasıyla bulunabilsin (Rule.0.Folder, Rule.0.Delete…).
+    // UI Automation: her kartın denetimleri sırasıyla bulunabilsin (Rule.0.Enabled, Rule.0.More…).
     public string EnabledId => $"Rule.{index}.Enabled";
-    public string FolderId => $"Rule.{index}.Folder";
-    public string ExtensionsId => $"Rule.{index}.Extensions";
-    public string DeleteId => $"Rule.{index}.Delete";
+    public string ChipsId => $"Rule.{index}.Extensions";
+    public string MoreId => $"Rule.{index}.More";
     public string CreateId => $"Rule.{index}.CreateFolder";
     public string StatusId => $"Rule.{index}.Status";
     public string EnabledName => L.F("\"{0}\" kuralı", Rule.TargetFolder);
-    public string DeleteName => L.F("Kuralı sil: {0}", Rule.TargetFolder);
+    public string MoreName => L.F("Kural seçenekleri: {0}", Rule.TargetFolder);
     public string CreateName => L.F("Klasörü oluştur: {0}", Rule.TargetFolder);
-
-    /// <summary>Uzantı kutusunun örnek metni: uzantılar her dilde aynıdır, çevrilmez.</summary>
-    public const string ExtensionsExample = "pdf, docx, png";
 
     /// <summary>Klasörün masaüstündeki durumu ve bekleyen dosya sayısı (showPending: "Klasör yoksa oluştur" kapalıyken).</summary>
     internal void SetStatus(bool exists, int pending, bool showPending)
@@ -112,7 +86,13 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
         _exists = exists;
         _pending = pending;
         _showPending = showPending;
-        // Metin kutularının bağları yenilenmez: kullanıcı o an yazıyorsa yazdığı silinmesin.
+        foreach (var name in StatusProperties) Raise(name);
+    }
+
+    /// <summary>Açık/kapalı değişti: durum ve soluk görünüm yenilenir.</summary>
+    internal void RaiseEnabled()
+    {
+        Raise(nameof(Enabled));
         foreach (var name in StatusProperties) Raise(name);
     }
 
@@ -120,8 +100,8 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
 }
 
 /// <summary>
-/// Otomatik taşıma: durum, kurallar (klasör var/yok, bekleyen dosya), son taşınanlar ve gelişmiş ayarlar. Eski Kurallar
-/// ve Geçmiş sayfalarının yerini alır.
+/// Otomatik taşıma: durum kartı (anahtar, "Dosyaları şimdi taşı", "Son taşımayı geri al"), kural kartları ("+ Kural ekle" →
+/// <see cref="RuleDialog"/>; ⋯ → "Değiştir…" / "Sil"), son taşınanlar ve katlanır "Gelişmiş".
 /// </summary>
 public partial class AutoMovePage : Page
 {
@@ -133,7 +113,7 @@ public partial class AutoMovePage : Page
 
     private readonly DispatcherTimer _recountDelay = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private List<RuleRow> _rows = [];
-    /// <summary>Satırların kurulduğu liste: ayarlardaki liste başka yerden yenisiyle değiştirilince satırlar yeniden kurulur.</summary>
+    /// <summary>Kartların kurulduğu liste: ayarlardaki liste başka yerden yenisiyle değiştirilince kartlar yeniden kurulur.</summary>
     private List<Rule>? _builtFrom;
     private Dictionary<string, int> _pending = [];
     private int _recountVersion;
@@ -252,7 +232,7 @@ public partial class AutoMovePage : Page
     // ---- Durum kartı ----
 
     // Ayarlar her kaydedildiğinde (widget taşımak da kaydeder): kart; kural listesi yalnızca başka yerden yenisiyle
-    // değiştirildiyse yeniden kurulur (satır içi düzenlemede odak kaybolmasın).
+    // değiştirildiyse yeniden kurulur.
     private void OnSettingsChanged()
     {
         RefreshCard();
@@ -268,6 +248,7 @@ public partial class AutoMovePage : Page
         StatusText.Text = text;
         StatusIcon.Symbol = on ? SymbolRegular.FolderArrowRight24 : SymbolRegular.Pause24;
         StatusIcon.SetResourceReference(IconElement.ForegroundProperty, on ? "AccentTextFillColorPrimaryBrush" : "TextFillColorTertiaryBrush");
+        UndoLastButton.IsEnabled = AppHost.Journal.LastActive() is not null;
     }
 
     // Checked/Unchecked (Click değil): ekran okuyucunun "Aç/Kapat"ı (UI Automation Toggle) da uygulasın. Koddan gösterilen
@@ -285,6 +266,8 @@ public partial class AutoMovePage : Page
         finally { OrganizeButton.IsEnabled = true; }
     }
 
+    private void UndoLast_Click(object sender, RoutedEventArgs e) => MoveActions.Undo(AppHost.Journal.LastActive());
+
     // ---- Kurallar ----
 
     private void BuildRules()
@@ -293,14 +276,12 @@ public partial class AutoMovePage : Page
         _rows = _builtFrom.Select((rule, i) => new RuleRow(rule, i, OnRuleChanged)).ToList();
         RefreshStatuses();
         RuleList.ItemsSource = _rows;
-        var empty = _rows.Count == 0;
-        NoRules.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-        RuleHeader.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        NoRules.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
-    /// Kural listesi bu sayfa dışında yenisiyle değiştirildiyse (ör. karşılamanın "Bitti"si) satırları yeniden kurar: eski
-    /// satırlar artık listede olmayan kurallara yazar, değişiklikler sessizce kaybolurdu. Yeniden kurulduysa true.
+    /// Kural listesi bu sayfa dışında yenisiyle değiştirildiyse (ör. karşılamanın "Bitti"si, "Kural ekle" penceresi) kartları
+    /// yeniden kurar: eski kartlar artık listede olmayan kurallara yazardı. Yeniden kurulduysa true.
     /// </summary>
     private bool RebuildIfRulesReplaced()
     {
@@ -310,18 +291,19 @@ public partial class AutoMovePage : Page
         return true;
     }
 
-    /// <summary>Satır değişti: hemen kaydedilir; bekleyen sayısı kısa bir aradan sonra yeniden hesaplanır.</summary>
+    /// <summary>Kural açıldı/kapandı: hemen kaydedilir; bekleyen sayısı kısa bir aradan sonra yeniden hesaplanır.</summary>
     private void OnRuleChanged(RuleRow row)
     {
         AppHost.SaveSettings();
-        RefreshStatuses();
+        row.RaiseEnabled();
+        RefreshCard();
         ScheduleRecount();
     }
 
     /// <summary>Masaüstündeki klasörler: diskten değil, arka planda güncel tutulan anlık görüntüden.</summary>
     private static List<string> DesktopFolders() => AppHost.DesktopFolders();
 
-    /// <summary>Satırların durumunu (klasör var mı, kaç dosya bekliyor) son hesaba göre günceller. Ucuz: klasörlerin içine bakmaz.</summary>
+    /// <summary>Kartların durumunu (klasör var mı, kaç dosya bekliyor) son hesaba göre günceller. Ucuz: klasörlerin içine bakmaz.</summary>
     private void RefreshStatuses()
     {
         var folders = DesktopFolders();
@@ -369,46 +351,53 @@ public partial class AutoMovePage : Page
         RefreshStatuses();
     }
 
-    private void AddRule_Click(object sender, RoutedEventArgs e)
+    /// <summary>"+ Kural ekle": iki adımlı pencere ("Hangi dosyalar?" → "Nereye?"); kuralı o ekler, kartlar burada yenilenir.</summary>
+    private async void AddRule_Click(object sender, RoutedEventArgs e)
     {
-        // Liste yerine yenisi atanır: izleyici iş parçacığı eski listeyi güvenle okumaya devam eder.
-        // Klasör adı kural oluşturulurken bir kez arayüz dilinde yazılır (sonra kullanıcı verisidir).
-        AppHost.Settings.Rules = [.. AppHost.Settings.Rules, new Rule { TargetFolder = L.T("Yeni klasör"), Extensions = [] }];
-        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
-        AppHost.SaveSettings();
-        var row = _rows[^1];
-        Dispatcher.BeginInvoke(() => FocusFolderBox(row), DispatcherPriority.ContextIdle);
+        await RuleDialog.AddAsync(Window.GetWindow(this));
+        AfterRulesChanged();
     }
 
-    /// <summary>Yeni kuralın klasör kutusunu odaklar ve metnini seçer: kullanıcı hemen adını yazabilsin.</summary>
-    private void FocusFolderBox(RuleRow row)
+    private void AfterRulesChanged()
     {
-        if (RuleList.ItemContainerGenerator.ContainerFromItem(row) is not ContentPresenter presenter) return;
-        presenter.ApplyTemplate();
-        if (presenter.ContentTemplate?.FindName("FolderBox", presenter) is not TextBox box) return;
-        box.BringIntoView();
-        box.Focus();
-        box.SelectAll();
+        if (!IsLoaded) return;
+        RebuildIfRulesReplaced();
+        RefreshCard();
+        Recount();
     }
 
     private void AddDefaults_Click(object sender, RoutedEventArgs e)
     {
         // Masaüstünde öteki dildeki klasör varsa (ör. İngilizce arayüzde "Resimler") kural ona yönelir.
-        AppHost.Settings.Rules = Rule.Defaults(L.Current, DesktopFolders());
-        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
-        AppHost.SaveSettings();
-        Recount();
+        SetRules(Rule.Defaults(L.Current, DesktopFolders()));
     }
 
-    private void DeleteRule_Click(object sender, RoutedEventArgs e)
+    /// <summary>⋯: "Değiştir…" ve "Sil" (geri alınabilir). Menü düğmenin altında açılır (klavyeyle de).</summary>
+    private void RuleMore_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not RuleRow row) return;
-        var rule = row.Rule;
+        if (sender is not FrameworkElement { DataContext: RuleRow row } button) return;
+        var menu = new ContextMenu { PlacementTarget = button, Placement = PlacementMode.Bottom };
+        var edit = new MenuItem { Header = L.T("Değiştir…") };
+        AutomationProperties.SetAutomationId(edit, "Rule.Edit");
+        edit.Click += async (_, _) =>
+        {
+            await RuleDialog.EditAsync(Window.GetWindow(this), row.Rule);
+            AfterRulesChanged();
+        };
+        var delete = new MenuItem { Header = L.T("Sil") };
+        AutomationProperties.SetAutomationId(delete, "Rule.Delete");
+        delete.Click += (_, _) => DeleteRule(row.Rule);
+        menu.Items.Add(edit);
+        menu.Items.Add(delete);
+        menu.IsOpen = true;
+    }
+
+    /// <summary>Kuralı siler (soru yok): bildirimdeki "Geri al" onu eski sırasına geri koyar.</summary>
+    private void DeleteRule(Rule rule)
+    {
         var index = AppHost.Settings.Rules.IndexOf(rule);
-        AppHost.Settings.Rules = AppHost.Settings.Rules.Where(r => r != rule).ToList();
-        BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
-        AppHost.SaveSettings();
-        ScheduleRecount();
+        if (index < 0) return;
+        SetRules(AppHost.Settings.Rules.Where(r => r != rule).ToList());
         var name = rule.TargetFolder.Trim();
         Notice.Show(name.Length > 0 ? L.F("\"{0}\" kuralı silindi.", name) : L.T("Kural silindi."), NoticeKind.Info, L.T("Geri al"),
             () => RestoreRule(rule, index));
@@ -421,33 +410,28 @@ public partial class AutoMovePage : Page
         if (rules.Contains(rule)) return;
         var list = new List<Rule>(rules);
         list.Insert(Math.Clamp(index, 0, list.Count), rule);
-        AppHost.Settings.Rules = list;
-        if (IsLoaded) BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
-        AppHost.SaveSettings();
-        if (IsLoaded) ScheduleRecount();
+        SetRules(list);
     }
 
-    private void CreateFolder_Click(object sender, RoutedEventArgs e)
+    /// <summary>Kartın "Oluştur"u: kuralın klasörünü masaüstünde açar (otomatik taşıma açıksa dosyalar hemen gider).</summary>
+    private async void CreateFolder_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not RuleRow row) return;
+        if (sender is not FrameworkElement { DataContext: RuleRow row } button) return;
         var name = row.Rule.TargetFolder.Trim();
         if (name.Length == 0) return;
         var waiting = row.Pending;
-        var path = Path.Combine(AppHost.DesktopDirectory, name);
-        // Uygulamanın açtığı klasör için "simge ver" balonu çıkmaz.
-        try { AppHost.MarkQuietFolder(path); }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
-        if (FolderCreation.TryCreate(path) is { Ok: false } failed)
+        // Klasör arka planda açılır: bu arada ikinci tık ikinci kez açmaya kalkmasın.
+        button.IsEnabled = false;
+        bool ok;
+        try { ok = (await RuleDialog.CreateDesktopFolderAsync(name)).Ok; }
+        finally { button.IsEnabled = true; }
+        if (!ok) return;
+        if (IsLoaded)
         {
-            try { AppHost.ConsumeQuietFolder(path); }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
-            Notice.FolderFailed(failed);
-            return;
+            RefreshCard();
+            RefreshStatuses();
+            ScheduleRecount();
         }
-        AppHost.NoteFolderCreated(path);
-        RefreshCard();
-        RefreshStatuses();
-        ScheduleRecount();
         if (!AppHost.Settings.Paused)
         {
             AppHost.OrganizeIfActive();
@@ -483,8 +467,6 @@ public partial class AutoMovePage : Page
         if ((sender as FrameworkElement)?.DataContext is MoveRow row) MoveActions.Undo(row.Entry);
     }
 
-    private void UndoLast_Click(object sender, RoutedEventArgs e) => MoveActions.Undo(AppHost.Journal.LastActive());
-
     // ---- Gelişmiş ----
 
     private void CreateMissing_Changed(object sender, RoutedEventArgs e)
@@ -497,7 +479,7 @@ public partial class AutoMovePage : Page
     }
 
     /// <summary>
-    /// Kurallar varsayılana döner (soru yok; dosyalara dokunulmaz): masaüstünde öteki dildeki klasör varsa (ör. İngilizce
+    /// "Varsayılan kurallara dön" (soru yok; dosyalara dokunulmaz): masaüstünde öteki dildeki klasör varsa (ör. İngilizce
     /// arayüzde "Resimler") kural ona yönelir. Bildirimdeki "Geri al" önceki kuralları geri koyar (yeni liste atanır).
     /// </summary>
     private void ResetRules_Click(object sender, RoutedEventArgs e)
@@ -516,9 +498,13 @@ public partial class AutoMovePage : Page
     private void SetRules(List<Rule> rules)
     {
         AppHost.Settings.Rules = rules;
-        if (IsLoaded) BuildRules();   // kaydetmeden önce: SettingsChanged satırları ikinci kez kurmasın
+        if (IsLoaded) BuildRules();   // kaydetmeden önce: SettingsChanged kartları ikinci kez kurmasın
         AppHost.SaveSettings();
-        if (IsLoaded) Recount();
+        if (IsLoaded)
+        {
+            RefreshCard();
+            Recount();
+        }
     }
 
     /// <summary>

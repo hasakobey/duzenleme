@@ -53,7 +53,7 @@ NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen do
 
 ### Ana pencere
 
-Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Şimdi düzenle, Son taşımayı geri al, son taşınanlar), **Widget'lar** (ekleme kutucukları, masaüstündekiler, Windows masaüstü simgeleri seçeneği, tüm widget'ların görünümü, yeni widget'ların yeri, kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Genel, Masaüstü, Klasör simgeleri, Gelişmiş, Yardım, Hakkında). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
+Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Halkayı düzenle, ilk ziyarette "Nasıl kullanılır" kartları, tek satırlık otomatik taşıma: Geri al, Dosyaları şimdi taşı ve aç/kapat, son taşınanlar), **Widget'lar** (ekleme kutucukları, masaüstündekiler, Windows masaüstü simgeleri seçeneği, tüm widget'ların görünümü, yeni widget'ların yeri, kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Genel, Masaüstü, Klasör simgeleri, Gelişmiş, Yardım, Hakkında). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
 
 ### Özellikler
 
@@ -129,7 +129,7 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 
 #### Otomatik taşıma (isteğe bağlı)
 
-- Masaüstünde `PDF` adında bir klasör varsa masaüstüne düşen PDF'ler oraya gider. Resimler, belgeler, arşivler, videolar ve müzik için de hazır kurallar var; **Otomatik taşıma** sayfasında klasör adı ↔ uzantı kurallarını değiştir. Klasörü olmayan kuralın satırında kaç dosyanın beklediği görünür; **Klasörü oluştur** ile tek tıkla açılır.
+- Masaüstünde `PDF` adında bir klasör varsa masaüstüne düşen PDF'ler oraya gider. Resimler, belgeler, arşivler, videolar ve müzik için de hazır kurallar var; **Otomatik taşıma** sayfasında her kural bir karttır (`PDF ← .pdf`): **Kural ekle** hazır türlerle (Tasarım, E-kitaplar…) ya da kendi yazdığın uzantıyla iki adımda kural ekler, ⋯ › **Değiştir…** uzantıları ve klasörü değiştirir. Klasörü olmayan kuralın kartında kaç dosyanın beklediği görünür; **Oluştur** ile tek tıkla açılır.
 - Klasör masaüstünde yoksa dosyaya dokunulmaz (istersen **Gelişmiş → Klasör yoksa oluştur**). Büyük/küçük harf ve Türkçe karakter fark etmez: `Arşivler` = `arsivler`.
 - Kısayollar, gizli ve sistem dosyaları, klasörler ve inmekte olan dosyalar (`.crdownload`, `.part`) asla taşınmaz; aynı adlı dosyanın üzerine yazılmaz (`ad (1).pdf`). Kısayol kutusundaki masaüstü dosyaları da kurallarla taşınmaz.
 - Her taşıma geri alınabilir; geri alınan dosya bir daha kendiliğinden taşınmaz.
@@ -243,7 +243,7 @@ Notes for earlier versions: [Releases](https://github.com/hasakobey/duzenleme/re
 
 ### Main window
 
-Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Tidy up now, Undo last move, recent moves), **Widgets** (add tiles, widgets on your desktop, the Windows desktop icons choice, the look of all widgets, where new widgets appear, saved layouts), **Auto-move** (on/off, rules, history and undo) and **Settings** (General, Desktop, Folder icons, Advanced, Help, About). Feedback stays in a strip at the bottom of the window; actions such as removing a widget can be undone there with **Undo**.
+Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Edit ring, "How it works" cards on your first visit, a one-line auto-move card with Undo, Move files now and on/off, recent moves), **Widgets** (add tiles, widgets on your desktop, the Windows desktop icons choice, the look of all widgets, where new widgets appear, saved layouts), **Auto-move** (on/off, rules, history and undo) and **Settings** (General, Desktop, Folder icons, Advanced, Help, About). Feedback stays in a strip at the bottom of the window; actions such as removing a widget can be undone there with **Undo**.
 
 ### Features
 
@@ -319,7 +319,7 @@ The same choice is in **Settings → Desktop**, on the **Widgets** page and in t
 
 #### Auto-move (optional)
 
-- If your desktop has a folder named `PDF`, PDFs saved to the desktop go there. Ready-made rules also cover pictures, documents, archives, videos and music; change the folder name ↔ extension rules on the **Auto-move** page. A rule whose folder doesn't exist shows how many files are waiting, and **Create folder** creates it with one click.
+- If your desktop has a folder named `PDF`, PDFs saved to the desktop go there. Ready-made rules also cover pictures, documents, archives, videos and music; on the **Auto-move** page each rule is a card (`PDF ← .pdf`): **Add rule** adds one in two steps from a ready-made type (Design, E-books…) or your own extensions, and ⋯ › **Change…** changes its extensions and folder. A rule whose folder doesn't exist shows how many files are waiting, and **Create** creates it with one click.
 - If the folder doesn't exist on the desktop, the file is left alone (optionally, turn on creating missing folders under **Advanced**). Matching ignores letter case and Turkish accents: `Arşivler` = `arsivler`. With English as the interface language, the default folders are PDF, Pictures, Documents, Archives, Videos and Music; existing folders in either language are reused.
 - Shortcuts, hidden and system files, folders and downloads in progress (`.crdownload`, `.part`) are never moved, and no file is overwritten (`name (1).pdf`). Desktop files that are in a shortcut box are not moved by rules either.
 - Every move can be undone; a file you moved back is never moved automatically again.

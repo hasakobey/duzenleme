@@ -99,6 +99,35 @@ public class AccessibilityTests
         });
     }
 
+    /// <summary>
+    /// Ana sayfadaki her düğme ve anahtar ekran okuyucuda adıyla okunur: içeriği metin olan düğme metniyle, içeriği simge ve iki
+    /// satırdan oluşan büyük düğme AutomationProperties.Name ile (ikinci büyük düğmenin adı halka olup olmamasına göre koddan
+    /// verilir), anahtar Name ile. "Anladım" (HowToCards) metniyle ve kimliğiyle bulunur.
+    /// </summary>
+    [Fact]
+    public void Home_page_controls_are_named()
+    {
+        var views = Path.Combine(RepoRoot(), "src", "Duzenleme", "Views");
+        var doc = XDocument.Load(Path.Combine(views, "HomePage.xaml"));
+        var code = File.ReadAllText(Path.Combine(views, "HomePage.xaml.cs"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var controls = doc.Descendants().Where(e => e.Name.LocalName is "Button" or "ToggleSwitch").ToList();
+        Assert.True(controls.Count >= 7);
+        Assert.All(controls, c =>
+        {
+            var name = (string?)c.Attribute(x + "Name");
+            var named = c.Attribute("AutomationProperties.Name") is not null
+                        || c.Name.LocalName == "Button" && c.Attribute("Content") is not null
+                        || name is not null && code.Contains($"AutomationProperties.SetName({name},", StringComparison.Ordinal);
+            Assert.True(named, $"{c.Name.LocalName} {name ?? (string?)c.Attribute("AutomationProperties.AutomationId")} adsız");
+            Assert.NotNull(c.Attribute("AutomationProperties.AutomationId"));
+        });
+
+        var howTo = File.ReadAllText(Path.Combine(views, "HowToCards.cs"));
+        Assert.Contains("Content = L.T(\"Anladım\")", howTo);
+        Assert.Contains("\"Home.HowTo.Dismiss\"", howTo);
+    }
+
     private static string RepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
