@@ -12,21 +12,15 @@ internal static partial class En
     [
         // Ana sayfa
         new("Saat, not, bölme…", "Clocks, notes, panels…"),
-        new("Masaüstünden klasörlerine", "From the desktop to their folders"),
         new("Klasörleri ayarla", "Set up folders"),
         new("Son taşınanlar", "Recently moved"),
         new("Tümünü gör", "See all"),
-        new("Henüz taşınan dosya yok. Masaüstüne düşen bir dosya klasörüne gidince burada görünür.",
-            "No files have been moved yet. When a file that lands on the desktop goes to its folder, it shows up here."),
-        new("Geri alınacak taşıma yok", "No moves to undo"),
 
         // Otomatik taşıma durum kartı (Ana sayfa ve Otomatik taşıma sayfası)
         new("Otomatik taşıma kapalı", "Auto-move is off"),
         new("Yeni dosyalar masaüstünde kalır. Açarsan masaüstündeki uygun dosyalar da klasörlerine taşınır; her taşıma geri alınabilir.",
             "New files stay on the desktop. If you turn it on, matching files already on the desktop also move to their folders; you can undo every move."),
         new("Otomatik taşıma açık", "Auto-move is on"),
-        new("Bugün {0} dosya yerine taşındı · toplam {1}",
-            "{0} file moved to its folder today · {1} in total", "{0} files moved to their folders today · {1} in total"),
         new("Masaüstüne düşen dosyalar klasörlerine gider.", "Files that land on the desktop go to their folders."),
         new("Masaüstünde henüz hedef klasör yok. Örneğin masaüstünde \"PDF\" adında bir klasör açınca PDF'ler oraya gider.",
             "There are no target folders on the desktop yet. For example, create a folder named \"PDF\" on the desktop and PDFs will go there."),

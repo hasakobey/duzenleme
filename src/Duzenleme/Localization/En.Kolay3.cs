@@ -2,8 +2,9 @@ using System.Runtime.CompilerServices;
 
 namespace Duzenleme.Localization;
 
-// 2.2 Kolay NestDesk, 3. dalga: Otomatik taşıma sayfasının kural kartları, "Kural ekle" penceresi (RuleDialog) ve kural
-// kalıpları (Core/RuleTemplates). Terim: Otomatik taşıma = Auto-move; uzantı = extension.
+// 2.2 Kolay NestDesk, 3. dalga: Otomatik taşıma sayfasının kural kartları, "Kural ekle" penceresi (RuleDialog), kural
+// kalıpları (Core/RuleTemplates) ve sade Ana sayfa (HomePage, HowToCards). Terim: Otomatik taşıma = Auto-move; uzantı =
+// extension; Halka menü = ring menu.
 internal static partial class En
 {
     [ModuleInitializer]
@@ -46,5 +47,25 @@ internal static partial class En
 
         // Kural kalıpları (klasör adı; kural oluşturulurken bir kez arayüz dilinde yazılır)
         new("E-kitaplar", "E-books"),
+
+        // Ana sayfa: büyük düğmeler ve otomatik taşıma satırı
+        new("Halkayı düzenle", "Edit ring"),
+        new("Halkadaki uygulamalar", "The apps in your ring"),
+        new("Halkan öne geldi. Uygulama eklemek ya da çıkarmak için ona sağ tıkla.",
+            "Your ring is in front now. Right-click it to add or remove apps."),
+        new("Otomatik taşıma açık · masaüstünde hedef klasör yok", "Auto-move is on · no target folders on the desktop"),
+        new("Otomatik taşıma açık · son: {0} → {1}", "Auto-move is on · last: {0} → {1}"),
+
+        // Ana sayfa: "Nasıl kullanılır" kartları (Views/HowToCards). "Düzenle" Düzenle paneliyle aynı çeviriyi kullanır.
+        new("Nasıl kullanılır", "How it works"),
+        new("Anladım", "Got it"),
+        new("Nasıl kullanılır kartlarını bir daha gösterme", "Don't show the How it works cards again"),
+        new("Başlığından ya da boş yerinden sürükle.", "Drag it by its title or an empty spot."),
+        new("Büyüt", "Resize"),
+        new("Kenarından sürükle ya da ⋯ › Boyut.", "Drag an edge, or use ⋯ › Size."),
+        new("Düzenle", "Edit"),
+        new("⋯'ye bas ya da sağ tıkla.", "Click ⋯ or right-click it."),
+        new("Halka", "Ring"),
+        new("Widget ekle › Halka menü.", "Add widget › Ring menu."),
     ]);
 }

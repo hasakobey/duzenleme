@@ -53,7 +53,7 @@ NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen do
 
 ### Ana pencere
 
-Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Şimdi düzenle, Son taşımayı geri al, son taşınanlar), **Widget'lar** (ekleme kutucukları, masaüstündekiler, Windows masaüstü simgeleri seçeneği, tüm widget'ların görünümü, yeni widget'ların yeri, kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Genel, Masaüstü, Klasör simgeleri, Gelişmiş, Yardım, Hakkında). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
+Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Halkayı düzenle, ilk ziyarette "Nasıl kullanılır" kartları, tek satırlık otomatik taşıma: Geri al, Dosyaları şimdi taşı ve aç/kapat, son taşınanlar), **Widget'lar** (ekleme kutucukları, masaüstündekiler, Windows masaüstü simgeleri seçeneği, tüm widget'ların görünümü, yeni widget'ların yeri, kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Genel, Masaüstü, Klasör simgeleri, Gelişmiş, Yardım, Hakkında). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
 
 ### Özellikler
 
@@ -243,7 +243,7 @@ Notes for earlier versions: [Releases](https://github.com/hasakobey/duzenleme/re
 
 ### Main window
 
-Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Tidy up now, Undo last move, recent moves), **Widgets** (add tiles, widgets on your desktop, the Windows desktop icons choice, the look of all widgets, where new widgets appear, saved layouts), **Auto-move** (on/off, rules, history and undo) and **Settings** (General, Desktop, Folder icons, Advanced, Help, About). Feedback stays in a strip at the bottom of the window; actions such as removing a widget can be undone there with **Undo**.
+Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Edit ring, "How it works" cards on your first visit, a one-line auto-move card with Undo, Move files now and on/off, recent moves), **Widgets** (add tiles, widgets on your desktop, the Windows desktop icons choice, the look of all widgets, where new widgets appear, saved layouts), **Auto-move** (on/off, rules, history and undo) and **Settings** (General, Desktop, Folder icons, Advanced, Help, About). Feedback stays in a strip at the bottom of the window; actions such as removing a widget can be undone there with **Undo**.
 
 ### Features
 

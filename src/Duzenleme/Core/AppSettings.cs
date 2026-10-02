@@ -608,6 +608,14 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RingHoldSelectOff { get; set; }
+
+    // 2.2 Kolay NestDesk
+    /// <summary>
+    /// Ana sayfadaki "Nasıl kullanılır" kartlarında "Anladım"a basıldı: kartlar bir daha gösterilmez (bkz.
+    /// <c>Views/HowToCards</c>). false (varsayılan, yazılmaz) = kartlar görünür. 2.1 bu alanı tanımaz, Extra'da aynen geri yazar.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HowToDismissed { get; set; }
 }
 
 /// <summary><see cref="AppSettings.CrashReportMode"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>

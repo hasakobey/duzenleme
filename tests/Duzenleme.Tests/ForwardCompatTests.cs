@@ -471,4 +471,26 @@ public class ForwardCompatTests : IDisposable
         Assert.Null(s.RingWidgetId);
         Assert.False(s.RingHoldSelectOff);
     }
+
+    // ---------------------------------------------------------------- 2.2 Kolay NestDesk
+
+    /// <summary>
+    /// "Nasıl kullanılır"daki "Anladım" (HowToDismissed): varsayılanken yazılmaz; yazılınca 2.1 onu Extra'da aynen geri yazar ve
+    /// 2.2 yeniden açınca kartlar yine gizli kalır. Eski dosyada alan yoktur: kartlar görünür.
+    /// </summary>
+    [Fact]
+    public void How_to_dismissal_survives_a_round_trip_through_21()
+    {
+        Assert.DoesNotContain("HowToDismissed", JsonSerializer.Serialize(new AppSettings(), JsonFile.Options));
+        Assert.False(Load("""{ "Paused": true }""").HowToDismissed);
+
+        var json22 = JsonSerializer.Serialize(new AppSettings { Paused = true, HowToDismissed = true }, JsonFile.Options);
+        var old = JsonSerializer.Deserialize<Settings21>(json22, JsonFile.Options)!;
+        Assert.True(old.Extra!["HowToDismissed"].GetBoolean());
+
+        var back = Load(JsonSerializer.Serialize(old, JsonFile.Options));
+        Assert.True(back.HowToDismissed);
+        Assert.True(back.Paused);
+        Assert.Equal(0, BrokenBackups);
+    }
 }

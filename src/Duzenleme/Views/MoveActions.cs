@@ -52,7 +52,7 @@ internal static class MoveActions
     }
 }
 
-/// <summary>Otomatik taşıma durum kartının metinleri (Ana sayfa ve Otomatik taşıma sayfası aynı dili konuşur).</summary>
+/// <summary>Otomatik taşıma durumunun metinleri (Ana sayfanın satırı ve Otomatik taşıma sayfasının kartı aynı dili konuşur).</summary>
 internal static class AutoMoveStatus
 {
     /// <summary>
@@ -67,18 +67,28 @@ internal static class AutoMoveStatus
                                                  && folders.Any(f => FolderName.Equal(f, r.TargetFolder)));
     }
 
-    /// <summary>
-    /// Kartın başlığı ve açıklaması. today/total yalnızca Ana sayfada verilir ("Bugün n dosya… · toplam t");
-    /// Otomatik taşıma sayfasının kartında sayı satırı yoktur.
-    /// </summary>
-    public static (string Title, string Text) Describe(bool on, int ready, int today = 0, int total = 0)
+    /// <summary>Otomatik taşıma sayfasının durum kartı: başlık ve açıklama.</summary>
+    public static (string Title, string Text) Describe(bool on, int ready)
     {
         if (!on)
             return (L.T("Otomatik taşıma kapalı"),
                 L.T("Yeni dosyalar masaüstünde kalır. Açarsan masaüstündeki uygun dosyalar da klasörlerine taşınır; her taşıma geri alınabilir."));
         var title = L.T("Otomatik taşıma açık");
-        if (today > 0) return (title, L.P(today, "Bugün {0} dosya yerine taşındı · toplam {1}", total));
         if (ready > 0) return (title, L.T("Masaüstüne düşen dosyalar klasörlerine gider."));
         return (title, L.T("Masaüstünde henüz hedef klasör yok. Örneğin masaüstünde \"PDF\" adında bir klasör açınca PDF'ler oraya gider."));
+    }
+
+    /// <summary>
+    /// Ana sayfanın tek satırlık kartı: "Otomatik taşıma kapalı", "Otomatik taşıma açık · son: rapor.pdf → PDF" ya da (açık ama
+    /// masaüstünde hedef klasör yokken; dosyalar gitmez) "… · masaüstünde hedef klasör yok" ve SetUp (kartta "Klasörleri
+    /// ayarla" görünür). <paramref name="last"/>: geri alınmamış son taşıma.
+    /// </summary>
+    public static (string Text, bool SetUp) Line(bool on, int ready, MoveEntry? last)
+    {
+        if (!on) return (L.T("Otomatik taşıma kapalı"), false);
+        if (ready == 0) return (L.T("Otomatik taşıma açık · masaüstünde hedef klasör yok"), true);
+        return last is null
+            ? (L.T("Otomatik taşıma açık"), false)
+            : (L.F("Otomatik taşıma açık · son: {0} → {1}", last.FileName, last.FolderName), false);
     }
 }
