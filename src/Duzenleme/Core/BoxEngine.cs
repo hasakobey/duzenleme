@@ -46,8 +46,11 @@ public enum BoxFailure
     /// <summary>Windows'un yönetici onayı verilmedi (vazgeçildi).</summary>
     Declined,
 
-    /// <summary>Başka bir G/Ç hatası (ileti <c>Error</c>'da).</summary>
+    /// <summary>Başka bir G/Ç hatası (ileti <c>Error</c>'da; yalnızca günlük için, kullanıcıya gösterilmez).</summary>
     Other,
+
+    /// <summary>NestDesk klasörünün kendisine şu an ulaşılamıyor (çevrimdışı sürücü, ağ, OneDrive): kayıt açık kalır.</summary>
+    Unavailable,
 }
 
 /// <summary>Taşıma adımının sonucu: <see cref="Current"/> doluysa öğe NestDesk klasöründe, değilse kutuda bağlantı olarak kaldı.</summary>
@@ -119,7 +122,7 @@ public sealed class BoxEngine(IBoxDisk disk, BoxMoveLog log)
     public List<ClaimOutcome> Claim(IReadOnlyList<ClaimStep> steps, bool allowElevation)
     {
         var outcomes = new ClaimOutcome?[steps.Count];
-        var pending = new List<(int Index, BoxMove Record)>();
+        var planned = new List<(int Index, BoxMove Record)>();
         for (var i = 0; i < steps.Count; i++)
         {
             var step = steps[i];
@@ -128,28 +131,43 @@ public sealed class BoxEngine(IBoxDisk disk, BoxMoveLog log)
                 outcomes[i] = new ClaimOutcome(step, null);
                 continue;
             }
-            var record = new BoxMove { WidgetId = step.BoxId, Original = step.Original, Current = target, ForItem = step.ForItem };
-            try { log.Add(record); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                outcomes[i] = new ClaimOutcome(step, null, BoxFailure.Other, ex.Message);
-                continue;
-            }
+            planned.Add((i, new BoxMove { WidgetId = step.BoxId, Original = step.Original, Current = target, ForItem = step.ForItem }));
+        }
+        if (planned.Count == 0) return Results(outcomes, steps);
+
+        // Önce kayıt (işin bütün öğeleri tek yazmayla), sonra taşıma: yazılamazsa hiçbir dosyaya dokunulmaz.
+        try { log.AddMany(planned.Select(p => p.Record).ToList()); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("box", "claim-record-failed", ex);
+            foreach (var (index, _) in planned) outcomes[index] = new ClaimOutcome(steps[index], null, BoxFailure.Other, ex.Message);
+            return Results(outcomes, steps);
+        }
+
+        var failed = new List<string>();
+        var pending = new List<(int Index, BoxMove Record)>();
+        foreach (var (i, record) in planned)
+        {
+            var step = steps[i];
             try
             {
-                disk.Move(step.Original, target);
-                outcomes[i] = new ClaimOutcome(step, target);
+                disk.Move(step.Original, record.Current);
+                outcomes[i] = new ClaimOutcome(step, record.Current);
             }
             catch (Exception ex) when (IsDiskError(ex))
             {
-                log.Remove(record.Id);
                 if (ex is UnauthorizedAccessException && step.OnPublic)
                 {
-                    // Ortak masaüstü yalnızca yöneticiyle değişir: aşağıda Windows'un onayıyla, hepsi birlikte.
-                    if (allowElevation) pending.Add((i, record));
-                    else outcomes[i] = new ClaimOutcome(step, null, BoxFailure.Denied);
+                    // Ortak masaüstü yalnızca yöneticiyle değişir: aşağıda Windows'un onayıyla, hepsi birlikte (kayıt yazılı kalır).
+                    if (allowElevation)
+                    {
+                        pending.Add((i, record));
+                        continue;
+                    }
+                    outcomes[i] = new ClaimOutcome(step, null, BoxFailure.Denied);
                 }
-                else outcomes[i] = new ClaimOutcome(step, null, Classify(ex), ex.Message);
+                else outcomes[i] = Failed(step, ex);
+                failed.Add(record.Id);
             }
         }
 
@@ -157,31 +175,36 @@ public sealed class BoxEngine(IBoxDisk disk, BoxMoveLog log)
         {
             var (go, dropped) = Guard(pending.Select(p => (p.Record.Original, p.Record.Current)).ToList());
             foreach (var p in pending.Where(p => dropped.Contains((p.Record.Original, p.Record.Current))))
-                outcomes[p.Index] = new ClaimOutcome(steps[p.Index], null, BoxFailure.Other);
-            var moving = pending.Where(p => !dropped.Contains((p.Record.Original, p.Record.Current))).ToList();
-            var failure = BoxFailure.None;
-            if (moving.Count > 0)
             {
-                try { log.AddMany(moving.Select(p => p.Record).ToList()); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    foreach (var p in moving) outcomes[p.Index] = new ClaimOutcome(steps[p.Index], null, BoxFailure.Other, ex.Message);
-                    moving.Clear();
-                }
-                if (moving.Count > 0) failure = Elevate(go);
+                outcomes[p.Index] = new ClaimOutcome(steps[p.Index], null, BoxFailure.Other);
+                failed.Add(p.Record.Id);
             }
+            var moving = pending.Where(p => !dropped.Contains((p.Record.Original, p.Record.Current))).ToList();
+            var failure = moving.Count > 0 ? Elevate(go) : BoxFailure.None;
             foreach (var (index, record) in moving)
             {
                 if (disk.Exists(record.Current) && !disk.Exists(record.Original))
                     outcomes[index] = new ClaimOutcome(steps[index], record.Current);
                 else
                 {
-                    log.Remove(record.Id);
+                    failed.Add(record.Id);
                     outcomes[index] = new ClaimOutcome(steps[index], null, failure == BoxFailure.None ? BoxFailure.Declined : failure);
                 }
             }
         }
-        return outcomes.Select((o, i) => o ?? new ClaimOutcome(steps[i], null, BoxFailure.Other)).ToList();
+        // Taşınamayanların kayıtları tek yazmayla silinir.
+        log.RemoveMany(failed);
+        return Results(outcomes, steps);
+    }
+
+    private static List<ClaimOutcome> Results(ClaimOutcome?[] outcomes, IReadOnlyList<ClaimStep> steps) =>
+        outcomes.Select((o, i) => o ?? new ClaimOutcome(steps[i], null, BoxFailure.Other)).ToList();
+
+    private static ClaimOutcome Failed(ClaimStep step, Exception ex)
+    {
+        var failure = Classify(ex);
+        if (failure == BoxFailure.Other) AppLog.Warn("box", "claim-move-failed", ex);
+        return new ClaimOutcome(step, null, failure, ex.Message);
     }
 
     // ------------------------------------------------------------------------------------------------------- geri koyma
@@ -300,6 +323,9 @@ public sealed class BoxEngine(IBoxDisk disk, BoxMoveLog log)
             Restored?.Invoke(record.Original, record.Current);
             return new ReturnOutcome(record, ReturnState.AlreadyThere, record.Original);
         }
+        // NestDesk klasörünün bulunduğu yere şu an hiç ulaşılamıyor (çıkarılmış sürücü, ağ): öğe silinmiş sayılmaz, kayıt açık kalır.
+        if (BoxPlan.RootUnavailable(record.Current, disk.Exists))
+            return new ReturnOutcome(record, ReturnState.Failed, null, BoxFailure.Unavailable);
         log.MarkReturned(record.Id, record.Original, reclaim: false);
         return new ReturnOutcome(record, ReturnState.NotFound);
     }

@@ -24,6 +24,7 @@ public sealed class BoxEngineTests : IDisposable
     public BoxEngineTests()
     {
         _disk.AdminOnly.Add(Public);
+        _disk.Folders.Add(@"C:\Users\ali"); // NestDesk kökünün bulunduğu kullanıcı klasörü (sürücü bağlı)
         _log = new BoxMoveLog(Path.Combine(_dir, "box-moves.json"));
         _engine = new BoxEngine(_disk, _log);
     }

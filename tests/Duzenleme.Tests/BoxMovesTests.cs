@@ -242,12 +242,14 @@ public class BoxMovesTests
             StringComparer.OrdinalIgnoreCase);
         var asked = new List<string>();
 
-        var plan = BoxPlan.Reconcile([record], referenced, p => { asked.Add(p); return false; });
+        // Kullanıcı klasörü duruyor (NestDesk klasörü silinmiş; çıkarılmış bir sürücüde değil).
+        var plan = BoxPlan.Reconcile([record], referenced, p => { asked.Add(p); return p == @"C:\Users\ali"; });
 
         // Çevrimdışı ağ yolu gibi ilgisiz öğeler için diske gidilmez (arka planda bile saniyelerce bekletebilir).
         Assert.DoesNotContain(@"\\çevrimdışı\paylaşım\x.exe", asked);
         Assert.DoesNotContain(@"C:\Program Files\y.exe", asked);
-        Assert.All(asked, p => Assert.True(p == record.Current || p == record.Original, p));
+        // Yalnızca kaydın yolları ve (öğe yoksa) NestDesk kökü ile onun bulunduğu klasör.
+        Assert.All(asked, p => Assert.True(p == record.Current || p == record.Original || p == @"C:\Users\ali\NestDesk" || p == @"C:\Users\ali", p));
         Assert.Empty(plan.Return);
         // Kutunun gösterdiği NestDesk öğesi ne orada ne masaüstünde: kayıt kapanır, kutu "bulunamadı" gösterir (B8).
         var (closed, remapTo, reason) = Assert.Single(plan.Close);
@@ -279,7 +281,8 @@ public class BoxMovesTests
     {
         var record = Active(@$"{Desktop}\a.pdf", @$"{Box}\a.pdf");
 
-        var plan = BoxPlan.Reconcile([record], Refs(@$"{Box}\a.pdf"), _ => false);
+        // NestDesk klasörü yok ama bulunduğu kullanıcı klasörü duruyor: öğe silinmiş.
+        var plan = BoxPlan.Reconcile([record], Refs(@$"{Box}\a.pdf"), p => p == @"C:\Users\ali");
 
         Assert.Equal((record, (string?)null, BoxCloseReason.Gone), Assert.Single(plan.Close));
         Assert.Empty(plan.Remap);

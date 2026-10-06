@@ -98,6 +98,14 @@ public static class DataFolderLocator
     }
 
     /// <summary>
+    /// --restore-desktop: kutu kayıtları (box-moves.json) olan veri klasörleri, ayar dosyası adaylarının sırasıyla (aynı klasör
+    /// bir kez). Ayar dosyasına bakılmaz: ayarlar silinmiş ya da bozuk olsa da kutulara taşınan simgeler geri konabilsin.
+    /// </summary>
+    public static List<string> BoxMoveDirectories(IReadOnlyList<string> settingsCandidates, Func<string, bool> fileExists) =>
+        settingsCandidates.Select(Path.GetDirectoryName).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(d => fileExists(Path.Combine(d, BoxMoveLog.FileName))).ToList();
+
+    /// <summary>
     /// Test masaüstü klasörünün kalıcı kısa anahtarı (tek örnek adı ve geçici veri klasörü için; string.GetHashCode süreçten
     /// sürece değişir). Büyük/küçük harf ve sondaki ayraç fark etmez.
     /// </summary>
