@@ -4,7 +4,7 @@ using Duzenleme.Localization;
 namespace Duzenleme.Tests;
 
 /// <summary>
-/// "Kutuya koyduğum simgeler masaüstünden kalksın" inceleme düzeltmeleri: kayıt yazılırken arayüz beklemez ve bir taşıma işi
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın" inceleme düzeltmeleri: kayıt yazılırken arayüz beklemez ve bir taşıma işi
 /// kaydı tek yazmayla yazar; eklemesi geri alınan öğe kurallardan saklanmaz; ayar dosyası yokken de kaldırma simgeleri geri koyar;
 /// uygulama kısayolu kayıtları geri alınır ve kapanır; hata iletisi kullanıcıya gösterilmez; ulaşılamayan NestDesk klasörü
 /// kayıtları kapatmaz; yarıda kalan geri koyma hedefi silinir.

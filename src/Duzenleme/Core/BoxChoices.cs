@@ -5,16 +5,16 @@ namespace Duzenleme.Core;
 /// <summary>Kutu ya da halka öğesinin "masaüstünden kalksın" açısından durumu (öğe menüsü; yalnızca çalışma zamanı).</summary>
 public enum BoxItemState
 {
-    /// <summary>Kutu bir bağlantı gösterir (seçenek kapalı, uygulama, masaüstünde değil, bulunamadı, korunan, klasör…).</summary>
+    /// <summary>Kutu bir bağlantı gösterir (uygulama, masaüstünde değil, bulunamadı, korunan, kuralın klasörü…).</summary>
     Link,
 
     /// <summary>Masaüstünden kalkmış, NestDesk klasöründe: kaldırınca masaüstüne geri döner.</summary>
     Moved,
 
-    /// <summary>İstisna: seçenek açık ama öğe hâlâ masaüstünde ("Şimdi değil", açıktı, seçenekten önce eklendi).</summary>
+    /// <summary>Öğe masaüstünde ve taşınabilir: "Masaüstünden kaldır" (seçenek kapalıyken de, tek tek).</summary>
     OnDesktop,
 
-    /// <summary>İstisna: herkesin masaüstünde, seçenek açık ama ona izin verilmedi; tek seferlik yönetici onayıyla kalkabilir.</summary>
+    /// <summary>Herkesin masaüstünde ve ona izin verilmedi; tek seferlik yönetici onayıyla kalkabilir.</summary>
     PublicNeedsAdmin,
 }
 
@@ -24,11 +24,14 @@ public enum BoxMenuAction
     /// <summary>"Kutudan kaldır" / "Halkadan kaldır" (Delete): taşınmışsa masaüstüne döner.</summary>
     Remove,
 
-    /// <summary>"Masaüstünden kaldır": istisna durumundaki öğe masaüstünden kalkar, kutuda durur.</summary>
+    /// <summary>"Masaüstünden kaldır": masaüstündeki öğe masaüstünden kalkar, kutuda durur.</summary>
     LeaveDesktop,
 
     /// <summary>"Masaüstünden kaldır (yönetici izni)": herkesin masaüstündeki öğe tek seferlik yönetici onayıyla kalkar.</summary>
     LeaveDesktopAsAdmin,
+
+    /// <summary>"Masaüstüne geri koy": masaüstünden kalkmış öğe masaüstüne döner, kutuda kalır.</summary>
+    ReturnToDesktop,
 }
 
 /// <summary>Öğe menüsünün kutu satırı: işi, başlığı ve ipucu.</summary>
@@ -48,7 +51,7 @@ public enum BoxDropEffect
 }
 
 /// <summary>
-/// "Kutuya koyduğum simgeler masaüstünden kalksın": soruların, öğe menüsünün ve bırakma kaplamasının saf kararları. Diske
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın": soruların, öğe menüsünün ve bırakma kaplamasının saf kararları. Diske
 /// dokunmaz (öznitelikleri çağıran verir: arayüzde masaüstünün anlık görüntüsünden ya da eklerken arka planda okunanlardan).
 /// Testlenir.
 /// </summary>
@@ -74,7 +77,7 @@ public static class BoxChoices
     {
         var desktops = context.PublicDesktops.Prepend(context.UserDesktop).ToList();
         var onDesktop = !TileItemPath.IsShellObject(path) && BoxPlan.IsDirectlyIn(path, desktops);
-        return BoxPlan.Decide(path, onDesktop ? attributes(path) : null, context.UserDesktop, context.PublicDesktops, includePublic);
+        return BoxPlan.Decide(path, onDesktop ? attributes(path) : null, context.UserDesktop, context.PublicDesktops, includePublic, context.Kept);
     }
 
     /// <summary>
@@ -103,15 +106,17 @@ public static class BoxChoices
 
     /// <summary>
     /// Öğenin durumu: bulunamayan öğe hep bağlantıdır (geri koyma satırı yok); taşınmış öğe <see cref="BoxItemState.Moved"/>;
-    /// dosyalar taşınırken masaüstünde kalan taşınabilir öğe istisnadır (<see cref="BoxItemState.OnDesktop"/>); izin verilmemiş
-    /// herkesin masaüstü öğesi Store sürümünde değilse <see cref="BoxItemState.PublicNeedsAdmin"/>.
+    /// masaüstündeki taşınabilir öğe <see cref="BoxItemState.OnDesktop"/> (anahtar kapalıyken de: tek tek kaldırılabilir); izin
+    /// verilmemiş herkesin masaüstü öğesi Store sürümünde değilse <see cref="BoxItemState.PublicNeedsAdmin"/>.
     /// </summary>
+    /// <param name="canMove">Dosyalar elle taşınabilir mi: bölmeler masaüstünü yönetirken ve anahtar açıkken öğe zaten
+    /// bölmelerde görünmez (taşıma satırı yok).</param>
     /// <param name="decision">Öğe için <see cref="BoxPlan.Decide"/> (ayardaki ortak masaüstü izniyle).</param>
-    public static BoxItemState StateOf(bool moved, bool missing, bool movesFiles, BoxLinkReason decision, bool packaged)
+    public static BoxItemState StateOf(bool moved, bool missing, bool canMove, BoxLinkReason decision, bool packaged)
     {
         if (missing) return BoxItemState.Link;
         if (moved) return BoxItemState.Moved;
-        if (!movesFiles) return BoxItemState.Link;
+        if (!canMove) return BoxItemState.Link;
         return decision switch
         {
             BoxLinkReason.None => BoxItemState.OnDesktop,
@@ -122,7 +127,8 @@ public static class BoxChoices
 
     /// <summary>
     /// Öğe menüsünün kutu satırları (kutu ve halka aynı): her öğede tek kaldırma fiili ("Kutudan kaldır" / "Halkadan
-    /// kaldır"); istisna durumunda ek olarak "Masaüstünden kaldır". "Masaüstüne geri koy" öğe menüsünde yok.
+    /// kaldır"); masaüstündeki taşınabilir öğede "Masaüstünden kaldır", masaüstünden kalkmış öğede "Masaüstüne geri koy"
+    /// (öğe kutuda kalır).
     /// </summary>
     /// <param name="heldElsewhere">Öğe başka bir kutuda, halkada ya da sekmede de duruyor (kaldırınca masaüstüne dönmez).</param>
     public static List<BoxMenuRow> MenuRows(BoxItemState state, bool ring, bool heldElsewhere)
@@ -142,6 +148,10 @@ public static class BoxChoices
                 rows.Add(new BoxMenuRow(BoxMenuAction.LeaveDesktop, L.T("Masaüstünden kaldır"),
                     ring ? L.T("Simge masaüstünden kalkar, halkada durur.") : L.T("Simge masaüstünden kalkar, kutuda durur.")));
                 break;
+            case BoxItemState.Moved:
+                rows.Add(new BoxMenuRow(BoxMenuAction.ReturnToDesktop, L.T("Masaüstüne geri koy"),
+                    ring ? L.T("Simge masaüstüne döner, halkada da kalır.") : L.T("Simge masaüstüne döner, kutuda da kalır.")));
+                break;
             case BoxItemState.PublicNeedsAdmin:
                 rows.Add(new BoxMenuRow(BoxMenuAction.LeaveDesktopAsAdmin, L.T("Masaüstünden kaldır (yönetici izni)"),
                     L.T("Bu bilgisayardaki herkesin masaüstünden kalkar; Windows bir kez yönetici izni ister.")));
@@ -155,9 +165,9 @@ public static class BoxChoices
     /// bölmeler masaüstünü yönetiyorsa <see cref="BoxDropEffect.Hides"/>, değilse (izin verilen masaüstündeyse)
     /// <see cref="BoxDropEffect.Moves"/>. Yalnızca metin karşılaştırır (sürükleme sırasında diske dokunmaz).
     /// </summary>
-    /// <param name="isFolder">Masaüstündeki öğe klasör mü (anlık görüntüden; klasörler taşınmaz). Verilmezse sorulmaz.</param>
+    /// <param name="kept">Masaüstünde kalacak mı (kuralın klasörü, halka komutunun yolu). Verilmezse context.Kept.</param>
     public static BoxDropEffect DropEffect(IEnumerable<string> paths, bool on, bool fencesManage, BoxContext context,
-        Func<string, bool>? isFolder = null)
+        Func<string, bool>? kept = null)
     {
         if (!on) return BoxDropEffect.None;
         var all = context.PublicDesktops.Prepend(context.UserDesktop).ToList();
@@ -166,7 +176,7 @@ public static class BoxChoices
         {
             if (string.IsNullOrWhiteSpace(path) || TileItemPath.IsShellObject(path)) continue;
             if (fencesManage && BoxPlan.IsDirectlyIn(path, all)) return BoxDropEffect.Hides;
-            if (!fencesManage && BoxPlan.IsDirectlyIn(path, movable) && isFolder?.Invoke(path) != true) return BoxDropEffect.Moves;
+            if (!fencesManage && BoxPlan.IsDirectlyIn(path, movable) && (kept ?? context.Kept)?.Invoke(path) != true) return BoxDropEffect.Moves;
         }
         return BoxDropEffect.None;
     }

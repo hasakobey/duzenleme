@@ -334,7 +334,7 @@ public partial class LauncherView : UserControl, IWidgetView
     private void UndoRemove() => _edits.UndoRemove();
 
     /// <summary>
-    /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa
+    /// Öğeleri etkin sekmeye ekler (varlık denetimi arka planda). "Widget'lara koyduğum öğeler masaüstünden kalksın" açıksa
     /// masaüstündekiler kutunun klasörüne taşınır.
     /// </summary>
     /// <param name="look">Başka kutudan taşınan öğenin orada verilmiş adı ve simgesi.</param>
@@ -411,8 +411,8 @@ public partial class LauncherView : UserControl, IWidgetView
 
     /// <summary>
     /// Öğe menüsünün kutu satırları (<see cref="BoxChoices.MenuRows"/>; halkayla aynı): tek kaldırma fiili "Kutudan kaldır"
-    /// (Delete; masaüstünden kalkmış öğe geri döner) ve istisna durumunda (seçenek açık ama öğe masaüstünde) "Masaüstünden
-    /// kaldır". Bulunamayan öğede geri koyma satırı yok.
+    /// (Delete; masaüstünden kalkmış öğe geri döner), masaüstündeki öğede "Masaüstünden kaldır", kalkmış öğede geri koyma (Masaüstüne geri
+    /// koy; anahtar kapalıyken de, tek tek). Bulunamayan öğede geri koyma satırı yok.
     /// </summary>
     private void AddBoxRows(ContextMenu menu, TileItem item)
     {
@@ -426,6 +426,7 @@ public partial class LauncherView : UserControl, IWidgetView
             {
                 BoxMenuAction.Remove => Menus.Item(row.Label, () => RemoveItem(item), KeyNames.Delete),
                 BoxMenuAction.LeaveDesktopAsAdmin => Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, path, tab, asAdmin: true)),
+                BoxMenuAction.ReturnToDesktop => Menus.Item(row.Label, () => BoxMover.PutBack(path)),
                 _ => Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, path, tab, asAdmin: false)),
             };
             menuItem.ToolTip = row.ToolTip;
@@ -446,7 +447,7 @@ public partial class LauncherView : UserControl, IWidgetView
     // sürüklemenin verisi tutulmaz).
     private WeakReference<IDataObject>? _dropData;
     private DropContent _dropContent;
-    // Bırakılanlar masaüstünden kalkar mı ("Kutuya koyduğum simgeler masaüstünden kalksın"; sürükleme başına bir kez).
+    // Bırakılanlar masaüstünden kalkar mı ("Widget'lara koyduğum öğeler masaüstünden kalksın"; sürükleme başına bir kez).
     private BoxDropEffect _dropLeaves;
 
     private DropContent ContentOf(IDataObject data)
@@ -649,7 +650,7 @@ public partial class LauncherView : UserControl, IWidgetView
         if (!menu.ForEditor) return;
         menu.Settings.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
         menu.More.AddRange(Menus.TileOptions(_config, Change, singleClickOption: false));
-        // "Kutuya koyduğum simgeler masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da ve Düzenle panelinde
+        // "Widget'lara koyduğum öğeler masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da ve Düzenle panelinde
         // (Views.DesktopModes.SetBoxLeaves; bkz. AddEditorContent).
     }
 
@@ -692,7 +693,7 @@ public partial class LauncherView : UserControl, IWidgetView
             (L.T("+ Sekme"), "Editor.Launcher.AddTab", NewTab),
         ], rebuild: true);
         // Uygulama geneli seçenek (Ayarlar'dakiyle aynı yoldan: soruları ve "Geri al"ı orada).
-        content.Switch(L.T("Kutuya koyduğum simgeler masaüstünden kalksın"), "Editor.BoxLeaves", () => BoxMover.On, on =>
+        content.Switch(L.T("Widget'lara koyduğum öğeler masaüstünden kalksın"), "Editor.BoxLeaves", () => BoxMover.On, on =>
         {
             if (on != BoxMover.On) Views.DesktopModes.SetBoxLeaves(on, DialogPoint, content.Owner);
         });

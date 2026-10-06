@@ -92,18 +92,31 @@ public class BoxMovesTests
     }
 
     /// <summary>
-    /// B6: klasör hiç taşınmaz (içindeki yolları gösteren kutu öğeleri, portallar, halka komutları, kurallar ve başka
-    /// programlar bozulurdu); kutuda bağlantı olarak durur. Aynı adlı dosya klasör değildir: taşınır.
+    /// 2.2 ("Widget'lara koyduğum öğeler masaüstünden kalksın"): klasör de taşınır (widget'larda içindeki yolları gösterenler
+    /// yeni yolu izler: <see cref="Launchers.ReplaceHeld"/>). Otomatik taşıma kuralının klasörü ve halka komutunun kullandığı
+    /// yol kalır (kural ya da komut bozulurdu). Gizli klasör zaten korunur.
     /// </summary>
     [Fact]
-    public void Folders_are_links_and_never_move()
+    public void Folders_move_unless_a_rule_or_command_uses_them()
     {
-        Assert.Equal(BoxLinkReason.Folder, Decide(@"C:\Users\ali\Desktop\Projeler", FileAttributes.Directory));
-        Assert.Equal(BoxLinkReason.Folder, Decide(@"C:\Users\ali\Desktop\PDF", FileAttributes.Directory | FileAttributes.ReadOnly));
-        Assert.Equal(BoxLinkReason.Folder, Decide(@"C:\Users\Public\Desktop\Ortak", FileAttributes.Directory, includePublic: true));
-        Assert.Equal(BoxLinkReason.None, Decide(@"C:\Users\ali\Desktop\PDF", FileAttributes.Archive));
-        // Gizli klasör zaten korunur.
-        Assert.Equal(BoxLinkReason.Protected, Decide(@"C:\Users\ali\Desktop\gizli", FileAttributes.Directory | FileAttributes.Hidden));
+        var kept = BoxPlan.KeptBy(["PDF", @"Belgeler\Faturalar"], [@"C:\Users\ali\Desktop\Araçlar\derle.cmd", null], @"C:\Users\ali\Desktop");
+        BoxLinkReason D(string path, FileAttributes attrs, bool includePublic = false) =>
+            BoxPlan.Decide(path, attrs, @"C:\Users\ali\Desktop", [@"C:\Users\Public\Desktop"], includePublic, kept);
+
+        Assert.Equal(BoxLinkReason.None, D(@"C:\Users\ali\Desktop\Projeler", FileAttributes.Directory));
+        Assert.Equal(BoxLinkReason.None, D(@"C:\Users\Public\Desktop\Ortak", FileAttributes.Directory, includePublic: true));
+        // Kuralın klasörü (adı Türkçe harflerden bağımsız; yolun ilk parçası) ve komutun içinde geçtiği klasör kalır.
+        Assert.Equal(BoxLinkReason.UsedFolder, D(@"C:\Users\ali\Desktop\PDF", FileAttributes.Directory | FileAttributes.ReadOnly));
+        Assert.Equal(BoxLinkReason.UsedFolder, D(@"C:\Users\ali\Desktop\pdf", FileAttributes.Directory));
+        Assert.Equal(BoxLinkReason.UsedFolder, D(@"C:\Users\ali\Desktop\Belgeler", FileAttributes.Directory));
+        Assert.Equal(BoxLinkReason.UsedFolder, D(@"C:\Users\ali\Desktop\Araçlar", FileAttributes.Directory));
+        // Kural klasörü yalnızca kullanıcının masaüstünde aranır: herkesin masaüstündeki aynı adlı klasör taşınabilir.
+        Assert.Equal(BoxLinkReason.None, D(@"C:\Users\Public\Desktop\PDF", FileAttributes.Directory, includePublic: true));
+        // Sıradan dosya taşınır.
+        Assert.Equal(BoxLinkReason.None, D(@"C:\Users\ali\Desktop\rapor.pdf", FileAttributes.Archive));
+        Assert.Equal(BoxLinkReason.Protected, D(@"C:\Users\ali\Desktop\gizli", FileAttributes.Directory | FileAttributes.Hidden));
+        // Ortam verilmezse hiçbir şey kalmaz.
+        Assert.Equal(BoxLinkReason.None, Decide(@"C:\Users\ali\Desktop\PDF", FileAttributes.Directory));
     }
 
     // Kutulardaki masaüstü öğeleri (kurallar taşımasın)

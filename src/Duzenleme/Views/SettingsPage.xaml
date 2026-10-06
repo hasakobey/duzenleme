@@ -109,30 +109,47 @@
                     </Grid>
                 </Grid>
             </Border>
-            <!-- Windows masaüstü simgeleri (DesktopModes): karşılama ve "Masaüstümü bölmelere ayır" ile aynı seçim, anahtar olarak.
-                 Kutuya koyulan simgeler masaüstünden kalkıyorsa bunu söyleyen satır; "Değiştir" Gelişmiş > Kutular'a gider. -->
+            <!-- Masaüstü: iki anahtar tek kartta. (1) Windows masaüstü simgeleri (DesktopModes): karşılama ve "Masaüstümü bölmelere
+                 ayır" ile aynı seçim. (2) "Widget'lara koyduğum öğeler masaüstünden kalksın" (BoxMover; DesktopModes.SetBoxLeaves):
+                 kutu, halka ve klasör bölmesindeki masaüstü öğeleri masaüstünden kalkar; kapatınca hepsi döner. Taşınanların klasörü,
+                 "Hepsini masaüstüne geri koy" ve alt seçenekler Gelişmiş > Masaüstünden kalkanlar'da ("Ayrıntılar"). -->
             <Border Style="{StaticResource Row}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Simgeleri bölmelerde topla'}" />
-                        <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.IconModeText" />
-                        <TextBlock x:Name="BoxModeLine" Style="{StaticResource Muted}" Margin="0,4,0,0" Visibility="Collapsed"
-                                   AutomationProperties.AutomationId="Settings.BoxModeLine">
-                            <Run Text="{l:T 'Kutuya eklenenler masaüstünden kalkıyor.'}" />
-                            <Hyperlink Click="BoxChange_Click" AutomationProperties.AutomationId="Settings.BoxChange"><Run Text="{l:T 'Değiştir'}" /></Hyperlink>
-                        </TextBlock>
-                    </StackPanel>
-                    <ui:ToggleSwitch x:Name="IconsInFencesToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
-                                     Checked="IconsInFences_Changed" Unchecked="IconsInFences_Changed"
-                                     AutomationProperties.AutomationId="Settings.IconsInFences" AutomationProperties.Name="{l:T 'Simgeleri bölmelerde topla'}" />
-                </Grid>
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="Desktop24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Simgeleri bölmelerde topla'}" />
+                            <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.IconModeText" />
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="IconsInFencesToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         Checked="IconsInFences_Changed" Unchecked="IconsInFences_Changed"
+                                         AutomationProperties.AutomationId="Settings.IconsInFences" AutomationProperties.Name="{l:T 'Simgeleri bölmelerde topla'}" />
+                    </Grid>
+                    <Grid Margin="36,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Widget\'lara koyduğum öğeler masaüstünden kalksın'}" />
+                            <TextBlock x:Name="BoxLeavesText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.BoxLeavesText" />
+                            <TextBlock x:Name="BoxModeLine" Style="{StaticResource Muted}" Margin="0,4,0,0" Visibility="Collapsed"
+                                       AutomationProperties.AutomationId="Settings.BoxModeLine">
+                                <Hyperlink Click="BoxChange_Click" AutomationProperties.AutomationId="Settings.BoxChange"><Run Text="{l:T 'Ayrıntılar'}" /></Hyperlink>
+                            </TextBlock>
+                        </StackPanel>
+                        <ui:ToggleSwitch x:Name="BoxLeavesToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                                         Checked="BoxLeavesToggle_Changed" Unchecked="BoxLeavesToggle_Changed"
+                                         AutomationProperties.AutomationId="Settings.BoxLeaves"
+                                         AutomationProperties.Name="{l:T 'Widget\'lara koyduğum öğeler masaüstünden kalksın'}" />
+                    </Grid>
+                </StackPanel>
             </Border>
             <!-- Halka menü (2.2): NestDesk halkası boş masaüstüne çift tıklayınca (DoubleClickAction "ring") ve isteğe bağlı kısayolla
                  imleçte açılır. Kısayol varsayılan olarak kapalı ve atanmamış; açarken ne yaptığı anlatılır (Widgets.RingShortcut). -->
@@ -826,30 +843,13 @@
                                AutomationProperties.Name="{l:T 'Klasör simgelerinin hepsini kaldır'}" Click="RemoveAllFolderIcons_Click" />
                 </Grid>
             </Border>
-            <TextBlock x:Name="BoxHeader" Style="{StaticResource SectionHeader}" Text="{l:T 'Kutular'}" />
-            <!-- Kutuya koyduğum simgeler masaüstünden kalksın (BoxMover; DesktopModes.SetBoxLeaves): bölme kipinden bağımsız anahtar,
-                 altında taşınanlar (sayı, klasör, hepsini geri koy) ve iki alt anahtar (herkesin masaüstü, uygulamanın kısayolu). -->
-            <Border Style="{StaticResource Row}">
+            <TextBlock x:Name="BoxHeader" Style="{StaticResource SectionHeader}" Text="{l:T 'Masaüstünden kalkanlar'}" />
+            <!-- "Widget'lara koyduğum öğeler masaüstünden kalksın"ın ayrıntıları (anahtarın kendisi ilk görünümde): taşınanlar
+                 (sayı, klasör, hepsini geri koy) ve iki alt anahtar (herkesin masaüstü, uygulamanın kısayolu). -->
+            <Border x:Name="BoxCard" Style="{StaticResource Row}">
                 <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <ui:SymbolIcon Symbol="AppsAddIn24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Kutuya koyduğum simgeler masaüstünden kalksın'}" />
-                            <TextBlock x:Name="BoxLeavesText" Style="{StaticResource Muted}" AutomationProperties.AutomationId="Settings.BoxLeavesText" />
-                        </StackPanel>
-                        <ui:ToggleSwitch x:Name="BoxLeavesToggle" Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center"
-                                         Checked="BoxLeavesToggle_Changed" Unchecked="BoxLeavesToggle_Changed"
-                                         AutomationProperties.AutomationId="Settings.BoxLeaves"
-                                         AutomationProperties.Name="{l:T 'Kutuya koyduğum simgeler masaüstünden kalksın'}" />
-                    </Grid>
-                    <!-- Kutulara taşınanlar: sayı, klasör, hepsini geri koy (anahtar açıkken dosyalar taşınıyorsa ya da taşınmış öğe kaldıysa). -->
-                    <StackPanel x:Name="BoxPanel" Margin="36,12,0,0" Visibility="Collapsed">
+                    <!-- Taşınanlar: sayı, klasör, hepsini geri koy (dosyalar taşınıyorsa ya da taşınmış öğe kaldıysa). -->
+                    <StackPanel x:Name="BoxPanel" Visibility="Collapsed">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -867,7 +867,7 @@
                         </Grid>
                     </StackPanel>
                     <!-- Alt anahtarlar: yalnızca anahtar açıkken. Herkesin masaüstü yalnızca dosyalar taşınırken ve Store sürümü değilken. -->
-                    <StackPanel x:Name="BoxOptions" Margin="36,12,0,0" Visibility="Collapsed">
+                    <StackPanel x:Name="BoxOptions" Visibility="Collapsed">
                         <Grid x:Name="PublicBoxRow">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />

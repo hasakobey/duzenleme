@@ -4,9 +4,9 @@ using Duzenleme.Localization;
 namespace Duzenleme.Tests;
 
 /// <summary>
-/// "Kutuya koyduğum simgeler masaüstünden kalksın": ilk soru ve herkesin masaüstü sorusu ne zaman sorulur, öğe menüsünde hangi
-/// satırlar var (kutu ve halka aynı, tek kaldırma fiili, istisna durumunda "Masaüstünden kaldır", bulunamayan öğede geri koyma
-/// yok), bırakma kaplaması ne der. Saf (<see cref="BoxChoices"/>); diske dokunmaz.
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın": ilk soru ve herkesin masaüstü sorusu ne zaman sorulur, öğe menüsünde hangi
+/// satırlar var (kutu ve halka aynı, tek kaldırma fiili, masaüstündeyse "Masaüstünden kaldır", kalkmışsa "Masaüstüne geri koy",
+/// bulunamayan öğede geri koyma yok), bırakma kaplaması ne der. Saf (<see cref="BoxChoices"/>); diske dokunmaz.
 /// </summary>
 public class BoxChoicesTests
 {
@@ -38,14 +38,16 @@ public class BoxChoicesTests
     }
 
     [Fact]
-    public void Switch_question_ignores_folders_protected_items_and_paths_off_the_desktop()
+    public void Switch_question_ignores_kept_folders_protected_items_and_paths_off_the_desktop()
     {
-        Assert.False(BoxChoices.AskSwitch(false, false, [$@"{Desktop}\Proje"], Attributes, Move));
+        // 2.2: klasör de masaüstünden kalkabilir (sorulur); kuralın klasörü kalır (sorulmaz).
+        Assert.True(BoxChoices.AskSwitch(false, false, [$@"{Desktop}\Proje"], Attributes, Move));
+        Assert.False(BoxChoices.AskSwitch(false, false, [$@"{Desktop}\Proje"], Attributes, Move with { Kept = BoxPlan.KeptBy(["Proje"], [], Desktop) }));
         Assert.False(BoxChoices.AskSwitch(false, false, [$@"{Desktop}\gizli.txt", $@"{Desktop}\desktop.ini"], Attributes, Move));
         Assert.False(BoxChoices.AskSwitch(false, false, [@"C:\Program Files\App\app.exe", StartApps.Prefix + "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"],
             Attributes, Move));
         // Herkesin masaüstündeki öğe de sorulur (ortak masaüstü izni bu soruda sayılmaz; o ayrıca sorulur).
-        Assert.True(BoxChoices.AskSwitch(false, false, [$@"{Desktop}\Proje", $@"{Public}\Edge.lnk"], Attributes, Move));
+        Assert.True(BoxChoices.AskSwitch(false, false, [$@"{Desktop}\gizli.txt", $@"{Public}\Edge.lnk"], Attributes, Move));
     }
 
     [Fact]
@@ -73,24 +75,29 @@ public class BoxChoicesTests
 
     // ---------------------------------------------------------------- öğe menüsü
 
+    /// <summary>
+    /// Elle kaldırma anahtar kapalıyken de vardır (canMove = bölmeler masaüstünü yönetip anahtar açık değil): masaüstündeki
+    /// taşınabilir öğe "Masaüstünden kaldır" sunar; kuralın klasörü (UsedFolder) bağlantı kalır.
+    /// </summary>
     [Fact]
     public void Item_state_follows_the_switch_and_the_desktop()
     {
-        Assert.Equal(BoxItemState.Moved, BoxChoices.StateOf(moved: true, missing: false, movesFiles: true, BoxLinkReason.NotOnDesktop, false));
+        Assert.Equal(BoxItemState.Moved, BoxChoices.StateOf(moved: true, missing: false, canMove: true, BoxLinkReason.NotOnDesktop, false));
         // Taşınmış ama bulunamayan öğe geri konamaz: geri koyma satırı yok.
-        Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(moved: true, missing: true, movesFiles: true, BoxLinkReason.None, false));
-        Assert.Equal(BoxItemState.OnDesktop, BoxChoices.StateOf(false, false, movesFiles: true, BoxLinkReason.None, false));
-        Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(false, false, movesFiles: false, BoxLinkReason.None, false));
-        Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(false, false, true, BoxLinkReason.Folder, false));
+        Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(moved: true, missing: true, canMove: true, BoxLinkReason.None, false));
+        Assert.Equal(BoxItemState.OnDesktop, BoxChoices.StateOf(false, false, canMove: true, BoxLinkReason.None, false));
+        Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(false, false, canMove: false, BoxLinkReason.None, false));
+        Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(false, false, true, BoxLinkReason.UsedFolder, false));
         Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(false, false, true, BoxLinkReason.Protected, false));
         Assert.Equal(BoxItemState.PublicNeedsAdmin, BoxChoices.StateOf(false, false, true, BoxLinkReason.PublicDesktop, packaged: false));
         Assert.Equal(BoxItemState.Link, BoxChoices.StateOf(false, false, true, BoxLinkReason.PublicDesktop, packaged: true));
     }
 
+    /// <summary>Her durumda tek kaldırma fiili; "Masaüstüne geri koy" yalnızca masaüstünden kalkmış öğede.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Every_state_has_one_removal_verb_and_no_put_back_row(bool ring)
+    public void Every_state_has_one_removal_verb_and_put_back_only_when_moved(bool ring)
     {
         foreach (var state in Enum.GetValues<BoxItemState>())
         {
@@ -98,7 +105,8 @@ public class BoxChoicesTests
             Assert.Single(rows, r => r.Action == BoxMenuAction.Remove);
             Assert.Equal(BoxMenuAction.Remove, rows[0].Action);
             Assert.Equal(ring ? "Halkadan kaldır" : "Kutudan kaldır", rows[0].Label);
-            Assert.DoesNotContain(rows, r => r.Label.Contains("geri koy", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(state == BoxItemState.Moved, rows.Any(r => r.Action == BoxMenuAction.ReturnToDesktop));
+            Assert.Equal(state == BoxItemState.Moved, rows.Any(r => r.Label == "Masaüstüne geri koy"));
             Assert.All(rows, r => Assert.False(string.IsNullOrWhiteSpace(r.ToolTip)));
         }
     }
@@ -117,7 +125,9 @@ public class BoxChoicesTests
         var admin = BoxChoices.MenuRows(BoxItemState.PublicNeedsAdmin, ring: false, heldElsewhere: false);
         Assert.Equal([BoxMenuAction.Remove, BoxMenuAction.LeaveDesktopAsAdmin], admin.Select(r => r.Action));
 
-        Assert.Single(BoxChoices.MenuRows(BoxItemState.Moved, ring: true, heldElsewhere: false));
+        Assert.Equal([BoxMenuAction.Remove, BoxMenuAction.ReturnToDesktop],
+            BoxChoices.MenuRows(BoxItemState.Moved, ring: true, heldElsewhere: false).Select(r => r.Action));
+        Assert.Contains("halkada da kalır", BoxChoices.MenuRows(BoxItemState.Moved, ring: true, heldElsewhere: false)[1].ToolTip);
         Assert.Single(BoxChoices.MenuRows(BoxItemState.Link, ring: true, heldElsewhere: false));
     }
 
@@ -138,6 +148,7 @@ public class BoxChoicesTests
         Assert.Equal("Remove from ring", rows[0].Label);
         Assert.Equal("Remove from desktop", rows[1].Label);
         Assert.Equal("Remove from box", BoxChoices.MenuRows(BoxItemState.Moved, ring: false, heldElsewhere: false)[0].Label);
+        Assert.Equal("Put back on the desktop", BoxChoices.MenuRows(BoxItemState.Moved, ring: false, heldElsewhere: false)[1].Label);
     }
 
     // ---------------------------------------------------------------- bırakma kaplaması
@@ -149,10 +160,12 @@ public class BoxChoicesTests
         Assert.Equal(BoxDropEffect.None, BoxChoices.DropEffect(file, on: false, fencesManage: false, Move));
         Assert.Equal(BoxDropEffect.Moves, BoxChoices.DropEffect(file, on: true, fencesManage: false, Move));
         Assert.Equal(BoxDropEffect.Hides, BoxChoices.DropEffect(file, on: true, fencesManage: true, Move));
-        // Masaüstünde olmayan, klasör ve izin verilmemiş herkesin masaüstü öğesi taşınmaz.
+        // Masaüstünde olmayan, masaüstünde kalması gereken (kuralın klasörü) ve izin verilmemiş herkesin masaüstü öğesi taşınmaz;
+        // 2.2: klasör de taşınır.
         Assert.Equal(BoxDropEffect.None, BoxChoices.DropEffect([@"D:\Belgeler\a.pdf"], true, false, Move));
-        Assert.Equal(BoxDropEffect.None, BoxChoices.DropEffect([$@"{Desktop}\Proje"], true, false, Move,
-            p => Attributes(p) is { } a && (a & FileAttributes.Directory) != 0));
+        Assert.Equal(BoxDropEffect.Moves, BoxChoices.DropEffect([$@"{Desktop}\Proje"], true, false, Move));
+        Assert.Equal(BoxDropEffect.None, BoxChoices.DropEffect([$@"{Desktop}\PDF"], true, false,
+            Move with { Kept = BoxPlan.KeptBy(["PDF"], [], Desktop) }));
         Assert.Equal(BoxDropEffect.None, BoxChoices.DropEffect([$@"{Public}\Edge.lnk"], true, false, Move));
         Assert.Equal(BoxDropEffect.Moves, BoxChoices.DropEffect([$@"{Public}\Edge.lnk"], true, false, Move with { IncludePublic = true }));
         // Bölme kipinde herkesin masaüstündekiler de bölmeden kalkar (dosyaya dokunulmaz).

@@ -17,7 +17,7 @@ namespace Duzenleme.Widgets;
 /// tık widget'ın menüsünü açar; oraya basıp sürüklemek widget'ı taşır. Yol öğeleri dışarı sürüklenebilir (veride yalnızca
 /// FileDrop); içeri dosya, klasör ya da http(s) adresi bırakılabilir (bırakılan yere girer; alt halkanın üstüne bırakılan
 /// onun içine). Ekleme/çıkarma kısayol kutusuyla aynı yoldan (<see cref="LauncherEdits"/>): kutudaki masaüstü dosyaları
-/// kurallardan korunur, "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa masaüstünden kalkar, çıkınca geri döner; öğe
+/// kurallardan korunur, "Widget'lara koyduğum öğeler masaüstünden kalksın" açıksa masaüstünden kalkar, çıkınca geri döner; öğe
 /// menüsünün kutu satırları kutuyla aynıdır (<see cref="BoxChoices.MenuRows"/>).</para>
 /// </summary>
 internal sealed class RingWidgetView : UserControl, IWidgetView
@@ -231,7 +231,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     /// <summary>
     /// Düzenle paneli: halka düzenleyicisi (<see cref="Views.RingEditor"/>: önizleme, seçili öğenin işleri, ekleme çubuğu,
-    /// "Tuşla imlecin yanında açılsın", "Kutuya koyduğum simgeler masaüstünden kalksın"). Düzenlemeler widget'ın kendi
+    /// "Tuşla imlecin yanında açılsın", "Widget'lara koyduğum öğeler masaüstünden kalksın"). Düzenlemeler widget'ın kendi
     /// <see cref="LauncherEdits"/>'iyle (menüdeki ve bildirimdeki "Geri al" ortak); kaldırılanın "Geri al"ı panelin bildiriminde.
     /// </summary>
     public bool AddEditorContent(Views.EditorContent content)
@@ -365,7 +365,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             if (RingRunner.CanRunAsAdmin(path))
                 menu.Items.Add(Menus.Item(L.T("Yönetici olarak çalıştır"), () => TileItem.Launch(path, asAdmin: true)));
             menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(path)));
-            // Kutuyla aynı satırlar (BoxChoices.MenuRows): tek kaldırma fiili; istisna durumunda "Masaüstünden kaldır".
+            // Kutuyla aynı satırlar (BoxChoices.MenuRows): tek kaldırma fiili; masaüstünden kaldırma ya da geri koyma.
             // Bulunamayan (soluk) öğede geri koyma satırı yok.
             var state = BoxMover.ItemState(path, missing: slot.Dimmed);
             rows = BoxChoices.MenuRows(state, ring: true,
@@ -379,6 +379,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
                 BoxMenuAction.Remove => Menus.Item(row.Label, () => Remove(tab, slot, subTab), KeyNames.Delete),
                 BoxMenuAction.LeaveDesktopAsAdmin when slot.Path is { } leave =>
                     Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, leave, Live(tab), asAdmin: true)),
+                BoxMenuAction.ReturnToDesktop when slot.Path is { } back => Menus.Item(row.Label, () => BoxMover.PutBack(back)),
                 _ when slot.Path is { } leave => Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, leave, Live(tab), asAdmin: false)),
                 _ => null,
             };
@@ -597,7 +598,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     // Sürüklenen metin her fare hareketinde başka süreçten yeniden okunmasın: sürükleme başına bir kez.
     private IDataObject? _urlData;
     private string? _url;
-    // Bırakılanlar masaüstünden kalkar mı ("Kutuya koyduğum simgeler masaüstünden kalksın"; sürükleme başına bir kez).
+    // Bırakılanlar masaüstünden kalkar mı ("Widget'lara koyduğum öğeler masaüstünden kalksın"; sürükleme başına bir kez).
     private IDataObject? _leavesData;
     private BoxDropEffect _leaves;
 

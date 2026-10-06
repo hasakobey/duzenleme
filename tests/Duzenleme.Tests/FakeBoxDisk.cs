@@ -51,6 +51,27 @@ internal sealed class FakeBoxDisk : IBoxDisk
         BeforeMove?.Invoke(from, to);
         if (Locked.Contains(from)) throw new IOException("locked", unchecked((int)0x80070020));
         if (InAdminOnly(from) || InAdminOnly(to)) throw new UnauthorizedAccessException("admin only");
+        if (Folders.Contains(from))
+        {
+            // Klasör içindekilerle birlikte taşınır (içinde açık dosya varsa Windows gibi paylaşım ihlali).
+            if (Exists(to)) throw new IOException("exists");
+            var prefix = from.TrimEnd('\\') + "\\";
+            if (Locked.Any(l => l.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                throw new IOException("locked", unchecked((int)0x80070020));
+            foreach (var folder in Folders.Where(f => f.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                Folders.Remove(folder);
+                Folders.Add(to + "\\" + folder[prefix.Length..]);
+            }
+            foreach (var (path, text) in Files.Where(f => f.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                Files.Remove(path);
+                Files[to + "\\" + path[prefix.Length..]] = text;
+            }
+            Folders.Remove(from);
+            Folders.Add(to);
+            return;
+        }
         if (!Files.TryGetValue(from, out var content)) throw new FileNotFoundException("missing", from);
         if (Exists(to)) throw new IOException("exists");
         Files.Remove(from);

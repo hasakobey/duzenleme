@@ -106,8 +106,21 @@ public partial class FenceView : UserControl, IWidgetView
         }
         // Bölme kipinde kutudaki ve halkadaki simgeler masaüstü bölmelerinde görünmez: kutular değişince liste yenilenir.
         AppHost.PinnedPathsChanged += OnPinnedPathsChanged;
+        // Klasör bölmesinin klasörü masaüstünden kalkınca ya da dönünce bölme yeni yolu gösterir (FolderName güncellenir).
+        BoxMover.Changed += OnBoxChanged;
         Update();
     }
+
+    /// <summary>Widget'lardaki öğeler masaüstünden kalktı ya da döndü: klasör bölmesi kaynağını yeniden bulur, açık panel tazelenir.</summary>
+    private void OnBoxChanged()
+    {
+        if (DesktopMode) return;
+        ScheduleUpdate();
+        _editorChanged?.Invoke();
+    }
+
+    // Açık Düzenle panelinin "Masaüstünden kaldır" / "Masaüstüne geri koy" satırı, iş arka planda bitince tazelensin.
+    private Action? _editorChanged;
 
     /// <summary>Kutulardaki masaüstü öğeleri ya da bölme kipi değişti: masaüstü bölmesi (yalnızca gerekirse) yeniden hesaplar.</summary>
     private void OnPinnedPathsChanged()
@@ -116,7 +129,7 @@ public partial class FenceView : UserControl, IWidgetView
     }
 
     /// <summary>
-    /// Masaüstü bölmesinin göstermedikleri: bölmeler masaüstünü yönetirken ve "Kutuya koyduğum simgeler masaüstünden kalksın"
+    /// Masaüstü bölmesinin göstermedikleri: bölmeler masaüstünü yönetirken ve "Widget'lara koyduğum öğeler masaüstünden kalksın"
     /// açıkken kutulardaki ve halkalardaki masaüstü öğeleri (dosyaya dokunulmaz; kutuda görünürler). Klasör bölmesinde ve
     /// öbür durumlarda null.
     /// </summary>
@@ -655,6 +668,8 @@ public partial class FenceView : UserControl, IWidgetView
             _relocating = false;
         });
         KeepDesktopCovered();
+        // Masaüstündeki yeni klasör, anahtar açıksa masaüstünden kalkar; önceki (artık hiçbir widget'ta olmayan) klasör döner.
+        BoxMover.PanelShows(_config, DialogPoint);
     }
 
     /// <summary>
@@ -1540,11 +1555,47 @@ public partial class FenceView : UserControl, IWidgetView
                 if (AskFolder(content.Owner) is { } source) ShowSourceFromPanel(source, knownId: null, content);
             }, rebuild: true);
         }
+        if (!DesktopMode) AddDesktopRow(content);
         content.TileLook(_config, Set);
         var sorts = SortOptions;
         content.Dropdown(L.T("Sırala"), "Editor.Fence.Sort", sorts.Select(o => o.Label).ToList(),
             () => sorts.ToList().FindIndex(o => o.Id == CurrentSort()), index => SetSort(sorts[index].Id));
         return true;
+    }
+
+    /// <summary>
+    /// Klasör bölmesinin "masaüstünden kalksın" satırı (Düzenle paneli): klasör masaüstündeyse "Masaüstünden kaldır" (anahtar
+    /// kapalıyken de, tek tek), masaüstünden kalktıysa nerede durduğu ve "Masaüstüne geri koy"; otomatik taşıma kuralının klasörü
+    /// ya da halka komutunun kullandığı klasör masaüstünde kalır (nedeni yazılır). Bölmeler masaüstünü yönetirken ve anahtar
+    /// açıkken klasör zaten masaüstü bölmelerinde görünmez: satır yok. Masaüstünün anlık görüntüsünden (diske bakmaz).
+    /// </summary>
+    private void AddDesktopRow(Views.EditorContent content)
+    {
+        var path = Launchers.PanelPath(_config, AppHost.DesktopDirectory);
+        var shown = _folderPath ?? path;
+        var wasMoved = shown is not null && BoxMover.IsMoved(shown);
+        // Yalnızca bu bölmenin klasörü kalkınca ya da dönünce (yolu değişir) panel yeniden kurulur.
+        _editorChanged = () =>
+        {
+            var now = Launchers.PanelPath(_config, AppHost.DesktopDirectory);
+            if (!string.Equals(now, path, StringComparison.OrdinalIgnoreCase) || (now is not null && BoxMover.IsMoved(now)) != wasMoved)
+                content.Changed(rebuild: true);
+        };
+        if (shown is null) return;
+        if (wasMoved)
+        {
+            content.Text(() => L.F("Klasör masaüstünden kalktı; {0} içinde duruyor.", BoxPlan.ParentOf(shown) ?? shown));
+            content.Button(L.T("Masaüstüne geri koy"), "Editor.Fence.PutBack", () => BoxMover.PutBack(shown));
+            return;
+        }
+        if (_folderPath is null || !BoxPlan.IsDirectlyIn(_folderPath, AppHost.DesktopDirectories)) return;
+        var folder = _folderPath;
+        var state = BoxMover.ItemState(folder, missing: false, out var decision);
+        if (state == BoxItemState.OnDesktop)
+            content.Button(L.T("Masaüstünden kaldır"), "Editor.Fence.LeaveDesktop",
+                () => BoxMover.LeaveDesktop(_config, folder, tab: null, asAdmin: false));
+        else if (decision == BoxLinkReason.UsedFolder)
+            content.Text(() => L.T("Bir otomatik taşıma kuralı ya da halka komutu bu klasörü kullandığı için masaüstünde kalıyor."));
     }
 
     /// <summary>"Bir klasör seç…" yongasının menüsü: masaüstü klasörleri, Windows'un bilinen klasörleri ve "Başka klasör…".</summary>
@@ -1595,6 +1646,8 @@ public partial class FenceView : UserControl, IWidgetView
         content.Notice(L.F("Bölme artık \"{0}\" gösteriyor.", SourceName(source)), () => (AppHost.Widgets.ViewOf(id) as FenceView)?.RestoreSource(before));
     }
 
+    private NativeMethods.POINT? DialogPoint => (Window.GetWindow(this) as WidgetWindow)?.CenterPoint;
+
     /// <summary>Kaynağın değiştirilmeden önceki hâli (panelin "Geri al"ı).</summary>
     private sealed record SourceState(DesktopFilter Filter, string? FolderName, string? KnownId, string? Title, List<string>? Order);
 
@@ -1607,6 +1660,9 @@ public partial class FenceView : UserControl, IWidgetView
         _config.ItemOrder = state.Order;
         _relocating = false;
         KeepDesktopCovered();
+        // Önceki kaynağa dönüldü: o klasör masaüstünden kalkmıştıysa yeniden kalkar, şimdiki döner (uzlaştırma, sorusuz).
+        AppHost.RefreshPinnedPaths();
+        BoxMover.Reconcile(interactive: true);
     });
 
     /// <summary>Kaynağın görünen adı (bildirim, yonga): tür adı, masaüstündeki klasörün adı ya da portalın klasörü.</summary>
@@ -1619,6 +1675,8 @@ public partial class FenceView : UserControl, IWidgetView
     {
         _detached = true;
         AppHost.PinnedPathsChanged -= OnPinnedPathsChanged;
+        BoxMover.Changed -= OnBoxChanged;
+        _editorChanged = null;
         _rename?.Cancel();
         _titleEditor.Cancel();
         _searchDelay.Stop();

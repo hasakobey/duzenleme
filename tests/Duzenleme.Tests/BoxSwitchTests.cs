@@ -5,7 +5,7 @@ using Duzenleme.Core;
 namespace Duzenleme.Tests;
 
 /// <summary>
-/// "Kutuya koyduğum simgeler masaüstünden kalksın" tek anahtar (bölme kipinden bağımsız, B5/B21): yeni ayarlar ileri uyumlu
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın" tek anahtar (bölme kipinden bağımsız, B5/B21): yeni ayarlar ileri uyumlu
 /// (boşken yazılmaz, 2.1 bilmediği alanları korur), bölme kipi anahtara dokunmaz, simge seçimi iki seçenektir, öğe menüleri
 /// tek modelden gelir, kaldırma programı kutu öğelerini geri koyar (sessiz kaldırmada --quiet, gizli pencere yok).
 /// </summary>
@@ -83,7 +83,10 @@ public class BoxSwitchTests
         foreach (var file in new[] { Source("Widgets", "LauncherView.xaml.cs"), Source("Widgets", "RingWidgetView.cs") })
         {
             Assert.Contains("BoxChoices.MenuRows(", file);
+            // "Masaüstüne geri koy" de modelden gelir (BoxMenuAction.ReturnToDesktop → BoxMover.PutBack).
             Assert.DoesNotContain("\"Masaüstüne geri koy\"", file);
+            Assert.Contains("BoxMenuAction.ReturnToDesktop", file);
+            Assert.Contains("BoxMover.PutBack(", file);
             Assert.DoesNotContain("Kutudan çıkar (masaüstüne döner)", file);
             Assert.Contains("BoxMover.DraggedOut(", file);
         }

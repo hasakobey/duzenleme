@@ -46,16 +46,17 @@ public class BoxBatchTests
         Assert.Equal([$@"{Box}\x (1).lnk", $@"{Box}\x (2).lnk"], steps.Select(s => s.Target));
     }
 
+    /// <summary>2.2: klasör de taşınır (kutu klasörüne); korunan ve bulunamayan öğe bağlantı kalır.</summary>
     [Fact]
-    public void Folders_and_protected_items_are_links()
+    public void Folders_move_protected_and_missing_items_are_links()
     {
         var disk = new FakeBoxDisk().File($@"{Desktop}\desktop.ini");
         disk.Folders.Add($@"{Desktop}\Projeler");
 
         var steps = Plan(disk, Context, new ClaimInput("k", Box, [$@"{Desktop}\Projeler", $@"{Desktop}\desktop.ini", $@"{Desktop}\yok.pdf"]));
 
-        Assert.Equal([BoxLinkReason.Folder, BoxLinkReason.Protected, BoxLinkReason.Missing], steps.Select(s => s.Reason));
-        Assert.All(steps, s => Assert.Null(s.Target));
+        Assert.Equal([BoxLinkReason.None, BoxLinkReason.Protected, BoxLinkReason.Missing], steps.Select(s => s.Reason));
+        Assert.Equal([$@"{Box}\Projeler", null, null], steps.Select(s => s.Target));
     }
 
     /// <summary>Store sürümü ve izin verilmemiş ortak masaüstü: öğe yalnızca bağlantı olur.</summary>

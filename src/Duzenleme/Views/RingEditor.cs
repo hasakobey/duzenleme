@@ -27,7 +27,7 @@ namespace Duzenleme.Views;
 /// ve alt halkada "Aç" (alt halkanın içini düzenler; "Ana halkaya dön" ya da ortaya tıklamak geri getirir). Ekleme çubuğu:
 /// Uygulama ("Uygulama seç") · Klasör · Web adresi · NestDesk eylemi · "Daha fazla ▾" (Komut…, Tuşlara bas…, Metin yapıştır…,
 /// kökteyken Alt halka…); yeni öğe seçilinin arkasına, yoksa sona girer. Altta "Tuşla imlecin yanında açılsın" (bkz.
-/// <see cref="RingShortcut"/>) ve uygulama geneli "Kutuya koyduğum simgeler masaüstünden kalksın" (<see cref="DesktopModes.SetBoxLeaves"/>).</para>
+/// <see cref="RingShortcut"/>) ve uygulama geneli "Widget'lara koyduğum öğeler masaüstünden kalksın" (<see cref="DesktopModes.SetBoxLeaves"/>).</para>
 /// <para>Bütün değişiklikler kutuyla aynı yoldan (<see cref="LauncherEdits"/>, sıra <see cref="LauncherEntries"/>): kaydedilir,
 /// kutudaki masaüstü dosyaları kurallardan korunur. Alt halkalar ve <see cref="AppSettings.RingWidgetId"/> korunur;
 /// <c>Tabs[0]</c> hep kök halkadır. Fareyle hiçbir şey belirmez ya da kaymaz; hareket yok.</para>
@@ -198,7 +198,7 @@ internal sealed class RingEditor : UserControl
         _shortcutText = EditorRows.Muted("");
         _shortcutText.Margin = new Thickness(0, -2, 0, 4);
         root.Children.Add(_shortcutText);
-        root.Children.Add(EditorRows.Switch(() => L.T("Kutuya koyduğum simgeler masaüstünden kalksın"), "RingEditor.BoxLeaves", () => BoxMover.On, on =>
+        root.Children.Add(EditorRows.Switch(() => L.T("Widget'lara koyduğum öğeler masaüstünden kalksın"), "RingEditor.BoxLeaves", () => BoxMover.On, on =>
         {
             if (_refreshing || on == BoxMover.On) return;
             DesktopModes.SetBoxLeaves(on, _near(), Window.GetWindow(this));

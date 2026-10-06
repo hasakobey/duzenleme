@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Duzenleme.Core;
 
 /// <summary>
-/// Masaüstünden bir kısayol kutusuna (halkaya) taşınan öğe ("Kutuya koyduğum simgeler masaüstünden kalksın"). Öğe görünür, sıradan
+/// Masaüstünden bir kısayol kutusuna (halkaya) taşınan öğe ("Widget'lara koyduğum öğeler masaüstünden kalksın"). Öğe görünür, sıradan
 /// bir klasöre (<see cref="BoxPlan.RootFor"/>) taşınır; kutu yeni yolu gösterir. Kayıt masaüstüne geri koymak için tutulur.
 /// </summary>
 public sealed class BoxMove
@@ -344,10 +344,13 @@ public enum BoxLinkReason
     /// <summary>desktop.ini, gizli ya da sistem öğesi, Office kilit dosyası: dokunulmaz.</summary>
     Protected,
 
-    /// <summary>2.1: bir kuralın ya da klasör bölmesinin kullandığı masaüstü klasörü. 2.2'de klasör hiç taşınmaz (<see cref="Folder"/>).</summary>
+    /// <summary>
+    /// Bir otomatik taşıma kuralının hedef klasörü ya da bir halka komutunun kullandığı yol (<see cref="BoxContext.Kept"/>):
+    /// taşınmaz, masaüstünde kalır (kural ya da komut bozulurdu).
+    /// </summary>
     UsedFolder,
 
-    /// <summary>Klasör: taşınmaz, kutuda bağlantı olarak durur (içindeki yolları gösteren her şey bozulurdu).</summary>
+    /// <summary>2.2'nin ilk hâli: klasör hiç taşınmazdı. Artık üretilmez (klasör de taşınır, bkz. <see cref="BoxPlan.Decide"/>).</summary>
     Folder,
 }
 
@@ -363,8 +366,12 @@ public sealed record ClaimInput(string BoxId, string Folder, IReadOnlyList<strin
 /// </summary>
 public sealed record ClaimStep(string BoxId, string Original, string? Target, BoxLinkReason Reason, bool OnPublic, string? ForItem = null);
 
-/// <summary>Taşıma kararının ortamı: kullanıcının masaüstü, ortak masaüstleri ve ortak masaüstündekiler de taşınsın mı.</summary>
-public sealed record BoxContext(string UserDesktop, IReadOnlyList<string> PublicDesktops, bool IncludePublic);
+/// <summary>
+/// Taşıma kararının ortamı: kullanıcının masaüstü, ortak masaüstleri ve ortak masaüstündekiler de taşınsın mı. <see cref="Kept"/>:
+/// masaüstünde kalması gereken yollar (otomatik taşıma kuralının klasörü, halka komutunun kullandığı yol; bkz.
+/// <see cref="BoxPlan.KeptBy"/>); yoksa hiçbiri.
+/// </summary>
+public sealed record BoxContext(string UserDesktop, IReadOnlyList<string> PublicDesktops, bool IncludePublic, Func<string, bool>? Kept = null);
 
 /// <summary>Uzlaştırmada kapatılan kayıt neden kapandı (yalnızca çalışma zamanı).</summary>
 public enum BoxCloseReason
@@ -456,10 +463,14 @@ public static class BoxPlan
         return ReservedNames.Contains(stem) ? L.F("{0} kutusu", name) : name;
     }
 
-    /// <summary>Başlığı boş kutunun (halkanın) klasör adının kaynağı: başlığı, yoksa türünün adı.</summary>
+    /// <summary>
+    /// Kutunun (halkanın, klasör bölmesinin) klasör adının kaynağı: başlığı, yoksa halkada türünün adı, klasör bölmesinde
+    /// gösterdiği klasörün adı.
+    /// </summary>
     public static string? FolderTitleOf(WidgetConfig box) =>
         !string.IsNullOrWhiteSpace(box.Title) ? box.Title
         : WidgetVariants.Is(box, WidgetVariants.Ring) ? L.T("Halka menü")
+        : Launchers.IsFolderPanel(box) ? NameOf(box.FolderName!)
         : null;
 
     /// <summary>
@@ -496,15 +507,17 @@ public static class BoxPlan
         ParentOf(path) is { } parent && directories.Any(d => SameDir(parent, d));
 
     /// <summary>
-    /// Kutuya eklenen öğe NestDesk klasörüne taşınır mı? Yalnızca kullanıcının masaüstündeki (ve izin verildiyse ortak
-    /// masaüstündeki) dosyalar taşınır; masaüstünde olmayan hiçbir şeye dokunulmaz. Klasörler hiç taşınmaz (içindeki yolları
-    /// gösteren kutu öğeleri, portallar, kurallar ve başka programlar bozulurdu): kutuda bağlantı olarak durur.
+    /// Widget'a (kutu, halka, klasör bölmesi) konan öğe NestDesk klasörüne taşınır mı? Yalnızca kullanıcının masaüstündeki (ve
+    /// izin verildiyse ortak masaüstündeki) öğeler taşınır; masaüstünde olmayan hiçbir şeye dokunulmaz. 2.2: klasörler de taşınır
+    /// (widget'larda içindeki yolları gösteren her şey yeni yolu izler: <see cref="Launchers.ReplaceHeld"/>); otomatik taşıma
+    /// kuralının klasörü ve halka komutunun kullandığı yol (<paramref name="kept"/>) masaüstünde kalır.
     /// </summary>
     /// <param name="attributes">Öğenin öznitelikleri; yoksa null.</param>
     /// <param name="userDesktop">İzlenen masaüstü (test örneğinde --desktop klasörü).</param>
     /// <param name="publicDesktops">Ortak masaüstü (test örneğinde boş).</param>
+    /// <param name="kept">Masaüstünde kalması gereken yollar (bkz. <see cref="KeptBy"/>); yoksa hiçbiri.</param>
     public static BoxLinkReason Decide(string path, FileAttributes? attributes, string userDesktop, IEnumerable<string> publicDesktops,
-        bool includePublic)
+        bool includePublic, Func<string, bool>? kept = null)
     {
         if (TileItemPath.IsShellObject(path)) return BoxLinkReason.NotOnDesktop;
         var parent = ParentOf(path);
@@ -518,8 +531,30 @@ public static class BoxPlan
         if ((attrs & (FileAttributes.Hidden | FileAttributes.System)) != 0 ||
             name.Equals("desktop.ini", StringComparison.OrdinalIgnoreCase) || name.StartsWith("~$", StringComparison.Ordinal))
             return BoxLinkReason.Protected;
-        if ((attrs & FileAttributes.Directory) != 0) return BoxLinkReason.Folder;
+        if (kept?.Invoke(path) == true) return BoxLinkReason.UsedFolder;
         return BoxLinkReason.None;
+    }
+
+    /// <summary>
+    /// Masaüstünde kalması gereken yollar (saf): kullanıcının masaüstünde, adı bir otomatik taşıma kuralının hedef klasörüne
+    /// (yolun ilk parçası; açık ya da kapalı kural) uyan klasör (kural klasörü masaüstünde arar: taşınsa kural bozulurdu) ve bir
+    /// halka komutunun programında, bağımsız değişkenlerinde ya da çalışma klasöründe geçen yol.
+    /// </summary>
+    /// <param name="ruleFolders">Kuralların hedef klasörleri (<see cref="Rule.TargetFolder"/>).</param>
+    /// <param name="commandTexts">Halka komutlarının metinleri (program, bağımsız değişkenler, çalışma klasörü).</param>
+    public static Func<string, bool> KeptBy(IEnumerable<string?> ruleFolders, IEnumerable<string?> commandTexts, string userDesktop)
+    {
+        var names = ruleFolders.OfType<string>()
+            .Select(n => n.Trim().Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault())
+            .OfType<string>().ToList();
+        var texts = commandTexts.OfType<string>().Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+        return path =>
+        {
+            if (string.IsNullOrWhiteSpace(path) || TileItemPath.IsShellObject(path)) return false;
+            var trimmed = Path.TrimEndingDirectorySeparator(path);
+            if (IsDirectlyIn(trimmed, [userDesktop]) && names.Any(n => FolderName.Equal(n, NameOf(trimmed)))) return true;
+            return texts.Any(t => t.Contains(trimmed, StringComparison.OrdinalIgnoreCase));
+        };
     }
 
     /// <summary>
@@ -544,7 +579,9 @@ public static class BoxPlan
                 if (string.IsNullOrWhiteSpace(path) || !seen.Add(path)) continue;
                 var onDesktop = !TileItemPath.IsShellObject(path) && IsDirectlyIn(path, desktops);
                 var reason = Decide(path, onDesktop ? attributes(path) : null, context.UserDesktop, context.PublicDesktops,
-                    context.IncludePublic);
+                    context.IncludePublic, context.Kept);
+                // Klasör kendi içine taşınamaz (masaüstü bir sürücünün köküyse NestDesk klasörü onun içinde olabilirdi).
+                if (reason == BoxLinkReason.None && IsUnderOrSame(input.Folder, path)) reason = BoxLinkReason.Protected;
                 var onPublic = onDesktop && !IsDirectlyIn(path, [context.UserDesktop]);
                 if (reason != BoxLinkReason.None)
                 {
@@ -556,6 +593,14 @@ public static class BoxPlan
                 steps.Add(new ClaimStep(input.BoxId, path, target, BoxLinkReason.None, onPublic, input.ForItem));
             }
         return steps;
+    }
+
+    private static bool IsUnderOrSame(string candidate, string folder)
+    {
+        var a = Path.TrimEndingDirectorySeparator(candidate);
+        var b = Path.TrimEndingDirectorySeparator(folder);
+        return string.Equals(a, b, StringComparison.OrdinalIgnoreCase) ||
+               a.StartsWith(b + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -768,10 +813,10 @@ public static class BoxPlan
         {
             if (TileItemPath.IsShellObject(path) || !IsDirectlyIn(path, desktops)) continue;
             var attrs = attributes(path);
-            var reason = Decide(path, attrs, context.UserDesktop, context.PublicDesktops, context.IncludePublic);
+            var reason = Decide(path, attrs, context.UserDesktop, context.PublicDesktops, context.IncludePublic, context.Kept);
             if (reason == BoxLinkReason.None) movable.Add(path);
             else if (reason == BoxLinkReason.PublicDesktop &&
-                     Decide(path, attrs, context.UserDesktop, context.PublicDesktops, includePublic: true) == BoxLinkReason.None)
+                     Decide(path, attrs, context.UserDesktop, context.PublicDesktops, includePublic: true, context.Kept) == BoxLinkReason.None)
                 publicOnly.Add(path);
         }
         return new ClaimCount(movable, publicOnly);
@@ -812,7 +857,7 @@ public static class BoxPlan
     }
 
     /// <summary>
-    /// Bölmeler masaüstünü yönetirken (ve "Kutuya koyduğum simgeler masaüstünden kalksın" açıkken) masaüstü bölmelerinin
+    /// Bölmeler masaüstünü yönetirken (ve "Widget'lara koyduğum öğeler masaüstünden kalksın" açıkken) masaüstü bölmelerinin
     /// göstermediği yollar: kutularda ve halkalarda duran masaüstü öğeleri (ortak masaüstündekiler ve klasörler de) ve
     /// kutudaki bir uygulama yüzünden kalkan kısayollar (<paramref name="appShortcuts"/>: kısayol → uygulamanın kutu yolu;
     /// uygulama hâlâ bir kutudaysa). Dosyaya dokunulmaz; klasör bölmeleri ve portallar süzülmez.
@@ -913,7 +958,7 @@ public static class BoxPlan
             .Select(x => x.Item + "  ←  " + x.From)
             .ToList();
         if (lines.Count == 0) return null;
-        var header = L.F("Bu klasördeki dosyalar, {0}'te kutulara ve halkalara koyduğun masaüstü simgeleridir. {0} açıkken bir simgeyi kutudan çıkarınca ya da Ayarlar → Masaüstü → \"Hepsini masaüstüne geri koy\" ile masaüstüne geri döner. {0}'i kaldırdıysan dosyaları aşağıdaki eski klasörlerine kendin taşıyabilirsin; {0} onları silmez.",
+        var header = L.F("Bu klasördeki dosyalar ve klasörler, {0}'te widget'lara (kutu, halka, klasör bölmesi) koyduğun masaüstü öğeleridir. {0} açıkken bir öğeyi widget'tan çıkarınca, \"Masaüstüne geri koy\" deyince ya da Ayarlar'daki \"Widget'lara koyduğum öğeler masaüstünden kalksın\" anahtarını kapatınca masaüstüne geri döner. {0}'i kaldırdıysan onları aşağıdaki eski klasörlerine kendin taşıyabilirsin; {0} onları silmez.",
             AppInfo.Name);
         return header + Environment.NewLine + Environment.NewLine + L.T("Simge ← eski klasörü:") + Environment.NewLine +
                string.Join(Environment.NewLine, lines) + Environment.NewLine;
@@ -933,14 +978,16 @@ public static class BoxPlan
     /// <see cref="BoxMove.ForItem"/>'lı ve bu yola dönmüş) uygulamayı gösteren ilk kutuya, uygulamasıyla birlikte (uygulama
     /// artık hiçbir kutuda değilse dönmez).
     /// </summary>
+    /// <param name="heldBy">Widget'ın gösterdiği yollar (klasör bölmesinin klasörü de: <see cref="Launchers.HeldBy"/>); verilmezse
+    /// yalnızca kutu ve halka öğeleri.</param>
     public static List<(string BoxId, List<string> Paths, string? ForItem)> ReclaimBatches(IReadOnlyCollection<string> paths,
-        IReadOnlyList<WidgetConfig> boxes, IReadOnlyList<BoxMove> records)
+        IReadOnlyList<WidgetConfig> boxes, IReadOnlyList<BoxMove> records, Func<WidgetConfig, IEnumerable<string>>? heldBy = null)
     {
         var set = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
         var result = new List<(string BoxId, List<string> Paths, string? ForItem)>();
         foreach (var box in boxes)
         {
-            var held = Referenced([box]).Where(set.Contains).ToList();
+            var held = (heldBy?.Invoke(box) ?? Referenced([box])).Where(set.Contains).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (held.Count > 0) result.Add((box.Id, held, null));
         }
         var everywhere = Referenced(boxes);

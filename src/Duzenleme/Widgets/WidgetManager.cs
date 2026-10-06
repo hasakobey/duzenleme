@@ -269,7 +269,8 @@ public sealed class WidgetManager
         AppHost.SaveSettings();
         // Masaüstü gizliyse ya da göz atılıyorsa widget'lar geri gelir (durumu AppHost değiştirir; tepsi ve Ayarlar da güncellenir).
         AppHost.EnsureWidgetsShown();
-        if (TryOpen(config, place, fadeIn: true) is { } window)
+        var opened = TryOpen(config, place, fadeIn: true);
+        if (opened is { } window)
         {
             // Yeni widget pencerelerin arkasında kalıp "eklenmedi" sanılmasın: birkaç saniye vurgulu olarak öne gelsin.
             // (Loaded, Show() sırasında tetiklenebildiği için ona bağlanılmaz; yerleşim bitince çalıştırılır.)
@@ -284,6 +285,9 @@ public sealed class WidgetManager
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         Changed?.Invoke();
+        // Masaüstündeki bir klasörü gösteren yeni bölme: "Widget'lara koyduğum öğeler masaüstünden kalksın" açıksa klasör
+        // masaüstünden kalkar (kapalıyken ve sorulmadıysa bir kez sorulur). Bölmeyi ekleyen her yol buradan geçer.
+        if (opened is not null && Launchers.IsFolderPanel(config)) BoxMover.PanelShows(config, opened.CenterPoint);
         return config;
     }
 

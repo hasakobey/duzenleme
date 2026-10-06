@@ -54,7 +54,7 @@ NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen do
 
 ### Ana pencere
 
-Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Halkayı düzenle, ilk ziyarette "Nasıl kullanılır" kartları, tek satırlık otomatik taşıma: Geri al, Dosyaları şimdi taşı ve aç/kapat, son taşınanlar), **Widget'lar** (Widget ekle, "Tüm widget'lar": bir görünümü ya da rengi hepsine uygula, "Masaüstündekiler" listesi ve seçilenin yanında Düzenle paneli; "Daha fazla"da hizala, öne getir ve kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Dil, Windows ile başlat, Simgeleri bölmelerde topla, Halka menü, Yardım, Hakkında ve **Gelişmiş ayarlar**: Masaüstü, Widget yerleşimi, Görünüm, Klavye kısayolları, Klasör simgeleri, Kutular, Sorun giderme). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
+Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Halkayı düzenle, ilk ziyarette "Nasıl kullanılır" kartları, tek satırlık otomatik taşıma: Geri al, Dosyaları şimdi taşı ve aç/kapat, son taşınanlar), **Widget'lar** (Widget ekle, "Tüm widget'lar": bir görünümü ya da rengi hepsine uygula, "Masaüstündekiler" listesi ve seçilenin yanında Düzenle paneli; "Daha fazla"da hizala, öne getir ve kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Dil, Windows ile başlat, Simgeleri bölmelerde topla ve Widget'lara koyduğum öğeler masaüstünden kalksın, Halka menü, Yardım, Hakkında ve **Gelişmiş ayarlar**: Masaüstü, Widget yerleşimi, Görünüm, Klavye kısayolları, Klasör simgeleri, Masaüstünden kalkanlar, Sorun giderme). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
 
 ### Özellikler
 
@@ -73,15 +73,16 @@ Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ek
 1. **Kapalı:** Windows simgeleri her zamanki gibi; bölmeler dosyalara dokunmadan kısayol gösterir.
 2. **Açık:** Windows'un kendi simgeleri gizlenir, her şey bölmelerde görünür. Dosyalara dokunulmaz; anahtarı kapatınca ya da uygulamadan çıkınca simgeler geri gelir. **"Masaüstümü bölmelere ayır"** ("Widget ekle" penceresi) gereken bölmeleri kurup bunu açar; bildirimdeki **Geri al** hepsini geri alır.
 
-#### Kutuya koyduğum simgeler masaüstünden kalksın
+#### Widget'lara koyduğum öğeler masaüstünden kalksın
 
-"Kutuya ya da halkaya koyduğun masaüstü simgesi masaüstünden kalkar; çıkarınca geri gelir." Kapalıyken kutu ve halka yalnızca bağlantı tutar. İlk masaüstü simgesini kutuya koyduğunda kutunun yanında bir kez sorulur (**Evet, kalksın** / **Hayır, kalsın**); sonra **Ayarlar → Gelişmiş ayarlar → Kutular**'dan açılıp kapanır.
+Widget'ta olan masaüstünden kalkar, olmayan masaüstünde durur: kutuya, halkaya ya da klasör bölmesine koyduğun masaüstü öğesi (dosya ya da klasör; klasör bölmesinde gösterdiği klasör, içindekilerle) masaüstünden kalkar; çıkarınca geri gelir. Masaüstü bölmeleri (Klasörler, Kısayollar, Dosyalar, Tümü) masaüstünün kendisidir: sayılmaz. İlk masaüstü öğesini bir widget'a koyduğunda widget'ın yanında bir kez sorulur (**Evet, kalksın** / **Hayır, kalsın**); sonra **Ayarlar**'ın ilk sayfasında, "Simgeleri bölmelerde topla"nın altında açılıp kapanır (kutu ve halkanın Düzenle panelinde de).
+
+- **Tek tek (anahtar kapalıyken de):** kutu ve halka öğesinde sağ tık → **Masaüstünden kaldır** / **Masaüstüne geri koy**; klasör bölmesinde Düzenle panelinde aynı düğmeler. Bildirimdeki **Geri al** geri alır. **Anahtarı kapatmak tek tek kaldırdıkların dahil hepsini masaüstüne geri koyar.**
 
 - **Windows simgeleri görünürken** dosya masaüstü klasörünün yanındaki görünür `NestDesk\<kutunun adı>` klasörüne taşınır ("Oyunlar" adlı bir kutu için ör. `C:\Users\<ad>\NestDesk\Oyunlar`; masaüstün OneDrive'daysa OneDrive'ın içinde) ve kutuda durur. Dosyaların gizlenmez, öznitelikleri değişmez; kökteki `Bu klasör nedir.txt` her dosyanın eski yerini yazar.
 - **"Simgeleri bölmelerde topla" açıkken** hiçbir dosya taşınmaz: kutudaki simgeler masaüstü bölmelerinde görünmez.
 - **Çıkarınca geri gelir:** **Kutudan kaldır** / **Halkadan kaldır** (`Delete`), masaüstüne ya da bir bölmeye sürüklemek, sekmeyi, alt halkayı ya da kutunun kendisini kaldırmak; bildirimdeki **Geri al** yeniden kutuya koyar. Başka bir kutuda da duruyorsa yalnızca oradan kalkar. Ayarlar'da **Klasörü aç** ve **Hepsini masaüstüne geri koy**; seçeneği kapatmak da hepsini geri koyar (**Geri al** ile).
-- Seçenek açıkken masaüstünde kalmış bir simgede (önceden eklenen, "Şimdi değil", açık dosya) öğe menüsü **Masaüstünden kaldır** sunar.
-- **Klasörler taşınmaz** (kutuda bağlantı olarak durur). **Herkesin masaüstündeki** simgeler (çoğu uygulamanın kısayolu) bir kez ayrıca sorulur ve Windows'un yönetici onayıyla taşınır; Store sürümü onları taşımaz.
+- **Masaüstünde kalanlar:** bir otomatik taşıma kuralının klasörü (ör. `PDF`) ve bir halka komutunun kullandığı yol taşınmaz (kural ya da komut bozulmasın); klasör bölmesinin Düzenle paneli nedenini yazar. **Herkesin masaüstündeki** simgeler (çoğu uygulamanın kısayolu) bir kez ayrıca sorulur ve Windows'un yönetici onayıyla taşınır; Store sürümü onları taşımaz.
 - **Uygulama eklenince masaüstündeki kısayolu da kalksın:** Başlat menüsünden eklediğin uygulamanın masaüstünde birebir aynı uygulamayı gösteren kısayolu varsa ilk seferde sorulur (**Evet, hep böyle yap** / **Hayır**).
 
 #### Windows masaüstüne göz at
@@ -181,7 +182,7 @@ Hesap, reklam ve telemetri yok; her şey bilgisayarında kalır. Dosyalar yalnı
 ### Kaldırma
 
 - **Store:** Windows uygulamayla birlikte ayarlarını, halka menülerini, ayar yedeklerini ve hata günlüklerini de siler. **Kurulum sürümü:** kaldırma programı gizli kalmış masaüstü simgelerini geri açar, kutulara taşınan simgeleri masaüstüne geri koyar ve ayarların (halka menüler, temalar, bırakılan bağlantılar, yedekler ve hata günlükleri dahil) silinip silinmeyeceğini sorar. **Taşınabilir:** klasörü sil.
-- Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (Store ve taşınabilir sürümde önce **Ayarlar → Gelişmiş ayarlar → Kutular → Hepsini masaüstüne geri koy**; kaldırdıktan sonra `Bu klasör nedir.txt` eski yerleri yazar), klasör simgeleri (önce **Ayarlar → Gelişmiş ayarlar → Klasör simgeleri → Klasör simgelerinin hepsini kaldır**), otomatik taşınan dosyalar (taşındıkları klasörde) ve kaydettiğin tanılama paketleri.
+- Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (Store ve taşınabilir sürümde önce **Ayarlar → Gelişmiş ayarlar → Masaüstünden kalkanlar → Hepsini masaüstüne geri koy**; kaldırdıktan sonra `Bu klasör nedir.txt` eski yerleri yazar), klasör simgeleri (önce **Ayarlar → Gelişmiş ayarlar → Klasör simgeleri → Klasör simgelerinin hepsini kaldır**), otomatik taşınan dosyalar (taşındıkları klasörde) ve kaydettiğin tanılama paketleri.
 
 ### Derleme
 
