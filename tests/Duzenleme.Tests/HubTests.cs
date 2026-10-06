@@ -69,9 +69,10 @@ public class HubTests
         Assert.Empty(settings.Widgets);
         using (L.Use(Lang.En))
             Assert.Equal("NestDesk ring", RingTargets.EnsureHub(new AppSettings()).Title);
-        // Halka olmayan bir şey yazılmışsa yeniden kurulur.
+        // Halka olmayan bir şey yazılmışsa (daha yeni sürüm) ezilmez: bu oturumda yerine ayara yazılmayan bir halka kullanılır.
         var broken = new AppSettings { Hub = new WidgetConfig { Kind = WidgetKind.Note } };
         Assert.True(WidgetVariants.Is(RingTargets.EnsureHub(broken), WidgetVariants.Ring));
+        Assert.Equal(WidgetKind.Note, broken.Hub!.Kind);
     }
 
     [Fact]

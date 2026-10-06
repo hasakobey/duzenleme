@@ -84,6 +84,8 @@ internal sealed class WidgetEditor : UserControl
     private readonly Button _undo;
     private readonly Button _done;
     private readonly List<Action> _refreshers = [];
+    /// <summary>Görünümün kendi denetimlerinin bırakma işleri (<see cref="EditorContent.Custom"/>): kurulan içerik atılmadan önce.</summary>
+    private readonly List<Action> _releasers = [];
 
     private IEditorTarget? _target;
     private IWidgetView? _builtView;
@@ -221,9 +223,18 @@ internal sealed class WidgetEditor : UserControl
         _snapshot = null;
         _rebuildAfterRelease = false;
         _refreshers.Clear();
+        ReleaseContent();
         _body.Children.Clear();
         _name = null;
         _icon = null;
+    }
+
+    /// <summary>Kurulan içeriğin bırakma işleri bir kez çalışır (ör. halka düzenleyicisinin önizlemesi kutucuk olaylarından çıkar).</summary>
+    private void ReleaseContent()
+    {
+        var releasers = _releasers.ToList();
+        _releasers.Clear();
+        foreach (var release in releasers) release();
     }
 
     /// <summary>Yazılmakta olan adı kaydeder (panel kapanırken, Bitti'de).</summary>
@@ -327,6 +338,7 @@ internal sealed class WidgetEditor : UserControl
         _name = null;
         _icon = null;
         _refreshers.Clear();
+        ReleaseContent();
         _body.Children.Clear();
         if (_target is not { } target) return;
 
@@ -339,7 +351,7 @@ internal sealed class WidgetEditor : UserControl
         // Widget'ın kendi ayarları: görünümün kendi denetimleri (bölme, kutu, not, zamanlayıcı, geri sayım) ya da menü öğeleri
         // (menünün üst bölümündeki seçenekler; işleri menüde kalır) ve Settings'teki öbür öğeler.
         var content = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
-        if (!target.View.AddEditorContent(new EditorContent(content, _refreshers, Changed, ShowNotice)))
+        if (!target.View.AddEditorContent(new EditorContent(content, _refreshers, Changed, ShowNotice, _releasers)))
         {
             MenuRows.Add(content, menu.Primary, optionsOnly: true, "Editor.Option.P", _refreshers, Changed);
             MenuRows.Add(content, menu.Settings, optionsOnly: false, "Editor.Option.S", _refreshers, Changed);

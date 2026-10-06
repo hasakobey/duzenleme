@@ -852,10 +852,16 @@ public partial class SettingsPage : Page
         RingHoldToggle.IsChecked = !AppHost.Settings.RingHoldSelectOff;
 
         var rings = Launchers.Rings(AppHost.Settings);
-        var choices = rings.Select(r => new RingChoice(r.Id, WidgetText.DisplayName(r))).ToList();
-        RingTargetBox.ItemsSource = choices;
-        var target = RingTargets.Pick(rings, AppHost.Settings.RingWidgetId);
-        RingTargetBox.SelectedItem = choices.FirstOrDefault(c => c.Id == target?.Id);
+        // Liste yalnızca halkalar ya da adları değişince yeniden bağlanır, açıkken hiç (açık liste kapanmasın, odak kaymasın).
+        if (!RingTargetBox.IsDropDownOpen)
+        {
+            var choices = rings.Select(r => new RingChoice(r.Id, WidgetText.DisplayName(r))).ToList();
+            if (RingTargetBox.ItemsSource is not IEnumerable<RingChoice> listed || !listed.SequenceEqual(choices)) RingTargetBox.ItemsSource = choices;
+            var shown = (IEnumerable<RingChoice>)RingTargetBox.ItemsSource;
+            var target = RingTargets.Pick(rings, AppHost.Settings.RingWidgetId);
+            var selected = shown.FirstOrDefault(c => c.Id == target?.Id);
+            if (!Equals(RingTargetBox.SelectedItem, selected)) RingTargetBox.SelectedItem = selected;
+        }
         RingTargetRow.Visibility = rings.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         // "Halkayı düzenle" her zaman (HomeRing.Edit NestDesk halkasını gerekirse kurar); masaüstünde halka widget'ı yoksa eklenebilir.
         RingAddRow.Visibility = RingTargets.All(AppHost.Settings.Widgets.Where(w => w is not null)).Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -866,20 +872,13 @@ public partial class SettingsPage : Page
     private static bool RingOpensOnDoubleClick =>
         DesktopState.DoubleClickChoice(AppHost.Settings.DoubleClickAction, AppHost.Settings.DoubleClickHidesDesktop) == DesktopState.DoubleClickRing;
 
-    /// <summary>Halka açılmadan önceki çift tıklama seçimi (bu oturumda): anahtar kapanınca ona dönülür, yoksa "otomatik".</summary>
-    private static string? _doubleClickBeforeRing;
-
     private void RingDoubleClick_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading) return;
         var on = RingDoubleClickToggle.IsChecked == true;
         if (on == RingOpensOnDoubleClick) return;
-        if (on)
-        {
-            _doubleClickBeforeRing = DesktopState.DoubleClickChoice(AppHost.Settings.DoubleClickAction, AppHost.Settings.DoubleClickHidesDesktop);
-            AppHost.SetDoubleClickAction(DesktopState.DoubleClickRing);
-        }
-        else AppHost.SetDoubleClickAction(_doubleClickBeforeRing is { } before && before != DesktopState.DoubleClickRing ? before : DesktopState.DoubleClickAuto);
+        // Halkadan önceki seçim ayarda tutulur (yeniden başlatmadan sonra da): kapanınca ona, yoksa "otomatik"e dönülür.
+        AppHost.SetDoubleClickAction(on ? DesktopState.RingDoubleClickOn(AppHost.Settings) : DesktopState.RingDoubleClickOff(AppHost.Settings));
         // Açılır halka çift tıklamayla da açılacaksa boşta önceden kurulur; artık açılmayacaksa kapanır.
         RingPopup.Sync();
         LoadDesktopChoices();

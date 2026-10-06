@@ -71,13 +71,14 @@ internal sealed class LookGalleryControl : UniformGrid
         label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         var content = new StackPanel { Children = { ring, label } };
 
-        // Düz şablon: WPF-UI'nin geçişli RadioButton şablonu yok (fareyle hiçbir şey değişmez); odak çerçevesi klavye için kalır.
+        // Düz şablon: WPF-UI'nin geçişli RadioButton şablonu yok (fareyle hiçbir şey değişmez); klavye odağı GalleryFocus çerçevesiyle.
         var button = new RadioButton
         {
             Content = content, GroupName = group, Margin = new Thickness(0, 0, 0, 8), Cursor = Cursors.Hand, MinWidth = 0, MinHeight = 0,
             HorizontalAlignment = HorizontalAlignment.Center,
             Template = new ControlTemplate(typeof(RadioButton)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
         };
+        button.FocusVisualStyle = GalleryFocus.Style;
         AutomationProperties.SetAutomationId(button, automationId);
         AutomationProperties.SetName(button, entry.Label);
         button.Checked += (_, _) => { if (!_syncing) _choose(entry.Id); };
@@ -111,5 +112,28 @@ internal sealed class LookGalleryControl : UniformGrid
             }
         }
         finally { _syncing = false; }
+    }
+}
+
+/// <summary>
+/// Galeri kartlarının klavye odağı çerçevesi (<see cref="LookGalleryControl"/>, <see cref="RingStyleGallery"/>): kartın çevresinde
+/// Windows'un odak renginde 2 DIP yuvarlak kenar. WPF yalnızca klavyeyle gelen odakta çizer; fareyle belirmez, hareket yok.
+/// </summary>
+internal static class GalleryFocus
+{
+    public static Style Style { get; } = Create();
+
+    private static Style Create()
+    {
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(11));
+        border.SetValue(Border.BorderThicknessProperty, new Thickness(2));
+        border.SetValue(FrameworkElement.MarginProperty, new Thickness(-3));
+        border.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
+        border.SetResourceReference(Border.BorderBrushProperty, "FocusStrokeColorOuterBrush");
+        var style = new Style(typeof(Control));
+        style.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(Control)) { VisualTree = border }));
+        style.Seal();
+        return style;
     }
 }

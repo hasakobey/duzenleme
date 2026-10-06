@@ -1516,6 +1516,7 @@ internal sealed class RingItemVisual : FrameworkElement
     public void Bind(RingSlot slot)
     {
         _slot = slot;
+        _label = null; // yeni öğe: etiketin yazısı yeniden kurulur (rozetin rakamı sırayla aynı kalır)
         // "+" yerinin kendi kimliği var (yer sırası değişse de bulunsun); öbürleri sırasıyla.
         AutomationProperties.SetAutomationId(this, slot.Kind == RingSlotKind.Add ? "Ring.AddApp"
             : _ring.ItemIdPrefix + (_index + 1).ToString(CultureInfo.InvariantCulture));
@@ -1602,14 +1603,26 @@ internal sealed class RingItemVisual : FrameworkElement
             var badge = RingView.At(c, radius * 0.95, _ring.ItemAngle(_index) + 180);
             var r = BadgeRadius(metrics);
             dc.DrawEllipse(hot ? colors.BadgeHot : colors.Badge, colors.BadgeBorder, badge, r, r);
-            var digit = new FormattedText((_index + 1).ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture,
-                FlowDirection.LeftToRight, RingCenterVisual.Bold, r * 1.2, hot ? colors.BadgeTextHot : colors.BadgeText, _ring.PixelsPerDipForText);
-            // Rakamın çizilen kutusu (satır yüksekliği değil) rozetin ortasında.
-            var ink = digit.BuildGeometry(new Point(0, 0)).Bounds;
-            var at = ink.IsEmpty ? new Point(badge.X - digit.Width / 2, badge.Y - digit.Height / 2)
-                : new Point(badge.X - ink.X - ink.Width / 2, badge.Y - ink.Y - ink.Height / 2);
-            dc.DrawText(digit, at);
+            var (digit, offset) = Digit(r * 1.2, hot ? colors.BadgeTextHot : colors.BadgeText, _ring.PixelsPerDipForText);
+            dc.DrawText(digit, new Point(badge.X + offset.X, badge.Y + offset.Y));
         }
+    }
+
+    // Rozetin rakamı ve etiketin yazısı her çizimde yeniden kurulmaz (vurgu her fare hareketinde yeniden çizdirir): yazı, boyut,
+    // fırça ve ölçekle anahtarlanır; biri değişince (yeniden kurma, palet, ekran ölçeği, vurgu) yenisi kurulur.
+    private (string Text, double Size, Brush Brush, double Dpi, FormattedText Digit, Vector Offset)? _digit;
+    private (string Text, bool Bold, Brush Brush, double Dpi, double Width, FormattedText Label)? _label;
+
+    /// <summary>Rozetin rakamı ve rakamın çizilen kutusunu (satır yüksekliği değil) rozetin ortasına getiren kayma.</summary>
+    private (FormattedText Digit, Vector Offset) Digit(double size, Brush brush, double dpi)
+    {
+        var text = (_index + 1).ToString(CultureInfo.InvariantCulture);
+        if (_digit is { } d && d.Text == text && d.Size == size && ReferenceEquals(d.Brush, brush) && d.Dpi == dpi) return (d.Digit, d.Offset);
+        var digit = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, RingCenterVisual.Bold, size, brush, dpi);
+        var ink = digit.BuildGeometry(new Point(0, 0)).Bounds;
+        var offset = ink.IsEmpty ? new Vector(-digit.Width / 2, -digit.Height / 2) : new Vector(-ink.X - ink.Width / 2, -ink.Y - ink.Height / 2);
+        _digit = (text, size, brush, dpi, digit, offset);
+        return (digit, offset);
     }
 
     /// <summary>Alt halka noktalarının daireden uzaklığı ve yarıçapı (DIP; öğe kutusunun payında kalır).</summary>
@@ -1627,12 +1640,21 @@ internal sealed class RingItemVisual : FrameworkElement
         var rect = LabelRect(c, metrics, _ring.ItemAngle(_index));
         var corner = rect.Height / 2;
         dc.DrawRoundedRectangle(hot ? colors.LabelHot : colors.Label, hot ? null : colors.LabelBorder, rect, corner, corner);
-        var text = new FormattedText(slot.Name, L.Culture, FlowDirection.LeftToRight, hot ? RingCenterVisual.Bold : RingCenterVisual.Regular,
-            11.5, hot ? colors.LabelTextHot : colors.LabelText, _ring.PixelsPerDipForText)
+        var brush = hot ? colors.LabelTextHot : colors.LabelText;
+        var dpi = _ring.PixelsPerDipForText;
+        var width = Math.Max(1, rect.Width - 14);
+        FormattedText text;
+        if (_label is { } l && l.Text == slot.Name && l.Bold == hot && ReferenceEquals(l.Brush, brush) && l.Dpi == dpi && l.Width == width)
+            text = l.Label;
+        else
         {
-            MaxTextWidth = Math.Max(1, rect.Width - 14), MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis,
-            TextAlignment = TextAlignment.Center,
-        };
+            text = new FormattedText(slot.Name, L.Culture, FlowDirection.LeftToRight, hot ? RingCenterVisual.Bold : RingCenterVisual.Regular,
+                11.5, brush, dpi)
+            {
+                MaxTextWidth = width, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center,
+            };
+            _label = (slot.Name, hot, brush, dpi, width, text);
+        }
         var dim = slot.Dimmed;
         if (dim) dc.PushOpacity(0.6);
         dc.DrawText(text, new Point(rect.X + 7, rect.Y + (rect.Height - text.Height) / 2));

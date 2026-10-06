@@ -163,7 +163,7 @@
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Boş masaüstüne çift tıklayınca açılsın'}" />
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
-                                           Text="{l:T 'Halka imlecin yanında açılır; kısayol gerekmez. Simgeye çift tıklamak yine dosyayı açar.'}" />
+                                           Text="{l:T 'Halka imlecin yanında açılır; kısayol gerekmez. Simgeye çift tıklamak yine dosyayı açar. Kapatınca çift tıklama önceki işine döner.'}" />
                             </StackPanel>
                             <ui:ToggleSwitch x:Name="RingDoubleClickToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                                              Checked="RingDoubleClick_Changed" Unchecked="RingDoubleClick_Changed"

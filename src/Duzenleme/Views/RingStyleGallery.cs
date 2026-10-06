@@ -34,7 +34,7 @@ internal sealed class RingStyleGallery : UniformGrid
     private bool _syncing;
 
     /// <param name="config">Halkanın ayarı (görünüşü okunur, yazılmaz).</param>
-    /// <param name="current">Seçili kartın kimliği.</param>
+    /// <param name="current">Seçili kartın kimliği; tanınmayan biçimde null (<see cref="RingStyles.SelectedId"/>).</param>
     /// <param name="choose">Kart seçildi.</param>
     public RingStyleGallery(WidgetConfig config, Func<string?> current, Action<string> choose)
     {
@@ -47,6 +47,15 @@ internal sealed class RingStyleGallery : UniformGrid
         AutomationProperties.SetName(this, L.T("Halka biçimi"));
         var group = "RingStyleGallery" + Guid.NewGuid().ToString("N");
         foreach (var style in RingStyles.All) Children.Add(Card(style, group));
+        Refresh();
+        // Kurulurken ekranın ölçeği bilinmez (görsel ağaçta değil: sistem ölçeği): yerine oturunca ve ekran değişince o
+        // ekranın ölçeğiyle yeniden çizilir (başka ölçekli monitörde bulanık kalmasın).
+        Loaded += (_, _) => Refresh();
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
         Refresh();
     }
 
@@ -72,6 +81,7 @@ internal sealed class RingStyleGallery : UniformGrid
             HorizontalAlignment = HorizontalAlignment.Center,
             Template = new ControlTemplate(typeof(RadioButton)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
         };
+        button.FocusVisualStyle = GalleryFocus.Style;
         AutomationProperties.SetAutomationId(button, "Editor.RingStyle." + id);
         AutomationProperties.SetName(button, style.Label);
         button.Checked += (_, _) => { if (!_syncing) _choose(id); };
@@ -90,8 +100,9 @@ internal sealed class RingStyleGallery : UniformGrid
         var current = _current();
         var selection = TryFindResource("TextFillColorPrimaryBrush") as Brush ?? SystemColors.WindowTextBrush;
         var palette = RingView.PaletteFor(_config);
+        var scale = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var look = string.Join("|", _config.Style, _config.Accent, _config.LookTheme, _config.LookAccentColor, WidgetPalette.SystemDark,
-            SystemParameters.HighContrast);
+            SystemParameters.HighContrast, scale.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var redraw = look != _drawnFor;
         _drawnFor = look;
         _syncing = true;
@@ -103,9 +114,10 @@ internal sealed class RingStyleGallery : UniformGrid
                 {
                     card.Background = palette.Background;
                     card.BorderBrush = palette.BorderBrush;
-                    sample.Source = Draw(id, palette);
+                    sample.Source = Draw(id, palette, scale);
                 }
-                var on = id == current;
+                // Tanınmayan (daha yeni sürümün) biçimde hiçbir kart işaretli değil: Klasik'e basmak onu sıfırlar; dokunulmazsa korunur.
+                var on = current is not null && id == current;
                 ring.BorderBrush = on ? selection : Brushes.Transparent;
                 button.IsChecked = on;
             }
@@ -114,7 +126,7 @@ internal sealed class RingStyleGallery : UniformGrid
     }
 
     /// <summary>Örnek halka: widget'ın görünüşüyle beş Fluent simgeli öğe, gerçek <see cref="RingView"/> ile; dondurulmuş resim.</summary>
-    private BitmapSource? Draw(string id, WidgetPalette palette)
+    private BitmapSource? Draw(string id, WidgetPalette palette, double scale)
     {
         var sample = new WidgetConfig
         {
@@ -127,7 +139,6 @@ internal sealed class RingStyleGallery : UniformGrid
         foreach (var symbol in SampleSymbols)
             tab.Actions.Add(new LauncherAction { Type = RingActionTypes.Url, Url = "https://example.com/", Name = "·", Icon = "sym:" + symbol }); // l10n: çevrilmez
         sample.Tabs.Add(tab);
-        var scale = VisualTreeHelper.GetDpi(this).PixelsPerDip;
         var view = new RingView { PixelsPerDipHint = scale, StableSize = false, CenterShowsIcon = true };
         try
         {

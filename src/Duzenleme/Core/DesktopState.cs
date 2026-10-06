@@ -46,6 +46,28 @@ public static class DesktopState
     }
 
     /// <summary>
+    /// "Çift tıklayınca halka açılsın" açılıyor: şimdiki seçim (halka değilse) <see cref="AppSettings.DoubleClickBeforeRing"/>'e
+    /// yazılır (anahtar kapanınca, yeniden başlatmadan sonra da, ona dönülür). Dönüş: yazılacak seçim ("ring").
+    /// </summary>
+    public static string RingDoubleClickOn(AppSettings settings)
+    {
+        var current = DoubleClickChoice(settings.DoubleClickAction, settings.DoubleClickHidesDesktop);
+        if (current != DoubleClickRing) settings.DoubleClickBeforeRing = current;
+        return DoubleClickRing;
+    }
+
+    /// <summary>
+    /// "Çift tıklayınca halka açılsın" kapanıyor: halkadan önceki seçim (tanınan ve halka olmayan), yoksa "otomatik". Kayıtlı
+    /// önceki seçim silinir. Dönüş: yazılacak seçim.
+    /// </summary>
+    public static string RingDoubleClickOff(AppSettings settings)
+    {
+        var before = settings.DoubleClickBeforeRing?.Trim().ToLowerInvariant();
+        settings.DoubleClickBeforeRing = null;
+        return before is not null && before != DoubleClickRing && DoubleClickChoices.Contains(before) ? before : DoubleClickAuto;
+    }
+
+    /// <summary>
     /// Çift tıklamanın şimdiki etkisi. "Otomatik": bölmeler masaüstünü yönetirken Windows masaüstüne göz atar (simgeler
     /// başka türlü görünmez), yönetmiyorsa masaüstünü gizler/gösterir (2.0'daki davranış).
     /// </summary>

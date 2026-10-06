@@ -51,6 +51,13 @@ public static class RingStyles
     /// <summary>Paneldeki seçili kart: tanınan kimlik, yoksa Klasik (tanınmayan kimlik ayarda kalır).</summary>
     public static string CurrentId(WidgetConfig c) => For(c.RingStyle).Id ?? ClassicId;
 
+    /// <summary>
+    /// Galeride işaretli kart: tanınan kimlik, alan boşsa Klasik; tanınmayan (daha yeni sürümün) biçimde null: hiçbir kart işaretli
+    /// değildir, Klasik'e basmak alanı siler (dokunulmazsa biçim ayarda kalır).
+    /// </summary>
+    public static string? SelectedId(WidgetConfig c) =>
+        string.IsNullOrEmpty(c.RingStyle) ? ClassicId : All.FirstOrDefault(s => s.Id == c.RingStyle)?.Id;
+
     /// <summary>Klasik kartın kimliği (AutomationId'de; ayara yazılmaz).</summary>
     public const string ClassicId = "classic";
 

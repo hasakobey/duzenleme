@@ -157,15 +157,23 @@ public static class Onboarding
     /// <summary>
     /// Karşılamanın halka seçimlerini ayara yazar (saf; "Bitti"de <c>WelcomeSetup.Apply</c> çağırır, kaydetmek ve çift tıklama
     /// algılayıcısını uygulamak çağıranın işi). Çift tıklama seçildiyse "ring" yazılır; seçilmediyse yalnızca şu an halkayı
-    /// açıyorsa "otomatik"e döner (başka bir seçime dokunulmaz). Eski anahtar da yazılır (2.0'a dönülürse çift tıklama açık
+    /// açıyorsa halkadan önceki seçime (yoksa "otomatik"e) döner (başka bir seçime dokunulmaz). Eski anahtar da yazılır (2.0'a dönülürse çift tıklama açık
     /// kalsın). Dönüş: kısayol için ne yapılmalı: true aç, false kapat, null dokunma (yalnızca seçim şimdiki durumdan farklıysa).
     /// </summary>
     public static bool? ApplyRingChoices(AppSettings settings, WelcomeChoices c)
     {
         var current = DesktopState.DoubleClickChoice(settings.DoubleClickAction, settings.DoubleClickHidesDesktop);
-        if (c.DoubleClickRing) settings.DoubleClickAction = DesktopState.DoubleClickRing;
-        else if (current == DesktopState.DoubleClickRing) settings.DoubleClickAction = DesktopState.DoubleClickAuto;
-        if (c.DoubleClickRing || current == DesktopState.DoubleClickRing) settings.DoubleClickHidesDesktop = true;
+        if (c.DoubleClickRing)
+        {
+            settings.DoubleClickAction = DesktopState.RingDoubleClickOn(settings);
+            settings.DoubleClickHidesDesktop = true;
+        }
+        else if (current == DesktopState.DoubleClickRing)
+        {
+            // Halkadan önceki seçime (kayıtlıysa; yoksa "otomatik") dönülür.
+            settings.DoubleClickAction = DesktopState.RingDoubleClickOff(settings);
+            settings.DoubleClickHidesDesktop = settings.DoubleClickAction != DesktopState.DoubleClickNone;
+        }
         var keyOn = !string.IsNullOrEmpty(settings.Hotkeys.Ring);
         return c.RingKey == keyOn ? null : c.RingKey;
     }
