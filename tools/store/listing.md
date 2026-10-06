@@ -6,7 +6,7 @@ Sınırlar Microsoft Learn'deki MSIX sayfalarından ("Add and edit Store listing
 
 | Alan (Partner Center) | Sınır | Bu dosyada (TR / EN) |
 |---|---|---|
-| Description | zorunlu, en fazla 10.000 karakter | ~7.400 / ~7.600 karakter |
+| Description | zorunlu, en fazla 10.000 karakter | ~7.600 / ~7.800 karakter |
 | Short description | en fazla 1.000; bazı görünümlerde yalnızca ilk 270 karakter görünür | < 270 |
 | Product features | en fazla 20 madde, her biri en fazla 200 karakter; madde işareti koyma | 20 madde, en uzunu < 125 karakter |
 | Keywords | en fazla 7 terim, tüm terimlerde toplam en fazla 21 kelime; terim başına en fazla 40 karakter (Partner Center daha kısa bir sınır gösterirse o geçerli) | 7 terim, 14 kelime, en uzunu 20 karakter |
