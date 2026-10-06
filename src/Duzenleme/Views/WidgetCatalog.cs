@@ -362,7 +362,7 @@ internal static class WidgetCatalog
     /// widget sıradan kaldırma gibi gider: ayarları ve içeriğiyle tutulur, yeni bildirimdeki "Geri al" (ya da tepsideki
     /// "Geri getir") onu geri getirir.
     /// </summary>
-    private static void UndoAdd(string id)
+    internal static void UndoAdd(string id)
     {
         if (AppHost.Settings.Widgets.FirstOrDefault(w => w.Id == id) is not { } config) return;
         var name = WidgetText.DisplayName(config); // kaldırmadan önce

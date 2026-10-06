@@ -1,12 +1,18 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
 using Duzenleme.Core;
 using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
 using Button = Wpf.Ui.Controls.Button;
+using Image = System.Windows.Controls.Image;
 using TextBlock = System.Windows.Controls.TextBlock;
+using TextBox = Wpf.Ui.Controls.TextBox;
 
 namespace Duzenleme.Views;
 
@@ -15,7 +21,10 @@ namespace Duzenleme.Views;
 /// menüsündeki "Widget ekle" kısayolu). İlk sayfa "Ne eklemek istersin?": 4 × 2 kutucuk (<see cref="WidgetCatalog.Featured"/>;
 /// adın altında kısa açıklama), altında "Masaüstümü bölmelere ayır" ve "Hepsini göster (6)" (<see cref="WidgetCatalog.More"/>
 /// aynı sayfada açılır). "Bölme ›" bölme sayfasını açar ("‹ Geri"): "Masaüstünden" türler, "Bir klasörü göster" klasörler,
-/// küçük "Yeni bölme…" bağlantısı. Kutucuğa basınca pencere kapanır, widget ayardaki yere ("Yeni widget'ların yeri") gelir.
+/// küçük "Yeni bölme…" bağlantısı. Kutucukların altında "Masaüstünden" satırı (<see cref="DesktopAdd"/>): masaüstündeki en çok
+/// altı öğe (kısayollar ve klasörler önce); klasöre basınca bölmesi, kısayol ya da dosyaya basınca kısayol kutusu eklenir.
+/// Daha çoksa "Tümü…" aynı pencerede aranabilir, çok seçimli listeyi açar ("Ekle"). Pencereye masaüstünden dosya bırakmak da
+/// aynısını yapar. Kutucuğa basınca pencere kapanır, widget ayardaki yere ("Yeni widget'ların yeri") gelir.
 /// </summary>
 internal sealed class QuickAddWindow : FluentWindow
 {
@@ -24,6 +33,12 @@ internal sealed class QuickAddWindow : FluentWindow
     private bool _closing;
 
     private const double BodyWidth = 560;
+
+    /// <summary>Kutucuk ızgarasının genişliği (dört 128 DIP kutucuk ve aralarındaki 8 DIP).</summary>
+    private const double TilesWidth = 4 * 128 + 3 * 8;
+
+    /// <summary>"Masaüstünden" satırındaki altı kutucuk ızgarayla aynı genişlikte biter.</summary>
+    private const double DesktopTileWidth = (TilesWidth - (DesktopPicks.RowCount - 1) * 8) / DesktopPicks.RowCount;
 
     private readonly ScrollViewer _scroller;
     private readonly TextBlock _title;
@@ -34,6 +49,11 @@ internal sealed class QuickAddWindow : FluentWindow
     private readonly WrapPanel _more;
     private readonly Button _showMore;
     private readonly Button _newFence;
+    private readonly Button _split;
+    private readonly Button _addPicked;
+    private readonly StackPanel _desktopSection;
+    private readonly WrapPanel _desktopRow = new();
+    private Action? _addSelected;
 
     /// <summary>İmlecin (ya da testte NESTDESK_QUICKADD_AT="x,y" noktasının; eski adı DUZENLEME_QUICKADD_AT) bulunduğu yerde açar.</summary>
     public static void ShowNearCursor()
@@ -102,6 +122,8 @@ internal sealed class QuickAddWindow : FluentWindow
         _home = new StackPanel { Margin = new Thickness(22, 0, 22, 0), Width = BodyWidth };
         _home.Children.Add(_featured);
         _home.Children.Add(_more);
+        _desktopSection = BuildDesktopSection();
+        _home.Children.Add(_desktopSection);
 
         _scroller = new ScrollViewer
         {
@@ -112,7 +134,7 @@ internal sealed class QuickAddWindow : FluentWindow
         // Alt satır: solda "Masaüstümü bölmelere ayır" (iki sayfada da), sağda ilk sayfada "Hepsini göster (6)", bölme
         // sayfasında "Yeni bölme…".
         var footer = new DockPanel { Margin = new Thickness(22, 10, 22, 20), Width = BodyWidth, LastChildFill = false };
-        var split = new Button
+        var split = _split = new Button
         {
             Content = L.T("Masaüstümü bölmelere ayır"), Appearance = ControlAppearance.Primary,
             Icon = new SymbolIcon { Symbol = SymbolRegular.Sparkle24 },
@@ -129,11 +151,20 @@ internal sealed class QuickAddWindow : FluentWindow
         System.Windows.Automation.AutomationProperties.SetAutomationId(_newFence, "Add." + newFence.Key);
         System.Windows.Automation.AutomationProperties.SetHelpText(_newFence, newFence.Tip);
         _newFence.Click += (_, _) => Run(newFence);
+        // "Tümü…" sayfasının birincil düğmesi: seçilenleri ekler (seçim yokken soluk).
+        _addPicked = new Button
+        {
+            Content = L.T("Ekle"), Appearance = ControlAppearance.Primary, MinWidth = 100, IsEnabled = false, Visibility = Visibility.Collapsed,
+        };
+        AutomationProperties.SetAutomationId(_addPicked, "Add.FromDesktop.Add");
+        _addPicked.Click += (_, _) => _addSelected?.Invoke();
         DockPanel.SetDock(_showMore, Dock.Right);
         DockPanel.SetDock(_newFence, Dock.Right);
+        DockPanel.SetDock(_addPicked, Dock.Right);
         footer.Children.Add(split);
         footer.Children.Add(_showMore);
         footer.Children.Add(_newFence);
+        footer.Children.Add(_addPicked);
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -156,7 +187,7 @@ internal sealed class QuickAddWindow : FluentWindow
             PlaceNearAnchor();
             // Kutucuklar kısa bir kademeyle hafifçe büyüyerek gelir (Views.Motion: bütünü en çok 300 ms, Sakin'de birlikte
             // solar, Kapalı'da hemen yerinde). Girdi beklemez: kutucuğa hemen basılabilir.
-            Cascade(_featured);
+            Cascade(_featured, _desktopRow);
         };
         // Yine de ölçeği farklı bir monitöre geçerse (WPF boyutu değiştirir) yer yeni boyuta göre bir kez daha hesaplanır.
         DpiChanged += (_, _) => { if (IsLoaded) Dispatcher.BeginInvoke(PlaceNearAnchor); };
@@ -164,8 +195,85 @@ internal sealed class QuickAddWindow : FluentWindow
         SizeChanged += (_, _) => { if (IsLoaded) Dispatcher.BeginInvoke(KeepOnScreen); };
         PreviewKeyDown += OnKey;
         // Açılır menü gibi: başka yere tıklanınca kapanır.
-        Deactivated += (_, _) => { if (!_closing) Close(); };
+        // Masaüstündeki bir simgeye basılıp sürüklenmeye başlanmış olabilir: o zaman düğme bırakılınca kapanır (bu arada
+        // pencereye bırakılırsa ekler).
+        Deactivated += (_, _) => { if (!_closing) CloseWhenReleased(); };
         Closing += (_, _) => _closing = true;
+        // Masaüstünden (ya da Gezgin'den) bırakılanlar: klasör bölme, öbürleri kısayol kutusu olur.
+        AllowDrop = true;
+        DragEnter += OnDragOver;
+        DragOver += OnDragOver;
+        DragLeave += (_, _) => ShowDropHint(false);
+        Drop += OnDrop;
+    }
+
+    private string? _titleBeforeDrop;
+
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = DesktopDrop.EffectFor(e);
+        e.Handled = true;
+        ShowDropHint(e.Effects != DragDropEffects.None);
+    }
+
+    /// <summary>Bırakılabilir bir şey sürüklenirken başlık ne olacağını söyler; çıkınca eski başlık döner.</summary>
+    private void ShowDropHint(bool show)
+    {
+        if (show && _titleBeforeDrop is null)
+        {
+            _titleBeforeDrop = _title.Text;
+            _title.Text = L.T("Bırak: klasör bölme, öbürleri kısayol kutusu olur");
+        }
+        else if (!show && _titleBeforeDrop is not null)
+        {
+            _title.Text = _titleBeforeDrop;
+            _titleBeforeDrop = null;
+        }
+    }
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        ShowDropHint(false);
+        if (DesktopDrop.PathsOf(e) is not { } paths) return;
+        e.Effects = DesktopDrop.EffectFor(e);
+        e.Handled = true;
+        var near = Center();
+        _closing = true;
+        Close();
+        DesktopAdd.AddDropped(paths, near);
+    }
+
+    /// <summary>
+    /// Pencere etkinliğini kaybetti: birincil düğme basılı değilse hemen kapanır; basılıysa (masaüstünden sürükleme başlıyor
+    /// olabilir) bırakıldıktan kısa süre sonra (bırakma önce işlensin). Bu arada pencereye dönülürse açık kalır.
+    /// </summary>
+    private void CloseWhenReleased()
+    {
+        static bool Held() => NativeMethods.GetAsyncKeyState(PrimaryMouseButton.VirtualKey(NativeMethods.MouseButtonsSwapped)) < 0;
+        if (!Held())
+        {
+            Close();
+            return;
+        }
+        var started = Environment.TickCount64;
+        long released = 0;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        timer.Tick += (_, _) =>
+        {
+            if (_closing || IsActive)
+            {
+                timer.Stop();
+                return;
+            }
+            var now = Environment.TickCount64;
+            if (released == 0 && Held() && now - started < 60_000) return;
+            if (released == 0) released = now;
+            if (now - released < 400) return;
+            timer.Stop();
+            ShowDropHint(false);
+            Close();
+        };
+        timer.Start();
     }
 
     private void OnKey(object sender, KeyEventArgs e)
@@ -177,7 +285,7 @@ internal sealed class QuickAddWindow : FluentWindow
             Close();
         }
         // Bölme sayfasından geri: Alt+Sol ve Geri tuşu (tarayıcı ve Ayarlar gibi).
-        else if (_back.Visibility == Visibility.Visible &&
+        else if (_back.Visibility == Visibility.Visible && e.OriginalSource is not System.Windows.Controls.Primitives.TextBoxBase &&
                  ((key == Key.Left && Keyboard.Modifiers == ModifierKeys.Alt) || (key == Key.Back && Keyboard.Modifiers == ModifierKeys.None)))
         {
             e.Handled = true;
@@ -193,9 +301,12 @@ internal sealed class QuickAddWindow : FluentWindow
         _back.Visibility = Visibility.Collapsed;
         _showMore.Visibility = _more.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
         _newFence.Visibility = Visibility.Collapsed;
+        _split.Visibility = Visibility.Visible;
+        _addPicked.Visibility = Visibility.Collapsed;
+        _addSelected = null;
         _scroller.Content = _home;
         _scroller.ScrollToTop();
-        if (cascade) Cascade(_featured, _more);
+        if (cascade) Cascade(_featured, _more, _desktopRow);
         FocusFirst(_featured);
     }
 
@@ -231,10 +342,256 @@ internal sealed class QuickAddWindow : FluentWindow
         _back.Visibility = Visibility.Visible;
         _showMore.Visibility = Visibility.Collapsed;
         _newFence.Visibility = Visibility.Visible;
+        _split.Visibility = Visibility.Visible;
+        _addPicked.Visibility = Visibility.Collapsed;
+        _addSelected = null;
         _scroller.Content = page;
         _scroller.ScrollToTop();
         Cascade(desktop, folders);
         FocusFirst(desktop);
+    }
+
+    /// <summary>
+    /// "Masaüstünden": başlık (öğeler satıra sığmıyorsa sağında "Tümü…") ve masaüstündeki ilk <see cref="DesktopPicks.RowCount"/>
+    /// öğe. Önerilecek bir şey yoksa bölüm hiç görünmez. Bellekten kurulur (diske dokunmaz).
+    /// </summary>
+    private StackPanel BuildDesktopSection()
+    {
+        var section = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        AutomationProperties.SetAutomationId(section, "Add.FromDesktop");
+        AutomationProperties.SetName(section, L.T("Masaüstünden"));
+        var picks = DesktopAdd.Current();
+        if (picks.Count == 0)
+        {
+            section.Visibility = Visibility.Collapsed;
+            return section;
+        }
+        var head = new DockPanel { Margin = new Thickness(0, 0, BodyWidth - TilesWidth, 6) };
+        if (picks.Count > DesktopPicks.RowCount)
+        {
+            var all = new Button { Content = L.T("Tümü…"), Appearance = ControlAppearance.Transparent, Padding = new Thickness(8, 3, 8, 3) };
+            AutomationProperties.SetAutomationId(all, "Add.FromDesktop.All");
+            AutomationProperties.SetName(all, L.T("Tümü"));
+            AutomationProperties.SetHelpText(all, L.T("Masaüstündeki bütün öğeler; aranabilir, birden çok seçilebilir"));
+            all.Click += (_, _) => ShowDesktop();
+            DockPanel.SetDock(all, Dock.Right);
+            head.Children.Add(all);
+        }
+        var label = Section(L.T("Masaüstünden"), top: 0);
+        label.Margin = new Thickness(0);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        head.Children.Add(label);
+        section.Children.Add(head);
+        foreach (var pick in picks.Take(DesktopPicks.RowCount)) _desktopRow.Children.Add(DesktopTile(pick));
+        section.Children.Add(_desktopRow);
+        return section;
+    }
+
+    /// <summary>Öğenin ne olacağı (ipucu ve ekran okuyucu): klasör bölme, öbürleri kısayol kutusu.</summary>
+    private static string WhatHappens(DesktopPick pick) => pick.IsFolder ? L.T("Bölme olarak eklenir") : L.T("Kısayol kutusuna eklenir");
+
+    /// <summary>Masaüstü öğesi kutucuğu: 32 DIP kabuk simgesi (arka planda gelir) ve adı (en çok iki satır). AutomationId "Add.Desktop:" + ad.</summary>
+    private Button DesktopTile(DesktopPick pick)
+    {
+        var image = new Image { Width = 32, Height = 32, HorizontalAlignment = HorizontalAlignment.Center };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        ShellIconImage.SetPath(image, pick.Path);
+        var label = new TextBlock
+        {
+            Text = pick.Name, FontSize = 12, Margin = new Thickness(0, 6, 0, 0), TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 74, MaxHeight = 32,
+        };
+        var content = new StackPanel();
+        content.Children.Add(image);
+        content.Children.Add(label);
+        var button = new Button
+        {
+            // Simgeler aynı hizada dursun (ad iki satıra geçse de): içerik üstten başlar.
+            Content = content, Width = DesktopTileWidth, Height = 86, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(4, 12, 4, 4),
+            HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Top,
+            ToolTip = pick.Name + "\n" + WhatHappens(pick),
+        };
+        AutomationProperties.SetAutomationId(button, "Add.Desktop:" + pick.Name);
+        AutomationProperties.SetName(button, pick.Name);
+        AutomationProperties.SetHelpText(button, WhatHappens(pick));
+        Motion.SetPress(button, true);
+        button.Click += (_, _) => RunDesktop([pick]);
+        return button;
+    }
+
+    /// <summary>Masaüstü öğelerini ekler: pencere kapanır, bölme ve kutu bu pencerenin ekranına gelir.</summary>
+    private void RunDesktop(IReadOnlyList<DesktopPick> picks)
+    {
+        if (picks.Count == 0) return;
+        var near = Center();
+        _closing = true;
+        Close();
+        DesktopAdd.Add(picks, near);
+    }
+
+    /// <summary>"Tümü…" listesinin satırı.</summary>
+    private sealed class DesktopRow(DesktopPick pick)
+    {
+        public string Path => pick.Path;
+        public string Name => pick.Name;
+        public string Where => pick.IsFolder ? L.T("Bölme") : L.T("Kısayol kutusu");
+        public string Help => WhatHappens(pick);
+        public string AutomationId => "Add.Desktop:" + pick.Name;
+        public override string ToString() => pick.Name;
+    }
+
+    /// <summary>
+    /// "Tümü…": masaüstündeki bütün öneriler, üstte arama; birden çok seçilir (tıklamak seçer/bırakır, Boşluk da), "Ekle" ya
+    /// da Enter seçilenleri ekler. Klasörler bölme (en çok beş), kısayollar ve dosyalar tek kutu. "‹ Geri" ilk sayfaya döner.
+    /// </summary>
+    private void ShowDesktop()
+    {
+        var picks = DesktopAdd.Current();
+        var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var search = new TextBox { PlaceholderText = L.T("Ara"), Margin = new Thickness(0, 0, 0, 10) };
+        AutomationProperties.SetName(search, L.T("Ara"));
+        AutomationProperties.SetAutomationId(search, "Add.FromDesktop.Search");
+        var list = new ListBox
+        {
+            Height = 320, SelectionMode = SelectionMode.Multiple, ItemTemplate = DesktopRowTemplate(), ItemContainerStyle = DesktopRowStyle(),
+        };
+        ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+        VirtualizingPanel.SetScrollUnit(list, ScrollUnit.Pixel);
+        AutomationProperties.SetName(list, L.T("Masaüstündekiler"));
+        AutomationProperties.SetAutomationId(list, "Add.FromDesktop.List");
+        var status = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxWidth = 340,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
+        };
+        status.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        AutomationProperties.SetAutomationId(status, "Add.FromDesktop.Status");
+        var listArea = new Grid();
+        listArea.Children.Add(list);
+        listArea.Children.Add(status);
+
+        var filling = false;
+        void UpdateButton()
+        {
+            _addPicked.IsEnabled = selected.Count > 0;
+            _addPicked.Content = selected.Count > 0 ? L.F("Ekle ({0})", selected.Count) : L.T("Ekle");
+        }
+        void Fill()
+        {
+            filling = true;
+            var rows = DesktopPicks.Filter(picks, search.Text).Select(p => new DesktopRow(p)).ToList();
+            list.ItemsSource = rows;
+            foreach (var row in rows.Where(r => selected.Contains(r.Path))) list.SelectedItems.Add(row);
+            status.Text = rows.Count > 0 ? "" : picks.Count == 0 ? L.T("Masaüstünde eklenecek bir şey yok.") : L.T("Aramaya uyan öğe yok.");
+            status.Visibility = rows.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+            filling = false;
+        }
+        list.SelectionChanged += (_, e) =>
+        {
+            if (filling) return;
+            foreach (var row in e.AddedItems.OfType<DesktopRow>()) selected.Add(row.Path);
+            foreach (var row in e.RemovedItems.OfType<DesktopRow>()) selected.Remove(row.Path);
+            UpdateButton();
+        };
+        search.TextChanged += (_, _) => Fill();
+        _addSelected = () => RunDesktop(picks.Where(p => selected.Contains(p.Path)).ToList());
+        search.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Down && list.Items.Count > 0)
+            {
+                e.Handled = true;
+                list.ScrollIntoView(list.Items[0]);
+                (list.ItemContainerGenerator.ContainerFromIndex(0) as ListBoxItem)?.Focus();
+            }
+            else if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                _addSelected?.Invoke();
+            }
+        };
+        list.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            _addSelected?.Invoke();
+        };
+
+        var page = new StackPanel { Margin = new Thickness(22, 0, 22, 0), Width = BodyWidth };
+        page.Children.Add(search);
+        page.Children.Add(listArea);
+
+        _title.Text = L.T("Masaüstünden ekle");
+        _subtitle.Text = L.T("Klasör bölme olur; kısayollar ve dosyalar kısayol kutusuna girer. Birden çok seçebilirsin.");
+        _subtitle.Visibility = Visibility.Visible;
+        _back.Visibility = Visibility.Visible;
+        _showMore.Visibility = Visibility.Collapsed;
+        _newFence.Visibility = Visibility.Collapsed;
+        _split.Visibility = Visibility.Collapsed;
+        _addPicked.Visibility = Visibility.Visible;
+        UpdateButton();
+        Fill();
+        _scroller.Content = page;
+        _scroller.ScrollToTop();
+        Dispatcher.BeginInvoke(() => { search.Focus(); Keyboard.Focus(search); }, DispatcherPriority.Input);
+    }
+
+    /// <summary>Satır: 24 DIP simge, ad (kısaltılır), sağda gri "Bölme"/"Kısayol kutusu" ve seçiliyse onay işareti.</summary>
+    private static DataTemplate DesktopRowTemplate()
+    {
+        var dock = new FrameworkElementFactory(typeof(DockPanel));
+        dock.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 3, 0, 3));
+        var check = new FrameworkElementFactory(typeof(SymbolIcon));
+        check.SetValue(SymbolIcon.SymbolProperty, SymbolRegular.Checkmark24);
+        check.SetValue(FrameworkElement.WidthProperty, 20.0);
+        check.SetValue(FrameworkElement.MarginProperty, new Thickness(10, 0, 0, 0));
+        check.SetValue(DockPanel.DockProperty, Dock.Right);
+        check.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        check.SetBinding(UIElement.VisibilityProperty, new Binding(nameof(ListBoxItem.IsSelected))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ListBoxItem), 1),
+            Converter = new BooleanToVisibilityConverter(),
+        });
+        var where = new FrameworkElementFactory(typeof(TextBlock));
+        where.SetBinding(TextBlock.TextProperty, new Binding(nameof(DesktopRow.Where)));
+        where.SetValue(TextBlock.FontSizeProperty, 12.0);
+        where.SetValue(FrameworkElement.MarginProperty, new Thickness(10, 0, 0, 0));
+        where.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        where.SetValue(DockPanel.DockProperty, Dock.Right);
+        where.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        var image = new FrameworkElementFactory(typeof(Image));
+        image.SetValue(FrameworkElement.WidthProperty, 24.0);
+        image.SetValue(FrameworkElement.HeightProperty, 24.0);
+        image.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 10, 0));
+        image.SetValue(DockPanel.DockProperty, Dock.Left);
+        image.SetValue(RenderOptions.BitmapScalingModeProperty, BitmapScalingMode.HighQuality);
+        image.SetBinding(ShellIconImage.PathProperty, new Binding(nameof(DesktopRow.Path)));
+        var name = new FrameworkElementFactory(typeof(TextBlock));
+        name.SetBinding(TextBlock.TextProperty, new Binding(nameof(DesktopRow.Name)));
+        name.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+        name.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        where.Name = "Where";
+        dock.AppendChild(check);
+        dock.AppendChild(where);
+        dock.AppendChild(image);
+        dock.AppendChild(name);
+        var template = new DataTemplate { VisualTree = dock };
+        // Seçili satırın vurgu zemininde ikincil renk okunmaz: tür yazısı satırın kendi yazı rengini alır.
+        var item = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(ListBoxItem), 1);
+        var selected = new DataTrigger { Binding = new Binding(nameof(ListBoxItem.IsSelected)) { RelativeSource = item }, Value = true };
+        selected.Setters.Add(new Setter(TextBlock.ForegroundProperty, new Binding(nameof(Control.Foreground)) { RelativeSource = item }, "Where"));
+        template.Triggers.Add(selected);
+        return template;
+    }
+
+    /// <summary>Satırın kabı: ekran okuyucu adı ve ne olacağını, UI Automation "Add.Desktop:" + adı görür.</summary>
+    private static Style DesktopRowStyle()
+    {
+        var style = new Style(typeof(ListBoxItem), Application.Current?.TryFindResource(typeof(ListBoxItem)) as Style);
+        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 4, 10, 4)));
+        style.Setters.Add(new Setter(AutomationProperties.NameProperty, new Binding(nameof(DesktopRow.Name))));
+        style.Setters.Add(new Setter(AutomationProperties.HelpTextProperty, new Binding(nameof(DesktopRow.Help))));
+        style.Setters.Add(new Setter(AutomationProperties.AutomationIdProperty, new Binding(nameof(DesktopRow.AutomationId))));
+        return style;
     }
 
     private static TextBlock Section(string text, double top) => new()
