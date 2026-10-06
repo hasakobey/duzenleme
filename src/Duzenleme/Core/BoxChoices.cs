@@ -54,6 +54,19 @@ public enum BoxDropEffect
 /// </summary>
 public static class BoxChoices
 {
+    /// <summary>
+    /// Taşıma ya da geri koyma neden olmadı (bildirimdeki parantez içi): her zaman sabit, çevrilmiş bir neden. İstisnanın iletisi
+    /// (yol, kullanıcı adı, Windows'un dilindeki metin) kullanıcıya gösterilmez; hata günlüğe yazılır.
+    /// </summary>
+    public static string FailureText(BoxFailure failure) => failure switch
+    {
+        BoxFailure.Locked => L.T("kullanımda"),
+        BoxFailure.Denied => L.T("izin yok"),
+        BoxFailure.Declined => L.T("izin verilmedi"),
+        BoxFailure.Unavailable => L.T("klasöre şu an ulaşılamıyor"),
+        _ => L.T("beklenmeyen bir dosya hatası"),
+    };
+
     /// <summary>Seçenek soruldu mu? Açıksa sorulmuş sayılır (2.1'den açık gelen ya da Ayarlar'dan açılan).</summary>
     public static bool Asked(AppSettings settings) => settings.BoxLeaveAsked || settings.BoxItemsLeaveDesktop;
 

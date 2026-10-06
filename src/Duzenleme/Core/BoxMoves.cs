@@ -67,9 +67,24 @@ public sealed class BoxMoveLog
     /// <summary>Geri konanlardan en çok bu kadarı tutulur (kutu "Geri al" ile gelirse öğeleri bulunsun diye).</summary>
     public const int MaxReturned = 300;
 
+    /// <summary>Veri klasöründeki kayıt dosyasının adı.</summary>
+    public const string FileName = "box-moves.json";
+
     private readonly string _path;
+
+    // Bellekteki kayıtlar: arayüz iş parçacığı da okur (IsMoved, ActiveCount), bu yüzden bu kilit tutulurken diske asla
+    // yazılmaz. Yazmalar ayrı kapıdan sırayla geçer ve o anki son durumu (kilit altında alınan kısa bir kopyayı) yazar.
     private readonly object _lock = new();
+    private readonly object _writeGate = new();
     private readonly List<BoxMove> _entries;
+    private long _version;
+    private long _written;
+
+    /// <summary>Test: diske her yazmadan hemen önce (yazma kapısı tutulurken, kayıt kilidi tutulmadan) çağrılır.</summary>
+    internal Action? BeforeWrite { get; set; }
+
+    /// <summary>Test: diske yapılan yazma sayısı.</summary>
+    internal int Writes { get; private set; }
 
     public BoxMoveLog(string path)
     {
@@ -99,31 +114,49 @@ public sealed class BoxMoveLog
     /// <summary>Kaydı ekler ve yazar. Yazılamazsa kayıt eklenmemiş sayılır ve hata fırlar (dosya o zaman taşınmaz).</summary>
     public void Add(BoxMove entry) => AddMany([entry]);
 
-    /// <summary>Kayıtları tek yazmayla ekler (yönetici onaylı toplu taşıma, kayıt dosyası kaybolunca yeniden kurulanlar).</summary>
+    /// <summary>
+    /// Kayıtları tek yazmayla ekler (bir taşıma işinin bütün öğeleri, kayıt dosyası kaybolunca yeniden kurulanlar). Döndüğünde
+    /// kayıtlar diskte; yazılamazsa eklenmemiş sayılır ve hata fırlar (dosyalar o zaman taşınmaz).
+    /// </summary>
     public void AddMany(IReadOnlyCollection<BoxMove> entries)
     {
         if (entries.Count == 0) return;
+        List<BoxMove> copies;
+        long version;
         lock (_lock)
         {
-            var copies = entries.Select(Copy).ToList();
+            copies = entries.Select(Copy).ToList();
             _entries.AddRange(copies);
-            try { Save(); }
-            catch
+            version = ++_version;
+        }
+        try { Persist(version); }
+        catch
+        {
+            lock (_lock)
             {
                 foreach (var copy in copies) _entries.Remove(copy);
-                throw;
+                _version++;
             }
+            throw;
         }
     }
 
     /// <summary>Taşıma başarısız oldu: önceden yazılan kaydı siler (yazılamazsa bellekte silinir; açılıştaki uzlaştırma
     /// diskte kalan kaydı zaten kapatır: öğe masaüstünde).</summary>
-    public void Remove(string id)
+    public void Remove(string id) => RemoveMany([id]);
+
+    /// <summary>Taşınamayanların kayıtlarını tek yazmayla siler (bkz. <see cref="Remove"/>).</summary>
+    public void RemoveMany(IReadOnlyCollection<string> ids)
     {
+        if (ids.Count == 0) return;
+        var set = new HashSet<string>(ids, StringComparer.Ordinal);
+        long version;
         lock (_lock)
         {
-            if (_entries.RemoveAll(e => e.Id == id) > 0) TrySave();
+            if (_entries.RemoveAll(e => set.Contains(e.Id)) == 0) return;
+            version = ++_version;
         }
+        TryPersist(version);
     }
 
     /// <summary>
@@ -132,29 +165,53 @@ public sealed class BoxMoveLog
     /// </summary>
     public void MarkReturning(string id, string target)
     {
+        BoxMove entry;
+        string? before;
+        long version;
         lock (_lock)
         {
-            if (_entries.FirstOrDefault(e => e.Id == id) is not { } entry) return;
-            var before = entry.ReturningTo;
+            if (_entries.FirstOrDefault(e => e.Id == id) is not { } found) return;
+            entry = found;
+            before = entry.ReturningTo;
             entry.ReturningTo = target;
-            try { Save(); }
-            catch
+            version = ++_version;
+        }
+        try { Persist(version); }
+        catch
+        {
+            lock (_lock)
             {
-                entry.ReturningTo = before;
-                throw;
+                if (entry.ReturningTo == target) entry.ReturningTo = before;
+                _version++;
             }
+            throw;
         }
     }
 
     /// <summary>Geri koyma olmadı: hedef silinir (yazılamazsa bellekte silinir, sonraki yazmayla gider).</summary>
-    public void ClearReturning(string id)
+    public void ClearReturning(string id) => ClearReturningMany([id]);
+
+    /// <summary>
+    /// Kayıtların geri koyma hedefini tek yazmayla siler (geri koyma olmadı; uzlaştırmada yarıda kalmış ama öğe hâlâ NestDesk'te).
+    /// Yazılamazsa bellekte silinir, sonraki yazmayla gider.
+    /// </summary>
+    public void ClearReturningMany(IReadOnlyCollection<string> ids)
     {
+        if (ids.Count == 0) return;
+        var set = new HashSet<string>(ids, StringComparer.Ordinal);
+        long version;
         lock (_lock)
         {
-            if (_entries.FirstOrDefault(e => e.Id == id) is not { ReturningTo: not null } entry) return;
-            entry.ReturningTo = null;
-            TrySave();
+            var changed = false;
+            foreach (var entry in _entries.Where(e => e.ReturningTo is not null && set.Contains(e.Id)))
+            {
+                entry.ReturningTo = null;
+                changed = true;
+            }
+            if (!changed) return;
+            version = ++_version;
         }
+        TryPersist(version);
     }
 
     /// <summary>
@@ -163,6 +220,7 @@ public sealed class BoxMoveLog
     /// </summary>
     public void MarkReturned(string id, string returnedTo, bool reclaim)
     {
+        long version;
         lock (_lock)
         {
             if (_entries.FirstOrDefault(e => e.Id == id) is not { } entry) return;
@@ -179,17 +237,20 @@ public sealed class BoxMoveLog
                 if (_entries[i].Active) i++;
                 else { _entries.RemoveAt(i); excess--; }
             }
-            TrySave();
+            version = ++_version;
         }
+        TryPersist(version);
     }
 
     /// <summary>
     /// Uygulama bir öğeyi yeniden adlandırdı (F2): kayıtlar yeni yolu izler. Masaüstündeki eski yol (Original), NestDesk
     /// klasöründeki yol (Current) ve geri konduğu yer (ReturnedTo) güncellenir; klasörde altındaki yollar da. Yoksa kutu
-    /// öğesi "taşınmış" sayılmaz, masaüstüne geri konamaz ya da kutu geri gelince bulunamazdı. Değiştiyse true.
+    /// öğesi "taşınmış" sayılmaz, masaüstüne geri konamaz ya da kutu geri gelince bulunamazdı. Değiştiyse true. Bellekte
+    /// hemen değişir; diske kayıt kilidi tutulmadan yazılır (yazılamazsa hata fırlar; bellekteki değişiklik sonraki yazmayla gider).
     /// </summary>
     public bool NoteRename(string oldPath, string newPath, bool isDirectory)
     {
+        long version;
         lock (_lock)
         {
             var changed = false;
@@ -216,16 +277,39 @@ public sealed class BoxMoveLog
                     changed = true;
                 }
             }
-            if (changed) Save();
-            return changed;
+            if (!changed) return false;
+            version = ++_version;
+        }
+        Persist(version);
+        return true;
+    }
+
+    /// <summary>
+    /// <paramref name="version"/>'a kadarki değişiklikler diskte olsun: daha yeni bir yazma onları zaten götürdüyse bir şey
+    /// yapılmaz, yoksa o anki son durum yazılır. Kayıt kilidi yalnızca kopyalarken tutulur (arayüz diske beklemez).
+    /// </summary>
+    private void Persist(long version)
+    {
+        lock (_writeGate)
+        {
+            if (_written >= version) return;
+            byte[] bytes;
+            long current;
+            lock (_lock)
+            {
+                bytes = JsonFile.Serialize(_entries);
+                current = _version;
+            }
+            BeforeWrite?.Invoke();
+            DurableFile.WriteAtomic(_path, bytes);
+            Writes++;
+            _written = current;
         }
     }
 
-    private void Save() => JsonFile.Save(_path, _entries);
-
-    private void TrySave()
+    private void TryPersist(long version)
     {
-        try { Save(); }
+        try { Persist(version); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             AppLog.Warn("box-moves", "write-failed", ex);
@@ -501,8 +585,9 @@ public static class BoxPlan
     /// <param name="Remap">Kutunun gösterdiği ama yerinde olmayan öğenin yeni yolu. Reclaim: kutu geri geldi, öğe yeniden taşınır.</param>
     /// <param name="Close">Dışarıda değişmiş kayıtlar (Gezgin'de geri taşınmış, silinmiş, yarıda kalmış): dosyaya dokunulmadan
     /// kapanır. RemapTo: kutu artık bu yolu göstermeli (yoksa null).</param>
+    /// <param name="StaleReturning">Öğesi hâlâ NestDesk'te duran, yarıda kalmış geri koyma hedefi olan kayıtlar (kimlik): hedef silinir.</param>
     public sealed record Reconciliation(List<BoxMove> Return, List<(string From, string To, bool Reclaim)> Remap,
-        List<(BoxMove Record, string? RemapTo, BoxCloseReason Reason)> Close);
+        List<(BoxMove Record, string? RemapTo, BoxCloseReason Reason)> Close, List<string> StaleReturning);
 
     /// <summary>
     /// Kutu ya da öğe kaldırıldıysa (Geri al'dan, düzen uygulamaktan, çökmeden sonra da) kayıtları kutularla uzlaştırır:
@@ -545,19 +630,11 @@ public static class BoxPlan
                 // Kutu NestDesk'teki yolu gösteriyor: öğe yerindeyse sorun yok.
                 if (exists(path)) continue;
                 var record = here[^1];
-                if (record.ReturningTo is { } returning && exists(returning))
-                {
-                    // Geri koyma taşımadan sonra, kayıt kapanmadan kesildi: öğe masaüstünde.
-                    remap.Add((path, returning, false));
-                    Close(record, returning, BoxCloseReason.Finished);
-                }
-                else if (exists(record.Original))
-                {
-                    // Kullanıcı öğeyi Gezgin'de masaüstüne geri taşımış: kutu oradakini gösterir.
-                    remap.Add((path, record.Original, false));
-                    Close(record, record.Original, BoxCloseReason.BackOnDesktop);
-                }
-                else Close(record, null, BoxCloseReason.Gone);
+                var (to, reason) = Vanished(record);
+                // NestDesk klasörünün bulunduğu yere ulaşılamıyor (çıkarılmış sürücü, ağ): hiçbir kayıt kapanmaz, kutu bekler.
+                if (reason is null) continue;
+                if (to is not null) remap.Add((path, to, false));
+                Close(record, to, reason.Value);
                 // Aynı yolu gösteren başka (eski, bozuk) kayıtlar da kapanır.
                 foreach (var other in here.Take(here.Count - 1)) Close(other, null, BoxCloseReason.Gone);
                 continue;
@@ -582,11 +659,45 @@ public static class BoxPlan
         }
         // Yeniden bağlanan öğe kutuda gösterilmiş sayılır: masaüstüne geri konmaz.
         var linked = new HashSet<string>(remap.Select(r => r.To), StringComparer.OrdinalIgnoreCase);
-        var toReturn = records.Where(r => r.Active && !closed.Contains(r.Id) && !referenced.Contains(r.Current) && !linked.Contains(r.Current) &&
-                                          !(r.ForItem is { } item && referenced.Contains(item)))
-            .ToList();
-        return new Reconciliation(toReturn, remap, close);
+        var toReturn = new List<BoxMove>();
+        foreach (var r in records.Where(r => r.Active && !closed.Contains(r.Id) && !referenced.Contains(r.Current) && !linked.Contains(r.Current)))
+        {
+            if (r.ForItem is not { } item || !referenced.Contains(item))
+            {
+                toReturn.Add(r);
+                continue;
+            }
+            // Kutudaki uygulama yüzünden kalkan kısayol: kutu onu göstermez, yine de dışarıda değişmiş olabilir.
+            if (exists(r.Current)) continue;
+            var (to, reason) = Vanished(r);
+            if (reason is not null) Close(r, to, reason.Value);
+        }
+        // Yarıda kalan geri koymanın hedefi, öğe hâlâ NestDesk'teyse silinir (geri koyma olmamış): yoksa öğe sonra kaybolunca
+        // masaüstündeki aynı adlı başka bir dosyaya bağlanabilirdi.
+        var stale = records.Where(r => r.Active && r.ReturningTo is not null && !closed.Contains(r.Id) && !toReturn.Contains(r) && exists(r.Current))
+            .Select(r => r.Id).ToList();
+        return new Reconciliation(toReturn, remap, close, stale);
+
+        // NestDesk'teki öğesi olmayan kayıt nereye kapanır: yarıda kalan geri koymanın hedefine, masaüstündeki eski yerine
+        // ya da hiçbir yere (Gone). NestDesk klasörünün bulunduğu yere hiç ulaşılamıyorsa kapanmaz (Reason null).
+        (string? To, BoxCloseReason? Reason) Vanished(BoxMove record)
+        {
+            // Geri koyma taşımadan sonra, kayıt kapanmadan kesildi: öğe masaüstünde.
+            if (record.ReturningTo is { } returning && exists(returning)) return (returning, BoxCloseReason.Finished);
+            // Kullanıcı öğeyi Gezgin'de masaüstüne geri taşımış: kutu oradakini gösterir.
+            if (exists(record.Original)) return (record.Original, BoxCloseReason.BackOnDesktop);
+            if (RootUnavailable(record.Current, exists)) return (null, null);
+            return (null, BoxCloseReason.Gone);
+        }
     }
+
+    /// <summary>
+    /// Kayıttaki NestDesk klasörünün bulunduğu yere şu an hiç ulaşılamıyor mu (kök de, kökün bulunduğu klasör de yok: çıkarılmış
+    /// sürücü, erişilemeyen ağ, bağlantısı kesilmiş OneDrive)? Öyleyse öğe silinmiş sayılmaz, kayıt açık kalır. Kök silinmiş ama
+    /// üstü duruyorsa (kullanıcı NestDesk klasörünü sildi) false.
+    /// </summary>
+    public static bool RootUnavailable(string current, Func<string, bool> exists) =>
+        RootOf(current) is { } root && !exists(root) && (ParentOf(root) is not { } parent || !exists(parent));
 
     /// <summary>
     /// Kayıt dosyası kaybolduysa (silinmiş, bozuk ve yedeği de okunamıyor) kutulardaki NestDesk öğeleri için kayıtları yeniden
@@ -806,6 +917,42 @@ public static class BoxPlan
             AppInfo.Name);
         return header + Environment.NewLine + Environment.NewLine + L.T("Simge ← eski klasörü:") + Environment.NewLine +
                string.Join(Environment.NewLine, lines) + Environment.NewLine;
+    }
+
+    /// <summary>
+    /// Masaüstüne dönen ve artık hiçbir kutuda ya da halkada durmayan öğeler (ör. eklemesi geri alınan): masaüstündeki yol ve
+    /// NestDesk'teki eski yol. Kullanıcı onları bilerek geri koydu: kurallar hemen taşımasın.
+    /// </summary>
+    public static List<(string Restored, string BoxPath)> LeftBoxes(IEnumerable<ReturnOutcome> outcomes, IReadOnlySet<string> referenced) =>
+        outcomes.Where(o => o.OnDesktop && o.Path is not null && !referenced.Contains(o.Path))
+            .Select(o => (o.Path!, o.Record.Current)).ToList();
+
+    /// <summary>
+    /// "Hepsini masaüstüne geri koy"un "Geri al"ı: masaüstüne dönen yollardan hangisi hangi kutuya yeniden taşınır. Kutunun
+    /// gösterdiği yol o kutuya; kutuda olmayan ama kutudaki bir uygulama yüzünden kalkmış kısayol (son kapanan kaydı
+    /// <see cref="BoxMove.ForItem"/>'lı ve bu yola dönmüş) uygulamayı gösteren ilk kutuya, uygulamasıyla birlikte (uygulama
+    /// artık hiçbir kutuda değilse dönmez).
+    /// </summary>
+    public static List<(string BoxId, List<string> Paths, string? ForItem)> ReclaimBatches(IReadOnlyCollection<string> paths,
+        IReadOnlyList<WidgetConfig> boxes, IReadOnlyList<BoxMove> records)
+    {
+        var set = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+        var result = new List<(string BoxId, List<string> Paths, string? ForItem)>();
+        foreach (var box in boxes)
+        {
+            var held = Referenced([box]).Where(set.Contains).ToList();
+            if (held.Count > 0) result.Add((box.Id, held, null));
+        }
+        var everywhere = Referenced(boxes);
+        var shortcuts = records.Where(r => !r.Active && r.ForItem is not null && r.ReturnedTo is { } to && set.Contains(to) && !everywhere.Contains(to))
+            .GroupBy(r => r.ReturnedTo!, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Last());
+        foreach (var app in shortcuts.GroupBy(r => r.ForItem!, StringComparer.OrdinalIgnoreCase))
+        {
+            if (boxes.FirstOrDefault(b => Referenced([b]).Contains(app.Key)) is not { } box) continue;
+            result.Add((box.Id, app.Select(r => r.ReturnedTo!).ToList(), app.Key));
+        }
+        return result;
     }
 
     /// <summary>

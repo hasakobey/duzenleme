@@ -108,6 +108,8 @@ internal static partial class En
             "Folders don't leave the desktop; \"{0}\" stays in the ring as a shortcut."),
         new("Tekrar dene", "Try again"),
         new("kullanımda", "in use"),
+        new("klasöre şu an ulaşılamıyor", "the folder can't be reached right now"),
+        new("beklenmeyen bir dosya hatası", "unexpected file error"),
 
         // Öğe menüsü (BoxChoices.MenuRows; kutu ve halka)
         new("Simge masaüstüne geri döner.", "The icon goes back to the desktop."),

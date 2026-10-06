@@ -1091,7 +1091,8 @@ public static class AppHost
         var portable = dataOverride is null && !PackageInfo.IsPackaged && File.Exists(portableFile)
             ? Path.Combine(AppContext.BaseDirectory, "data")
             : null;
-        foreach (var file in DataFolderLocator.SettingsCandidates(dataOverride, portable, RoamingAppData(testDesktop)))
+        var candidates = DataFolderLocator.SettingsCandidates(dataOverride, portable, RoamingAppData(testDesktop));
+        foreach (var file in candidates)
         {
             string text;
             try
@@ -1104,9 +1105,12 @@ public static class AppHost
             var hidden = LegacyFiles.IconsLeftHidden(text);
             DebugLog.Write($"--restore-desktop: {file} → simgeler {(hidden ? "gizli bırakılmış" : "açık")}");
             if (hidden && !testDesktop) DesktopIcons.SetVisible(true);
-            if (Path.GetDirectoryName(file) is { } dataDirectory) ReturnBoxMovesForUninstall(dataDirectory, desktopOverride, quiet);
-            return;
+            break;
         }
+        // Kutu kayıtları ayar dosyasından bağımsızdır: ayarlar silinmiş ya da okunamıyor olsa da box-moves.json'ı olan her veri
+        // klasörünün simgeleri geri konur (kayıt yalnızca NestDesk klasöründe duran öğeyi taşır; ikinci kopyası zararsızdır).
+        foreach (var dataDirectory in DataFolderLocator.BoxMoveDirectories(candidates, File.Exists))
+            ReturnBoxMovesForUninstall(dataDirectory, desktopOverride, quiet);
     }
 
     /// <summary>
@@ -1119,7 +1123,7 @@ public static class AppHost
     {
         try
         {
-            var path = Path.Combine(dataDirectory, "box-moves.json");
+            var path = Path.Combine(dataDirectory, BoxMoveLog.FileName);
             if (!File.Exists(path)) return;
             var testDesktop = desktopOverride is not null;
             var userDesktop = desktopOverride ?? ResolveDesktop();

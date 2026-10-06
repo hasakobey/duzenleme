@@ -508,7 +508,7 @@ internal static class BoxMover
                     ? IsRing(first.Step.BoxId)
                         ? L.F("\"{0}\" açık olduğu için masaüstünden kalkamadı; halkaya eklendi, sonra yeniden denenecek.", TileItem.DisplayName(first.Step.Original))
                         : L.F("\"{0}\" açık olduğu için masaüstünden kalkamadı; kutuya eklendi, sonra yeniden denenecek.", TileItem.DisplayName(first.Step.Original))
-                    : L.F("\"{0}\" taşınamadı ({1}); kutuya bağlantı olarak eklendi.", TileItem.DisplayName(first.Step.Original), ErrorText(first.Failure, first.Error)));
+                    : L.F("\"{0}\" taşınamadı ({1}); kutuya bağlantı olarak eklendi.", TileItem.DisplayName(first.Step.Original), BoxChoices.FailureText(first.Failure)));
         }
         if (folders.Count > 0 && !_folderNoticeShown)
         {
@@ -592,14 +592,6 @@ internal static class BoxMover
         AppHost.RefreshPinnedPaths();
         Changed?.Invoke();
     }
-
-    private static string ErrorText(BoxFailure failure, string? error) => failure switch
-    {
-        BoxFailure.Locked => L.T("kullanımda"),
-        BoxFailure.Denied => L.T("izin yok"),
-        BoxFailure.Declined => L.T("izin verilmedi"),
-        _ => error ?? "",
-    };
 
     // ---------------------------------------------------------------- uygulamanın masaüstündeki kısayolu
 
@@ -824,11 +816,11 @@ internal static class BoxMover
     internal static void ReclaimPaths(List<string> paths)
     {
         if (!MovesFiles || paths.Count == 0) return;
-        var set = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
-        var items = Launchers.All(AppHost.Settings)
-            .Select(box => (box, BoxPlan.Referenced([box]).Where(set.Contains).ToList()))
-            .Where(x => x.Item2.Count > 0).ToList();
-        ClaimMany(items, notify: false, interactive: true);
+        // Kutudaki uygulama yüzünden kalkmış kısayollar da (kutuda değiller; kayıtlarından bulunur) uygulamanın kutusuna döner.
+        var batches = BoxPlan.ReclaimBatches(paths, Launchers.All(AppHost.Settings).ToList(), AppHost.BoxMoves.Snapshot())
+            .Select(b => new ClaimBatch(b.BoxId, null, b.Paths, b.ForItem)).ToList();
+        if (batches.Count == 0) return;
+        Enqueue(() => ClaimJob(batches, notify: false, justAdded: false, interactive: true));
     }
 
     /// <summary>Kayıtları kimlikle yeniden dener ("Tekrar dene", "Geri koy", "Benim masaüstüme koy", kendiliğinden yeniden deneme).</summary>
@@ -870,6 +862,21 @@ internal static class BoxMover
         var request = Request(interactive, reclaim, toUser);
         var outcomes = await Task.Run(() => engine.Return(records, request));
         ApplyReturns(outcomes);
+        if (keepInBoxes)
+        {
+            // Geçici küme bitti: kutuların bugünkü öğelerinden yeniden kurulur (yoksa eklemesi geri alınan öğe yeniden
+            // başlatılana dek kurallarca hiç taşınmazdı). Hiçbir kutuda olmayan dönen öğeyi kullanıcı bilerek geri koydu.
+            AppHost.RefreshPinnedPaths();
+            var loose = BoxPlan.LeftBoxes(outcomes, Launchers.Referenced(AppHost.Settings));
+            if (loose.Count > 0)
+            {
+                var organizer = AppHost.Organizer;
+                await Task.Run(() =>
+                {
+                    foreach (var (restored, boxPath) in loose) KeepOnDesktop(organizer, restored, boxPath);
+                });
+            }
+        }
         await BreadcrumbsAsync();
         NotifyReturned(outcomes, notify, interactive, reclaim, undo);
     }
@@ -926,6 +933,8 @@ internal static class BoxMover
                     }
                 }
             });
+        // Yarıda kalmış ama olmamış geri koymaların hedefi silinir (öğe hâlâ NestDesk'te).
+        if (plan.StaleReturning.Count > 0) await Task.Run(() => log.ClearReturningMany(plan.StaleReturning));
         var engine = Engine();
         var request = Request(interactive, reclaim: true);
         var outcomes = plan.Return.Count > 0 ? await Task.Run(() => engine.Return(plan.Return, request)) : [];
@@ -1039,8 +1048,8 @@ internal static class BoxMover
         if (failed.Count > 0)
             parts.Add(failed.Count == 1
                 ? L.F("\"{0}\" masaüstüne konamadı ({1}); {2} klasöründe duruyor.", TileItem.DisplayName(failed[0].Record.Original),
-                    ErrorText(failed[0].Failure, failed[0].Error), BoxPlan.RootFolderName)
-                : L.P(failed.Count, "{0} öğe geri konamadı ({1}); {2} klasöründe duruyor.", ErrorText(failed[0].Failure, failed[0].Error),
+                    BoxChoices.FailureText(failed[0].Failure), BoxPlan.RootFolderName)
+                : L.P(failed.Count, "{0} öğe geri konamadı ({1}); {2} klasöründe duruyor.", BoxChoices.FailureText(failed[0].Failure),
                     BoxPlan.RootFolderName));
         if (waiting.Count > 0)
         {
