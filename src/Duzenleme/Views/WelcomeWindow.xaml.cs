@@ -18,7 +18,8 @@ using TextBlock = System.Windows.Controls.TextBlock;
 namespace Duzenleme.Views;
 
 /// <summary>
-/// Karşılama: 3 adımda bölmeler, dosya taşıma (açık onayla) ve araçlar + Windows ile başlatma. Seçimler bellekte tutulur ve
+/// Karşılama: 3 adımda bölmeler ("Masaüstünü toparlayalım mı?"), dosya taşıma (açık onayla) ve NestDesk halkası (çift tıklama,
+/// isteğe bağlı kısayol) + araçlar + Windows ile başlatma. Seçimler bellekte tutulur ve
 /// yalnızca "Bitti"de, pencere kapandıktan sonra <see cref="WelcomeSetup.Apply"/> ile uygulanır; yarıda kalırsa masaüstüne
 /// hiçbir şey olmaz. "Şimdilik atla", ✕ ve Esc aynı işi görür: ilk açılışta karşılamayı tamamlanmış sayar (otomatik
 /// taşıma kapalı kalır) ve ana pencereyi açar; yeniden kurulumda yalnızca kapanır. Animasyon yoktur: adım değişince
@@ -46,9 +47,7 @@ public partial class WelcomeWindow : FluentWindow
 
     // 3. adım
     private readonly List<(WidgetChoice Choice, ToggleButton Tile)> _tools = [];
-    private TextBlock? _clockPreview;
-    private TextBlock? _datePreview;
-    private readonly DispatcherTimer _clock;
+    private RingView? _ringPreview;
     /// <summary>Değiştirilebilen başlangıç ayarının ilk okunan değeri; null = buradan değiştirilemez ya da henüz bilinmiyor.</summary>
     private bool? _startupInitial;
 
@@ -84,6 +83,7 @@ public partial class WelcomeWindow : FluentWindow
         _existingFolders = ReadExistingFolders();
         SetupFences();
         SetupMove();
+        SetupRing();
         SetupTools();
         SetupStartup();
 
@@ -101,11 +101,6 @@ public partial class WelcomeWindow : FluentWindow
             e.Handled = true;
             Close();
         };
-
-        // Saat kutucuğundaki saat eskimesin.
-        _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-        _clock.Tick += (_, _) => UpdateToolPreviews();
-        _clock.Start();
 
         Loaded += (_, _) => NextButton.Focus();
         ContentRendered += (_, _) => LogShown();
@@ -125,9 +120,9 @@ public partial class WelcomeWindow : FluentWindow
         Step3.Visibility = step == 3 ? Visibility.Visible : Visibility.Collapsed;
         StepTitle.Text = step switch
         {
-            1 => _rerun ? L.T("Masaüstünü yeniden kuralım") : L.F("{0}'e hoş geldin", AppInfo.Name),
+            1 => L.T("Masaüstünü toparlayalım mı?"),
             2 => L.T("Dosyalar kendiliğinden yerine gitsin mi?"),
-            _ => L.T("Masaüstüne küçük araçlar ekleyelim mi?"),
+            _ => L.F("{0} halkan", AppInfo.Name),
         };
         StepCounter.Text = L.F("Adım {0} / 3", step);
         // Geri 1. adımda yalnızca görünmez olur (yeri korunur): düğmeler kaymasın.
@@ -143,11 +138,7 @@ public partial class WelcomeWindow : FluentWindow
             _moveStepSeen = true;
             TryPreselectMove();
         }
-        if (step == 3)
-        {
-            UpdateToolPreviews();
-            UpdateStartupTip();
-        }
+        if (step == 3) UpdateStartupTip();
         UpdateNext();
 
         // Odak gizlenen bir düğmede (Geri) kalmasın. İleri kapalıysa (2. adım) odak içeriğe taşınmaz: odaklanan öğe
@@ -171,9 +162,12 @@ public partial class WelcomeWindow : FluentWindow
         var choices = new WelcomeChoices
         {
             Fences = Picked(FencesYes, FencesNo),
-            IconsOnlyInFences = SelectedIconMode == IconMode.FencesOnly,
+            // "Evet, bölmelere ayır" simgeleri yalnızca bölmelerde gösterir (Ayarlar'daki anahtarla geri alınır).
+            IconsOnlyInFences = true,
             AutoMove = Picked(MoveYes, MoveNo),
             MoveFolders = SelectedFolders(),
+            DoubleClickRing = RingDoubleClickToggle.IsChecked == true,
+            RingKey = RingKeyToggle.IsChecked == true,
         };
         foreach (var (choice, tile) in _tools)
             if (tile.IsEnabled && tile.IsChecked == true) choices.Tools.Add(choice.Key);
@@ -204,7 +198,7 @@ public partial class WelcomeWindow : FluentWindow
     {
         _closed = true;
         _current = null;
-        _clock.Stop();
+        _ringPreview?.Release();
         // WPF ilk açılan pencereyi ana pencere yapar; kapanmış karşılama tema güncellemesinin hedefi olarak kalmasın.
         if (Application.Current is { } app && ReferenceEquals(app.MainWindow, this)) app.MainWindow = null;
 
@@ -257,25 +251,10 @@ public partial class WelcomeWindow : FluentWindow
             ? L.T("Var olan bölmelerin, widget'ların ve dosyaların silinmez; yalnızca eksikler eklenir.")
             : L.F("{0} masaüstünü derli toplu tutar: simgeleri bölmelerde toplar, gelen dosyaları klasörlerine taşır, saat ve not gibi küçük araçlar ekler.", AppInfo.Name);
         FencePlan.Text = Onboarding.FencePlanText(StarterFences.Plan(AppHost.Settings.Widgets, AppHost.Settings.Rules, _existingFolders));
-        // Windows simgeleri: Ayarlar'daki iki seçenek. Varsayılan ilk açılışta "Yalnızca bölmelerde", yeniden kurulumda şu anki
-        // seçim. "Kutuya koyduğum simgeler masaüstünden kalksın" burada sorulmaz: ilk simge kutuya konunca sorulur.
-        foreach (var mode in DesktopModes.Choices)
-            IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
-        IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, _rerun ? DesktopModes.Current : IconMode.FencesOnly);
-        IconModeBox.SelectionChanged += (_, _) => OnIconModeChanged();
-        OnIconModeChanged();
+        // "Evet" simgeleri yalnızca bölmelerde gösterir (DesktopModes.FencesOnly); "Kutuya koyduğum simgeler masaüstünden
+        // kalksın" burada sorulmaz: ilk simge kutuya konunca sorulur.
         FencesYes.Checked += (_, _) => UpdateStartupTip();
         FencesNo.Checked += (_, _) => UpdateStartupTip();
-    }
-
-    private IconMode SelectedIconMode => IconModeBox.SelectedItem is ComboBoxItem { Tag: IconMode mode } ? mode : IconMode.FencesOnly;
-
-    private void OnIconModeChanged()
-    {
-        var mode = SelectedIconMode;
-        IconModeText.Text = DesktopModes.Description(mode);
-        FencesOnlyTip.Visibility = mode == IconMode.FencesOnly ? Visibility.Visible : Visibility.Collapsed;
-        UpdateStartupTip();
     }
 
     // ---------------------------------------------------------------- 2. adım: dosya taşıma
@@ -444,72 +423,72 @@ public partial class WelcomeWindow : FluentWindow
         UpdateNext();
     }
 
-    // ---------------------------------------------------------------- 3. adım: araçlar ve başlangıç
+    // ---------------------------------------------------------------- 3. adım: halka, araçlar ve başlangıç
+
+    /// <summary>
+    /// Halkanın durağan önizlemesi (açılır halkanın zemini ve gerçek <see cref="RingView"/>; tıklanmaz, odak almaz) ve iki anahtar.
+    /// Önizlenen halka açılır halkanın açacağı halka; NestDesk halkası henüz yoksa tohumu (ayara yazılmaz). İlk açılışta çift
+    /// tıklama açık, kısayol kapalı; yeniden kurulumda bugünkü durum.
+    /// </summary>
+    private void SetupRing()
+    {
+        var config = RingTargets.Pick(AppHost.Settings) ?? RingTargets.NewHub();
+        var ring = new RingView
+        {
+            EditMode = true, StableSize = true, Focusable = false, IsHitTestVisible = false, ItemIdPrefix = "Welcome.Ring.Item.",
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        var palette = RingView.PaletteFor(config);
+        ring.ApplyPalette(palette, rebuild: false);
+        ring.CenterShowsIcon = !config.Shows(WidgetNameLine.PartKey);
+        ring.SetRing(config);
+        var backdrop = new RingBackdrop { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        backdrop.Apply(palette, ring.Metrics.OuterRadius);
+        var stage = new Grid();
+        stage.Children.Add(backdrop);
+        stage.Children.Add(ring);
+        RingPreviewBox.Child = stage;
+        AutomationProperties.SetAutomationId(ring, "Welcome.Ring.Preview");
+        _ringPreview = ring;
+
+        var current = DesktopState.DoubleClickChoice(AppHost.Settings.DoubleClickAction, AppHost.Settings.DoubleClickHidesDesktop);
+        RingDoubleClickToggle.IsChecked = !_rerun || current == DesktopState.DoubleClickRing;
+        RingKeyToggle.IsChecked = _rerun && RingShortcut.IsOn;
+        RingKeyText.Text = RingShortcut.Current is { } hotkey ? RingShortcut.TurnedOnText(hotkey)
+            : L.F("Halka {0} ile imlecin yanında açılır. {1} klavyeni izlemez: yalnızca bu kısayol Windows'a kaydedilir.",
+                RingHotkey.Suggest(AppHost.Settings.Hotkeys, AppHost.Hotkeys?.Failures) ?? RingHotkey.Candidates[0], AppInfo.Name);
+    }
 
     private void SetupTools()
     {
-        var style = (Style)FindResource("ToolTile");
-        // Karşılamada yalnızca temel araçlar (adım sabit boyutlu); öbür widget'lar "Widget ekle"de.
+        var style = (Style)FindResource("ToolChip");
+        // Karşılamada yalnızca temel araçlar; öbür widget'lar "Widget ekle"de.
         foreach (var choice in WidgetCatalog.WelcomeTools)
         {
             // Karşılama widget kaldırmaz ve aynı türden ikincisini eklemez.
             var onDesktop = choice.Matches is { } matches && AppHost.Settings.Widgets.Any(matches);
 
-            FrameworkElement preview = choice.Key switch
+            var content = new StackPanel { Orientation = Orientation.Horizontal };
+            content.Children.Add(new SymbolIcon
             {
-                "Clock" => _clockPreview = new TextBlock
-                {
-                    FontSize = 24, FontWeight = FontWeights.Light, FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI"),
-                },
-                "Date" => _datePreview = new TextBlock { FontSize = 18, FontWeight = FontWeights.SemiBold },
-                _ => new SymbolIcon { Symbol = choice.Icon, FontSize = 30 },
-            };
-            preview.HorizontalAlignment = HorizontalAlignment.Center;
-            preview.VerticalAlignment = VerticalAlignment.Center;
-
-            var content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-            content.Children.Add(new Grid { Height = 40, Children = { preview } });
-            content.Children.Add(new TextBlock
-            {
-                Text = choice.Label, Margin = new Thickness(0, 6, 0, 0), TextAlignment = TextAlignment.Center,
-                TextWrapping = TextWrapping.Wrap, MaxWidth = 92, HorizontalAlignment = HorizontalAlignment.Center,
+                Symbol = choice.Icon, FontSize = 16, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
             });
-            if (onDesktop)
-            {
-                var badge = new TextBlock
-                {
-                    Text = L.T("Masaüstünde var"), FontSize = 11, Margin = new Thickness(0, 2, 0, 0),
-                    TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
-                };
-                badge.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-                content.Children.Add(badge);
-            }
+            content.Children.Add(new TextBlock { Text = choice.Label, VerticalAlignment = VerticalAlignment.Center });
+            var tip = onDesktop ? L.T("Masaüstünde var") : choice.Tip;
 
             var tile = new ToggleButton
             {
-                Style = style, Content = content, ToolTip = choice.Tip, IsEnabled = !onDesktop,
+                Style = style, Content = content, ToolTip = tip, IsEnabled = !onDesktop,
                 // Varsayılan: Saat ve Tarih.
                 IsChecked = !onDesktop && (choice.Key is "Clock" or "Date"),
             };
             ToolTipService.SetShowOnDisabled(tile, true);
             AutomationProperties.SetAutomationId(tile, "Welcome.Tool_" + choice.Key);
             AutomationProperties.SetName(tile, choice.Label);
-            AutomationProperties.SetHelpText(tile, choice.Tip);
+            AutomationProperties.SetHelpText(tile, tip);
             _tools.Add((choice, tile));
             ToolTiles.Children.Add(tile);
         }
-        UpdateToolPreviews();
-    }
-
-    private void UpdateToolPreviews()
-    {
-        var now = DateTime.Now;
-        var culture = L.Culture;
-        // Saat widget'ının varsayılanıyla aynı: Windows'un bölge ayarına göre 24 ya da 12 saatlik (12'de ÖÖ/ÖS'siz, sığsın).
-        if (_clockPreview is not null) _clockPreview.Text = WorldClock.Time(now, WorldClock.Uses24Hour(null), culture);
-        // Gün ve ay, dilin sırasıyla: "28 Eyl" / "Sep 28" (en-GB: "28 Sep").
-        var monthFirst = culture.DateTimeFormat.MonthDayPattern.TrimStart().StartsWith('M');
-        if (_datePreview is not null) _datePreview.Text = now.ToString(monthFirst ? "MMM d" : "d MMM", culture);
     }
 
     /// <summary>"Windows ile başlat" kartı gerçek durumu gösterir (paketsizde Run kaydı, Store'da başlangıç görevi).</summary>
@@ -522,7 +501,6 @@ public partial class WelcomeWindow : FluentWindow
         StartupToggle.Unchecked += (_, _) => UpdateStartupTip();
         StartupSettingsButton.Click += (_, _) => WelcomeSetup.OpenStartupSettings();
         StartupTip.Text = L.F("İpucu: {0} Windows ile başlamazsa masaüstü simgelerin, sen {0}'i açana dek her zamanki gibi görünür.", AppInfo.Name);
-        TrayInfo.Text = TrayInfoText();
 
         if (AppHost.IsTestDesktop)
         {
@@ -580,18 +558,8 @@ public partial class WelcomeWindow : FluentWindow
     /// </summary>
     private void UpdateStartupTip()
     {
-        var iconsOnly = FencesYes.IsChecked == true && SelectedIconMode == IconMode.FencesOnly;
+        var iconsOnly = FencesYes.IsChecked == true;
         StartupTip.Visibility = !iconsOnly ? Visibility.Collapsed
             : StartupToggle.IsChecked == true ? Visibility.Hidden : Visibility.Visible;
-    }
-
-    private static string TrayInfoText()
-    {
-        var works = Hotkey.TryParse(AppHost.Settings.Hotkeys.QuickAdd, out var hotkey) &&
-                    AppHost.Hotkeys?.Failures.ContainsKey(HotkeyAction.QuickAdd) != true;
-        return works
-            ? L.F("{0} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için {1} tuşlarına bas ya da o simgeye sağ tıkla → Widget ekle.",
-                AppInfo.Name, hotkey)
-            : L.F("{0} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için o simgeye sağ tıkla → Widget ekle.", AppInfo.Name);
     }
 }

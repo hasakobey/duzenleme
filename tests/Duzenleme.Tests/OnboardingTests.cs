@@ -285,6 +285,70 @@ public class OnboardingTests
         Assert.Matches(nameof(AppSettings.EditPanelNoticeShown) + @"""\s*:\s*true", Json(settings));
     }
 
+    // Halka adımı (3. adım)
+
+    [Fact]
+    public void Welcome_defaults_open_the_ring_by_double_click_and_leave_the_key_off()
+    {
+        var c = new WelcomeChoices();
+        Assert.True(c.DoubleClickRing);
+        Assert.False(c.RingKey);
+        Assert.True(c.IconsOnlyInFences); // "Evet, bölmelere ayır" = simgeler yalnızca bölmelerde
+    }
+
+    [Fact]
+    public void Finishing_with_defaults_writes_ring_and_does_not_touch_the_key()
+    {
+        var settings = new AppSettings { FirstRunDone = false };
+        Onboarding.PrepareNewUser(settings);
+
+        var key = Onboarding.ApplyRingChoices(settings, new WelcomeChoices());
+
+        Assert.Equal(DesktopState.DoubleClickRing, settings.DoubleClickAction);
+        Assert.True(settings.DoubleClickHidesDesktop); // 2.0'a dönülürse çift tıklama açık kalsın
+        Assert.Null(key); // kısayol seçilmedi: TurnOn çağrılmaz (Store: varsayılan kapalı ve atanmamış)
+        Assert.True(string.IsNullOrEmpty(settings.Hotkeys.Ring));
+        Assert.Equal(DoubleClickEffect.Ring,
+            DesktopState.ResolveDoubleClick(settings.DoubleClickAction, settings.DoubleClickHidesDesktop, settings.FencesReplaceIcons));
+    }
+
+    [Fact]
+    public void Key_is_turned_on_only_when_chosen()
+    {
+        var settings = new AppSettings();
+        Assert.True(Onboarding.ApplyRingChoices(settings, new WelcomeChoices { RingKey = true }));
+        // Zaten açıksa yeniden açılmaz; yeniden kurulumda kapatılan anahtar kapatır.
+        settings.Hotkeys.Set(HotkeyAction.Ring, "Ctrl+Alt+R");
+        Assert.Null(Onboarding.ApplyRingChoices(settings, new WelcomeChoices { RingKey = true }));
+        Assert.False(Onboarding.ApplyRingChoices(settings, new WelcomeChoices { RingKey = false }));
+    }
+
+    [Theory]
+    [InlineData(null, true, null)]
+    [InlineData(DesktopState.DoubleClickPeek, true, DesktopState.DoubleClickPeek)]
+    [InlineData(DesktopState.DoubleClickNone, false, DesktopState.DoubleClickNone)]
+    [InlineData(DesktopState.DoubleClickRing, true, DesktopState.DoubleClickAuto)]
+    public void Declining_double_click_only_undoes_the_ring(string? before, bool legacy, string? after)
+    {
+        var settings = new AppSettings { DoubleClickAction = before, DoubleClickHidesDesktop = legacy };
+
+        Onboarding.ApplyRingChoices(settings, new WelcomeChoices { DoubleClickRing = false });
+
+        Assert.Equal(after, settings.DoubleClickAction);
+        Assert.Equal(legacy, settings.DoubleClickHidesDesktop);
+    }
+
+    [Fact]
+    public void Hub_preview_seed_is_not_written_to_settings()
+    {
+        var settings = new AppSettings();
+        var preview = RingTargets.NewHub();
+        Assert.True(WidgetVariants.Is(preview, WidgetVariants.Ring));
+        Assert.Null(settings.Hub);
+        Assert.Null(RingTargets.Pick(settings));
+        Assert.Equal(preview.Title, RingTargets.EnsureHub(settings).Title);
+    }
+
     // FencePlanText
 
     [Fact]

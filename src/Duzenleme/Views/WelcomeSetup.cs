@@ -9,7 +9,7 @@ namespace Duzenleme.Views;
 
 /// <summary>
 /// Karşılamadaki seçimleri uygular ("Bitti"). Karşılama penceresi önce kapanır, sonra bu çalışır. Sıra: bölmeler, klasörler
-/// ve kurallar, araçlar, taşıma, Windows ile başlatma. Bölmeler klasörlerden önce eklenir: 1. adımda gösterilen bölme planı
+/// ve kurallar, araçlar, taşıma, Windows ile başlatma, halka (çift tıklama ve yalnızca seçildiyse kısayol), "Hazır." bildirimi. Bölmeler klasörlerden önce eklenir: 1. adımda gösterilen bölme planı
 /// sonradan açılan klasörlerle büyümesin.
 /// </summary>
 internal static class WelcomeSetup
@@ -89,14 +89,38 @@ internal static class WelcomeSetup
             else SetRunValue(start);
         }
 
-        // 6. Açılamayan klasörler.
+        // 6. Halka: çift tıklama "ring" (seçildiyse), kısayol yalnızca seçildiyse (RingShortcut.TurnOn; Store: varsayılan kapalı).
+        var keyChange = Onboarding.ApplyRingChoices(settings, c);
+        AppHost.SaveSettings();
+        AppHost.ApplyDoubleClickSetting();
+        RingHotkey.TurnOnResult? key = null;
+        if (keyChange == true) key = RingShortcut.TurnOn();
+        else if (keyChange == false) RingShortcut.TurnOff();
+        else RingPopup.Sync();
+
+        // 7. Açılamayan klasörler.
         if (failed.Count > 0)
             AppHost.Tray?.Notify(L.T("Bazı klasörler oluşturulamadı"), $"{L.Join(failed)}: {firstFailure?.Error}");
 
         DebugLog.Write($"karşılama uygulandı: bölme {fencesAdded}, araç {toolsAdded}, taşıma {Describe(c.AutoMove)}, {watch.ElapsedMilliseconds} ms");
 
-        // 7. Masaüstüne bir şey eklendiyse ana pencere açılmaz: yeni widget'lar birkaç saniye öne gelir, kullanıcı onları görsün.
+        // 8. Masaüstüne bir şey eklendiyse ana pencere açılmaz: yeni widget'lar birkaç saniye öne gelir, kullanıcı onları görsün.
         if (fencesAdded + toolsAdded == 0) (Application.Current as App)?.ShowMainWindow();
+
+        // 9. Halkanın nasıl açılacağı ("Şimdi göster" halkayı karşılamanın ekranının ortasında açar). Pencere gizliyse balon.
+        Notice.Show(ReadyText(c.DoubleClickRing, key), key is { Hotkey: null } ? NoticeKind.Warning : NoticeKind.Success,
+            L.T("Şimdi göster"), () => RingPopup.OpenAt(near, RingOrigin.Command), L.T("Halkayı görmek için buraya tıkla."));
+    }
+
+    /// <summary>"Hazır." bildirimi: halka nasıl açılır; kısayol atandıysa gerçekten atanan tuş, atanamadıysa nedeni.</summary>
+    internal static string ReadyText(bool doubleClick, RingHotkey.TurnOnResult? key)
+    {
+        var current = key?.Hotkey ?? (key is null ? RingShortcut.Current : null);
+        var first = doubleClick ? L.T("Hazır. Halkayı açmak için boş masaüstüne çift tıkla.")
+            : current is not null ? L.F("Hazır. Halkayı açmak için {0} tuşlarına bas.", current)
+            : L.F("Hazır. Halkayı tepsideki {0} simgesine sağ tıklayıp \"Halkayı aç\" ile açabilirsin.", AppInfo.Name);
+        if (key is { Hotkey: null } failed) return first + " " + RingShortcut.NoShortcutText(failed.Failure);
+        return doubleClick && current is not null ? first + " " + L.F("Halka tuşu: {0}", current) : first;
     }
 
     /// <summary>Yalnızca günlük için (DebugLog).</summary>
