@@ -99,9 +99,13 @@ public class BoxSwitchTests
         var bytes = File.ReadAllBytes(path);
         Assert.True(bytes.Length > 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF, "NestDesk.iss BOM'lu UTF-8 olmalı");
         var iss = Encoding.UTF8.GetString(bytes);
-        var line = iss.Split('\n').Single(l => l.Contains("--restore-desktop", StringComparison.Ordinal) && l.StartsWith("Filename:", StringComparison.Ordinal));
-        Assert.Contains("{code:QuietArg}", line);
-        Assert.DoesNotContain("runhidden", line);
+        // [UninstallRun] parametreleri kurulumda çözülür: UninstallSilent orada çağrılırsa kurulum "Cannot call UninstallSilent
+        // during Setup" ile geri sarılır. Geri koyma kaldırıcının kodundan (usUninstall) görünür pencereyle çalışır.
+        Assert.DoesNotContain("[UninstallRun]", iss);
+        var line = iss.Split('\n').Single(l => l.Contains("'--restore-desktop'", StringComparison.Ordinal));
+        Assert.Contains("Exec(", line);
+        Assert.Contains("QuietArg()", line);
+        Assert.Contains("SW_SHOW", line);
         Assert.Contains("function QuietArg(", iss);
         Assert.Contains("english.BoxFilesKept=", iss);
         Assert.Contains("turkish.BoxFilesKept=", iss);

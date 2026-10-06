@@ -207,14 +207,6 @@ Type: filesandordirs; Name: "{localappdata}\Temp\.net\Duzenleme"
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
 
-[UninstallRun]
-; Uygulama zorla kapatılıp Windows masaüstü simgelerini gizli bıraktıysa geri açar ve kutulara taşınan simgeleri masaüstüne
-; geri koyar (herkesin masaüstündekiler bir yönetici onayıyla; sessiz kaldırmada --quiet: onay penceresi açılmaz, onlar
-; kullanıcının masaüstüne konur). Bu kip tek örnek kilidini almaz ve çalışan örneğe sinyal göndermez (uygulama bu noktada
-; zaten kapatılmıştır: CurUninstallStepChanged). runhidden yok: Windows'un onay penceresi gizli açılmasın (uygulamanın
-; kendi penceresi yoktur).
-Filename: "{app}\{#AppExe}"; Parameters: "--restore-desktop{code:QuietArg}"; Flags: skipifdoesntexist; RunOnceId: "RestoreDesktop"
-
 [Code]
 const
   EVENT_MODIFY_STATE = $0002;
@@ -353,8 +345,9 @@ begin
   Result := AddBackslash(Parent) + '{#AppName}';
 end;
 
-{ Sessiz kaldırmada (/SILENT, /VERYSILENT) --restore-desktop'a " --quiet": yönetici onayı penceresi açılmaz. }
-function QuietArg(Param: String): String;
+{ Sessiz kaldırmada (/SILENT, /VERYSILENT) --restore-desktop'a " --quiet": yönetici onayı penceresi açılmaz. Yalnızca
+  kaldırıcıda çağrılır (UninstallSilent kurulumda çağrılamaz; UninstallRun bölümünün parametreleri kurulumda çözülürdü). }
+function QuietArg(): String;
 begin
   if UninstallSilent then
     Result := ' --quiet'
@@ -561,6 +554,7 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   DataDir, LegacyDataDir, BoxDir: String;
+  ResultCode: Integer;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -571,10 +565,16 @@ begin
       RestoreDesktopIconsIfHidden();
     end;
     DeleteOurRunValues(ExpandConstant('{app}'));
+    { Uygulama zorla kapatılıp Windows masaüstü simgelerini gizli bıraktıysa geri açar ve kutulara taşınan simgeleri masaüstüne
+      geri koyar (herkesin masaüstündekiler bir yönetici onayıyla; sessiz kaldırmada --quiet: onay penceresi açılmaz, onlar
+      kullanıcının masaüstüne konur). Bu kip tek örnek kilidini almaz ve çalışan örneğe sinyal göndermez (uygulama yukarıda
+      kapatıldı). SW_SHOW: Windows'un onay penceresi gizli açılmasın (uygulamanın kendi penceresi yoktur). }
+    if FileExists(ExpandConstant('{app}\{#AppExe}')) then
+      Exec(ExpandConstant('{app}\{#AppExe}'), '--restore-desktop' + QuietArg(), '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
   end;
   if CurUninstallStep = usPostUninstall then
   begin
-    { Kutulara taşınan dosyalar [UninstallRun]'daki --restore-desktop ile masaüstüne döndü; geri konamayan kaldıysa (açık
+    { Kutulara taşınan dosyalar usUninstall'daki --restore-desktop ile masaüstüne döndü; geri konamayan kaldıysa (açık
       dosya, izin) nerede oldukları söylenir. NestDesk onları silmez; kökteki "Bu klasör nedir.txt" eski yerlerini listeler. }
     BoxDir := BoxFolder();
     if FolderHasEntries(BoxDir) and (not UninstallSilent) then
