@@ -500,7 +500,6 @@ public partial class WelcomeWindow : FluentWindow
         StartupToggle.Checked += (_, _) => UpdateStartupTip();
         StartupToggle.Unchecked += (_, _) => UpdateStartupTip();
         StartupSettingsButton.Click += (_, _) => WelcomeSetup.OpenStartupSettings();
-        StartupTip.Text = L.F("İpucu: {0} Windows ile başlamazsa masaüstü simgelerin, sen {0}'i açana dek her zamanki gibi görünür.", AppInfo.Name);
 
         if (AppHost.IsTestDesktop)
         {
@@ -553,13 +552,15 @@ public partial class WelcomeWindow : FluentWindow
     }
 
     /// <summary>
-    /// Simgeler yalnızca bölmelerde olacaksa ve uygulama Windows ile başlamayacaksa: oturum açılınca simgeler görünür.
-    /// Anahtar açıkken yeri korunur (Hidden): anahtarla oynarken alttaki metin kaymasın.
+    /// Simgeler yalnızca bölmelerde olacaksa ve uygulama Windows ile başlamayacaksa oturum açılınca simgeler görünür: bunu
+    /// başlangıç kartının tek satırlık açıklaması söyler (ayrı ipucu satırı yok; iki metin de tek satır, anahtarla oynarken
+    /// altındaki hiçbir şey kaymaz).
     /// </summary>
     private void UpdateStartupTip()
     {
-        var iconsOnly = FencesYes.IsChecked == true;
-        StartupTip.Visibility = !iconsOnly ? Visibility.Collapsed
-            : StartupToggle.IsChecked == true ? Visibility.Hidden : Visibility.Visible;
+        var tip = FencesYes.IsChecked == true && StartupToggle.IsChecked != true;
+        StartupText.Text = tip
+            ? L.F("Kapalıyken simgelerin, {0}'i açana dek masaüstünde görünür.", AppInfo.Name)
+            : L.T("Tepside sessizce başlar; bölmeler ve otomatik taşıma hep hazır.");
     }
 }
