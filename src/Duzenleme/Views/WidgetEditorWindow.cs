@@ -138,12 +138,14 @@ internal sealed class WidgetEditorWindow : FluentWindow
     private void Hook(WidgetWindow widget)
     {
         widget.Closed += OnWidgetClosed;
+        widget.SizeChanged += OnCardSizeChanged;
         if (AppHost.Widgets is { } widgets) widgets.Changed += OnWidgetsChanged;
     }
 
     private void Unhook(WidgetWindow widget)
     {
         widget.Closed -= OnWidgetClosed;
+        widget.SizeChanged -= OnCardSizeChanged;
         if (AppHost.Widgets is { } widgets) widgets.Changed -= OnWidgetsChanged;
     }
 
@@ -164,6 +166,29 @@ internal sealed class WidgetEditorWindow : FluentWindow
         }
         _editor.Refresh();
     }
+
+    private bool _reanchorQueued;
+
+    /// <summary>
+    /// Kart panel açıkken büyüdü ya da küçüldü (ör. halkanın biçimi "Etiketli" oldu, not uzadı): panel kartın üstüne binerse
+    /// (adları, ⋯ ve × düğmelerini örterdi) bir kez yeniden kartın yanına yerleşir. Pencere sınırları canlandırılmaz; panel
+    /// öne getirilmez (odak nerede ise kalır).
+    /// </summary>
+    private void OnCardSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (_closing || !IsLoaded || _reanchorQueued) return;
+        _reanchorQueued = true;
+        // Kart yeni boyutuna oturduktan sonra (yükseklik kısma ve kaydırma da bitince) bakılır.
+        Dispatcher.BeginInvoke(() =>
+        {
+            _reanchorQueued = false;
+            if (_closing || !ShouldReanchor(PixelBox(), _widget.VisibleCardBox)) return;
+            PlaceNextToCard();
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Panel kartın üstüne biniyor mu (yalnızca o zaman yeniden yerleşir: kullanıcının taşıdığı panel yerinde kalır).</summary>
+    internal static bool ShouldReanchor(Box? panel, Box? card) => panel is { } p && card is { } c && p.Overlaps(c);
 
     private void OnKey(object sender, KeyEventArgs e)
     {
@@ -197,7 +222,8 @@ internal sealed class WidgetEditorWindow : FluentWindow
         var card = _widget.VisibleCardBox ?? new Box(point.X, point.Y, point.X, point.Y);
         var gap = (int)Math.Round(12 * NativeMethods.ScaleAt(point));
         var (x, y) = AnchorPlacement.NextTo(card, r.Width, r.Height, area, gap);
-        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER);
+        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
     }
 
     /// <summary>Boyu değişen pencere ekranın içinde kalır (yalnızca taşıyorsa, en kısa yoldan; canlandırma yok).</summary>

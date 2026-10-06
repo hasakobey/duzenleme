@@ -69,6 +69,7 @@ internal static partial class En
         new("{0} dosya taşınacak.", "{0} file will be moved.", "{0} files will be moved."),
         new("Masaüstü inceleniyor…", "Checking your desktop…"),
         new("Hiç klasör seçmedin; hiçbir dosya taşınmaz.", "You haven't selected any folders, so no files will be moved."),
+        new("Şimdilik hiçbir dosya taşınmaz; masaüstündeki dosyalara dokunulmaz.", "No files will be moved for now; the files on your desktop stay where they are."),
         new("Masaüstü okunamadı; taşınacak dosyalar şimdi gösterilemiyor.",
             "Couldn't read the desktop, so the files to be moved can't be shown right now."),
         new("Şu an masaüstünde taşınacak dosya yok. Bundan sonra gelen dosyalar taşınır.",

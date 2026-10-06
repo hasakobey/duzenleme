@@ -86,7 +86,10 @@ saydamdır; ölçülen süre "pencere ekranda ve çizildi" anıdır, halkanın t
 (≤ 200 ms) ekler. Kullanıcının gördüğü açılışı karşılaştırmak için `-Set AnimationsOff=true` ile de çalıştır (ilk kare tam görünür).
 İlk açılış **soğuk** sayılır (pencere önceden kurulu ama ilk kez gösteriliyor), sonrakiler
 **sıcak**. Kalıcı maliyet: `ring` ile `ring -RingOff` çalıştırmalarının `MemoryAtStartupIdle.PrivateMB` farkı (açılır halka
-ölçülen açılışta boşa düşülürken kurulur). `RingMemoryDelta`: açılışlar boyunca artış (sızıntı olmamalı).
+ölçülen açılışta boşa düşülürken kurulur). `RingMemoryDelta`: açılışlar boyunca artış (sızıntı olmamalı). İlk gösterilişte GDI/USER birkaç nesne artar (pencerenin DC'si ve
+yüzeyi; bir kez), sonraki açılışlarda düz kalmalı. 2.2'de açılır halka donanımla çizilirken 17 açılışta +130 MB özel bellek
+ölçüldü (yönetilen yığın düz: ekran kartı sürücüsünün katmanlı pencere yüzeyleri); yazılımla çizim (`RenderMode.SoftwareOnly`)
+sonrası ≤ 1 MB.
 
 ## 3. Makine ve kurulum
 

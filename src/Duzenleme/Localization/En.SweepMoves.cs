@@ -54,6 +54,7 @@ internal static partial class En
         new("Masaüstünde yok", "Not on the desktop"),
         new("\"{0}\" kuralı", "\"{0}\" rule"),
         new("Klasörü oluştur: {0}", "Create folder: {0}"),
+        new("{0} (kapalı)", "{0} (off)"),
 
         // Otomatik taşıma sayfasının bildirimleri ve soruları
         new("\"{0}\" kuralı silindi.", "The \"{0}\" rule was deleted."),

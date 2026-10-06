@@ -268,8 +268,9 @@ public partial class WelcomeWindow : FluentWindow
             : L.F("Hiçbir dosyaya dokunulmaz. İstediğin zaman {0}'teki \"Otomatik taşıma\" sayfasından açabilirsin.", AppInfo.Name);
         // Klasör seçenekleri masaüstü okununca kurulur; o zamana dek taşıma seçilemez (seçimsiz "Evet" kuralları kapatırdı).
         MoveYes.IsEnabled = MoveNo.IsEnabled = false;
-        MoveYes.Checked += (_, _) => UpdateNext();
-        MoveNo.Checked += (_, _) => UpdateNext();
+        // Önizleme seçime uyar: "Şimdilik hayır" seçiliyken "taşınacak" uyarısı gösterilmez.
+        MoveYes.Checked += (_, _) => { UpdateNext(); UpdatePreview(); };
+        MoveNo.Checked += (_, _) => { UpdateNext(); UpdatePreview(); };
         UpdatePreview();
     }
 
@@ -382,7 +383,9 @@ public partial class WelcomeWindow : FluentWindow
             var moves = Onboarding.PreviewMoves(AppHost.Settings.Rules, selected, _existingFolders, _files,
                 AppHost.Settings.CreateMissingFolders);
             _pending = moves.Count;
-            if (moves.Count == 0)
+            if (MoveNo.IsChecked == true)
+                ShowPreview(warning: false, L.T("Şimdilik hiçbir dosya taşınmaz; masaüstündeki dosyalara dokunulmaz."));
+            else if (moves.Count == 0)
                 ShowPreview(warning: false, L.T("Şu an masaüstünde taşınacak dosya yok. Bundan sonra gelen dosyalar taşınır."));
             else
                 ShowPreview(warning: true, L.P(moves.Count, "Şu an masaüstünde duran {0} dosya da taşınacak:") +

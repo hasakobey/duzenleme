@@ -847,13 +847,14 @@ public static class Motion
     {
         var plan = Decide(MotionKind.RingOpen, MotionSurface.Ring, state: StateOf(fade));
         AppearCore(fade, show, animate: plan is not null, _ => plan! with { Scale = 1, OffsetY = 0, DelayMs = 0 }, mover: null);
-        // Sakin: pencerenin solması yeter, öğeler ayrıca solmaz (hemen yerinde).
-        RingItems(plan is { Moves: true } ? plan : null, center, items, towardCenter);
+        // Sakin: pencerenin solması yeter, öğeler ayrıca solmaz (hemen yerinde). Açılış başarım günlüğüne bir kez (pencerenin
+        // solmasıyla) yazılır: öğelerin kademesi ayrıca sayılmaz.
+        RingItems(plan is { Moves: true } ? plan : null, center, items, towardCenter, count: false);
     }
 
     /// <summary>Alt halkaya geçiş (ya da geri): yeni öğeler ortadan kayarak gelir, orta aşmayla yerine oturur.</summary>
     public static void RingSwap(UIElement? center, IReadOnlyList<UIElement> items, IReadOnlyList<Vector>? towardCenter = null) =>
-        RingItems(Decide(MotionKind.RingSwap, MotionSurface.Ring), center, items, towardCenter);
+        RingItems(Decide(MotionKind.RingSwap, MotionSurface.Ring), center, items, towardCenter, count: true);
 
     /// <summary>
     /// Halkanın kapanışı: kısa solma (orta biraz küçülür); <paramref name="hide"/> pencere gerçekten kapanınca (plan yoksa
@@ -862,15 +863,16 @@ public static class Motion
     public static void RingClose(UIElement fade, Action hide, UIElement? center = null) =>
         DisappearCore(fade, hide, fade.IsVisible ? Decide(MotionKind.RingClose, MotionSurface.Ring, state: StateOf(fade)) : null, center);
 
-    private static void RingItems(MotionPlan? plan, UIElement? center, IReadOnlyList<UIElement> items, IReadOnlyList<Vector>? towardCenter)
+    /// <param name="count">Başarım günlüğüne yazılsın mı (geçişte ilk öğeyle bir kez; açılışta pencerenin solması yazar).</param>
+    private static void RingItems(MotionPlan? plan, UIElement? center, IReadOnlyList<UIElement> items, IReadOnlyList<Vector>? towardCenter, bool count)
     {
-        // Halka katmanlı değil (sayaç yok); başarım günlüğüne halka başına bir kez (ilk öğe) yazılır.
+        // Halka katmanlı değil (sayaç yok); başarım günlüğüne halka başına bir kez yazılır.
         if (center is not null)
             EnterCore(center, StateOf(center), plan is { Moves: true } ? plan with { Scale = MotionPolicy.RingCenterScale, Fade = false } : null, default, count: false);
         for (var i = 0; i < items.Count; i++)
         {
             var travel = plan is { Moves: true } && towardCenter is not null && i < towardCenter.Count ? towardCenter[i] * MotionPolicy.RingTravel : default;
-            EnterCore(items[i], StateOf(items[i]), plan is null ? null : MotionPolicy.Stagger(Level, plan, i), travel, count: i == 0);
+            EnterCore(items[i], StateOf(items[i]), plan is null ? null : MotionPolicy.Stagger(Level, plan, i), travel, count: count && i == 0);
         }
     }
 

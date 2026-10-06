@@ -463,7 +463,12 @@ internal sealed class RingView : FrameworkElement
     /// <summary>Ölçek dışarıdan verilir (pencereye bağlanmadan önce açılacağı ekranınki).</summary>
     public double PixelsPerDipHint { get; set; }
 
-    private double PixelsPerDip => PresentationSource.FromVisual(this) is not null ? VisualTreeHelper.GetDpi(this).PixelsPerDip
+    /// <summary>
+    /// Pencereye bağlıysa pencerenin gerçek ölçeği (HwndSource dönüşümü: hiç gösterilmemiş açılır halkada
+    /// <see cref="VisualTreeHelper.GetDpi"/> ilk gösterilişe dek 1 döner, simgeler yanlış boyutta istenirdi).
+    /// </summary>
+    private double PixelsPerDip => PresentationSource.FromVisual(this) is { } source
+        ? source.CompositionTarget?.TransformToDevice.M11 is double m && m > 0 ? m : VisualTreeHelper.GetDpi(this).PixelsPerDip
         : PixelsPerDipHint > 0 ? PixelsPerDipHint : NativeMethods.SystemPixelsPerDip;
 
     /// <summary>Noktadaki yeri vurgular (görünümün kendi koordinatında).</summary>

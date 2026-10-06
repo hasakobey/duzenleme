@@ -53,12 +53,25 @@ internal static class QuietShow
     }
 
     /// <summary>
-    /// <paramref name="create"/> süresince bu iş parçacığında oluşan üst düzey pencereler etkinleşmez ve odak almaz.
-    /// Oluşturulan pencerelerin sayısını döner (tanı için).
+    /// Var olan pencereyi taşır (<paramref name="move"/>) ama taşınırken etkinleşmez: ölçeği farklı bir monitöre geçen pencereye
+    /// gelen WM_DPICHANGED'i WPF SWP_NOACTIVATE olmadan SetWindowPos ile işler ve WS_EX_NOACTIVATE'e rağmen pencere etkinleşir
+    /// (karşılamadan sonra eklenen saat ve tarih öne gelen pencere olmadığında etkinleşip klavye odağını alıyordu). Taşıma bu
+    /// iş parçacığında eşzamanlı olduğundan kanca yalnızca onun süresince durur.
     /// </summary>
-    public static int Run(Action create)
+    public static void Move(IntPtr hwnd, Action move)
+    {
+        if (hwnd == IntPtr.Zero) move();
+        else Run(move, hwnd);
+    }
+
+    /// <summary>
+    /// <paramref name="create"/> süresince bu iş parçacığında oluşan üst düzey pencereler (ve <paramref name="guard"/>)
+    /// etkinleşmez ve odak almaz. Oluşturulan pencerelerin sayısını döner (tanı için).
+    /// </summary>
+    public static int Run(Action create, IntPtr guard = default)
     {
         var created = new HashSet<IntPtr>();
+        if (guard != IntPtr.Zero) created.Add(guard);
         NativeMethods.HookProc proc = (code, wParam, lParam) =>
         {
             try
@@ -75,7 +88,9 @@ internal static class QuietShow
                         break;
                     // Oluşan pencere etkinleşmek ya da klavye odağını almak isterse geri çevrilir (sıfırdan farklı = engelle).
                     case HCBT_ACTIVATE or HCBT_SETFOCUS when created.Contains(wParam):
-                        DebugLog.Write($"odak isteği engellendi (pencere oluşurken): kod={code}");
+                        DebugLog.Write(wParam == guard
+                            ? $"odak isteği engellendi (pencere taşınırken): kod={code}"
+                            : $"odak isteği engellendi (pencere oluşurken): kod={code}");
                         return new IntPtr(1);
                 }
             }
@@ -95,6 +110,6 @@ internal static class QuietShow
             if (hook != IntPtr.Zero) NativeMethods.UnhookWindowsHookEx(hook);
             GC.KeepAlive(proc);
         }
-        return created.Count;
+        return created.Count - (guard != IntPtr.Zero ? 1 : 0);
     }
 }

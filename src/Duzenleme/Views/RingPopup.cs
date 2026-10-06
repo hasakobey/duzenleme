@@ -286,7 +286,13 @@ internal sealed class RingPopup : Window
         var ex = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
         ex = (ex | NativeMethods.WS_EX_TOOLWINDOW) & ~NativeMethods.WS_EX_APPWINDOW;
         NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(ex));
-        HwndSource.FromHwnd(hwnd)?.AddHook(WndProc);
+        var source = HwndSource.FromHwnd(hwnd);
+        source?.AddHook(WndProc);
+        // Yazılımla çizilir (widget'lar gibi): donanım çiziminde katmanlı pencere her gösterilişte ekran kartı yüzeyini yeniden
+        // kurar ve sürücü belleği geri vermez (ölçüldü: 30 açılışta +170 MB özel bellek; yazılımla düz). Halka küçük ve
+        // yalnızca solma/ölçek oynar. NESTDESK_GPU=1 donanım çizimine döner.
+        if (source?.CompositionTarget is { } target && AppEnvironment.Get("GPU") != "1")
+            target.RenderMode = RenderMode.SoftwareOnly;
     }
 
     private const int WM_SYSCOMMAND = 0x0112, SC_KEYMENU = 0xF100;
@@ -461,7 +467,8 @@ internal sealed class RingPopup : Window
         {
             _previous = IntPtr.Zero;
             var empty = config;
-            Notice.Show(L.T("Halka menün boş."), NoticeKind.Info, L.T("Halkayı düzenle"), () => RingEditor.Open(empty),
+            var at = _anchor;
+            Notice.Show(L.T("Halka menün boş."), NoticeKind.Info, L.T("Halkayı düzenle"), () => RingEditor.Open(empty, near: at),
                 L.T("Halkaya öğe eklemek için buraya tıkla."));
             return;
         }
@@ -518,7 +525,7 @@ internal sealed class RingPopup : Window
                 NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
             if (requireScale && !ScaleIs(target)) return false;
         }
-        _scale = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        _scale = WindowScale;
         var monitor = NativeMethods.MonitorAreaAt(_anchor);
         var popup = RingPlacement.ForPopup(new Box(monitor.Left, monitor.Top, monitor.Right, monitor.Bottom),
             new Box(work.Left, work.Top, work.Right, work.Bottom), _anchor.X, _anchor.Y, _ring.Metrics.OuterRadius, AimDip, _scale);
@@ -529,7 +536,16 @@ internal sealed class RingPopup : Window
         return true;
     }
 
-    private bool ScaleIs(double scale) => Math.Abs(VisualTreeHelper.GetDpi(this).PixelsPerDip - scale) <= 0.001;
+    private bool ScaleIs(double scale) => Math.Abs(WindowScale - scale) <= 0.001;
+
+    /// <summary>
+    /// Pencerenin gerçek ölçeği: WPF'in DIP'i piksele çevirdiği dönüşüm (HwndSource). Hiç gösterilmemiş pencerede
+    /// <see cref="VisualTreeHelper.GetDpi"/> ilk gösterilişe dek 1 döner (pencere %125'lik ekranda kurulmuş olsa da): ona
+    /// bakan ilk açılış halkayı yanlış ölçekte yerleştiriyordu.
+    /// </summary>
+    private double WindowScale =>
+        HwndSource.FromHwnd(Handle)?.CompositionTarget?.TransformToDevice.M11 is double m && m > 0 ? m
+        : VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
     /// <summary>
     /// Gösterir ve öne getirir: WM_HOTKEY'i alan süreç öne geçebilir; olmazsa SetForegroundWindow (iş parçacığı girdisi
@@ -831,7 +847,9 @@ internal sealed class RingPopup : Window
     {
         if (_closing || !IsVisible || _config is not { } config) return;
         var tab = _ring.TabIndex;
-        CloseWith(restore: false, after: () => RingEditor.Open(config, tab));
+        // NestDesk halkasının düzenleyicisi halkanın açıldığı ekranda (imlecin değil; kısayolla açılan halka başka ekranda olabilir).
+        var at = _anchor;
+        CloseWith(restore: false, after: () => RingEditor.Open(config, tab, at));
     }
 
     private void CloseForRealCore()

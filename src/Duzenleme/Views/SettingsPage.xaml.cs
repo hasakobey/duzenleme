@@ -160,8 +160,9 @@ public partial class SettingsPage : Page
         Loaded += (_, _) =>
         {
             _current = this;
-            // Sayfaya her gelişte ilk görünüm; bildirimden "Gelişmiş ayarlar" istendiyse orası.
-            ShowView(_advancedRequested, focus: false);
+            // Sayfaya her gelişte ilk görünüm, en başından (gezinme görünümünün kaydırıcısı sayfalar arasında paylaşılır: kaydırılmış
+            // Widget'lar sayfasından gelince başlık gizli kalıyordu); bildirimden "Gelişmiş ayarlar" istendiyse orası.
+            ShowView(_advancedRequested, focus: false, toTop: true);
             _advancedRequested = false;
             Load();
         };
@@ -1258,7 +1259,8 @@ public partial class SettingsPage : Page
     /// Görünümü değiştirir: sayfa başa kayar (ya da <paramref name="scrollTo"/>'ya), yeni görünüm kısa bir sayfa geçişiyle gelir
     /// (Views.Motion; Kapalı'da hemen) ve klavye odağı ilk düğmeye (geri ya da "Gelişmiş ayarlar") gider.
     /// </summary>
-    private void ShowView(bool advanced, FrameworkElement? scrollTo = null, bool focus = true)
+    /// <param name="toTop">Görünüm değişmese de başa kaydır (sayfaya yeni gelindi).</param>
+    private void ShowView(bool advanced, FrameworkElement? scrollTo = null, bool focus = true, bool toTop = false)
     {
         var target = advanced ? AdvancedView : MainView;
         var changed = target.Visibility != Visibility.Visible;
@@ -1268,7 +1270,7 @@ public partial class SettingsPage : Page
         Dispatcher.BeginInvoke(() =>
         {
             if (scrollTo is not null) scrollTo.BringIntoView(new Rect(0, 0, 1, scrollTo.ActualHeight + 240));
-            else if (changed) FindScroller(this)?.ScrollToTop();
+            else if (changed || toTop) FindScroller(this)?.ScrollToTop();
             if (focus) (advanced ? BackButton : AdvancedButton).Focus();
         }, DispatcherPriority.Loaded);
     }

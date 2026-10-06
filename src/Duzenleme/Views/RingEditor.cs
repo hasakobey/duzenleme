@@ -462,10 +462,10 @@ internal sealed class RingEditor : UserControl
         switch (slot.Kind)
         {
             case RingSlotKind.Action when slot.Action is { } action:
-                if (RingActionDialog.Edit(action, _config, _anchor())) Change(() => { });
+                if (RingActionDialog.Edit(action, _config, _anchor(), _near())) Change(() => { });
                 break;
             case RingSlotKind.Path when slot.Path is { } path:
-                if (RingActionDialog.EditPath(slot, _config, _anchor()) is not { } look) return;
+                if (RingActionDialog.EditPath(slot, _config, _anchor(), _near()) is not { } look) return;
                 Change(() =>
                 {
                     ItemLooks.SetName(_config, path, look.Name, RingSlot.DefaultPathName(path));
@@ -474,7 +474,7 @@ internal sealed class RingEditor : UserControl
                 break;
             case RingSlotKind.SubRing when slot.TabIndex > 0 && slot.TabIndex < _config.Tabs.Count:
                 var tab = _config.Tabs[slot.TabIndex];
-                if (RingActionDialog.AskSubRing(tab.Name, _anchor()) is { } name) Change(() => tab.Name = name);
+                if (RingActionDialog.AskSubRing(tab.Name, _anchor(), _near()) is { } name) Change(() => tab.Name = name);
                 break;
         }
     }
@@ -558,7 +558,7 @@ internal sealed class RingEditor : UserControl
     private void AddAction(string type)
     {
         var tab = CurrentTab;
-        if (RingActionDialog.Create(type, _config, _anchor()) is not { } action) return;
+        if (RingActionDialog.Create(type, _config, _anchor(), _near()) is not { } action) return;
         Insert(Live(tab), InsertAt(), action);
     }
 
@@ -583,7 +583,7 @@ internal sealed class RingEditor : UserControl
 
     private void AddSubRing()
     {
-        if (RingActionDialog.AskSubRing(null, _anchor()) is not { } name) return;
+        if (RingActionDialog.AskSubRing(null, _anchor(), _near()) is not { } name) return;
         var tab = new LauncherTab { Name = name };
         Change(() => _config.Tabs.Add(tab));
         _selected = new SlotKey(null, null, tab);
@@ -664,6 +664,8 @@ internal sealed class RingEditor : UserControl
     {
         var button = EditorRows.ActionButton(label, automationId, click);
         button.Margin = new Thickness(0, 0, 6, 6);
+        // Yazının iki yanında küçük pay: %125'te son harf (İngilizcede "+ Folder"ın r'si) düğmenin içeriğinden taşıp kırpılıyordu.
+        button.Content = new TextBlock { Text = label, Margin = new Thickness(2, 0, 2, 0) };
         AutomationProperties.SetName(button, name);
         return button;
     }
@@ -722,7 +724,8 @@ internal sealed class RingEditorWindow : FluentWindow
         MaxHeight = Math.Max(320, NativeMethods.WorkAreaAt(point).Height / NativeMethods.ScaleAt(point) - 16);
         WindowFit.CenterOn(this, point);
 
-        _editor = new RingEditor(config, edits: null, anchor: () => null, near: () => point, tab: tab);
+        // Sorular ve öğe pencereleri düzenleyicinin bulunduğu ekranda (kullanıcı onu taşımış olabilir).
+        _editor = new RingEditor(config, edits: null, anchor: () => null, near: () => CenterNow() ?? point, tab: tab);
         var done = new Button { Content = L.T("Bitti"), Appearance = ControlAppearance.Primary, IsDefault = false, MinWidth = 100, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
         AutomationProperties.SetAutomationId(done, "RingEditor.Done");
         done.Click += (_, _) => Close();
@@ -759,6 +762,15 @@ internal sealed class RingEditorWindow : FluentWindow
             BoxMover.Changed -= OnOutsideChange;
             _editor.Release();
         };
+    }
+
+    /// <summary>Pencerenin ortası (fiziksel piksel); henüz yoksa null.</summary>
+    private NativeMethods.POINT? CenterNow()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        return hwnd != IntPtr.Zero && IsVisible && NativeMethods.GetWindowRect(hwnd, out var r)
+            ? new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 }
+            : null;
     }
 
     private void OnOutsideChange()
