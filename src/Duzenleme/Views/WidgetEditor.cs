@@ -189,6 +189,15 @@ internal sealed class WidgetEditor : UserControl
     }
 
     /// <summary>
+    /// "Bitti" görünsün mü (kendi penceresinde evet; Widget'lar sayfasına gömülü panelde kapatılacak bir şey yok, gizlenir).
+    /// </summary>
+    public bool ShowDone
+    {
+        get => _done.Visibility == Visibility.Visible;
+        set => _done.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
     /// Bu widget'ı düzenlemeye başlar (başka bir widget düzenleniyorsa ona geçer): "Geri al"ın döneceği hâl şimdi kopyalanır.
     /// Önceki widget'ın yazılmakta olan adı kaydedilir.
     /// </summary>
@@ -359,7 +368,9 @@ internal sealed class WidgetEditor : UserControl
     private FrameworkElement Header(IEditorTarget target)
     {
         var config = target.Config;
-        _icon = new SymbolIcon { Symbol = WidgetIcons.For(config), Filled = true, FontSize = 22 };
+        // Dolu (Filled) yazı tipinde her simge yok (saat): Windows başka bir yazı tipinin renkli glifine düşer, koyu temada siyah
+        // çizilirdi. Liste ve kart başlığı gibi düz simge.
+        _icon = new SymbolIcon { Symbol = WidgetIcons.For(config), FontSize = 22 };
         var icon = new Button
         {
             Content = _icon, Width = 40, Height = 40, Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Top,
@@ -540,7 +551,7 @@ internal sealed class WidgetEditor : UserControl
             var button = new RadioButton
             {
                 Content = new Grid { Width = 28, Height = 28, Children = { ring, fill } }, GroupName = group, Margin = new Thickness(0, 0, 8, 0),
-                Cursor = Cursors.Hand,
+                Cursor = Cursors.Hand, MinWidth = 0, MinHeight = 0, // WPF-UI'nin örtük RadioButton stili 120 DIP genişlik verirdi
                 Template = new ControlTemplate(typeof(RadioButton)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
             };
             AutomationProperties.SetAutomationId(button, "Editor.Accent." + (i + 1));

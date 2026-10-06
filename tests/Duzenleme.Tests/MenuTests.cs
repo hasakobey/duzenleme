@@ -316,8 +316,8 @@ public class MenuTests
     public void Theme_names_are_translated_in_english()
     {
         using var _ = L.Use(Lang.En);
-        Assert.Equal(["Classic", "Automatic (follows Windows)", "Neon", "Night", "Paper", "Ocean"],
-            LookMenus.ThemeChoices.Select(t => t.Label));
+        Assert.Equal(["Auto", "Glass", "Dark", "Light", "Neon", "Night", "Paper", "Ocean"],
+            LookGallery.All.Select(t => t.Label));
     }
 
     // ---------------------------------------------------------------- yardımcılar

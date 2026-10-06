@@ -844,7 +844,7 @@ public static class AppHost
         Tray?.Notify(L.F("{0} {1} eklendi", name, where),
             L.T("Yeni widget'ların yerini Ayarlar'dan değiştirebilirsin.") +
             (string.IsNullOrWhiteSpace(reveal) ? "" : L.F(" Widget'ları pencerelerin önüne getirmek için {0}.", reveal)),
-            () => (System.Windows.Application.Current as App)?.ShowPage(typeof(Views.SettingsPage)));
+            Views.SettingsPage.OpenAdvanced);
     }
 
     // --- Yeniden adlandırma ve simgeler ---

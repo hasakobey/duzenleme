@@ -11,14 +11,11 @@ internal static partial class En
     [ModuleInitializer]
     internal static void AddLooks() => Add(
     [
-        new("Klasik", "Classic"),
-        new("Otomatik (Windows'a uyar)", "Automatic (follows Windows)"),
         new("Neon", "Neon"),
         new("Gece", "Night"),
         new("Kâğıt", "Paper"),
         new("Okyanus", "Ocean"),
         new("Yüksek karşıtlık açık: widget'lar Windows'un renklerini kullanır.", "High contrast is on: widgets use your Windows colors."),
-        new("Tema, arka plan, renk ve yerleşim", "Theme, background, color and placement"),
         new("Özel renk…", "Custom color…"),
         new("Özel renk", "Custom color"),
         new("Renkler", "Colors"),

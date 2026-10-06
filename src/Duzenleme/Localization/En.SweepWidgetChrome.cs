@@ -11,8 +11,6 @@ internal static partial class En
     internal static void AddSweepWidgetChrome() => Add(
     [
         // Widget'lar sayfası
-        new("Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın.",
-            "Add a clock, a note or a panel to your desktop. You'll find what you add below and can remove it with one click."),
         new("Masaüstündekiler", "On your desktop"),
         new("Masaüstündekiler ({0})", "On your desktop ({0})"),
         new("Hepsini öne getir", "Bring all to front"),
@@ -21,15 +19,7 @@ internal static partial class En
         new("Widget'ları hizala", "Align widgets"),
         new("Widget'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki yerleşim kaydedilir",
             "Lines up the widgets on their screen without overlaps, starting from the right; the previous layout is saved"),
-        new("Bul", "Find"),
-        new("Bul: {0}", "Find: {0}"),
         new("Kaldır: {0}", "Remove: {0}"),
-        new("Masaüstündeki yerini göster", "Show where it is on the desktop"),
-        new("Masaüstünde henüz widget yok. Yukarıdan birine tıkla, hemen masaüstüne gelsin.",
-            "There are no widgets on your desktop yet. Click one above and it appears on your desktop right away."),
-        new("Tüm widget'ların görünümü", "Appearance of all widgets"),
-        new("Tek bir widget'ı ayarlamak için kartındaki ⋯ düğmesine bas (ya da ona sağ tıkla → Düzenle). Notlar kendi kağıt rengini kullanır.",
-            "To change a single widget, select the ⋯ button on it (or right-click it → Edit). Notes use their own paper color."),
         new("Kayıtlı yerleşimler", "Saved layouts"),
         new("Kayıtlı yerleşimler ({0})", "Saved layouts ({0})"),
         new("Yerleşimi bir adla sakla, tek tıkla geri dön", "Save your layout under a name and go back to it with one click"),

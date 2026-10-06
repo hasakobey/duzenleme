@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Threading;
 using Duzenleme.Core;
 
@@ -455,6 +455,9 @@ public sealed class WidgetManager
     /// </summary>
     internal IWidgetView? ViewOf(string id) => _open.TryGetValue(id, out var window) ? window.View : null;
 
+    /// <summary>Widget'ın açık penceresi (Widget'lar sayfasındaki Düzenle paneli onu düzenler); yoksa null.</summary>
+    internal WidgetWindow? WindowOf(string id) => _open.TryGetValue(id, out var window) ? window : null;
+
     /// <summary>Yeni notu öne alıp yazmaya hazır hale getirir (düz notta yazı alanı, yapılacaklarda ilk satır).</summary>
     public void FocusNote(string id)
     {
@@ -615,22 +618,24 @@ public sealed class WidgetManager
     }
 
     /// <summary>
-    /// Arka planı (Cam/Koyu/Açık), vurgu rengini ve/veya temayı bütün widget'lara uygular; null olan değişmez
-    /// (<paramref name="theme"/>: "" Klasik, "auto", tema adı). Öncelik kuralları menüdekiyle aynı (<see cref="WidgetLooks"/>):
-    /// klasik arka plan temayı kaldırır, adlı vurgu rengi özel rengi siler. Notlar atlanır: kendi kağıt rengini kullanırlar.
+    /// Widget'lar sayfasının "Tüm widget'lar" şeridi: görünüş değişikliği (galeri kartı ya da adlı vurgu rengi; yazma kuralları
+    /// <see cref="WidgetLooks"/>'ta) bütün widget'lara uygulanır. Notlar atlanır: kendi kağıt rengini kullanırlar. Yalnızca
+    /// gerçekten değişenlerin önceki görünüşü döner (bildirimdeki "Geri al" için; <see cref="UndoLookCopy"/>).
     /// </summary>
-    public void SetLookForAll(WidgetStyle? style, WidgetAccent? accent, string? theme = null)
+    internal IReadOnlyList<(string Id, LookFields Before)> ChangeLookForAll(Action<WidgetConfig> change)
     {
-        var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
-        foreach (var config in targets)
+        var before = new List<(string Id, LookFields Before)>();
+        foreach (var config in AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList())
         {
-            if (theme is not null) WidgetLooks.SetTheme(config, theme, WidgetPalette.SystemDark);
-            if (style is { } s) WidgetLooks.SetStyle(config, s);
-            if (accent is { } a) WidgetLooks.SetAccent(config, a);
+            var was = LookFields.Of(config);
+            change(config);
+            if (LookFields.Of(config) != was) before.Add((config.Id, was));
         }
+        if (before.Count == 0) return before;
         AppHost.SaveSettings();
-        foreach (var config in targets) Restyle(config.Id);
+        foreach (var (id, _) in before) Restyle(id);
         Changed?.Invoke();
+        return before;
     }
 
     // 2.2 Kolay NestDesk: Düzenle paneli
