@@ -503,7 +503,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="Magnet24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                    <ui:SymbolIcon Symbol="Pin24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Kenarlara yapışsın (mıknatıs)'}" />
@@ -520,7 +520,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <ui:SymbolIcon Symbol="LayerDiagonal24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                    <ui:SymbolIcon Symbol="Grid24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Widget\'lar üst üste binmesin'}" />

@@ -74,7 +74,7 @@ internal sealed class LookGalleryControl : UniformGrid
         // Düz şablon: WPF-UI'nin geçişli RadioButton şablonu yok (fareyle hiçbir şey değişmez); odak çerçevesi klavye için kalır.
         var button = new RadioButton
         {
-            Content = content, GroupName = group, Margin = new Thickness(0, 0, 0, 8), Cursor = Cursors.Hand,
+            Content = content, GroupName = group, Margin = new Thickness(0, 0, 0, 8), Cursor = Cursors.Hand, MinWidth = 0, MinHeight = 0,
             HorizontalAlignment = HorizontalAlignment.Center,
             Template = new ControlTemplate(typeof(RadioButton)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
         };

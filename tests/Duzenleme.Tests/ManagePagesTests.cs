@@ -97,6 +97,27 @@ public class ManagePagesTests
         Assert.DoesNotContain("Storyboard", xaml);
     }
 
+    /// <summary>
+    /// İki sayfanın simgeleri gerçekten var (yoksa sayfa açılırken XamlParseException) ve WPF-UI'nin çizebildiği aralıkta
+    /// (U+FFFF üstü "X" çizilir).
+    /// </summary>
+    [Fact]
+    public void Page_symbols_exist_and_are_drawable()
+    {
+        foreach (var page in new[] { "SettingsPage.xaml", "WidgetsPage.xaml" })
+        {
+            var xaml = Read("Views", page);
+            var names = System.Text.RegularExpressions.Regex.Matches(xaml, @"Symbol=""(\w+)""|SymbolIcon (\w+)\}")
+                .Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).Distinct().ToList();
+            Assert.NotEmpty(names);
+            foreach (var name in names)
+            {
+                Assert.True(Enum.TryParse<Wpf.Ui.Controls.SymbolRegular>(name, out var symbol), $"{page}: {name}");
+                Assert.True((int)symbol is > 0 and <= 0xFFFF, $"{page}: {name}");
+            }
+        }
+    }
+
     private static string Read(params string[] parts) =>
         File.ReadAllText(Path.Combine([RepoRoot(), "src", "Duzenleme", .. parts]));
 

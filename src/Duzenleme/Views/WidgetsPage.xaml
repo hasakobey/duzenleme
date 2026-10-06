@@ -158,7 +158,7 @@
                                 <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="{Binding Kind}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                    <TextBlock Text="{Binding Kind}" FontSize="12" TextTrimming="CharacterEllipsis" Visibility="{Binding KindVisibility}"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
                                 <!-- Dar pencerede (panel yanda sığmıyor) Düzenle paneli kendi penceresinde açılır. -->

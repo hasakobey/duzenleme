@@ -20,6 +20,9 @@ public sealed class WidgetRow(WidgetConfig config)
     public string Kind { get; } = WidgetEditor.KindName(config);
     public string EditName => L.F("Düzenle: {0}", Name);
 
+    /// <summary>Tür satırı yalnızca addan farklıysa ("Saat / Saat" yazmasın).</summary>
+    public Visibility KindVisibility => string.Equals(Kind, Name, StringComparison.Ordinal) ? Visibility.Collapsed : Visibility.Visible;
+
     /// <summary>Widget'ın başlığındaki simgenin aynısı (kullanıcının seçtiği ya da türün varsayılanı, bkz. <see cref="WidgetIcons"/>).</summary>
     public SymbolRegular Icon { get; } = WidgetIcons.For(config);
 
@@ -313,7 +316,7 @@ public partial class WidgetsPage : Page
             var button = new RadioButton
             {
                 Content = new Grid { Width = 28, Height = 28, Children = { ring, fill } }, GroupName = group, Margin = new Thickness(0, 0, 8, 0),
-                Cursor = Cursors.Hand,
+                Cursor = Cursors.Hand, MinWidth = 0, MinHeight = 0, // WPF-UI'nin örtük RadioButton stili 120 DIP genişlik verirdi
                 Template = new ControlTemplate(typeof(RadioButton)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
             };
             AutomationProperties.SetAutomationId(button, "Widgets.Accent." + (i + 1));

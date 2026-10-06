@@ -11,8 +11,6 @@ internal static partial class En
     [ModuleInitializer]
     internal static void AddLooks() => Add(
     [
-        new("Klasik", "Classic"),
-        new("Otomatik (Windows'a uyar)", "Automatic (follows Windows)"),
         new("Neon", "Neon"),
         new("Gece", "Night"),
         new("Kâğıt", "Paper"),
