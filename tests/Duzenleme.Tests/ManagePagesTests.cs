@@ -46,6 +46,7 @@ public class ManagePagesTests
         var rows = main.Elements().Where(e => e.Name.LocalName is "Border" or "Button").ToList();
         Assert.Equal(7, rows.Count);
         Assert.Equal("Settings.Advanced", (string?)rows[^1].Attribute("AutomationProperties.AutomationId"));
+        Assert.Single(main.Elements(), e => (string?)e.Attribute("Text") == "{l:T 'Hakkında'}");
         var mainIds = Ids(main);
         foreach (var id in new[] { "Settings.Language", "Settings.Startup", "Settings.IconsInFences", "Settings.Ring", "Settings.RingShortcut",
                      "Settings.HowTo", "Settings.Welcome", "Settings.ReportProblem", "Settings.Privacy", "Settings.Releases", "Settings.Exit" })

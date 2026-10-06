@@ -52,9 +52,13 @@
     </Page.Resources>
 
     <!-- İki görünüm, tek sayfa: önce yedi satır (dil, başlangıç, simgeler, halka, yardım, hakkında, "Gelişmiş ayarlar ›"),
-         sonra Gelişmiş ayarlar (geri: "Ayarlar"). Hiçbir ayar düşmedi, yalnızca yer değiştirdi. Geçiş Views.Motion ile. -->
+         sonra Gelişmiş ayarlar (geri: "Ayarlar"). Hiçbir ayar düşmedi, yalnızca yer değiştirdi. Geçiş Views.Motion ile. İki görünüm
+         de pencere kadar geniş (en çok PageRoot): satırlar aynı genişlikte kalsın. -->
     <Grid>
-        <StackPanel x:Name="MainView" Style="{StaticResource PageRoot}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MaxWidth="984" />
+        </Grid.ColumnDefinitions>
+        <StackPanel x:Name="MainView" Style="{StaticResource PageRoot}" HorizontalAlignment="Stretch">
             <TextBlock Style="{StaticResource PageTitle}" Text="{l:T 'Ayarlar'}" />
             <TextBlock x:Name="Subtitle" Style="{StaticResource PageSubtitle}" />
             <!-- Dil: başlık iki dilde, seçenekler kendi dillerinde (kod tarafında); değişiklik yeniden başlatınca uygulanır. -->
@@ -235,7 +239,6 @@
                 </Grid>
             </Border>
             <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Hakkında'}" />
-            <TextBlock Style="{StaticResource SectionHeader}" Text="{l:T 'Hakkında'}" />
             <Border Style="{StaticResource Surface}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -283,7 +286,7 @@
             </ui:Button>
         </StackPanel>
 
-        <StackPanel x:Name="AdvancedView" Style="{StaticResource PageRoot}" Visibility="Collapsed">
+        <StackPanel x:Name="AdvancedView" Style="{StaticResource PageRoot}" HorizontalAlignment="Stretch" Visibility="Collapsed">
             <ui:Button x:Name="BackButton" Appearance="Transparent" Icon="{ui:SymbolIcon ChevronLeft24}" Content="{l:T 'Ayarlar'}"
                        Margin="-10,0,0,8" Padding="8,5" AutomationProperties.AutomationId="Settings.Back" Click="Back_Click" />
             <TextBlock Style="{StaticResource PageTitle}" Text="{l:T 'Gelişmiş ayarlar'}" />
