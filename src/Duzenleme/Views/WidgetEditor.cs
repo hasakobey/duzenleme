@@ -189,6 +189,15 @@ internal sealed class WidgetEditor : UserControl
     }
 
     /// <summary>
+    /// "Bitti" görünsün mü (kendi penceresinde evet; Widget'lar sayfasına gömülü panelde kapatılacak bir şey yok, gizlenir).
+    /// </summary>
+    public bool ShowDone
+    {
+        get => _done.Visibility == Visibility.Visible;
+        set => _done.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
     /// Bu widget'ı düzenlemeye başlar (başka bir widget düzenleniyorsa ona geçer): "Geri al"ın döneceği hâl şimdi kopyalanır.
     /// Önceki widget'ın yazılmakta olan adı kaydedilir.
     /// </summary>

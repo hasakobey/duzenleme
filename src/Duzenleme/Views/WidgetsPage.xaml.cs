@@ -1,19 +1,24 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
 using Duzenleme.Core;
 using Duzenleme.Widgets;
 using Wpf.Ui.Controls;
 
 namespace Duzenleme.Views;
 
-/// <summary>Masaüstündeki bir widget'ın liste satırı. Düğme adları ekran okuyucu ve UI Automation için ("Kaldır: Saat").</summary>
+/// <summary>Masaüstündeki bir widget'ın liste satırı: simge, ad ve türü. Düğme adı ekran okuyucu ve UI Automation için ("Düzenle: Saat").</summary>
 public sealed class WidgetRow(WidgetConfig config)
 {
     public WidgetConfig Config { get; } = config;
+    public string Id => Config.Id;
     public string Name { get; } = WidgetText.DisplayName(config);
-    public string RevealName => L.F("Bul: {0}", Name);
-    public string RemoveName => L.F("Kaldır: {0}", Name);
+    public string Kind { get; } = WidgetEditor.KindName(config);
+    public string EditName => L.F("Düzenle: {0}", Name);
 
     /// <summary>Widget'ın başlığındaki simgenin aynısı (kullanıcının seçtiği ya da türün varsayılanı, bkz. <see cref="WidgetIcons"/>).</summary>
     public SymbolRegular Icon { get; } = WidgetIcons.For(config);
@@ -35,64 +40,85 @@ public sealed record LayoutRow(LayoutSnapshot Layout)
 }
 
 /// <summary>
-/// Widget'lar: "Widget ekle" (her yerdeki gibi tek pencere), masaüstündekilerin listesi (Bul / Kaldır), toplu görünüm ve
-/// kayıtlı yerleşimler. Her eylemin sonucu ana penceredeki bildirim şeridinde görünür; kaldırma ve silme oradan geri alınır.
+/// Widget'lar: widget'ların yönetim yeri. Üstte "Widget ekle" (her yerdeki gibi tek pencere); "Tüm widget'lar" şeridi (Düzenle
+/// panelindeki galeri ve beş renk, bütün widget'lara uygulanır); "Masaüstündekiler" listesi ve yanında seçilen widget'ın
+/// gömülü Düzenle paneli (<see cref="WidgetEditor"/>; dar pencerede satırdaki "Düzenle" paneli kendi penceresinde açar);
+/// katlı "Daha fazla" (hizala, öne getir, kayıtlı yerleşimler). Satır seçmek widget'ı öne getirir ve bir kez nabız attırır.
+/// Her eylemin sonucu bildirim şeridinde; görünüm değişikliği ve silme oradan geri alınır.
 /// </summary>
 public partial class WidgetsPage : Page
 {
-    // "Arka plan" ve "Vurgu rengi" kutularındaki sıra.
-    private static readonly WidgetStyle[] Styles = [WidgetStyle.Glass, WidgetStyle.Dark, WidgetStyle.Light];
-    private static readonly WidgetAccent[] Accents =
-        [WidgetAccent.Violet, WidgetAccent.Blue, WidgetAccent.Green, WidgetAccent.Orange, WidgetAccent.Pink];
+    /// <summary>Panelin yanda sığdığı en dar sayfa (DIP; yaklaşık 880 DIP'lik pencere): liste en az 200 + 16 + 360 + iç boşluk.</summary>
+    private const double WideWidth = 680;
 
-    // Kutular koddan güncellenirken SelectionChanged bütün widget'ları yeniden boyamasın.
+    /// <summary>Galerinin tek sıraya (8 kart) sığdığı en dar sayfa (DIP).</summary>
+    private const double GalleryOneRow = 700;
+
+    private readonly WidgetEditor _editor = new() { ShowDone = false };
+    private LookGalleryControl? _gallery;
+    private readonly List<(WidgetAccent Accent, RadioButton Button, Ellipse Fill, Ellipse Ring)> _dots = [];
+
+    private bool _wide = true;
+    private bool _shown;
+    private string? _selectedId;
+
+    // Liste ve seçim koddan kurulurken SelectionChanged widget'ı öne getirmesin; görünüm denetimleri koddan güncellenirken
+    // seçim bütün widget'ları yeniden boyamasın.
+    private bool _syncingList;
     private bool _loading;
 
     public WidgetsPage()
     {
         InitializeComponent();
-        Fold.Attach(LookFold, LookContent);
-        Fold.Attach(LayoutsFold, LayoutsContent);
-        foreach (var (id, label) in LookMenus.ThemeChoices)
-            ThemeBox.Items.Add(new ComboBoxItem { Content = label, Tag = id });
+        EditorHost.Content = _editor;
+        AutomationProperties.SetAutomationId(_editor, "Widgets.Editor");
+        Fold.Attach(MoreFold, MoreContent);
+        BuildLook();
         Loaded += (_, _) => Reload();
-        // Ana pencere gizliyken sayfa widget değişikliklerine ve kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
+        // Ana pencere gizliyken sayfa widget değişikliklerine ve kayıtlara tepki vermez, gömülü panel widget'ı bırakır;
+        // yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
             attach: () =>
             {
+                _shown = true;
                 AppHost.Widgets.Changed += OnWidgetsChanged;
                 AppHost.SettingsChanged += OnSettingsChanged;
+                EditSelected();
             },
             detach: () =>
             {
+                _shown = false;
                 AppHost.Widgets.Changed -= OnWidgetsChanged;
                 AppHost.SettingsChanged -= OnSettingsChanged;
+                _editor.Release();
             },
             refresh: Reload);
     }
 
-    /// <summary>Liste ve ayarlar baştan.</summary>
+    /// <summary>Liste, görünüm şeridi ve yerleşimler baştan.</summary>
     private void Reload()
     {
         _listed = null; // baştan kurulan liste oynamaz (sayfa zaten girerek gelir)
-        OnWidgetsChanged();
-        OnSettingsChanged();
+        RefreshWidgets();
+        RefreshLayouts();
+        RefreshLook();
     }
 
     /// <summary>"Widget ekle": tepsideki, Ctrl+Alt+B'deki ve halkadaki pencerenin aynısı (yeni widget ayardaki yere gelir).</summary>
     private void AddWidget_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowQuickAdd();
 
-    /// <summary>Widget eklendi, kaldırıldı, düzen uygulandı ya da yerleştirildi: liste, sayılar ve görünüm kutuları.</summary>
+    /// <summary>Widget eklendi, kaldırıldı, düzen uygulandı ya da yerleştirildi: liste, panel, yerleşimler ve görünüm şeridi.</summary>
     private void OnWidgetsChanged()
     {
         RefreshWidgets();
         RefreshLayouts(); // düzenli yerleştirme ve düzen uygulama yedek düzen ekler
-        RefreshSettings();
+        RefreshLook();
+        _editor.Refresh();
     }
 
     /// <summary>
-    /// Ayarlar kaydedildi (widget sürüklemek de kaydeder): yalnızca anahtarlar ve görünüm kutuları güncellenir. Liste
-    /// yalnızca bir widget'ın adı ya da simgesi değiştiyse (başlık, not, yapılacaklar ilerlemesi) yeniden kurulur.
+    /// Ayarlar kaydedildi (widget sürüklemek de kaydeder): görünüm şeridi ve panel tazelenir. Liste yalnızca bir widget'ın adı,
+    /// türü ya da simgesi değiştiyse (başlık, not, yapılacaklar) yeniden kurulur.
     /// </summary>
     private void OnSettingsChanged()
     {
@@ -101,22 +127,124 @@ public partial class WidgetsPage : Page
             Dispatcher.InvokeAsync(OnSettingsChanged);
             return;
         }
-        RefreshSettings();
+        if (!_shown) return;
+        RefreshLook();
         if (ActiveList.ItemsSource is IEnumerable<WidgetRow> rows &&
-            !rows.Select(r => (r.Name, r.Icon)).SequenceEqual(AppHost.Settings.Widgets.Select(w => (WidgetText.DisplayName(w), WidgetIcons.For(w)))))
+            !rows.Select(r => (r.Id, r.Name, r.Kind, r.Icon)).SequenceEqual(AppHost.Widgets.Configs.Select(w =>
+                (w.Id, WidgetText.DisplayName(w), WidgetEditor.KindName(w), WidgetIcons.For(w)))))
             RefreshWidgets();
+        else EditSelected(); // açılışta ya da düzen uygulanınca pencereler sırayla açılır
+        _editor.Refresh();
     }
+
+    // ------------------------------------------------------------------ liste ve panel
 
     private void RefreshWidgets()
     {
         var rows = AppHost.Widgets.Configs.Select(c => new WidgetRow(c)).ToList();
         var before = _listed;
-        _listed = rows.Select(r => r.Config.Id).ToHashSet();
-        ActiveList.ItemsSource = rows;
+        _listed = rows.Select(r => r.Id).ToHashSet();
+        _syncingList = true;
+        try
+        {
+            ActiveList.ItemsSource = rows;
+            // Seçili widget kaldırıldıysa ilk satır (geniş pencerede panel boş kalmasın); dar pencerede seçim yalnızca kullanıcıdan.
+            var selected = rows.FirstOrDefault(r => r.Id == _selectedId) ?? (_wide ? rows.FirstOrDefault() : null);
+            ActiveList.SelectedItem = selected;
+            _selectedId = selected?.Id;
+        }
+        finally { _syncingList = false; }
         ActiveHeader.Text = L.F("Masaüstündekiler ({0})", rows.Count);
-        ActiveEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        RevealAllButton.IsEnabled = ArrangeButton.IsEnabled = rows.Count > 0;
-        if (before is not null) EnterNewRows(rows.Where(r => !before.Contains(r.Config.Id)).ToList());
+        var any = rows.Count > 0;
+        ManageGrid.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        EmptyCard.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+        RevealAllButton.IsEnabled = ArrangeButton.IsEnabled = any;
+        EditSelected();
+        if (before is not null) EnterNewRows(rows.Where(r => !before.Contains(r.Id)).ToList());
+    }
+
+    /// <summary>Kullanıcı bir satır seçti: widget öne gelir ve bir kez nabız atar; geniş pencerede panel ona geçer.</summary>
+    private void ActiveList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingList || ActiveList.SelectedItem is not WidgetRow row) return;
+        _selectedId = row.Id;
+        EditSelected();
+        AppHost.Widgets.Reveal(row.Id);
+    }
+
+    /// <summary>Gömülü panel seçili widget'ı düzenler (yalnızca geniş pencerede ve sayfa görünürken; penceresi henüz yoksa boş).</summary>
+    private void EditSelected()
+    {
+        if (!_shown || !_wide) return;
+        var window = _selectedId is null ? null : AppHost.Widgets.WindowOf(_selectedId);
+        if (window is null)
+        {
+            if (_editor.Target is not null) _editor.Release();
+            return;
+        }
+        if (!ReferenceEquals(_editor.Target, window)) _editor.Edit(window);
+    }
+
+    /// <summary>Dar pencere: satırdaki "Düzenle" paneli kendi penceresinde, kartın yanında açar.</summary>
+    private void Edit_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not WidgetRow row) return;
+        _selectedId = row.Id;
+        AppHost.EnsureWidgetsShown();
+        if (AppHost.Widgets.WindowOf(row.Id) is { } window) WidgetEditorWindow.ShowFor(window);
+    }
+
+    /// <summary>
+    /// Pencerenin genişliğine göre: panel yanda (geniş) ya da satırdaki "Düzenle" (dar); galeri tek ya da iki sıra. Genişlik
+    /// pencereden gelir (sütun yıldızlı), içerikten değil: karar geri beslenmez.
+    /// </summary>
+    private void Root_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var width = e.NewSize.Width;
+        if (_gallery is not null) _gallery.Columns = width >= GalleryOneRow ? 8 : 4;
+        var wide = width >= WideWidth;
+        if (wide == _wide && e.PreviousSize.Width > 0) return;
+        _wide = wide;
+        GapColumn.Width = new GridLength(wide ? 16 : 0);
+        EditorColumn.Width = wide ? new GridLength(WidgetEditorWindow.PanelWidth) : new GridLength(0);
+        EditorCard.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
+        ActiveList.Tag = wide ? Visibility.Collapsed : Visibility.Visible;
+        if (!wide)
+        {
+            _editor.Release();
+            return;
+        }
+        if (_selectedId is null && ActiveList.Items.Count > 0)
+        {
+            _syncingList = true;
+            try { ActiveList.SelectedIndex = 0; }
+            finally { _syncingList = false; }
+            _selectedId = (ActiveList.SelectedItem as WidgetRow)?.Id;
+        }
+        EditSelected();
+    }
+
+    /// <summary>
+    /// Panelin içi kendi kaydırıcısıyla kurulur; sayfanın içinde boyu sınırsız olduğundan kaymaz, ama tekerleği yine yutardı.
+    /// Panel kayamıyorsa tekerlek sayfaya geçer.
+    /// </summary>
+    private void EditorCard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || FindScroller(_editor) is { ScrollableHeight: > 0 }) return;
+        e.Handled = true;
+        var again = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = MouseWheelEvent, Source = sender };
+        ManageGrid.RaiseEvent(again);
+    }
+
+    private static ScrollViewer? FindScroller(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer scroller) return scroller;
+            if (FindScroller(child) is { } nested) return nested;
+        }
+        return null;
     }
 
     // 2.2 Hareket
@@ -137,47 +265,116 @@ public partial class WidgetsPage : Page
         {
             var rows = added.Select(r => ActiveList.ItemContainerGenerator.ContainerFromItem(r)).OfType<UIElement>().ToList();
             if (rows.Count > 0) Motion.Cascade(rows, MotionKind.Rise);
-        }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }, DispatcherPriority.Loaded);
     }
 
-    private void RefreshLayouts()
+    // ------------------------------------------------------------------ Tüm widget'lar
+
+    /// <summary>Görünüm şeridinin hedefleri: notlar kendi kağıt rengini kullanır.</summary>
+    private static List<WidgetConfig> LookTargets() => AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
+
+    /// <summary>Kartları ve noktaları çizmek için örnek widget (ilk hedef; yoksa varsayılan görünüş).</summary>
+    private static WidgetConfig Sample() => LookTargets().FirstOrDefault() ?? new WidgetConfig();
+
+    /// <summary>Hepsinde aynıysa o değer, değilse (ya da hedef yoksa) null: seçim görünmez.</summary>
+    private static T? Common<T>(IEnumerable<T> values) where T : class
     {
-        var rows = AppHost.Settings.Layouts.OrderByDescending(l => l.Created).Select(l => new LayoutRow(l)).ToList();
-        LayoutList.ItemsSource = rows;
-        LayoutsTitle.Text = L.F("Kayıtlı yerleşimler ({0})", rows.Count);
-        LayoutEmpty.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var distinct = values.Distinct().Take(2).ToList();
+        return distinct.Count == 1 ? distinct[0] : null;
     }
 
-    /// <summary>Toplu görünüm denetimleri ayarlardaki değeri gösterir.</summary>
-    private void RefreshSettings()
+    private void BuildLook()
     {
+        _gallery = new LookGalleryControl("Widgets.Look.",
+            id => WidgetPalette.Resolve(LookGallery.Probe(Sample(), id, WidgetPalette.SystemDark), null, WidgetPalette.SystemDark, highContrast: false),
+            () => Common(LookTargets().Select(LookGallery.Current)),
+            id =>
+            {
+                if (_loading) return;
+                ApplyToAll(c => LookGallery.Apply(c, id, WidgetPalette.SystemDark));
+            })
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        GalleryHost.Content = _gallery;
+
+        (WidgetAccent Accent, string Label)[] named =
+        [
+            (WidgetAccent.Violet, L.T("Mor")), (WidgetAccent.Blue, L.T("Mavi")), (WidgetAccent.Green, L.T("Yeşil")),
+            (WidgetAccent.Orange, L.T("Turuncu")), (WidgetAccent.Pink, L.T("Pembe")),
+        ];
+        var group = "WidgetsAccent" + Guid.NewGuid().ToString("N");
+        for (var i = 0; i < named.Length; i++)
+        {
+            var (accent, label) = named[i];
+            var fill = new Ellipse { Width = 22, Height = 22 };
+            var ring = new Ellipse { Width = 28, Height = 28, StrokeThickness = 2 };
+            // Düz şablon: WPF-UI'nin geçişli RadioButton şablonu yok; Sekme grupta bir kez durur, oklar gezer ve seçer.
+            var button = new RadioButton
+            {
+                Content = new Grid { Width = 28, Height = 28, Children = { ring, fill } }, GroupName = group, Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Template = new ControlTemplate(typeof(RadioButton)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) },
+            };
+            AutomationProperties.SetAutomationId(button, "Widgets.Accent." + (i + 1));
+            AutomationProperties.SetName(button, label);
+            AutomationProperties.SetHelpText(button, L.T("Renk"));
+            button.Checked += (_, _) =>
+            {
+                if (_loading) return;
+                ApplyToAll(c => WidgetLooks.SetAccent(c, accent));
+            };
+            button.GotKeyboardFocus += (_, e) =>
+            {
+                var arrows = Keyboard.IsKeyDown(Key.Left) || Keyboard.IsKeyDown(Key.Right) || Keyboard.IsKeyDown(Key.Up) || Keyboard.IsKeyDown(Key.Down);
+                if (arrows && e.OldFocus is RadioButton { GroupName: var g } && g == group && button.IsChecked != true) button.IsChecked = true;
+            };
+            _dots.Add((accent, button, fill, ring));
+            AccentDots.Children.Add(button);
+        }
+    }
+
+    /// <summary>Görünüş değişikliği bütün widget'lara; bildirimdeki "Geri al" her birini önceki görünüşüne döndürür.</summary>
+    private void ApplyToAll(Action<WidgetConfig> change)
+    {
+        var before = AppHost.Widgets.ChangeLookForAll(change);
+        RefreshLook();
+        if (before.Count == 0) return;
+        Notice.Show(L.T("Görünüm bütün widget'lara uygulandı."), NoticeKind.Success, L.T("Geri al"),
+            () => AppHost.Widgets.UndoLookCopy(before));
+    }
+
+    /// <summary>Kartlar ve noktalar gerçek paletle yeniden çizilir; hepsinde aynı olan seçim işaretlenir.</summary>
+    private void RefreshLook()
+    {
+        var targets = LookTargets();
+        var highContrast = SystemParameters.HighContrast;
+        LookCard.Visibility = targets.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        GalleryHost.Visibility = AccentPanel.Visibility = highContrast ? Visibility.Collapsed : Visibility.Visible;
+        LookHint.Text = highContrast
+            ? L.T("Yüksek karşıtlık açık: widget'lar Windows'un renklerini kullanır.")
+            : L.T("Seçtiğin görünüm bütün widget'lara uygulanır. Notlar kendi rengini korur.");
+        if (highContrast || targets.Count == 0) return;
         _loading = true;
         try
         {
-            // Notlar kendi kağıt rengini kullanır: toplu görünüm onları saymaz.
-            var targets = AppHost.Settings.Widgets.Where(w => w.Kind != WidgetKind.Note).ToList();
-            // Tema açıkken "Arka plan" boş görünür (menüdeki gibi); özel vurgu rengi de adlı renklerden biri sayılmaz.
-            var themes = LookMenus.ThemeChoices.Select(c => c.Id).ToList();
-            ThemeBox.SelectedIndex = Common(targets.Select(w => themes.IndexOf(WidgetLooks.ActiveTheme(w) ?? "")));
-            StyleBox.SelectedIndex = Common(targets.Select(w => WidgetLooks.ShownStyle(w) is { } s ? Array.IndexOf(Styles, s) : -1));
-            AccentBox.SelectedIndex = Common(targets.Select(w => WidgetLooks.ShownAccent(w) is { } a ? Array.IndexOf(Accents, a) : -1));
-            ThemeBox.IsEnabled = StyleBox.IsEnabled = AccentBox.IsEnabled = targets.Count > 0;
-            ThemeNote.Visibility = SystemParameters.HighContrast ? Visibility.Visible : Visibility.Collapsed;
-            SnapToggle.IsChecked = AppHost.Settings.SnapWidgets;
-            OverlapToggle.IsChecked = AppHost.Settings.PreventOverlap;
+            _gallery?.Refresh();
+            var sample = Sample();
+            var shown = targets.Select(WidgetLooks.ShownAccent).Distinct().Take(2).ToList();
+            var common = shown.Count == 1 ? shown[0] : null;
+            var selection = TryFindResource("TextFillColorPrimaryBrush") as Brush ?? SystemColors.WindowTextBrush;
+            foreach (var (accent, button, fill, ring) in _dots)
+            {
+                fill.Fill = WidgetPalette.Resolve(LookGallery.ProbeAccent(sample, accent), null, WidgetPalette.SystemDark, highContrast: false).Accent;
+                var on = common == accent;
+                ring.Stroke = on ? selection : Brushes.Transparent;
+                button.IsChecked = on;
+            }
         }
-        finally
-        {
-            _loading = false;
-        }
+        finally { _loading = false; }
     }
 
-    /// <summary>Değerlerin hepsi aynıysa o değer; farklıysa ya da hiç yoksa -1 (kutuda seçim görünmez).</summary>
-    private static int Common(IEnumerable<int> values)
-    {
-        var distinct = values.Distinct().Take(2).ToList();
-        return distinct.Count == 1 ? distinct[0] : -1;
-    }
+    // ------------------------------------------------------------------ Daha fazla
 
     private void RevealAll_Click(object sender, RoutedEventArgs e) => AppHost.Widgets.RevealAll();
 
@@ -185,62 +382,30 @@ public partial class WidgetsPage : Page
     {
         var count = AppHost.Widgets.ArrangeAll(out var moves);
         // "Geri al" yalnızca konumları geri koyar (yedeği bütünüyle uygulamak bildirim açıkken eklenen widget'ı silerdi);
-        // önceki yerleşim ayrıca Kayıtlı yerleşimler'de durur.
+        // önceki yerleşim ayrıca Otomatik yedekler'de durur.
         if (count == 0) Notice.Show(L.T("Hizalanacak widget yok."), NoticeKind.Info);
         else Notice.Show(L.P(count, "{0} widget hizalandı."), NoticeKind.Success, L.T("Geri al"), () => AppHost.Widgets.UndoArrange(moves));
     }
 
-    private void Reveal_Click(object sender, RoutedEventArgs e)
+    /// <summary>Otomatik yedekler: uygulamanın düzen uygulamadan ya da hizalamadan önce aldığı kopyalar.</summary>
+    private static bool IsBackup(LayoutSnapshot layout) => LayoutBackup.IsApply(layout.Name) || LayoutBackup.IsArrange(layout.Name);
+
+    private void RefreshLayouts()
     {
-        if ((sender as FrameworkElement)?.DataContext is WidgetRow row) AppHost.Widgets.Reveal(row.Config.Id);
+        var all = AppHost.Settings.Layouts.OrderByDescending(l => l.Created).ToList();
+        var named = all.Where(l => !IsBackup(l)).Select(l => new LayoutRow(l)).ToList();
+        var backups = all.Where(IsBackup).Select(l => new LayoutRow(l)).ToList();
+        LayoutList.ItemsSource = named;
+        BackupList.ItemsSource = backups;
+        LayoutsTitle.Text = L.F("Kayıtlı yerleşimler ({0})", named.Count);
+        LayoutEmpty.Visibility = named.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        BackupsFold.Content = L.F("Otomatik yedekler ({0})", backups.Count);
+        BackupsFold.Visibility = backups.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (backups.Count == 0) BackupList.Visibility = Visibility.Collapsed;
     }
 
-    private void Remove_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is not WidgetRow row) return;
-        if (!AppHost.Settings.Widgets.Any(w => w.Id == row.Config.Id)) return;
-        var name = WidgetText.DisplayName(row.Config); // kaldırmadan önce
-        var id = row.Config.Id;
-        var returning = BoxMover.MovedOnlyIn(row.Config);
-        var modeOff = AppHost.Widgets.RemoveWithUndo(id, notify: false);
-        // "Geri al" bu widget'ı getirir: bildirim açıkken masaüstünden başka bir widget kaldırılsa da.
-        Notice.Show(WidgetManager.RemovedText(L.F("{0} kaldırıldı.", name), returning, modeOff),
-            NoticeKind.Info, L.T("Geri al"), () => AppHost.Widgets.UndoRemove(id));
-    }
-
-    private void ThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || ThemeBox.SelectedItem is not ComboBoxItem { Tag: string theme }) return;
-        AppHost.Widgets.SetLookForAll(null, null, theme);
-    }
-
-    private void StyleBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || StyleBox.SelectedIndex < 0) return;
-        AppHost.Widgets.SetLookForAll(Styles[StyleBox.SelectedIndex], null);
-    }
-
-    private void AccentBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || AccentBox.SelectedIndex < 0) return;
-        AppHost.Widgets.SetLookForAll(null, Accents[AccentBox.SelectedIndex]);
-    }
-
-    // Checked/Unchecked (Click değil): ekran okuyucunun "Aç/Kapat"ı da ayarı değiştirsin; koddan atama _loading ile ayrılır.
-    private void Snap_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-        AppHost.Settings.SnapWidgets = SnapToggle.IsChecked == true;
-        AppHost.SaveSettings();
-    }
-
-    private void Overlap_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_loading) return;
-        // Yalnızca ayar yazılır: sonraki bırakma/büyütmede uygulanır, var olan widget'lar yerinden oynamaz.
-        AppHost.Settings.PreventOverlap = OverlapToggle.IsChecked == true;
-        AppHost.SaveSettings();
-    }
+    private void BackupsFold_Click(object sender, RoutedEventArgs e) =>
+        BackupList.Visibility = BackupList.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
 
     private void LayoutName_KeyDown(object sender, KeyEventArgs e)
     {

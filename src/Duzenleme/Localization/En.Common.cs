@@ -69,8 +69,6 @@ internal static partial class En
         new("Yeniden adlandır…", "Rename…"),
         new("Başlık", "Title"),
         new("Varsayılana döndür", "Restore defaults"),
-        new("Arka plan", "Background"),
-        new("Vurgu rengi", "Accent color"),
         new("Cam", "Glass"),
     ]);
 }

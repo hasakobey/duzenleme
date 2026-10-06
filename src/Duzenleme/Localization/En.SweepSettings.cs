@@ -11,14 +11,12 @@ internal static partial class En
     internal static void AddSweepSettings() => Add(
     [
         // ---- Genel ----
-        new("Genel", "General"),
         new("{0}'in nasıl çalışacağını seç.", "Choose how {0} works."),
         new("Windows ile başlat", "Start with Windows"),
         new("Oturum açınca tepside sessizce başlar; widget'lar ve otomatik taşıma hazır olur.",
             "Starts quietly in the notification area when you sign in, so your widgets and auto-move are ready."),
         new("Taşıma bildirimleri", "Move notifications"),
         new("Bir dosya taşındığında kısa bir bildirim göster.", "Show a short notification when a file is moved."),
-        new("Tema", "Theme"),
         new("Uygulama görünümü", "App appearance"),
         new("Bu pencerenin görünümü. Widget'ların görünümü Widget'lar sayfasından ya da widget'a sağ tıklayarak ayarlanır.",
             "How this window looks. To change how widgets look, use the Widgets page or right-click a widget."),
@@ -163,10 +161,6 @@ internal static partial class En
 
         // ---- Yardım ve Hakkında ----
         new("Yardım", "Help"),
-        new("Karşılama", "Setup guide"),
-        new("Bölmeleri, otomatik taşımayı ve widget'ları adım adım yeniden kur. Var olanlar silinmez.",
-            "Set up panels, auto-move and widgets again, step by step. Nothing you already have is deleted."),
-        new("Karşılamayı yeniden aç", "Open the setup guide again"),
         new("Hakkında", "About"),
         new("Microsoft Store sürümü · Güncellemeler Microsoft Store'dan kendiliğinden gelir.",
             "Microsoft Store version · Updates come automatically from the Microsoft Store."),

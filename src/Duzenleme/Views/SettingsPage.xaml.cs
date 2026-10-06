@@ -96,8 +96,10 @@ public sealed class FolderIconRow : INotifyPropertyChanged
 }
 
 /// <summary>
-/// Ayarlar: Genel, Masaüstü (eski Masaüstü sayfasının ayarları), Klasör simgeleri, Gelişmiş (katlanır), Yardım, Hakkında.
-/// Katlanır bölümlerin içeriği ilk açılışta yüklenir.
+/// Ayarlar (Kolay NestDesk): önce yedi satır (dil, Windows ile başlat, "Simgeleri bölmelerde topla", halka menü, yardım,
+/// hakkında, "Gelişmiş ayarlar ›"); öbür her ayar aynı sayfanın ikinci görünümünde, Gelişmiş ayarlar'da (Masaüstü, Widget
+/// yerleşimi, Görünüm, Klavye kısayolları, Klasör simgeleri, Kutular, Sorun giderme). Katlanır bölümlerin içeriği ilk açılışta
+/// yüklenir. Sayfaya her gelişte ilk görünüm açılır (<see cref="OpenAdvanced"/> istemedikçe).
 /// </summary>
 public partial class SettingsPage : Page
 {
@@ -152,13 +154,22 @@ public partial class SettingsPage : Page
         Fold.Attach(LocationsFold, LocationsContent);
         Fold.Attach(ErrorLogFold, ErrorLogContent, LoadErrorLog);
 
-        foreach (var mode in DesktopModes.Choices)
-            IconModeBox.Items.Add(new ComboBoxItem { Content = DesktopModes.Label(mode), Tag = mode });
         foreach (var mode in PlaceModes.Choices)
             PlacementBox.Items.Add(new ComboBoxItem { Content = DesktopModes.PlaceLabel(mode), Tag = mode });
 
-        Loaded += (_, _) => Load();
-        Unloaded += (_, _) => WatchHostActivation(false);
+        Loaded += (_, _) =>
+        {
+            _current = this;
+            // Sayfaya her gelişte ilk görünüm; bildirimden "Gelişmiş ayarlar" istendiyse orası.
+            ShowView(_advancedRequested, focus: false);
+            _advancedRequested = false;
+            Load();
+        };
+        Unloaded += (_, _) =>
+        {
+            if (_current == this) _current = null;
+            WatchHostActivation(false);
+        };
         // Ana pencere gizliyken sayfa kayıtlara tepki vermez; yeniden görününce bir kez güncellenir.
         PageLife.WhileShown(this,
             attach: () =>
@@ -222,6 +233,8 @@ public partial class SettingsPage : Page
             LoadMotion();
             NotifyToggle.IsChecked = s.ShowNotifications;
             HideWidgetsToggle.IsChecked = s.HideWidgetsWithIcons;
+            SnapToggle.IsChecked = s.SnapWidgets;
+            OverlapToggle.IsChecked = s.PreventOverlap;
             SuggestToggle.IsChecked = s.SuggestFolderIcons;
             DesktopPath.Text = AppHost.DesktopDirectory;
             LoadDataFolder();
@@ -459,7 +472,7 @@ public partial class SettingsPage : Page
         {
             var s = AppHost.Settings;
             var mode = DesktopModes.Current;
-            IconModeBox.SelectedIndex = Array.IndexOf(DesktopModes.Choices, mode);
+            IconsInFencesToggle.IsChecked = mode == IconMode.FencesOnly;
             IconModeText.Text = DesktopModes.Description(mode);
             PlacementBox.SelectedIndex = Array.IndexOf(PlaceModes.Choices, PlaceModes.Parse(s.NewWidgetPlacement));
             var doubleClick = DesktopState.DoubleClickChoice(s.DoubleClickAction, s.DoubleClickHidesDesktop);
@@ -484,13 +497,18 @@ public partial class SettingsPage : Page
         }
     }
 
-    private void IconModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>"Simgeleri bölmelerde topla": karşılamadaki ve "Masaüstümü bölmelere ayır"daki seçimin aynısı (DesktopModes).</summary>
+    private void IconsInFences_Changed(object sender, RoutedEventArgs e)
     {
-        if (_loadingDesktop || IconModeBox.SelectedItem is not ComboBoxItem { Tag: IconMode mode }) return;
+        if (_loadingDesktop) return;
+        var mode = IconsInFencesToggle.IsChecked == true ? IconMode.FencesOnly : IconMode.ShowAll;
         DesktopModes.Set(mode, WindowCenter(), Window.GetWindow(this));
-        // Soru penceresinden sonra ya da ayar değişmediyse de kutu gerçek durumu göstersin.
+        // Soru penceresinden sonra ya da ayar değişmediyse de anahtar gerçek durumu göstersin.
         LoadDesktopChoices();
     }
+
+    /// <summary>"Kutuya eklenenler masaüstünden kalkıyor." satırındaki "Değiştir": Gelişmiş ayarlar > Kutular.</summary>
+    private void BoxChange_Click(object sender, RoutedEventArgs e) => ShowView(advanced: true, scrollTo: BoxHeader);
 
     /// <summary>
     /// "Kutuya koyduğum simgeler masaüstünden kalksın" satırı: anahtar, duruma göre açıklama (kapalı / dosyalar taşınıyor /
@@ -510,6 +528,7 @@ public partial class SettingsPage : Page
             var moved = BoxMover.MovedCount;
             var folder = BoxMover.FolderToOpen;
             BoxLeavesToggle.IsChecked = BoxMover.On;
+            BoxModeLine.Visibility = BoxMover.On ? Visibility.Visible : Visibility.Collapsed;
             BoxLeavesText.Text = DesktopModes.BoxLeavesDescription();
             BoxPanel.Visibility = BoxMover.MovesFiles || moved > 0 || BoxMover.RootExists ? Visibility.Visible : Visibility.Collapsed;
             BoxCountText.Text = moved == 0
@@ -619,6 +638,23 @@ public partial class SettingsPage : Page
         return hwnd != IntPtr.Zero && NativeMethods.GetWindowRect(hwnd, out var r)
             ? new NativeMethods.POINT { X = (r.Left + r.Right) / 2, Y = (r.Top + r.Bottom) / 2 }
             : null;
+    }
+
+    // ---- Widget yerleşimi ----
+
+    private void SnapToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        AppHost.Settings.SnapWidgets = SnapToggle.IsChecked == true;
+        AppHost.SaveSettings();
+    }
+
+    private void OverlapToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        // Yalnızca ayar yazılır: sonraki bırakma/büyütmede uygulanır, var olan widget'lar yerinden oynamaz.
+        AppHost.Settings.PreventOverlap = OverlapToggle.IsChecked == true;
+        AppHost.SaveSettings();
     }
 
     private void HideWidgetsToggle_Changed(object sender, RoutedEventArgs e)
@@ -811,6 +847,7 @@ public partial class SettingsPage : Page
         RingTargetBox.SelectedItem = choices.FirstOrDefault(c => c.Id == target?.Id);
         RingTargetRow.Visibility = rings.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         RingAddRow.Visibility = rings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RingEditRow.Visibility = rings.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void RingToggle_Changed(object sender, RoutedEventArgs e)
@@ -857,6 +894,7 @@ public partial class SettingsPage : Page
     /// <summary>Klavye kısayolları bölümünü açar ve eylemin kutusuna odaklanır.</summary>
     private void FocusHotkeyBox(HotkeyAction action)
     {
+        ShowView(advanced: true, focus: false);
         if (HotkeysContent.Visibility != Visibility.Visible)
             HotkeysFold.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, HotkeysFold));
         Dispatcher.BeginInvoke(() =>
@@ -898,6 +936,9 @@ public partial class SettingsPage : Page
         AppHost.Settings.RingHoldSelectOff = off;
         AppHost.SaveSettings();
     }
+
+    /// <summary>"Halkayı düzenle": Ana sayfadaki düğmenin aynısı (halka öne gelir ve nasıl değiştirileceği söylenir).</summary>
+    private void EditRing_Click(object sender, RoutedEventArgs e) => HomeRing.Edit(WindowCenter());
 
     private void RingAdd_Click(object sender, RoutedEventArgs e)
     {
@@ -1119,6 +1160,9 @@ public partial class SettingsPage : Page
 
     // ---- Yardım ve Hakkında ----
 
+    /// <summary>Ana sayfadaki "Nasıl kullanılır" kartları yeniden gösterilir ve Ana sayfa açılır.</summary>
+    private void HowTo_Click(object sender, RoutedEventArgs e) => HowToCards.ShowAgain();
+
     private void Welcome_Click(object sender, RoutedEventArgs e) => (Application.Current as App)?.ShowWelcome(rerun: true);
 
     private void CreatePackage_Click(object sender, RoutedEventArgs e) => Diagnostics.CreatePackage(Window.GetWindow(this));
@@ -1149,4 +1193,56 @@ public partial class SettingsPage : Page
     private void Privacy_Click(object sender, RoutedEventArgs e) => Browser.Open(AppInfo.PrivacyUrl);
 
     private void Exit_Click(object sender, RoutedEventArgs e) => ((App)Application.Current).ExitApp();
+
+    // ---- İki görünüm: Ayarlar ve Gelişmiş ayarlar ----
+
+    /// <summary>Yüklü sayfa (bildirimden gelen "Gelişmiş ayarlar" isteği ona gider); yoksa null.</summary>
+    private static SettingsPage? _current;
+
+    /// <summary>Sayfa bir sonraki yüklenişinde Gelişmiş ayarlar'la açılsın.</summary>
+    private static bool _advancedRequested;
+
+    /// <summary>Ana pencereyi Ayarlar > Gelişmiş ayarlar'da açar (ör. "Yeni widget'ların yeri" ipucu).</summary>
+    internal static void OpenAdvanced()
+    {
+        if (_current is { IsLoaded: true } page)
+        {
+            (Application.Current as App)?.ShowPage(typeof(SettingsPage));
+            page.ShowView(advanced: true, focus: false);
+            return;
+        }
+        _advancedRequested = true;
+        (Application.Current as App)?.ShowPage(typeof(SettingsPage));
+    }
+
+    private void Advanced_Click(object sender, RoutedEventArgs e) => ShowView(advanced: true);
+
+    private void Back_Click(object sender, RoutedEventArgs e) => ShowView(advanced: false);
+
+    /// <summary>
+    /// Görünümü değiştirir: sayfa başa kayar (ya da <paramref name="scrollTo"/>'ya), yeni görünüm kısa bir sayfa geçişiyle gelir
+    /// (Views.Motion; Kapalı'da hemen) ve klavye odağı ilk düğmeye (geri ya da "Gelişmiş ayarlar") gider.
+    /// </summary>
+    private void ShowView(bool advanced, FrameworkElement? scrollTo = null, bool focus = true)
+    {
+        var target = advanced ? AdvancedView : MainView;
+        var changed = target.Visibility != Visibility.Visible;
+        MainView.Visibility = advanced ? Visibility.Collapsed : Visibility.Visible;
+        AdvancedView.Visibility = advanced ? Visibility.Visible : Visibility.Collapsed;
+        if (changed && IsLoaded) Motion.Enter(target, MotionKind.Page);
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (scrollTo is not null) scrollTo.BringIntoView(new Rect(0, 0, 1, scrollTo.ActualHeight + 240));
+            else if (changed) FindScroller(this)?.ScrollToTop();
+            if (focus) (advanced ? BackButton : AdvancedButton).Focus();
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Sayfayı kaydıran ScrollViewer (WPF-UI gezinme görünümünün içeriği).</summary>
+    private static System.Windows.Controls.ScrollViewer? FindScroller(DependencyObject from)
+    {
+        for (var parent = VisualTreeHelper.GetParent(from); parent is not null; parent = VisualTreeHelper.GetParent(parent))
+            if (parent is System.Windows.Controls.ScrollViewer scroller) return scroller;
+        return null;
+    }
 }

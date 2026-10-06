@@ -121,7 +121,6 @@ internal static partial class En
         new("Hata günlüğü kapalı: yeni kayıt yazılmıyor. Kayıtlı günlükler: {0}", "The error log is off: no new entries are written. Saved logs: {0}"),
         new("Son 7 günde {0} hata · {1}", "{0} error in the last 7 days · {1}", "{0} errors in the last 7 days · {1}"),
         new("{0} çökme raporu kaydedilmeyi bekliyor.", "{0} crash report is waiting to be saved.", "{0} crash reports are waiting to be saved."),
-        new("Sorun bildir", "Report a problem"),
         new("Bir şey ters gittiyse tanılama paketini oluşturup sorun kaydına ekleyebilirsin. {0} hiçbir şeyi kendiliğinden göndermez.",
             "If something went wrong, you can create a diagnostic package and attach it to an issue. {0} never sends anything on its own."),
         new("Tanılama paketi oluştur", "Create diagnostic package"),

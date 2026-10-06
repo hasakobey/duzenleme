@@ -10,229 +10,232 @@
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <Style x:Key="RowIcon" TargetType="ui:SymbolIcon">
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="Margin" Value="0,0,16,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+        <Style x:Key="CardTitle" TargetType="TextBlock" BasedOn="{StaticResource RowTitle}">
+            <Setter Property="FontSize" Value="16" />
         </Style>
         <!-- Katlanır bölümün "Göster/Gizle" düğmesi: metin değişince genişlik (ve yerleşim) oynamasın. -->
         <Style x:Key="FoldButton" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="MinWidth" Value="84" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <!-- Toplu görünüm satırı: solda ad, sağda denetim. -->
-        <Style x:Key="SettingRow" TargetType="Border" BasedOn="{StaticResource Surface}">
-            <Setter Property="Padding" Value="18,10" />
+
+        <!-- Masaüstündekiler listesinin satırı: kart görünümlü, animasyonsuz kendi şablonu (WPF-UI'nin ListBoxItem şablonu değil).
+             Fareyle zemin hemen biraz açılır; seçili satırda solda vurgu çizgisi ve vurgu kenarlığı. -->
+        <Style x:Key="WidgetItem" TargetType="ListBoxItem">
             <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Grid>
+                            <Border x:Name="Card" CornerRadius="8" BorderThickness="1" Padding="12,10"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                <ContentPresenter />
+                            </Border>
+                            <Border x:Name="Pill" Width="3" Height="20" CornerRadius="1.5" HorizontalAlignment="Left" Margin="1,0,0,0"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                <Setter TargetName="Pill" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
+        <!-- Kayıtlı yerleşim satırı (adla kaydedilenler ve otomatik yedekler). -->
+        <DataTemplate x:Key="LayoutTemplate">
+            <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="Board24" FontSize="20" Margin="0,0,14,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" />
+                    </StackPanel>
+                    <ui:Button Grid.Column="2" Content="{l:T 'Uygula'}" Icon="{ui:SymbolIcon Play24}" VerticalAlignment="Center"
+                               AutomationProperties.Name="{Binding ApplyName}" Click="ApplyLayout_Click" />
+                    <ui:Button Grid.Column="3" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent" VerticalAlignment="Center"
+                               ToolTip="{l:T 'Düzeni sil'}" AutomationProperties.Name="{Binding DeleteName}" Click="DeleteLayout_Click" />
+                </Grid>
+            </Border>
+        </DataTemplate>
     </Page.Resources>
 
-    <StackPanel Style="{StaticResource PageRoot}">
-        <TextBlock Style="{StaticResource PageTitle}" Text="{l:T 'Widget\'lar'}" />
-        <TextBlock Style="{StaticResource PageSubtitle}"
-                   Text="{l:T 'Masaüstüne saat, not ya da bölme ekle. Eklediklerini aşağıda bulur, tek tıkla kaldırırsın.'}" />
-
-        <!-- Ekleme: her yerdeki gibi tek "Widget ekle" penceresi (QuickAddWindow; tepsi, Ctrl+Alt+B, halka, Ana sayfa). Windows
-             masaüstü simgeleri ve yeni widget'ların yeri Ayarlar'dadır. -->
-        <ui:Button x:Name="AddWidgetButton" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="{l:T 'Widget ekle'}"
-                   Padding="18,9" Margin="0,4,0,0" HorizontalAlignment="Left" AutomationProperties.AutomationId="Widgets.AddWidget"
-                   Click="AddWidget_Click" />
-
-        <!-- Masaüstündekiler -->
-        <Grid Margin="0,24,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock x:Name="ActiveHeader" Style="{StaticResource SectionHeader}" Margin="0,0,12,0" VerticalAlignment="Center"
-                       TextWrapping="Wrap" Text="{l:T 'Masaüstündekiler'}" />
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="RevealAllButton" Icon="{ui:SymbolIcon Eye24}" Content="{l:T 'Hepsini öne getir'}" Margin="0,0,8,0"
-                           ToolTip="{l:T 'Widget\'lar pencerelerin arkasında kalır; hepsini birkaç saniyeliğine öne getirir'}"
-                           AutomationProperties.AutomationId="Widgets.RevealAll" Click="RevealAll_Click" />
-                <ui:Button x:Name="ArrangeButton" Icon="{ui:SymbolIcon Grid24}" Content="{l:T 'Widget\'ları hizala'}"
-                           ToolTip="{l:T 'Widget\'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki yerleşim kaydedilir'}"
-                           AutomationProperties.AutomationId="Widgets.Arrange" Click="Arrange_Click" />
-            </StackPanel>
-        </Grid>
-        <ItemsControl x:Name="ActiveList" AutomationProperties.AutomationId="Widgets.List">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="22" Margin="0,0,14,0" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"
-                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <ui:Button Grid.Column="2" Icon="{ui:SymbolIcon Eye24}" Content="{l:T 'Bul'}" VerticalAlignment="Center"
-                                       ToolTip="{l:T 'Masaüstündeki yerini göster'}" AutomationProperties.Name="{Binding RevealName}"
-                                       Click="Reveal_Click" />
-                            <ui:Button Grid.Column="3" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Content="{l:T 'Kaldır'}" VerticalAlignment="Center"
-                                       Appearance="Secondary" AutomationProperties.Name="{Binding RemoveName}" Click="Remove_Click" />
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <TextBlock x:Name="ActiveEmpty" Style="{StaticResource Muted}"
-                   Text="{l:T 'Masaüstünde henüz widget yok. Yukarıdan birine tıkla, hemen masaüstüne gelsin.'}" />
-
-        <!-- Tüm widget'ların görünümü (katlanır) -->
-        <Border Style="{StaticResource Surface}" Margin="0,24,0,6">
-            <Grid>
+    <!-- Widget'ların yönetim yeri: üstte "Widget ekle", "Tüm widget'lar" görünüm şeridi, masaüstündekilerin listesi ve yanında
+         seçilen widget'ın Düzenle paneli (dar pencerede satırdaki "Düzenle" paneli kendi penceresinde açar), katlı "Daha fazla".
+         Sayfa pencereyle genişler (Ana sayfa gibi): dar/geniş kararı içerikten değil pencereden gelir, geri beslenmez. -->
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MaxWidth="984" />
+        </Grid.ColumnDefinitions>
+        <StackPanel x:Name="Root" Style="{StaticResource PageRoot}" HorizontalAlignment="Stretch" SizeChanged="Root_SizeChanged">
+            <Grid Margin="0,0,0,24">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ui:SymbolIcon Symbol="Color24" Style="{StaticResource RowIcon}" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tüm widget\'ların görünümü'}" />
-                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Tema, arka plan, renk ve yerleşim'}" />
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock Style="{StaticResource PageTitle}" Text="{l:T 'Widget\'lar'}" />
+                    <TextBlock Style="{StaticResource Muted}" FontSize="14" Text="{l:T 'Masaüstündeki widget\'larını buradan ayarla.'}" />
                 </StackPanel>
-                <ui:Button x:Name="LookFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                           AutomationProperties.AutomationId="Widgets.LookFold" AutomationProperties.HelpText="{l:T 'Tüm widget\'ların görünümü'}" />
+                <!-- Ekleme: her yerdeki gibi tek "Widget ekle" penceresi (QuickAddWindow; tepsi, Ctrl+Alt+B, halka, Ana sayfa). -->
+                <ui:Button x:Name="AddWidgetButton" Grid.Column="1" Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="{l:T 'Widget ekle'}"
+                           Padding="18,9" VerticalAlignment="Center" AutomationProperties.AutomationId="Widgets.AddWidget"
+                           Click="AddWidget_Click" />
             </Grid>
-        </Border>
-        <StackPanel x:Name="LookContent">
-            <!-- 2.2 Tema: Klasik, Otomatik ve hazır temalar (seçenekler kodda, WidgetLooks/LookMenus ile aynı sırada). -->
-            <Border Style="{StaticResource SettingRow}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Tema'}" />
-                        <TextBlock x:Name="ThemeNote" Style="{StaticResource Muted}" TextWrapping="Wrap" Visibility="Collapsed"
-                                   Text="{l:T 'Yüksek karşıtlık açık: widget\'lar Windows\'un renklerini kullanır.'}" />
+
+            <!-- Tüm widget'lar: Düzenle panelindeki galerinin aynısı ve beş renk; seçim bütün widget'lara (notlar hariç) uygulanır,
+                 bildirimdeki "Geri al" geri koyar. Yüksek karşıtlıkta galeri yerine açıklama. -->
+            <Border x:Name="LookCard" Style="{StaticResource Surface}" Padding="20,16,20,12" Margin="0,0,0,24"
+                    AutomationProperties.AutomationId="Widgets.Look">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="{l:T 'Tüm widget\'lar'}" />
+                    <TextBlock x:Name="LookHint" Style="{StaticResource Muted}" Margin="0,2,0,0"
+                               Text="{l:T 'Seçtiğin görünüm bütün widget\'lara uygulanır. Notlar kendi rengini korur.'}" />
+                    <ContentControl x:Name="GalleryHost" Margin="0,14,0,0" Focusable="False" IsTabStop="False" />
+                    <StackPanel x:Name="AccentPanel" Orientation="Horizontal" Margin="0,2,0,4">
+                        <TextBlock Text="{l:T 'Renk'}" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <StackPanel x:Name="AccentDots" Orientation="Horizontal"
+                                    KeyboardNavigation.TabNavigation="Once" KeyboardNavigation.DirectionalNavigation="Cycle"
+                                    AutomationProperties.Name="{l:T 'Renk'}" />
                     </StackPanel>
-                    <ComboBox x:Name="ThemeBox" Grid.Column="1" Width="170" SelectionChanged="ThemeBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.Theme" AutomationProperties.Name="{l:T 'Tema'}" />
-                </Grid>
-            </Border>
-            <Border Style="{StaticResource SettingRow}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Arka plan'}" />
-                    <ComboBox x:Name="StyleBox" Grid.Column="1" Width="170" SelectionChanged="StyleBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.Background" AutomationProperties.Name="{l:T 'Arka plan'}">
-                        <ComboBoxItem Content="{l:T 'Cam'}" />
-                        <ComboBoxItem Content="{l:T 'Koyu'}" />
-                        <ComboBoxItem Content="{l:T 'Açık'}" />
-                    </ComboBox>
-                </Grid>
-            </Border>
-            <Border Style="{StaticResource SettingRow}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Vurgu rengi'}" />
-                    <ComboBox x:Name="AccentBox" Grid.Column="1" Width="170" SelectionChanged="AccentBox_SelectionChanged"
-                              AutomationProperties.AutomationId="Widgets.Accent" AutomationProperties.Name="{l:T 'Vurgu rengi'}">
-                        <ComboBoxItem Content="{l:T 'Mor'}" />
-                        <ComboBoxItem Content="{l:T 'Mavi'}" />
-                        <ComboBoxItem Content="{l:T 'Yeşil'}" />
-                        <ComboBoxItem Content="{l:T 'Turuncu'}" />
-                        <ComboBoxItem Content="{l:T 'Pembe'}" />
-                    </ComboBox>
-                </Grid>
-            </Border>
-            <Border Style="{StaticResource SettingRow}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Kenarlara yapışsın (mıknatıs)'}" />
-                    <ui:ToggleSwitch x:Name="SnapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Snap_Changed" Unchecked="Snap_Changed"
-                                     AutomationProperties.AutomationId="Widgets.Snap" AutomationProperties.Name="{l:T 'Kenarlara yapışsın (mıknatıs)'}" />
-                </Grid>
-            </Border>
-            <Border Style="{StaticResource SettingRow}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Style="{StaticResource RowTitle}" VerticalAlignment="Center" Margin="0,0,16,0" Text="{l:T 'Widget\'lar üst üste binmesin'}" />
-                    <ui:ToggleSwitch x:Name="OverlapToggle" Grid.Column="1" VerticalAlignment="Center" Checked="Overlap_Changed" Unchecked="Overlap_Changed"
-                                     AutomationProperties.AutomationId="Widgets.PreventOverlap" AutomationProperties.Name="{l:T 'Widget\'lar üst üste binmesin'}" />
-                </Grid>
-            </Border>
-            <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                       Text="{l:T 'Tek bir widget\'ı ayarlamak için kartındaki ⋯ düğmesine bas (ya da ona sağ tıkla → Düzenle). Notlar kendi kağıt rengini kullanır.'}" />
-        </StackPanel>
-
-        <!-- Kayıtlı düzenler (katlanır) -->
-        <Border Style="{StaticResource Surface}" Margin="0,12,0,6">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <ui:SymbolIcon Symbol="Board24" Style="{StaticResource RowIcon}" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <TextBlock x:Name="LayoutsTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Kayıtlı yerleşimler'}" />
-                    <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Yerleşimi bir adla sakla, tek tıkla geri dön'}" />
                 </StackPanel>
-                <ui:Button x:Name="LayoutsFold" Grid.Column="2" Style="{StaticResource FoldButton}"
-                           AutomationProperties.AutomationId="Widgets.LayoutsFold" AutomationProperties.HelpText="{l:T 'Kayıtlı yerleşimler'}" />
-            </Grid>
-        </Border>
-        <StackPanel x:Name="LayoutsContent">
-            <Grid Margin="0,4,0,10">
+            </Border>
+
+            <!-- Masaüstündekiler: solda liste, sağda seçilenin Düzenle paneli. -->
+            <TextBlock x:Name="ActiveHeader" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" Text="{l:T 'Masaüstündekiler'}" />
+            <Grid x:Name="ManageGrid">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                    <ColumnDefinition x:Name="GapColumn" Width="16" />
+                    <ColumnDefinition x:Name="EditorColumn" Width="360" />
                 </Grid.ColumnDefinitions>
-                <ui:TextBox x:Name="LayoutName" PlaceholderText="{l:T 'Düzen adı (ör. İş)'}" Icon="{ui:SymbolIcon Board24}" KeyDown="LayoutName_KeyDown"
-                            AutomationProperties.AutomationId="Widgets.LayoutName" AutomationProperties.Name="{l:T 'Düzen adı'}" />
-                <ui:Button Grid.Column="1" Margin="10,0,0,0" Appearance="Primary" Icon="{ui:SymbolIcon Save24}" Content="{l:T 'Şu anki düzeni kaydet'}"
-                           VerticalAlignment="Stretch" AutomationProperties.AutomationId="Widgets.SaveLayout" Click="SaveLayout_Click" />
-            </Grid>
-            <ItemsControl x:Name="LayoutList" AutomationProperties.AutomationId="Widgets.Layouts">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Style="{StaticResource Surface}" Padding="14,10" Margin="0,0,0,6">
+                <!-- Kendi kaydırıcısı yok: sayfa kayar (tekerlek listede takılmasın). -->
+                <ListBox x:Name="ActiveList" VerticalAlignment="Top" ItemContainerStyle="{StaticResource WidgetItem}"
+                         Background="Transparent" BorderThickness="0" Padding="0" SelectionMode="Single"
+                         KeyboardNavigation.TabNavigation="Once" KeyboardNavigation.DirectionalNavigation="Contained"
+                         AutomationProperties.AutomationId="Widgets.List" AutomationProperties.Name="{l:T 'Masaüstündekiler'}"
+                         SelectionChanged="ActiveList_SelectionChanged">
+                    <ListBox.Template>
+                        <ControlTemplate TargetType="ListBox">
+                            <ItemsPresenter />
+                        </ControlTemplate>
+                    </ListBox.Template>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Symbol="Board24" FontSize="22" Margin="0,0,14,0" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <Border Width="36" Height="36" CornerRadius="8" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                                    <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" />
+                                    <TextBlock Text="{Binding Kind}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
-                                <ui:Button Grid.Column="2" Content="{l:T 'Uygula'}" Icon="{ui:SymbolIcon Play24}" VerticalAlignment="Center"
-                                           AutomationProperties.Name="{Binding ApplyName}" Click="ApplyLayout_Click" />
-                                <ui:Button Grid.Column="3" Margin="8,0,0,0" Icon="{ui:SymbolIcon Delete24}" Appearance="Transparent" VerticalAlignment="Center"
-                                           ToolTip="{l:T 'Düzeni sil'}" AutomationProperties.Name="{Binding DeleteName}" Click="DeleteLayout_Click" />
+                                <!-- Dar pencerede (panel yanda sığmıyor) Düzenle paneli kendi penceresinde açılır. -->
+                                <ui:Button Grid.Column="2" Icon="{ui:SymbolIcon Edit24}" Content="{l:T 'Düzenle'}" VerticalAlignment="Center"
+                                           Visibility="{Binding Tag, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                           AutomationProperties.Name="{Binding EditName}" Click="Edit_Click" />
                             </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock x:Name="LayoutEmpty" Style="{StaticResource Muted}"
-                       Text="{l:T 'Henüz kayıtlı düzen yok. Beğendiğin yerleşimi bir adla kaydet, sonra tek tıkla geri dön.'}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Border x:Name="EditorCard" Grid.Column="2" Style="{StaticResource Surface}" Padding="0,12,0,0" VerticalAlignment="Top"
+                        PreviewMouseWheel="EditorCard_PreviewMouseWheel">
+                    <ContentControl x:Name="EditorHost" Focusable="False" IsTabStop="False" />
+                </Border>
+            </Grid>
+            <!-- Boş durum: tek cümle, tek büyük düğme. -->
+            <Border x:Name="EmptyCard" Style="{StaticResource Surface}" Padding="24,28" Visibility="Collapsed">
+                <StackPanel HorizontalAlignment="Center">
+                    <ui:SymbolIcon Symbol="Apps24" FontSize="32" HorizontalAlignment="Center" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                    <TextBlock Style="{StaticResource CardTitle}" Margin="0,12,0,0" HorizontalAlignment="Center" TextAlignment="Center"
+                               Text="{l:T 'Masaüstünde henüz widget yok.'}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16" HorizontalAlignment="Center" TextAlignment="Center"
+                               Text="{l:T 'Saat, not ya da bölme ekle; hemen masaüstüne gelir.'}" />
+                    <ui:Button Appearance="Primary" Icon="{ui:SymbolIcon Add24}" Content="{l:T 'Widget ekle'}" Padding="18,9"
+                               HorizontalAlignment="Center" AutomationProperties.AutomationId="Widgets.EmptyAdd" Click="AddWidget_Click" />
+                </StackPanel>
+            </Border>
+
+            <!-- Daha fazla (katlı): hizala, öne getir, kayıtlı yerleşimler (otomatik yedekler ayrıca katlı). -->
+            <Border Style="{StaticResource Surface}" Margin="0,24,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Style="{StaticResource RowTitle}" Text="{l:T 'Daha fazla'}" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Hizala, öne getir, kayıtlı yerleşimler'}" />
+                    </StackPanel>
+                    <ui:Button x:Name="MoreFold" Grid.Column="2" Style="{StaticResource FoldButton}"
+                               AutomationProperties.AutomationId="Widgets.More" AutomationProperties.HelpText="{l:T 'Daha fazla'}" />
+                </Grid>
+            </Border>
+            <StackPanel x:Name="MoreContent" Margin="0,6,0,0">
+                <WrapPanel Margin="0,0,0,16">
+                    <ui:Button x:Name="ArrangeButton" Icon="{ui:SymbolIcon Grid24}" Content="{l:T 'Widget\'ları hizala'}" Margin="0,0,8,8"
+                               ToolTip="{l:T 'Widget\'ları bulundukları ekranda çakışmadan sağdan başlayarak dizer; önceki yerleşim kaydedilir'}"
+                               AutomationProperties.AutomationId="Widgets.Arrange" Click="Arrange_Click" />
+                    <ui:Button x:Name="RevealAllButton" Icon="{ui:SymbolIcon Eye24}" Content="{l:T 'Hepsini öne getir'}" Margin="0,0,8,8"
+                               ToolTip="{l:T 'Widget\'lar pencerelerin arkasında kalır; hepsini birkaç saniyeliğine öne getirir'}"
+                               AutomationProperties.AutomationId="Widgets.RevealAll" Click="RevealAll_Click" />
+                </WrapPanel>
+
+                <TextBlock x:Name="LayoutsTitle" Style="{StaticResource RowTitle}" Text="{l:T 'Kayıtlı yerleşimler'}" />
+                <TextBlock Style="{StaticResource Muted}" Text="{l:T 'Yerleşimi bir adla sakla, tek tıkla geri dön'}" />
+                <Grid Margin="0,10,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="LayoutName" PlaceholderText="{l:T 'Düzen adı (ör. İş)'}" Icon="{ui:SymbolIcon Board24}" KeyDown="LayoutName_KeyDown"
+                                AutomationProperties.AutomationId="Widgets.LayoutName" AutomationProperties.Name="{l:T 'Düzen adı'}" />
+                    <ui:Button Grid.Column="1" Margin="10,0,0,0" Icon="{ui:SymbolIcon Save24}" Content="{l:T 'Şu anki düzeni kaydet'}"
+                               VerticalAlignment="Stretch" AutomationProperties.AutomationId="Widgets.SaveLayout" Click="SaveLayout_Click" />
+                </Grid>
+                <ItemsControl x:Name="LayoutList" ItemTemplate="{StaticResource LayoutTemplate}" AutomationProperties.AutomationId="Widgets.Layouts" />
+                <TextBlock x:Name="LayoutEmpty" Style="{StaticResource Muted}"
+                           Text="{l:T 'Henüz kayıtlı düzen yok. Beğendiğin yerleşimi bir adla kaydet, sonra tek tıkla geri dön.'}" />
+                <!-- Otomatik yedekler ("Düzen uygulanmadan önce", "Otomatik yerleştirmeden önce"): listeyi kalabalıklaştırmasın. -->
+                <ui:Button x:Name="BackupsFold" Appearance="Transparent" Margin="-8,8,0,0" Padding="8,5" Icon="{ui:SymbolIcon History24}"
+                           AutomationProperties.AutomationId="Widgets.Backups" Click="BackupsFold_Click" />
+                <ItemsControl x:Name="BackupList" Margin="0,6,0,0" ItemTemplate="{StaticResource LayoutTemplate}" Visibility="Collapsed"
+                              AutomationProperties.AutomationId="Widgets.BackupList" />
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </Grid>
 </Page>
