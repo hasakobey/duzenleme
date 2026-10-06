@@ -59,6 +59,10 @@ internal sealed class RingPopup : Window
     private readonly Canvas _root;
     private readonly RingBackdrop _backdrop = new();
     private readonly RingView _ring = new() { IsPopup = true, StableSize = true };
+    // Halkanın altında hep yerinde: "Halkayı düzenle" (Ring.Edit); üstünde gerektiğinde soluk öğelerin açıklaması.
+    private readonly Button _edit;
+    private readonly TextBlock _footer;
+    private RingOrigin _origin = RingOrigin.Hotkey;
 
     private WidgetConfig? _config;
     private string? _signature;
@@ -83,8 +87,12 @@ internal sealed class RingPopup : Window
     /// <summary>NESTDESK_TEST_RING=1 (yalnızca test masaüstünde): kısayol kaydetmeden halka yolu açık.</summary>
     public static bool TestRing => RingHotkey.TestOverride(AppHost.IsTestDesktop, AppEnvironment.Get("TEST_RING"));
 
-    /// <summary>Halka yolu açık mı: kısayol atanmış ya da test.</summary>
+    /// <summary>Halka kısayolu açık mı: kısayol atanmış ya da test. Yalnızca kısayolu yönetir; çift tıklama ve tepsi her zaman açar.</summary>
     public static bool Enabled => RingShortcut.IsOn || TestRing;
+
+    /// <summary>Halka boşta önceden kurulsun mu: kısayol ya da çift tıklama onu açabiliyor.</summary>
+    private static bool Prebuild => Enabled || DesktopState.ResolveDoubleClick(AppHost.Settings.DoubleClickAction,
+        AppHost.Settings.DoubleClickHidesDesktop, AppHost.Settings.FencesReplaceIcons) == DoubleClickEffect.Ring;
 
     /// <summary>
     /// Ayara uyar (açılışta StartDeferredWork'ten sonra ve kısayol değişince): yol açıksa pencere boşta önceden kurulur,
@@ -98,7 +106,7 @@ internal sealed class RingPopup : Window
         {
             _syncQueued = false;
             if (_exiting) return;
-            if (Enabled)
+            if (Prebuild)
             {
                 _instance ??= new RingPopup();
                 _instance.RebuildIfDirty();
@@ -115,13 +123,37 @@ internal sealed class RingPopup : Window
     public static void Toggle()
     {
         if (_exiting || !Enabled) return;
+        OpenOrClose(null, RingOrigin.Hotkey);
+    }
+
+    /// <summary>
+    /// Halkayı kısayolsuz açar (boş masaüstüne çift tıklama, tepsi): <paramref name="point"/> (fiziksel piksel) noktasında,
+    /// tıklama kipinde ("tuşu bırakınca seç" yok); tuş ve metin öğeleri soluk çizilir ve çalışmaz (önceki pencere yazılacak
+    /// yer değildir). Açıksa kapatır. Pencere ilk gerekince kurulur.
+    /// </summary>
+    public static void OpenAt(NativeMethods.POINT point, RingOrigin origin)
+    {
+        if (_exiting) return;
+        OpenOrClose(point, origin);
+    }
+
+    /// <summary>Tepsi menüsündeki "Halkayı aç": imlecin (tepsinin) ekranının çalışma alanının ortasında.</summary>
+    public static void OpenFromTray()
+    {
+        NativeMethods.GetCursorPos(out var cursor);
+        var work = NativeMethods.WorkAreaAt(cursor);
+        OpenAt(new NativeMethods.POINT { X = (work.Left + work.Right) / 2, Y = (work.Top + work.Bottom) / 2 }, RingOrigin.Tray);
+    }
+
+    private static void OpenOrClose(NativeMethods.POINT? point, RingOrigin origin)
+    {
         var at = PerfLog.Now();
         if (_instance is { IsVisible: true, _closing: false } open)
         {
             open.Dismiss();
             return;
         }
-        (_instance ??= new RingPopup()).Open(at);
+        (_instance ??= new RingPopup()).Open(at, origin, point);
     }
 
     /// <summary>
@@ -167,6 +199,17 @@ internal sealed class RingPopup : Window
         _root = new Canvas { Background = new SolidColorBrush(Color.FromArgb(0x01, 0, 0, 0)), ClipToBounds = true };
         _root.Children.Add(_backdrop);
         _root.Children.Add(_ring);
+        _footer = new TextBlock
+        {
+            Text = L.T("Bu öğe yalnızca tuşla açılan halkada çalışır"), FontSize = 12, TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, IsHitTestVisible = false,
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"), Padding = new Thickness(8, 2, 8, 3),
+        };
+        AutomationProperties.SetAutomationId(_footer, "Ring.Footer");
+        _edit = EditButton();
+        _edit.Click += (_, _) => EditRing();
+        _root.Children.Add(_footer);
+        _root.Children.Add(_edit);
         KeyboardNavigation.SetTabNavigation(_root, KeyboardNavigationMode.Cycle);
         Content = _root;
 
@@ -178,7 +221,12 @@ internal sealed class RingPopup : Window
         _ring.ItemInvoked += OnItemInvoked;
         _ring.BackRequested += Dismiss;
         _ring.CloseRequested += Dismiss;
-        _ring.Navigated += () => Motion.RingSwap(_ring.CenterElement, _ring.ItemElements, _ring.TowardCenter);
+        _ring.Navigated += () =>
+        {
+            UpdateFooter();
+            Motion.RingSwap(_ring.CenterElement, _ring.ItemElements, _ring.TowardCenter);
+        };
+        _ring.Dims = slot => slot.Action is { } a && !RingAvailability.Available(a.Type, _origin);
 
         PreviewMouseMove += (_, _) => OnPointerMove();
         PreviewMouseDown += (_, e) =>
@@ -266,7 +314,7 @@ internal sealed class RingPopup : Window
     private void RebuildIfDirty()
     {
         if (_forReal || IsVisible || !_dirty) return;
-        var config = RingTargets.Pick(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId);
+        var config = RingTargets.Pick(AppHost.Settings);
         if (config is null)
         {
             _dirty = false;
@@ -294,6 +342,7 @@ internal sealed class RingPopup : Window
         _ring.CenterShowsIcon = !config.Shows(WidgetNameLine.PartKey);
         _ring.SetRing(config, 0);
         _backdrop.Apply(palette, _ring.Metrics.OuterRadius);
+        PaintChrome(palette);
         var side = 2 * (_ring.Metrics.OuterRadius + AimDip);
         Arrange(side / 2, side / 2);
         _root.Measure(new Size(side, side));
@@ -312,6 +361,15 @@ internal sealed class RingPopup : Window
         Canvas.SetTop(_ring, y - outer);
         Canvas.SetLeft(_backdrop, x - outer - RingBackdrop.ShadowDip);
         Canvas.SetTop(_backdrop, y - outer - RingBackdrop.ShadowDip);
+        // Düğme çemberin altında, açıklama üstünde; ikisi de nişan alanının içinde (pencere monitörde kalır: görünürler).
+        var width = 2 * (outer + AimDip) - 16;
+        _edit.Measure(new Size(width, AimDip));
+        Canvas.SetLeft(_edit, x - _edit.DesiredSize.Width / 2);
+        Canvas.SetTop(_edit, y + outer + 10);
+        _footer.MaxWidth = Math.Max(120, width);
+        _footer.Measure(new Size(_footer.MaxWidth, AimDip));
+        Canvas.SetLeft(_footer, x - _footer.DesiredSize.Width / 2);
+        Canvas.SetTop(_footer, y - outer - 10 - _footer.DesiredSize.Height);
     }
 
     /// <summary>
@@ -333,7 +391,7 @@ internal sealed class RingPopup : Window
             return;
         }
         if (_forReal || _dirty) return;
-        var config = RingTargets.Pick(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId);
+        var config = RingTargets.Pick(AppHost.Settings);
         if (ReferenceEquals(config, _config) && config is not null && Signature(config) == _signature) return;
         MarkDirty();
     }
@@ -370,16 +428,19 @@ internal sealed class RingPopup : Window
         return cursor;
     }
 
+    /// <param name="origin">Halkayı ne açtı: kısayol dışında tıklama kipi ve tuş/metin öğeleri soluk.</param>
+    /// <param name="point">Açılacağı nokta (fiziksel piksel); yoksa NESTDESK_RING_AT ya da imleç.</param>
     /// <param name="previousOverride">Pencere yeniden kurulduysa eskisinin okuduğu önceki pencere.</param>
     /// <param name="mayRecreate">Gizli pencere imlecin monitörünün ölçeğine geçmezse yeniden kurulabilir mi (bir kez).</param>
-    private void Open(double pressedAt, IntPtr? previousOverride = null, bool mayRecreate = true)
+    private void Open(double pressedAt, RingOrigin origin, NativeMethods.POINT? point, IntPtr? previousOverride = null, bool mayRecreate = true)
     {
         // Önceki pencere ve imleç yalnızca şimdi okunur ve yalnızca bellekte tutulur. Kapanırken yeniden açıldıysa öndeki
         // pencere halkanın kendisidir: önceki hedef korunur.
         var foreground = ForegroundInfo.Window();
         var previous = previousOverride ?? (foreground == Handle ? _previous : foreground);
         NativeMethods.GetCursorPos(out _openCursor);
-        _anchor = AnchorNow();
+        _anchor = point ?? AnchorNow();
+        _origin = origin;
         if (_closing)
         {
             // Kapanırken yeniden açıldı: kapanış (ve bekleyen işi) bırakılır.
@@ -389,14 +450,12 @@ internal sealed class RingPopup : Window
         }
         _previous = previous;
 
-        var config = RingTargets.Pick(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId);
+        // Masaüstünde halka widget'ı yoksa NestDesk halkası (ilk kez gerekince kurulur ve kaydedilir).
+        var config = RingTargets.Pick(AppHost.Settings);
         if (config is null)
         {
-            _previous = IntPtr.Zero;
-            var near = _anchor;
-            Notice.Show(L.T("Henüz halka menün yok."), NoticeKind.Info, L.T("Halka menü ekle"), () => RingShortcut.AddRing(near),
-                L.T("Eklemek için buraya tıkla."));
-            return;
+            config = RingTargets.EnsureHub(AppHost.Settings);
+            AppHost.SaveSettings();
         }
         // Değişiklikler boşta işlenir (OnSettingsChanged); burada yalnızca hâlâ eskiyse (ör. boşa düşmeden basıldıysa).
         if (_dirty || !ReferenceEquals(config, _config) || _builtLook != LookNow()) Build(config);
@@ -404,13 +463,16 @@ internal sealed class RingPopup : Window
         if (_ring.Slots.Count == 0)
         {
             _previous = IntPtr.Zero;
-            Notice.Show(L.T("Halka menün boş. Masaüstündeki halkaya bir uygulama, dosya ya da klasör sürükle."), NoticeKind.Info);
+            var empty = config;
+            Notice.Show(L.T("Halka menün boş."), NoticeKind.Info, L.T("Halkayı düzenle"), () => RingEditor.Open(empty),
+                L.T("Halkaya öğe eklemek için buraya tıkla."));
             return;
         }
+        ApplyOrigin();
 
         if (!Place(requireScale: mayRecreate))
         {
-            Recreate(pressedAt, previous);
+            Recreate(pressedAt, origin, previous);
             return;
         }
         PerfLog.Mark("Ring.hotkey", atMs: pressedAt);
@@ -425,14 +487,14 @@ internal sealed class RingPopup : Window
     /// WPF gizli pencerede imlecin monitörünün ölçeğine geçmedi (WM_DPICHANGED gelmedi): halka yanlış ölçekte çizilmesin diye
     /// pencere o monitörde yeniden kurulur (kurucu imlecin ekranında oluşturur) ve oradan açılır; eskisi kapanır.
     /// </summary>
-    private void Recreate(double pressedAt, IntPtr previous)
+    private void Recreate(double pressedAt, RingOrigin origin, IntPtr previous)
     {
         DebugLog.Write("RingPopup: gizli pencere ekranın ölçeğine geçmedi; yeniden kuruluyor");
         _previous = IntPtr.Zero;
         var fresh = new RingPopup();
         if (ReferenceEquals(_instance, this)) _instance = fresh;
         CloseForRealCore();
-        fresh.Open(pressedAt, previous, mayRecreate: false);
+        fresh.Open(pressedAt, origin, _anchor, previous, mayRecreate: false);
     }
 
     private static void OnFirstFrame(object? sender, EventArgs e)
@@ -501,6 +563,13 @@ internal sealed class RingPopup : Window
     private void Arm()
     {
         Disarm();
+        // Kısayolsuz açılan halka (çift tıklama, tepsi) hep tıklama kipindedir.
+        if (_origin != RingOrigin.Hotkey)
+        {
+            _hotkeyKeys = [];
+            _hotkeyHeld = false;
+            return;
+        }
         _hotkeyKeys = Hotkey.TryParse(AppHost.Settings.Hotkeys.Ring, out var hotkey) ? KeySender.VirtualKeysOf(hotkey) : [];
         _hotkeyHeld = _hotkeyKeys.Count > 0 && !AllReleased();
         _armed = !AppHost.Settings.RingHoldSelectOff && _hotkeyHeld;
@@ -637,6 +706,8 @@ internal sealed class RingPopup : Window
     private void OnItemInvoked(RingSlot slot)
     {
         if (_closing || !IsVisible) return;
+        // Tuş ve metin yalnızca kısayolla açılan halkada (açıklama halkanın üstünde yazar).
+        if (slot.Action is { } dimmed && !RingAvailability.Available(dimmed.Type, _origin)) return;
         if (RingRunner.NeedsTarget(slot) && slot.Action is { } action)
         {
             // Tuş ve metin: halka gerçekten kapanınca, halka açılmadan önce öndeki pencereye.
@@ -682,8 +753,8 @@ internal sealed class RingPopup : Window
         _hotkeyHeld = false;
         _ring.ClearHighlight();
         after?.Invoke();
-        // Kısayol halka açıkken kapatıldı (Sync açık pencereye dokunmaz): şimdi bütünüyle kapanır.
-        if (!Enabled)
+        // Kısayol (ve çift tıklama) halka açıkken kapatıldı (Sync açık pencereye dokunmaz): şimdi bütünüyle kapanır.
+        if (!Prebuild)
         {
             Sync();
             return;
@@ -691,6 +762,79 @@ internal sealed class RingPopup : Window
         // Açıkken gelen değişiklik ya da alt halka: sonraki açılış için boşta.
         if (_ring.InSubRing) _dirty = true;
         if (_dirty) MarkDirty();
+    }
+
+    // ---------------------------------------------------------------- açılışa göre ve "Halkayı düzenle"
+
+    /// <summary>Açılışa göre soluk öğeler (yeniden çizilir) ve açıklama satırı.</summary>
+    private void ApplyOrigin()
+    {
+        _ring.Redraw();
+        UpdateFooter();
+    }
+
+    /// <summary>Gösterilen halkada soluk (yalnızca tuşla açılan halkada çalışan) öğe varsa açıklama halkanın üstünde yazar.</summary>
+    private void UpdateFooter()
+    {
+        var any = _ring.Slots.Any(s => s.Action is { } a && !RingAvailability.Available(a.Type, _origin));
+        _footer.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        if (_config is not null) Arrange(Canvas.GetLeft(_ring) + _ring.Metrics.OuterRadius, Canvas.GetTop(_ring) + _ring.Metrics.OuterRadius);
+    }
+
+    /// <summary>
+    /// "Halkayı düzenle": efektsiz, hareketsiz düz metin düğmesi (fare zemini hemen değişir); halkanın zemin rengindeki küçük
+    /// hap, her pencerenin üstünde okunur. Tab ile de ulaşılır.
+    /// </summary>
+    private static Button EditButton()
+    {
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.Name = "Chip";
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(12));
+        border.SetValue(Border.PaddingProperty, new Thickness(12, 4, 12, 5));
+        border.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding(nameof(Background)) { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+        border.SetBinding(Border.BorderBrushProperty, new System.Windows.Data.Binding(nameof(BorderBrush)) { RelativeSource = System.Windows.Data.RelativeSource.TemplatedParent });
+        border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+        var content = new FrameworkElementFactory(typeof(ContentPresenter));
+        content.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        border.AppendChild(content);
+        var template = new ControlTemplate(typeof(Button)) { VisualTree = border };
+        var button = new Button
+        {
+            Content = L.T("Halkayı düzenle"), Template = template, FontSize = 12, Cursor = Cursors.Hand,
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+        };
+        AutomationProperties.SetAutomationId(button, "Ring.Edit");
+        AutomationProperties.SetName(button, L.T("Halkayı düzenle"));
+        return button;
+    }
+
+    private Brush _chipFill = Brushes.Transparent, _chipHover = Brushes.Transparent;
+
+    /// <summary>Düğmenin ve açıklamanın renkleri halkanın zemininden (yüksek karşıtlıkta sistem renkleri).</summary>
+    private void PaintChrome(WidgetPalette palette)
+    {
+        var (fill, hover, text, edge) = RingBackdrop.Chip(palette);
+        _chipFill = fill;
+        _chipHover = hover;
+        _edit.Background = fill;
+        _edit.Foreground = text;
+        _edit.BorderBrush = edge;
+        _footer.Background = fill;
+        _footer.Foreground = text;
+        _edit.MouseEnter -= OnEditHover;
+        _edit.MouseLeave -= OnEditHover;
+        _edit.MouseEnter += OnEditHover;
+        _edit.MouseLeave += OnEditHover;
+    }
+
+    private void OnEditHover(object sender, MouseEventArgs e) => _edit.Background = _edit.IsMouseOver ? _chipHover : _chipFill;
+
+    /// <summary>"Halkayı düzenle": halka kapanır (önceki pencereye dönülmez) ve bu halkanın düzenleyicisi açılır.</summary>
+    private void EditRing()
+    {
+        if (_closing || !IsVisible || _config is not { } config) return;
+        var tab = _ring.TabIndex;
+        CloseWith(restore: false, after: () => RingEditor.Open(config, tab));
     }
 
     private void CloseForRealCore()
@@ -755,6 +899,20 @@ internal sealed class RingBackdrop : FrameworkElement
             _edge = Frozen(new Pen(palette.IsOpaqueBackground ? palette.BorderBrush : WidgetPalette.Solid(0x38FFFFFF), 1));
         }
         InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Halkanın altındaki "Halkayı düzenle" hapının ve açıklama satırının renkleri: zemin (opak kartta kartın zemini, Cam'da
+    /// açılır halkanın koyu zemini), fareyle üstündeyken (Cam'da biraz açığı), yazı ve kenar. Yüksek karşıtlıkta sistem renkleri.
+    /// </summary>
+    public static (Brush Fill, Brush Hover, Brush Text, Brush Edge) Chip(WidgetPalette palette)
+    {
+        if (SystemParameters.HighContrast)
+            return (SystemColors.WindowBrush, SystemColors.WindowBrush, SystemColors.WindowTextBrush, SystemColors.WindowTextBrush);
+        if (palette.IsOpaqueBackground)
+            return (palette.Background, palette.Background, palette.Foreground, palette.BorderBrush);
+        return (WidgetPalette.Solid(RingColors.PopupPlateOuter), WidgetPalette.Solid(RingColors.PopupPlateInner),
+            WidgetPalette.Solid(0xFFF3F3F3), WidgetPalette.Solid(0x38FFFFFF));
     }
 
     protected override void OnRender(DrawingContext dc)

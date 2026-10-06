@@ -664,6 +664,18 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? BoxAppShortcuts { get; set; }
+
+    // 2.2 halka merkezi
+    // (Nesne: 2.1 bilmediği alanı Extra'da aynen korur. Boşken yazılmaz.)
+
+    /// <summary>
+    /// NestDesk halkası: masaüstünde widget'ı olmayan halka (Kind=Launcher, Variant="ring"). Çift tıklama, tepsi ve kısayol
+    /// masaüstünde halka widget'ı yokken bunu açar (<see cref="RingTargets.Pick(AppSettings)"/>). <see cref="Widgets"/>'ta
+    /// durmaz; kutu kayıtları, taşıyıcı ve yeniden adlandırma onu <see cref="Launchers"/> üzerinden görür. İlk gerektiğinde
+    /// <see cref="RingTargets.EnsureHub"/> kurar; null (varsayılan) yazılmaz.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public WidgetConfig? Hub { get; set; }
 }
 
 /// <summary><see cref="AppSettings.BoxAppShortcuts"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>

@@ -364,6 +364,7 @@
                     <ComboBoxItem Content="{l:T 'Masaüstünü gizle / göster'}" />
                     <ComboBoxItem Content="{l:T 'Windows masaüstüne göz at'}" />
                     <ComboBoxItem Content="{l:T 'Hiçbir şey yapma'}" />
+                    <ComboBoxItem Content="{l:T 'Halkayı aç'}" />
                 </ComboBox>
             </Grid>
         </Border>

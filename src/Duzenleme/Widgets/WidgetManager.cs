@@ -485,6 +485,15 @@ public sealed class WidgetManager
         window.Attention();
     }
 
+    /// <summary>Widget'ı öne getirir ve Düzenle panelini yanında açar ("Halkayı düzenle"); widget açık değilse false.</summary>
+    internal bool RevealAndEdit(string id)
+    {
+        if (!_open.TryGetValue(id, out var window)) return false;
+        Reveal(id);
+        window.OpenEditor();
+        return true;
+    }
+
     /// <summary>
     /// "Widget'ları hizala": tüm widget'ları bulundukları monitörde çakışmadan dizer: sağ kenardan başlayan sütunlar (masaüstü
     /// simgeleri genelde soldadır), geniş olanlar önce. Önceki düzen "Otomatik yerleştirmeden önce" adıyla kaydedilir;

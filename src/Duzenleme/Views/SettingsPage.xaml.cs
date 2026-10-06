@@ -469,6 +469,7 @@ public partial class SettingsPage : Page
                 DesktopState.DoubleClickToggle => L.T("Simgeler (ve ayara göre widget'lar) gizlenir; yeniden çift tıklayınca geri gelir."),
                 DesktopState.DoubleClickPeek => L.T("Windows'un simgeleri görünür, widget'lar kısa süre çekilir; yeniden çift tıklayınca dönülür."),
                 DesktopState.DoubleClickNone => L.T("Çift tıklama yalnızca Windows'un kendi işini yapar."),
+                DesktopState.DoubleClickRing => L.T("Halka imlecin yanında açılır; kısayol gerekmez. Simgeye çift tıklamak yine dosyayı açar."),
                 _ => L.T("Bölmeler masaüstünü yönetirken Windows masaüstüne göz atar, yoksa masaüstünü gizler/gösterir. Simgeye çift tıklamak yine dosyayı açar."),
             };
             PeekHidesWidgetsToggle.IsChecked = s.PeekHidesWidgets;

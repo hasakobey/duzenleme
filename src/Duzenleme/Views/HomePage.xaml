@@ -51,7 +51,7 @@
                         </StackPanel>
                     </Grid>
                 </ui:Button>
-                <!-- Halka varsa "Halkayı düzenle", yoksa "Halka menü ekle" (metinler koddan; bkz. HomeRing). -->
+                <!-- "Halkayı düzenle" (metinler koddan; bkz. HomeRing). -->
                 <ui:Button x:Name="RingTile" Style="{StaticResource HomeTile}" Margin="5,0"
                            AutomationProperties.AutomationId="Home.EditRing" Click="EditRing_Click">
                     <Grid>

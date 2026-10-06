@@ -123,6 +123,8 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         }
         _ring.Rebuild();
         ApplyParts();
+        // Açık Düzenle panelindeki halka düzenleyicisi de tazelensin (sürükleyip bırakma, arka planda biten ekleme).
+        _editorChanged?.Invoke();
     }
 
     private void OnOutsideChange() => Render();
@@ -177,6 +179,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     public void Detach()
     {
+        _editorChanged = null;
         _name.Cancel();
         _ring.Release();
         BoxMover.Changed -= OnOutsideChange;
@@ -187,7 +190,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     /// <summary>
     /// Menüde: "Uygulama ekle…" (Başlat menüsündeki uygulamalar, gösterilen halkaya) ve "Tuşla imlecin yanında açılsın" (açıkken
-    /// tuşuyla). Öbür öğe türleri (web adresi, komut, tuşlar…) Düzenle panelinin "Öğe ekle"sinde; kaldırılanın "Geri al"ı bildirimde.
+    /// tuşuyla). Öbür öğe türleri (web adresi, komut, tuşlar…) Düzenle panelindeki halka düzenleyicisinde; kaldırılanın "Geri al"ı bildirimde.
     /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
@@ -199,9 +202,25 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         if (RingShortcut.Opens(_config) && RingShortcut.Current is { } hotkey) key.InputGestureText = hotkey;
         menu.Primary.Add(key);
         if (!menu.ForEditor) return;
-        menu.Settings.Add(AddMenu(CurrentTab, () => null, withApps: false));
         menu.Settings.Add(Menus.Parts(_config,
             [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.EditPart, Menus.ClosePart], ApplyParts));
+    }
+
+    // Açık Düzenle panelinin halka düzenleyicisi: halka değişince panel (ve düzenleyici) tazelenir.
+    private Action? _editorChanged;
+
+    /// <summary>
+    /// Düzenle paneli: halka düzenleyicisi (<see cref="Views.RingEditor"/>: önizleme, seçili öğenin işleri, ekleme çubuğu,
+    /// "Tuşla imlecin yanında açılsın", "Kutuya koyduğum simgeler masaüstünden kalksın"). Düzenlemeler widget'ın kendi
+    /// <see cref="LauncherEdits"/>'iyle (menüdeki ve bildirimdeki "Geri al" ortak); kaldırılanın "Geri al"ı panelin bildiriminde.
+    /// </summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        var editor = new Views.RingEditor(_config, _edits, () => Owner, () => Owner?.CenterPoint, content.Notice, () => content.Changed(),
+            _ring.TabIndex);
+        _editorChanged = () => content.Changed();
+        content.Custom(editor, editor.Refresh);
+        return true;
     }
 
     /// <summary>

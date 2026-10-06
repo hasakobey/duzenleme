@@ -58,8 +58,6 @@ internal static partial class En
         // Ana sayfa: büyük düğmeler ve otomatik taşıma satırı
         new("Halkayı düzenle", "Edit ring"),
         new("Halkadaki uygulamalar", "The apps in your ring"),
-        new("Halkan öne geldi. Uygulama eklemek ya da çıkarmak için ona sağ tıkla.",
-            "Your ring is in front now. Right-click it to add or remove apps."),
         new("Otomatik taşıma açık · masaüstünde hedef klasör yok", "Auto-move is on · no target folders on the desktop"),
         new("Otomatik taşıma açık · son: {0} → {1}", "Auto-move is on · last: {0} → {1}"),
 

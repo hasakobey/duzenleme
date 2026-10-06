@@ -4,7 +4,7 @@ namespace Duzenleme.Core;
 public readonly record struct DesktopView(bool IconsHidden, bool WidgetsHidden);
 
 /// <summary>Boş masaüstüne çift tıklamanın o anki etkisi (kalıcı değildir; ayar metin olarak saklanır).</summary>
-public enum DoubleClickEffect { None, ToggleDesktop, Peek }
+public enum DoubleClickEffect { None, ToggleDesktop, Peek, Ring }
 
 /// <summary>
 /// Masaüstünün görünürlüğü tek yerde hesaplanır (AppHost.ApplyDesktopState bunu uygular): bölmeler masaüstünü yönetiyor
@@ -28,9 +28,11 @@ public static class DesktopState
     public const string DoubleClickToggle = "toggle";
     public const string DoubleClickPeek = "peek";
     public const string DoubleClickNone = "none";
+    /// <summary>2.2: halka imlecin yanında açılır (açılır halka; kısayol gerekmez). 2.1 tanımaz ve "otomatik" sayar.</summary>
+    public const string DoubleClickRing = "ring";
 
-    /// <summary>Ayar kutusundaki sıra.</summary>
-    public static readonly string[] DoubleClickChoices = [DoubleClickAuto, DoubleClickToggle, DoubleClickPeek, DoubleClickNone];
+    /// <summary>Ayar kutusundaki sıra (yeni seçenek yalnızca sona).</summary>
+    public static readonly string[] DoubleClickChoices = [DoubleClickAuto, DoubleClickToggle, DoubleClickPeek, DoubleClickNone, DoubleClickRing];
 
     /// <summary>
     /// Kayıtlı seçim. Yeni alan boşsa (2.0'dan gelen) eski anahtara bakılır: çift tıklama kapatılmışsa "hiçbir şey",
@@ -53,6 +55,7 @@ public static class DesktopState
             DoubleClickToggle => DoubleClickEffect.ToggleDesktop,
             DoubleClickPeek => DoubleClickEffect.Peek,
             DoubleClickNone => DoubleClickEffect.None,
+            DoubleClickRing => DoubleClickEffect.Ring,
             _ => fencesReplaceIcons ? DoubleClickEffect.Peek : DoubleClickEffect.ToggleDesktop,
         };
 

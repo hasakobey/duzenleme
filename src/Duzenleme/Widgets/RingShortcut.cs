@@ -48,7 +48,7 @@ internal static class RingShortcut
 
     /// <summary>Kısayol açık ve bu halkayı mı açıyor (widget menüsündeki seçenek yalnızca o halkada işaretli)?</summary>
     public static bool Opens(WidgetConfig config) =>
-        IsOn && RingTargets.Opens(Launchers.All(AppHost.Settings), AppHost.Settings.RingWidgetId, config);
+        IsOn && RingTargets.Opens(AppHost.Settings, config);
 
     /// <summary>
     /// Widget menüsündeki seçenek: kapalıysa açar (bu halka hedef olur) ve ne yaptığını bildirimde anlatır (matris 2b); açık

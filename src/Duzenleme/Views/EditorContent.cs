@@ -47,6 +47,16 @@ public sealed class EditorContent
     /// <summary>Panelin içinde bildirim satırı: metin ve "Geri al" (ör. bölmenin kaynağı değişti).</summary>
     public void Notice(string text, Action undo) => _notice(text, undo);
 
+    /// <summary>
+    /// Görünümün kendi denetimi (halka düzenleyicisi, <see cref="RingEditor"/>): panele olduğu gibi eklenir; panel tazelenince
+    /// <paramref name="refresh"/> çağrılır.
+    /// </summary>
+    public void Custom(FrameworkElement element, Action? refresh = null)
+    {
+        if (refresh is not null) _refreshers.Add(refresh);
+        _panel.Children.Add(element);
+    }
+
     /// <summary>Gri açıklama satırı (değişebilir: tazelemede yeniden okunur).</summary>
     public void Text(Func<string> text)
     {

@@ -10,10 +10,18 @@ namespace Duzenleme.Core;
 /// </summary>
 public static class Launchers
 {
-    /// <summary>Ayarlardaki bütün widget yapılandırmaları (launcher olmayanlar da): yolları güncelleyen kod (yeniden adlandırma) için.</summary>
-    public static IEnumerable<WidgetConfig> Configs(AppSettings settings) => settings.Widgets.Where(w => w is not null);
+    /// <summary>
+    /// Ayarlardaki bütün widget yapılandırmaları (launcher olmayanlar da) ve varsa NestDesk halkası (<see cref="AppSettings.Hub"/>,
+    /// sonda): yolları güncelleyen kod (yeniden adlandırma) için.
+    /// </summary>
+    public static IEnumerable<WidgetConfig> Configs(AppSettings settings)
+    {
+        foreach (var widget in settings.Widgets)
+            if (widget is not null) yield return widget;
+        if (settings.Hub is { } hub) yield return hub;
+    }
 
-    /// <summary>Bütün kutular ve halkalar, ayardaki sırayla.</summary>
+    /// <summary>Bütün kutular ve halkalar, ayardaki sırayla; NestDesk halkası (varsa) en sonda.</summary>
     public static IEnumerable<WidgetConfig> All(AppSettings settings) => Configs(settings).Where(w => w.Kind == WidgetKind.Launcher);
 
     /// <summary>Kimliği <paramref name="id"/> olan kutu ya da halka; yoksa (kaldırıldı) null.</summary>

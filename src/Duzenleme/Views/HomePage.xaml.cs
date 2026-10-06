@@ -51,7 +51,7 @@ public partial class HomePage : Page
                 AppHost.Journal.Changed += OnJournalChanged;
                 // Masaüstünde kural klasörü açılınca/silinince "hedef klasör yok" hemen değişsin (anlık görüntüden, ucuz).
                 AppHost.DesktopSnapshot.Changed += RefreshCard;
-                // Halka eklenince/kaldırılınca ikinci büyük düğme "Halkayı düzenle" / "Halka menü ekle" olur.
+                // Dil ya da halka değişince ikinci büyük düğmenin metni tazelenir.
                 AppHost.Widgets.Changed += RefreshRingTile;
             },
             detach: () =>
@@ -123,9 +123,9 @@ public partial class HomePage : Page
 
     private void RefreshRingTile()
     {
-        var hasRing = HomeRing.Target() is not null;
-        RingTileTitle.Text = hasRing ? L.T("Halkayı düzenle") : L.T("Halka menü ekle");
-        RingTileText.Text = hasRing ? L.T("Halkadaki uygulamalar") : L.T("Uygulamalar bir halkada");
+        // Halka her zaman vardır (masaüstündeki halka widget'ı ya da NestDesk halkası): düğme hep "Halkayı düzenle".
+        RingTileTitle.Text = L.T("Halkayı düzenle");
+        RingTileText.Text = L.T("Halkadaki uygulamalar");
         AutomationProperties.SetName(RingTile, RingTileTitle.Text);
     }
 
@@ -228,26 +228,25 @@ public partial class HomePage : Page
 }
 
 /// <summary>
-/// "Halkayı düzenle"nin tek giriş noktası (Ana sayfanın ikinci büyük düğmesi; Ayarlar'daki ve halkanın altındaki "Halkayı
-/// düzenle" de buraya bağlanır). Hedef kısayolun açtığı halka, yoksa ilk halka (<see cref="RingTargets.Pick"/>). Halka
-/// düzenleyicisi gelene dek düzenleme halkanın kendi menüsündedir: halka öne gelip bir kez nabız atar ve şerit sağ tıklamayı
-/// söyler. Halka yoksa "Halka menü ekle": "Widget ekle"deki kutucukla aynı yoldan ("{0} eklendi." + "Geri al"). Düzenleyici
-/// (RingEditor) geldiğinde yalnızca <see cref="Edit"/>'in ilk dalı onu açacak biçimde değişir.
+/// "Halkayı düzenle"nin tek giriş noktası (Ana sayfanın ikinci büyük düğmesi; açılır halkanın altındaki "Halkayı düzenle" de
+/// aynı düzenleyiciyi açar). Hedef açılır halkanın açtığı halka (<see cref="RingTargets.Pick(AppSettings)"/>): masaüstündeki
+/// halka widget'ıysa widget öne gelir ve Düzenle paneli (içinde RingEditor) yanında açılır; masaüstünde halka widget'ı yoksa
+/// NestDesk halkası (gerekirse kurulur) imlecin ekranında kendi penceresinde düzenlenir (<see cref="RingEditor.Open"/>).
 /// </summary>
 internal static class HomeRing
 {
-    /// <summary>Düzenlenecek halka widget'ı; hiç halka yoksa null.</summary>
-    public static WidgetConfig? Target() => RingTargets.Pick(AppHost.Settings.Widgets, AppHost.Settings.RingWidgetId);
+    /// <summary>Düzenlenecek halka (NestDesk halkası henüz kurulmadıysa null).</summary>
+    public static WidgetConfig? Target() => RingTargets.Pick(AppHost.Settings);
 
-    /// <param name="near">Yeni halkanın ekleneceği ekrandaki nokta (fiziksel piksel; ana pencerenin ortası).</param>
+    /// <param name="near">Düzenleyicinin açılacağı ekrandaki nokta (fiziksel piksel; ana pencerenin ortası).</param>
     public static void Edit(NativeMethods.POINT? near)
     {
-        if (Target() is { } ring)
+        var ring = Target();
+        if (ring is null)
         {
-            AppHost.Widgets.Reveal(ring.Id);
-            Notice.Show(L.T("Halkan öne geldi. Uygulama eklemek ya da çıkarmak için ona sağ tıkla."), NoticeKind.Info);
-            return;
+            ring = RingTargets.EnsureHub(AppHost.Settings);
+            AppHost.SaveSettings();
         }
-        if (WidgetCatalog.Tools.FirstOrDefault(c => c.Key == "Ring") is { } choice) WidgetCatalog.AddAndAnnounce(choice, near);
+        RingEditor.Open(ring, near: near);
     }
 }
