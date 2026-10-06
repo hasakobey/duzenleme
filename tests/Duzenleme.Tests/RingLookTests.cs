@@ -69,6 +69,99 @@ public class RingLookTests
     });
 
     /// <summary>
+    /// Her halka biçiminde (<see cref="RingStyles"/>) × her görünümde (temalar açık/koyu, klasik arka planlar, özel vurgu renkleri)
+    /// simgeler altlarındaki gerçek katmanların karşısında en az 3:1: dilimsiz biçimde (Daire, Etiketli) öğe dairesi doğrudan
+    /// zemin diskinin üstündedir, vurgulanınca da; Işıltı'nın dış bandı, halesi ve kenarları öğe dairesinin dışında kalır (bkz.
+    /// <see cref="Glow_ornaments_stay_outside_the_circles"/>). Etiketin adı etiket zemininde (boşta ve vurgulu) en az 4,5:1.
+    /// </summary>
+    [Fact]
+    public void Glyphs_and_labels_read_in_every_style_and_look() => OnSta(() =>
+    {
+        foreach (var style in RingStyles.All)
+            foreach (var (name, palette) in Palettes())
+            {
+                var colors = RingColors.From(palette, highContrast: false, style);
+                var glyph = Argb(colors.Glyph);
+                foreach (var ground in CardGrounds(palette))
+                    foreach (var icon in new[] { 24.0, 48 })
+                        foreach (var places in new[] { 3, 8, 12 })
+                        {
+                            var m = RingMetrics.For(places, icon, style);
+                            var (disc, hot) = RingView.LayerBrushes(colors, m);
+                            var c = new Point(m.OuterRadius, m.OuterRadius);
+                            var r = m.ItemDip / 2;
+                            foreach (var angle in RingGeometry.Angles(places))
+                            {
+                                var at = RingView.At(c, m.Radius, angle);
+                                foreach (var (dx, dy) in Grid(icon))
+                                {
+                                    var point = new Point(at.X + dx, at.Y + dy);
+                                    var under = ThemeMath.Composite(Sample(disc, point), ground);
+                                    var idle = style.Wedges ? ThemeMath.Composite(Sample(colors.Wedge, point), under) : under;
+                                    var highlighted = style.Wedges ? ThemeMath.Composite(Sample(hot, point), under) : under;
+                                    var fy = (dy + r) / (2 * r);
+                                    var what = $"{style.Id ?? "classic"} {name} {icon}/{places}";
+                                    Check(what + " boşta", glyph, ThemeMath.Composite(Vertical(colors.Chip, fy), idle));
+                                    Check(what + " vurgulu", glyph, ThemeMath.Composite(Vertical(colors.ChipHot, fy), highlighted));
+                                    foreach (var below in new[] { idle, highlighted })
+                                        Check(what + " basılı", glyph, ThemeMath.Composite(Vertical(colors.ChipPressed, fy), below));
+                                }
+                                if (!style.Labels) continue;
+                                // Etiket: zemini diskin o yerindeki rengin üstünde; ad boşta yazı renginde, vurgulanınca vurgu yazısı.
+                                var label = RingItemVisual.LabelRect(at, m, angle);
+                                foreach (var corner in new[] { label.TopLeft, label.BottomRight, new Point(label.X + label.Width / 2, label.Y + label.Height / 2) })
+                                {
+                                    var under = ThemeMath.Composite(Sample(disc, corner), ground);
+                                    var idleFill = ThemeMath.Composite(Argb(((SolidColorBrush)colors.Label).Color), under);
+                                    var hotFill = ThemeMath.Composite(Argb(((SolidColorBrush)colors.LabelHot).Color), under);
+                                    var text = Argb(((SolidColorBrush)colors.LabelText).Color);
+                                    var hotText = Argb(((SolidColorBrush)colors.LabelTextHot).Color);
+                                    Assert.True(ThemeMath.Contrast(text, idleFill) >= ThemeMath.TextContrast - 0.01,
+                                        $"{name} etiket: {ThemeMath.Contrast(text, idleFill):0.00}");
+                                    Assert.True(ThemeMath.Contrast(hotText, hotFill) >= ThemeMath.TextContrast - 0.01,
+                                        $"{name} vurgulu etiket: {ThemeMath.Contrast(hotText, hotFill):0.00}");
+                                }
+                            }
+                        }
+            }
+    });
+
+    /// <summary>
+    /// Işıltı'nın süsleri efekt değil, dondurulmuş degrade ve biçimdir ve simgenin altına düşmez: vurgulanan dairenin halesi
+    /// yalnızca dairenin dışında ve öğe kutusunun içinde; dış bant öğe dairelerinin dışında başlar. Yüksek karşıtlıkta hiçbiri yok.
+    /// </summary>
+    [Fact]
+    public void Glow_ornaments_stay_outside_the_circles() => OnSta(() =>
+    {
+        foreach (var icon in new[] { 16.0, 32, 64 })
+            foreach (var places in new[] { 1, 6, 12 })
+            {
+                var m = RingMetrics.For(places, icon, RingStyles.For(RingStyles.Glow));
+                var (brush, shape) = RingItemVisual.Halo(m, Colors.MediumPurple)!.Value;
+                Assert.True(brush.IsFrozen && shape.IsFrozen);
+                var box = RingItemVisual.BoxSize(m);
+                var c = new Point(box / 2, box / 2);
+                var r = m.ItemDip / 2;
+                for (var angle = 0; angle < 360; angle += 20)
+                    for (var d = 0.0; d <= r - RingItemVisual.ShadowHoleInset - 0.05; d += 1)
+                        Assert.False(shape.FillContains(RingView.At(c, d, angle)));
+                var bounds = shape.Bounds;
+                Assert.True(bounds.Left >= 0 && bounds.Top >= 0 && bounds.Right <= box && bounds.Bottom <= box, $"{icon}: {bounds}");
+
+                var colors = RingColors.From(WidgetPalette.Glass, highContrast: false, RingStyles.For(RingStyles.Glow));
+                var (band, halo) = RingView.GlowBrushes(colors, m);
+                Assert.True(band.IsFrozen && halo.IsFrozen);
+                var ring = new Point(m.OuterRadius, m.OuterRadius);
+                // Bandın saydam olmayan kısmı öğe dairelerinin dış kenarından sonra başlar.
+                Assert.Equal(0u, Sample(band, RingView.At(ring, m.Radius + r, 45)) >> 24);
+                Assert.True(Sample(band, RingView.At(ring, m.OuterRadius - 4, 45)) >> 24 >= RingView.GlowBandAlpha - 1);
+            }
+        var hc = RingColors.From(WidgetPalette.HighContrast(), highContrast: true, RingStyles.For(RingStyles.Glow));
+        Assert.True(hc.HighContrast);
+        Assert.Same(RingStyles.Classic, RingStyles.Effective(RingStyles.Glow, highContrast: true));
+    });
+
+    /// <summary>
     /// Vurgulanan ve basılan daireler (öğe ve orta) nötrdür ve vurgu rengi kenarda (2 DIP) durur; orta daire öğe dairesiyle
     /// aynı. Koyu temada neredeyse opak (altındaki vurgu degradesi sızmaz), açık temada opak. Ortanın vurgusu eskiden vurgu
     /// renginin yarı saydamıydı: üstündeki vurgu renginde simge ve geri oku açık temalarda 2,3:1'e iniyordu.

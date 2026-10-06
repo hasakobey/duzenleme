@@ -253,6 +253,7 @@ public class GoldenSettingsTests : IDisposable
         Assert.Equal("neon", saved.GetProperty("LookTheme").GetString());
         Assert.Equal("#12AB34", saved.GetProperty("LookAccentColor").GetString());
         Assert.True(saved.GetProperty("QuickKeys").GetBoolean());
+        Assert.Equal("glow", saved.GetProperty("RingStyle").GetString());
         Assert.True(saved.GetProperty("Zz_Gelecek").GetProperty("Halka").GetBoolean());
         var tabs = saved.GetProperty("Tabs");
         Assert.Equal(2, tabs[0].GetProperty("Actions").GetArrayLength());

@@ -205,6 +205,26 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     }
 
     /// <summary>
+    /// Düzenle paneli: menüdeki seçenekler ve "Öğe ekle" (panelin menü satırlarıyla aynı) ve halkanın biçimi
+    /// (<see cref="RingStyles"/>: Klasik, Daire, Etiketli, Işıltı; gerçek çizimli kartlar). Biçim hemen uygulanır; açılır halka
+    /// ayarın imzasından yeniden kurulur.
+    /// </summary>
+    public bool AddEditorContent(Views.EditorContent content)
+    {
+        var menu = new WidgetMenu { ForEditor = true };
+        AddMenuItems(menu);
+        content.MenuOptions(menu);
+        content.RingStylePicker(_config, id =>
+        {
+            if (Core.RingStyles.CurrentId(_config) == id || !Core.RingStyles.Apply(_config, id)) return;
+            AppHost.SaveSettings();
+            _ring.Rebuild();
+            ApplyParts();
+        });
+        return true;
+    }
+
+    /// <summary>
     /// "Öğe ekle ▸": <paramref name="tab"/> sekmesine, <paramref name="where"/> sırasına (yoksa sona). Sıra seçilince
     /// hesaplanır (menü açıkken halka yeniden kurulmuş olabilir). <paramref name="withApps"/>: başta "Uygulama ya da dosya…"
     /// (öğe menüsünde; widget menüsünde hemen üstteki "Uygulama ekle…" aynı işi yaptığı için yok).

@@ -55,6 +55,7 @@
       "LookTheme": "neon",
       "LookAccentColor": "#12AB34",
       "QuickKeys": true,
+      "RingStyle": "glow",
       "Zz_Gelecek": { "Halka": true },
       "Z": 30
     },

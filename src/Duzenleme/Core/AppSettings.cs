@@ -338,6 +338,16 @@ public sealed class WidgetConfig
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool QuickKeys { get; set; }
+
+    // 2.2 halka görünümü
+    // Metin: 2.1 tanımaz, Extra'da aynen geri yazar. Klasik'te (null) yazılmaz.
+
+    /// <summary>
+    /// Halka menünün biçimi (<see cref="RingStyles"/>): null = Klasik, "orbit" (Daire), "labels" (Etiketli), "glow" (Işıltı).
+    /// Tanınmayan ad Klasik çizilir ve korunur; yüksek karşıtlıkta yok sayılır.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RingStyle { get; set; }
 }
 
 /// <summary>Zamanlayıcı widget'ının kalıcı durumu. Zamanlar UTC: saat ve saat dilimi değişse de süre doğru kalır.</summary>
