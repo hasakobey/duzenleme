@@ -89,10 +89,12 @@ public static class WidgetSeeds
     /// <summary>
     /// Çoğaltılan widget'ın kopyası için: çalışan zamanlayıcı baştan başlar (iki widget aynı anda çalmasın), elle sıra ve
     /// gizlenen öğeler korunur. Kutu/halka eylemleri yeni kimlik alır: kopyadan öteki halkaya taşınan öğe orada aynı kimlikli
-    /// bir öğeyle karışmasın.
+    /// bir öğeyle karışmasın. Kutunun NestDesk klasörü paylaşılmaz: kopyaya sonradan eklenen masaüstü öğeleri kendi klasörüne
+    /// gider (zaten taşınmış öğeler yerinde kalır, iki kutu da onları gösterir).
     /// </summary>
     public static void PrepareDuplicate(WidgetConfig copy)
     {
+        copy.BoxFolder = null;
         if (WidgetVariants.Is(copy, WidgetVariants.Timer) && copy.Timer is { } timer) copy.Timer = TimerLogic.Fresh(timer);
         foreach (var tab in copy.Tabs)
             foreach (var action in tab?.Actions ?? [])

@@ -302,7 +302,7 @@
                             </DockPanel>
                             <TextBlock x:Name="FencePlan" Style="{StaticResource Muted}" Margin="0,2,0,0"
                                        AutomationProperties.AutomationId="Welcome.FencePlan" />
-                            <!-- Windows masaüstü simgeleri: Ayarlar ve Widget'lar sayfasıyla aynı üç seçenek (DesktopModes). -->
+                            <!-- Windows masaüstü simgeleri: Ayarlar'la aynı iki seçenek (DesktopModes). -->
                             <StackPanel Margin="0,10,0,0" IsEnabled="{Binding IsChecked, ElementName=FencesYes}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{l:T 'Windows masaüstü simgeleri'}" VerticalAlignment="Center" Margin="0,0,12,0"

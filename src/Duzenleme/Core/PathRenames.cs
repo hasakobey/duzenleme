@@ -75,7 +75,8 @@ public static class PathRenames
         foreach (var widget in widgets)
         {
             changed |= Rewrite(widget.HiddenItems, from, to, isDirectory);
-            foreach (var tab in widget.Tabs) changed |= Rewrite(tab.Items, from, to, isDirectory);
+            // Halkanın yol olmayan öğeleri yerinde kalsın (sıra LauncherEntries ile yazılır).
+            foreach (var tab in widget.Tabs) changed |= LauncherEntries.Rewrite(tab, p => Map(p, from, to, isDirectory));
             changed |= ItemLooks.Move(widget, from, to, isDirectory);
             // Elle sıralı bölmede öğe yerini korur (listede olmayan yol sona düşerdi).
             if (widget.ItemOrder is { } order) changed |= Rewrite(order, from, to, isDirectory);

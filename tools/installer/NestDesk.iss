@@ -124,8 +124,8 @@ english.LaunchApp=Launch NestDesk now
 turkish.LaunchApp=NestDesk'i şimdi başlat
 english.DeleteDataPrompt=Also delete your settings, notes, ring menus and text snippets, widget themes and layout, dropped links, settings backups, move history and error logs?%n%nChoose No to keep them for a future reinstall. (Folder icons live inside the folders and keep working.)
 turkish.DeleteDataPrompt=Ayarların, notların, halka menülerin ve metin parçacıkların, widget temaların ve düzenin, bıraktığın bağlantılar, ayar yedeklerin, taşıma geçmişin ve hata günlüklerin de silinsin mi?%n%nHayır dersen yeniden kurduğunda kaldığın yerden devam edersin. (Klasörlere verdiğin simgeler klasörlerin içinde durur ve çalışmaya devam eder.)
-english.BoxFilesKept=Files you put into shortcut boxes ("Items I add to boxes leave the desktop") are in this folder:%n%n%1%n%nNestDesk does not delete them. You can move them back to the desktop yourself.
-turkish.BoxFilesKept=Kısayol kutularına koyduğun dosyalar ("Kutulara eklediklerim masaüstünden kalksın") şu klasörde duruyor:%n%n%1%n%nNestDesk onları silmez; istersen masaüstüne kendin geri taşıyabilirsin.
+english.BoxFilesKept=Some files you put into boxes could not be put back on the desktop. They are in this folder:%n%n%1%n%nNestDesk does not delete them.
+turkish.BoxFilesKept=Kutulara koyduğun bazı dosyalar masaüstüne geri konamadı; şu klasörde duruyor:%n%n%1%n%nNestDesk onları silmez.
 english.Tagline=A tidy home for your desktop.
 turkish.Tagline=Masaüstün için derli toplu bir yuva.
 english.OtherCopyRunning=Another copy of NestDesk (an older or portable version) is running.%n%nRight-click its tray icon next to the clock, choose "Exit" ("Çıkış" in the Turkish version), then press Retry.
@@ -208,9 +208,12 @@ Type: filesandordirs; Name: "{localappdata}\Temp\.net\Duzenleme"
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-; Uygulama zorla kapatılıp Windows masaüstü simgelerini gizli bıraktıysa geri açar. Bu kip tek örnek kilidini almaz ve
-; çalışan örneğe sinyal göndermez (uygulama bu noktada zaten kapatılmıştır: CurUninstallStepChanged).
-Filename: "{app}\{#AppExe}"; Parameters: "--restore-desktop"; Flags: runhidden skipifdoesntexist; RunOnceId: "RestoreDesktop"
+; Uygulama zorla kapatılıp Windows masaüstü simgelerini gizli bıraktıysa geri açar ve kutulara taşınan simgeleri masaüstüne
+; geri koyar (herkesin masaüstündekiler bir yönetici onayıyla; sessiz kaldırmada --quiet: onay penceresi açılmaz, onlar
+; kullanıcının masaüstüne konur). Bu kip tek örnek kilidini almaz ve çalışan örneğe sinyal göndermez (uygulama bu noktada
+; zaten kapatılmıştır: CurUninstallStepChanged). runhidden yok: Windows'un onay penceresi gizli açılmasın (uygulamanın
+; kendi penceresi yoktur).
+Filename: "{app}\{#AppExe}"; Parameters: "--restore-desktop{code:QuietArg}"; Flags: skipifdoesntexist; RunOnceId: "RestoreDesktop"
 
 [Code]
 const
@@ -348,6 +351,15 @@ begin
   if (Length(Desktop) <= 3) or (Parent = '') or (CompareText(Parent, Desktop) = 0) then
     Parent := GetEnv('USERPROFILE');
   Result := AddBackslash(Parent) + '{#AppName}';
+end;
+
+{ Sessiz kaldırmada (/SILENT, /VERYSILENT) --restore-desktop'a " --quiet": yönetici onayı penceresi açılmaz. }
+function QuietArg(Param: String): String;
+begin
+  if UninstallSilent then
+    Result := ' --quiet'
+  else
+    Result := '';
 end;
 
 { Klasör var ve içinde en az bir öğe var mı? }
@@ -562,8 +574,8 @@ begin
   end;
   if CurUninstallStep = usPostUninstall then
   begin
-    { Kutulara taşınan dosyalar masaüstüne kendiliğinden dönmez ve silinmez: nerede oldukları söylenir (veri klasörü
-      silinirse "Hepsini masaüstüne geri koy" kaydı da gider). }
+    { Kutulara taşınan dosyalar [UninstallRun]'daki --restore-desktop ile masaüstüne döndü; geri konamayan kaldıysa (açık
+      dosya, izin) nerede oldukları söylenir. NestDesk onları silmez; kökteki "Bu klasör nedir.txt" eski yerlerini listeler. }
     BoxDir := BoxFolder();
     if FolderHasEntries(BoxDir) and (not UninstallSilent) then
       MsgBox(FmtMessage(CustomMessage('BoxFilesKept'), [BoxDir]), mbInformation, MB_OK);

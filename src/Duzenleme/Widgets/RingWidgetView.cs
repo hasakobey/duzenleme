@@ -17,7 +17,8 @@ namespace Duzenleme.Widgets;
 /// tık widget'ın menüsünü açar; oraya basıp sürüklemek widget'ı taşır. Yol öğeleri dışarı sürüklenebilir (veride yalnızca
 /// FileDrop); içeri dosya, klasör ya da http(s) adresi bırakılabilir (bırakılan yere girer; alt halkanın üstüne bırakılan
 /// onun içine). Ekleme/çıkarma kısayol kutusuyla aynı yoldan (<see cref="LauncherEdits"/>): kutudaki masaüstü dosyaları
-/// kurallardan korunur, "masaüstünden kalksın" kipinde kutunun klasörüne taşınır, çıkınca masaüstüne döner.</para>
+/// kurallardan korunur, "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa masaüstünden kalkar, çıkınca geri döner; öğe
+/// menüsünün kutu satırları kutuyla aynıdır (<see cref="BoxChoices.MenuRows"/>).</para>
 /// </summary>
 internal sealed class RingWidgetView : UserControl, IWidgetView
 {
@@ -39,7 +40,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     {
         _config = config;
         if (_config.Tabs.Count == 0) _config.Tabs.Add(new LauncherTab { Name = L.T("Uygulamalar") });
-        _edits = new LauncherEdits(config, Render);
+        _edits = new LauncherEdits(config, Render, () => Owner?.CenterPoint);
 
         _nameText = new TextBlock
         {
@@ -317,20 +318,34 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             }
         }
         menu.Items.Add(Menus.Item(L.T("Değiştir…"), () => Edit(slot, subTab)));
+        var rows = BoxChoices.MenuRows(BoxItemState.Link, ring: true, heldElsewhere: false);
         if (slot is { Kind: RingSlotKind.Path, Path: { } path } && !TileItem.IsShellObject(path))
         {
-            if (BoxMover.IsMoved(path))
-            {
-                var back = Menus.Item(L.T("Masaüstüne geri koy"), () => BoxMover.Return([path]));
-                back.ToolTip = L.T("Öğe masaüstüne döner ve halkada kalır.");
-                menu.Items.Add(back);
-            }
             if (RingRunner.CanRunAsAdmin(path))
                 menu.Items.Add(Menus.Item(L.T("Yönetici olarak çalıştır"), () => TileItem.Launch(path, asAdmin: true)));
             menu.Items.Add(Menus.Item(L.T("Dosya konumunu aç"), () => TileItem.Reveal(path)));
+            // Kutuyla aynı satırlar (BoxChoices.MenuRows): tek kaldırma fiili; istisna durumunda "Masaüstünden kaldır".
+            // Bulunamayan (soluk) öğede geri koyma satırı yok.
+            var state = BoxMover.ItemState(path, missing: slot.Dimmed);
+            rows = BoxChoices.MenuRows(state, ring: true,
+                heldElsewhere: state == BoxItemState.Moved && BoxPlan.HeldElsewhere(Launchers.All(AppHost.Settings), path));
         }
         menu.Items.Add(new Separator());
-        menu.Items.Add(Menus.Item(L.T("Halkadan kaldır"), () => Remove(tab, slot, subTab), KeyNames.Delete));
+        foreach (var row in rows)
+        {
+            var item = row.Action switch
+            {
+                BoxMenuAction.Remove => Menus.Item(row.Label, () => Remove(tab, slot, subTab), KeyNames.Delete),
+                BoxMenuAction.LeaveDesktopAsAdmin when slot.Path is { } leave =>
+                    Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, leave, Live(tab), asAdmin: true)),
+                _ when slot.Path is { } leave => Menus.Item(row.Label, () => BoxMover.LeaveDesktop(_config, leave, Live(tab), asAdmin: false)),
+                _ => null,
+            };
+            if (item is null) continue;
+            // Alt halka ve eylem öğesi bir dosya değildir: ipucu yok.
+            if (slot.Kind == RingSlotKind.Path) item.ToolTip = row.ToolTip;
+            menu.Items.Add(item);
+        }
     }
 
     private void Step(LauncherTab tab, RingSlot slot, bool clockwise)
@@ -431,23 +446,27 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         }
         var index = EntryNow(tab, slot);
         if (index < 0) return;
+        var moved = slot.Path is { } path && BoxMover.IsMoved(path);
         var returning = _edits.Remove(tab, index);
         if (returning is null) return;
         _removedSubRing = null;
         Views.Notice.Show(returning == true
                 ? L.F("\"{0}\" halkadan kaldırıldı ve masaüstüne geri konuyor.", slot.Name)
+                : moved ? L.F("\"{0}\" halkadan kaldırıldı; başka bir kutuda ya da halkada da durduğu için masaüstüne dönmedi.", slot.Name)
                 : L.F("\"{0}\" halkadan kaldırıldı.", slot.Name),
             Views.NoticeKind.Info, L.T("Geri al"), UndoRemove, L.T("Geri almak için buraya tıkla."));
     }
 
     /// <summary>
-    /// Alt halkayı (sekmeyi) içindekilerle birlikte kaldırır (soru yok: dosyalara dokunulmaz). Masaüstünden taşınmış öğeleri
-    /// başka kutuda yoksa masaüstüne döner; bildirimdeki "Geri al" alt halkayı yerine koyar.
+    /// Alt halkayı (sekmeyi) içindekilerle birlikte kaldırır (soru yok). Masaüstünden kalkmış öğeleri başka bir kutuda ya da
+    /// halkada yoksa masaüstüne döner (bildirim kaç tanesinin döndüğünü söyler); bildirimdeki ve menüdeki "Geri al" alt halkayı
+    /// yerine koyar (öğeler yeniden kalkar).
     /// </summary>
     private void RemoveSubRing(LauncherTab tab, string name)
     {
         var index = _config.Tabs.IndexOf(tab);
         if (index <= 0) return;
+        var returning = BoxMover.ReturningIf(_config.Id, tab, null);
         if (_ring.TabIndex == index) _ring.GoBack();
         var looks = new Dictionary<string, ItemLook>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in tab.Items)
@@ -461,9 +480,9 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             foreach (var path in looks.Keys) ItemLooks.Reset(_config, path);
         });
         // Alt halkadaki, masaüstünden taşınmış öğeler başka kutuda yoksa masaüstüne döner.
-        BoxMover.Reconcile();
-        Views.Notice.Show(L.F("\"{0}\" alt halkası kaldırıldı.", name), Views.NoticeKind.Info, L.T("Geri al"), UndoRemove,
-            L.T("Geri almak için buraya tıkla."));
+        BoxMover.Reconcile(interactive: true);
+        Views.Notice.Show(WidgetManager.RemovedText(L.F("\"{0}\" alt halkası kaldırıldı.", name), returning, modeOff: false),
+            Views.NoticeKind.Info, L.T("Geri al"), UndoRemove, L.T("Geri almak için buraya tıkla."));
     }
 
     /// <summary>Bildirimdeki "Geri al": son kaldırılan öğeyi ya da alt halkayı yerine koyar.</summary>
@@ -479,7 +498,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
                 foreach (var (path, look) in sub.Looks) ItemLooks.Restore(_config, path, look);
             });
             // Öğeler bu arada masaüstüne geri konduysa halka onları yeniden bulur (kip açıksa yeniden taşınır).
-            BoxMover.Reconcile();
+            BoxMover.Reconcile(interactive: true);
             return;
         }
         _edits.UndoRemove();
@@ -491,15 +510,21 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     private static bool CanDragOut(RingSlot slot) =>
         slot is { Kind: RingSlotKind.Path, Path: { } path } && !slot.Dimmed && !TileItem.IsShellObject(path);
 
-    /// <summary>Yol öğesi dışarı (Gezgin'e, bölmeye, başka kutuya) sürüklenir: yalnızca bağlantıdır, dosya yerinden oynamaz.</summary>
+    /// <summary>
+    /// Yol öğesi dışarı (Gezgin'e, bölmeye, başka kutuya) sürüklenir: yalnızca bağlantıdır, dosya yerinden oynamaz. Masaüstünden
+    /// kalkmış öğe (NestDesk klasöründe) ise taşınabilir: Windows masaüstüne ya da Gezgin'e bırakılınca halkadan çıkmış sayılır
+    /// (<see cref="BoxMover.DraggedOut"/>; kopyalanırsa bir şey olmaz).
+    /// </summary>
     private void DragOut(RingSlot slot)
     {
         if (!CanDragOut(slot) || slot.Path is not { } path) return;
         var tab = CurrentTab;
         var source = new WidgetDragSource(_config.Id, path, FromBox: true, () => _edits.TakeOut(tab, path), ItemLooks.Get(_config, path));
         var native = TileItem.NativePath(path);
-        WidgetDrag.Run(source, () => DragDrop.DoDragDrop(_ring, new DataObject(DataFormats.FileDrop, new[] { native }),
-            DragDropEffects.Copy | DragDropEffects.Link));
+        var moved = BoxMover.IsMoved(path);
+        var effects = moved ? DragDropEffects.Move | DragDropEffects.Copy | DragDropEffects.Link : DragDropEffects.Copy | DragDropEffects.Link;
+        var inside = WidgetDrag.Run(source, () => DragDrop.DoDragDrop(_ring, new DataObject(DataFormats.FileDrop, new[] { native }), effects));
+        if (!inside && moved) BoxMover.DraggedOut(_config.Id, tab, path);
     }
 
     /// <summary>
@@ -531,6 +556,9 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     // Sürüklenen metin her fare hareketinde başka süreçten yeniden okunmasın: sürükleme başına bir kez.
     private IDataObject? _urlData;
     private string? _url;
+    // Bırakılanlar masaüstünden kalkar mı ("Kutuya koyduğum simgeler masaüstünden kalksın"; sürükleme başına bir kez).
+    private IDataObject? _leavesData;
+    private BoxDropEffect _leaves;
 
     private string? UrlOf(IDataObject data)
     {
@@ -542,11 +570,24 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         return _url;
     }
 
+    private BoxDropEffect LeavesOf(IDataObject data)
+    {
+        if (!ReferenceEquals(data, _leavesData))
+        {
+            _leavesData = data;
+            _leaves = WidgetDrag.For(data) is not { FromBox: true } && data.GetData(DataFormats.FileDrop) is string[] dropped
+                ? BoxMover.DropEffect(dropped)
+                : BoxDropEffect.None;
+        }
+        return _leaves;
+    }
+
     private void EndDrag()
     {
         _ring.ShowDrop(null, null, null);
         _urlData = null;
         _url = null;
+        _leavesData = null;
     }
 
     /// <summary>Bırakılan metin bir http(s) adresiyse o (ilk satır); değilse null.</summary>
@@ -566,12 +607,15 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             : allowed.HasFlag(DragDropEffects.Link) ? DragDropEffects.Link
             : allowed.HasFlag(DragDropEffects.Copy) ? DragDropEffects.Copy
             : allowed & DragDropEffects.Move;
+        var leaves = kind == DropKind.Add ? LeavesOf(e.Data) : BoxDropEffect.None;
         var hint = kind switch
         {
             DropKind.None => null,
             DropKind.Reorder => null,
             _ when sub is not null => L.F("Bırak, \"{0}\" alt halkasına eklensin", sub.Name),
             DropKind.MoveHere => L.T("Bırak, bu halkaya taşınsın"),
+            _ when leaves == BoxDropEffect.Moves => L.T("Bırak, halkaya girsin; masaüstünden kalkar"),
+            _ when leaves == BoxDropEffect.Hides => L.T("Bırak, halkaya girsin; bölmeden kalkar"),
             _ => L.T("Bırak, halkaya eklensin"),
         };
         var subIndex = sub is not null ? IndexOf(sub) : (int?)null;

@@ -476,7 +476,6 @@ public partial class SettingsPage : Page
             // Test örneği gerçek pencereleri küçültmez (AppHost.StartPeek); anahtar orada salt okunur.
             PeekShowsDesktopToggle.IsEnabled = !AppHost.IsTestDesktop;
             PeekMinutesBox.SelectedIndex = Array.IndexOf(DesktopState.PeekMinuteChoices, DesktopState.NormalizePeekMinutes(s.PeekMinutes));
-            PublicBoxToggle.IsChecked = s.BoxIncludesPublicDesktop;
             UpdateBoxPanel();
         }
         finally
@@ -493,36 +492,73 @@ public partial class SettingsPage : Page
         LoadDesktopChoices();
     }
 
-    /// <summary>Kutulara taşınan öğeler: sayı ve klasör. Kip açıkken ya da taşınmış öğe kaldıysa görünür.</summary>
+    /// <summary>
+    /// "Kutuya koyduğum simgeler masaüstünden kalksın" satırı: anahtar, duruma göre açıklama (kapalı / dosyalar taşınıyor /
+    /// bölme kipinde yalnızca bölmelerden kalkıyor; OneDrive'daki masaüstünde ek uyarı), taşınanlar (dosyalar taşınırken, taşınmış
+    /// öğe kaldıysa ya da NestDesk klasörü duruyorsa görünür: kayıtlar kaybolsa da klasör açılabilsin; klasörün varlığına arka
+    /// planda bakılır, bkz. BoxMover.RootExists; masaüstü sonradan taşındıysa öğelerin durduğu eski klasör) ve alt anahtarlar
+    /// (yalnızca açıkken; herkesin masaüstü yalnızca dosyalar taşınırken, Store sürümünde ve test örneğinde, sahte ortak
+    /// masaüstü verilmedikçe, gizli). Koddan atamalar <see cref="_loadingDesktop"/> ile ayrılır.
+    /// </summary>
     private void UpdateBoxPanel()
     {
-        var moved = BoxMover.MovedCount;
-        var active = DesktopModes.Current == IconMode.BoxItemsLeave;
-        BoxPanel.Visibility = active || moved > 0 ? Visibility.Visible : Visibility.Collapsed;
-        BoxCountText.Text = moved == 0
-            ? L.F("Henüz kutuya taşınan öğe yok. Taşınanlar {0} klasöründe durur.", BoxMover.Root)
-            : L.P(moved, "{0} öğe kutularda; dosyalar {1} klasöründe.", BoxMover.Root);
-        ReturnAllButton.IsEnabled = moved > 0;
-        OpenBoxFolderButton.IsEnabled = moved > 0;
-        PublicBoxRow.Visibility = active && !AppHost.IsTestDesktop ? Visibility.Visible : Visibility.Collapsed;
+        var wasLoading = _loadingDesktop;
+        _loadingDesktop = true;
+        try
+        {
+            var s = AppHost.Settings;
+            var moved = BoxMover.MovedCount;
+            var folder = BoxMover.FolderToOpen;
+            BoxLeavesToggle.IsChecked = BoxMover.On;
+            BoxLeavesText.Text = DesktopModes.BoxLeavesDescription();
+            BoxPanel.Visibility = BoxMover.MovesFiles || moved > 0 || BoxMover.RootExists ? Visibility.Visible : Visibility.Collapsed;
+            BoxCountText.Text = moved == 0
+                ? L.F("Henüz masaüstünden kalkan simge yok. Kalkanlar {0} klasöründe durur.", folder)
+                : L.P(moved, "{0} simge kutularda; dosyalar {1} klasöründe.", folder);
+            ReturnAllButton.IsEnabled = moved > 0;
+            OpenBoxFolderButton.IsEnabled = moved > 0 || BoxMover.RootExists;
+            BoxOptions.Visibility = BoxMover.On ? Visibility.Visible : Visibility.Collapsed;
+            PublicBoxRow.Visibility = BoxMover.MovesFiles && !PackageInfo.IsPackaged && (!AppHost.IsTestDesktop || AppHost.TestPublicDesktop is not null)
+                ? Visibility.Visible : Visibility.Collapsed;
+            PublicBoxToggle.IsChecked = s.BoxIncludesPublicDesktop;
+            AppShortcutsToggle.IsChecked = BoxAppShortcutChoices.Normalize(s.BoxAppShortcuts) != BoxAppShortcutChoices.Keep;
+        }
+        finally
+        {
+            _loadingDesktop = wasLoading;
+        }
     }
 
-    private void OpenBoxFolder_Click(object sender, RoutedEventArgs e) => TileItem.Launch(BoxMover.Root);
+    private void BoxLeavesToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingDesktop) return;
+        DesktopModes.SetBoxLeaves(BoxLeavesToggle.IsChecked == true, WindowCenter(), Window.GetWindow(this));
+        // Soru penceresinden sonra ya da ayar değişmediyse de satır gerçek durumu göstersin.
+        UpdateBoxPanel();
+    }
 
+    private void OpenBoxFolder_Click(object sender, RoutedEventArgs e) => TileItem.Launch(BoxMover.FolderToOpen);
+
+    /// <summary>Hepsi masaüstüne döner, kutularda kalır (soru yok: bildirimdeki "Geri al" yeniden kutulara taşır).</summary>
     private void ReturnAll_Click(object sender, RoutedEventArgs e)
     {
-        var moved = BoxMover.MovedCount;
-        if (moved == 0) return;
-        if (Confirm.Ask(Window.GetWindow(this), L.T("Kutulardaki öğeler masaüstüne geri konsun mu?"),
-                L.P(moved, "{0} öğe masaüstüne döner ve kutularda kalır."), L.T("Masaüstüne geri koy"), danger: false))
-            BoxMover.ReturnAll();
+        if (BoxMover.MovedCount > 0) BoxMover.ReturnAll();
     }
 
     private void PublicBoxToggle_Changed(object sender, RoutedEventArgs e)
     {
         if (_loadingDesktop) return;
-        AppHost.Settings.BoxIncludesPublicDesktop = PublicBoxToggle.IsChecked == true;
+        // Açarken kutudaki herkesin masaüstü simgeleri bir yönetici onayıyla taşınır; ayar yalnızca başarılı olunca açık kalır.
+        DesktopModes.SetBoxPublic(PublicBoxToggle.IsChecked == true, Window.GetWindow(this), UpdateBoxPanel);
+        UpdateBoxPanel();
+    }
+
+    private void AppShortcutsToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loadingDesktop) return;
+        AppHost.Settings.BoxAppShortcuts = AppShortcutsToggle.IsChecked == true ? BoxAppShortcutChoices.Leave : BoxAppShortcutChoices.Keep;
         AppHost.SaveSettings();
+        BoxMover.ModeChanged();
     }
 
     /// <summary>"Windows masaüstüne göz at" satırı şu anki durumu ve kısayolu gösterir.</summary>
@@ -768,7 +804,7 @@ public partial class SettingsPage : Page
         RingToggle.IsChecked = hotkey is not null;
         RingHoldToggle.IsChecked = !AppHost.Settings.RingHoldSelectOff;
 
-        var rings = RingTargets.All(AppHost.Settings.Widgets);
+        var rings = Launchers.Rings(AppHost.Settings);
         var choices = rings.Select(r => new RingChoice(r.Id, WidgetText.DisplayName(r))).ToList();
         RingTargetBox.ItemsSource = choices;
         var target = RingTargets.Pick(rings, AppHost.Settings.RingWidgetId);

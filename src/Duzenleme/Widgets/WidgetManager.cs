@@ -351,6 +351,8 @@ public sealed class WidgetManager
         // Kutunun masaüstünden taşınmış öğeleri (başka kutuda yoksa) masaüstüne döner; "Geri al" onları yeniden taşır.
         var returning = BoxMover.MovedOnlyIn(AppHost.Settings.Widgets[index]);
         var modeOff = RemoveCore(id, notify: false, leave: true);
+        // Kullanıcı kaldırdı: ortak masaüstüne dönecek öğe için Windows onay isteyebilir (arka plandaki uzlaştırma sormaz).
+        BoxMover.Reconcile(interactive: true);
         _removed.Add(new RemovedWidget(copy, index, modeOff));
         if (notify)
             AppHost.Tray?.Notify(L.T("Widget kaldırıldı"),
@@ -360,14 +362,16 @@ public sealed class WidgetManager
     }
 
     /// <summary>
-    /// Kaldırma bildiriminin metni (tepsi balonu ve Widget'lar sayfası): her cümle ayrı çevrilir, aralarına boşluk konur.
+    /// Kaldırma bildiriminin metni (tepsi balonu, Widget'lar sayfası, kutu sekmesi ve alt halka): her cümle ayrı çevrilir,
+    /// aralarına boşluk konur. returning: masaüstüne dönecek taşınmış öğe sayısı (<see cref="BoxMover.ReturningIf"/>).
     /// lead/tail: baştaki ("Saat kaldırıldı.") ve sondaki cümle; null ise yok.
     /// </summary>
     internal static string RemovedText(string? lead, int returning, bool modeOff, string? tail = null)
     {
         var sentences = new List<string>(4);
         if (lead is not null) sentences.Add(lead);
-        if (returning > 0) sentences.Add(L.P(returning, "Kutudaki {0} öğe masaüstüne geri konuyor."));
+        // Kutu, halka, sekme ya da alt halka: masaüstünden kalkmış öğelerden başka yerde durmayanlar geri döner.
+        if (returning > 0) sentences.Add(L.P(returning, "Masaüstünden kalkan {0} simge geri dönüyor."));
         if (modeOff) sentences.Add(L.T("Masaüstü simgeleri yeniden gösteriliyor."));
         if (tail is not null) sentences.Add(tail);
         return string.Join(" ", sentences);
@@ -393,6 +397,8 @@ public sealed class WidgetManager
         if (TryOpen(last.Copy, fadeIn: true) is not null) ApplyZOrder();
         if (last.ModeTurnedOff && !AppHost.Settings.FencesReplaceIcons) AppHost.SetFencesManageDesktop(true);
         Changed?.Invoke();
+        // Kutu geri geldi: masaüstüne dönen öğeleri yeniden taşınırken ortak masaüstü için Windows onay isteyebilir.
+        BoxMover.Reconcile(interactive: true);
     }
 
     /// <summary>Masaüstündeki her öğe türü (klasör, kısayol, dosya) en az bir bölmede görünüyor mu?</summary>

@@ -144,9 +144,11 @@ public static class ShellFileOperations
 
     /// <summary>
     /// Öğeleri tek işlemde verilen tam yollara taşır (Gezgin'in yolu): Ortak Masaüstü gibi yönetici izni isteyen yerlerde
-    /// Windows'un onay penceresi bir kez çıkar. Hedef klasörler var olmalı, hedef adlar boş olmalı. Hangi öğenin taşındığını
-    /// çağıran diske bakarak öğrenir (onay kısmen verilebilir). Kullanıcı vazgeçerse <see cref="OperationCanceledException"/>.
-    /// Arka plandaki STA iş parçacığından (<see cref="RunSta"/>) çağrılır.
+    /// Windows'un onay penceresi bir kez çıkar. Hedef klasörler var olmalı. FOF_NOCONFIRMATION "Tümüne evet" demektir: hedef
+    /// doluysa Windows sormadan üzerine yazar. Bu yüzden çağıran yalnızca kaynağı ve hedefi işte tek, hedefi boş taşımaları
+    /// verir (kutu taşımalarında <see cref="Core.BoxEngine.Guard"/>). Hangi öğenin taşındığını çağıran diske bakarak öğrenir
+    /// (onay kısmen verilebilir). Kullanıcı vazgeçerse <see cref="OperationCanceledException"/>. Arka plandaki STA iş
+    /// parçacığından (<see cref="RunSta"/>) çağrılır.
     /// </summary>
     public static void MoveManyWithShell(IReadOnlyList<(string From, string To)> moves, IntPtr owner)
     {

@@ -72,7 +72,7 @@ BÖLMELER
 • Masaüstündeki klasörleri, kısayolları ve dosyaları ayrı bölmelerde topla ya da bir bölmede herhangi bir klasörü göster: İndirilenler, Belgeler, Resimler ya da seçtiğin başka bir klasör (masaüstünde olması gerekmez).
 • Bölmede yazdıkça ara (alt klasörler dahil), dosyaları bölmeden bölmeye sürükle, resim, video ve PDF önizlemelerini gör; ada, türe, tarihe, boyuta göre ya da elle sırala.
 • Klavyeyle kullan: Enter açar, F2 yeniden adlandırır, Delete Geri Dönüşüm Kutusu'na gönderir, Ctrl+F arar. İstersen 1–9 ilk dokuz öğeyi açar; harf yazınca o öğeye gidilir.
-• Windows masaüstü simgeleri için üç seçenek: hepsi masaüstünde görünsün, kutulara eklediklerin masaüstünden kalksın ya da her şey yalnızca bölmelerde görünsün. "Masaüstümü bölmelere ayır" hepsini tek tıkla kurar; geri alınabilir.
+• Windows masaüstü simgeleri ya her zamanki gibi görünür ya da her şey yalnızca bölmelerde toplanır. "Masaüstümü bölmelere ayır" hepsini tek tıkla kurar; geri alınabilir.
 
 WINDOWS MASAÜSTÜNE GÖZ AT
 • Ctrl+Alt+G'ye bas: Windows'un kendi masaüstü simgeleri görünür, widget'lar kenara çekilir. Ekranın üstündeki küçük çubuk kalan süreyi gösterir; "NestDesk'e dön" ile ya da birkaç dakika sonra kendiliğinden geri dönülür. Hiçbir dosya değişmez.
@@ -81,7 +81,7 @@ WINDOWS MASAÜSTÜNE GÖZ AT
 KISAYOL KUTUSU
 • Uygulamalar, dosyalar ve klasörler için sekmeli raf: tek tıkla aç, istersen yönetici olarak çalıştır. Her öğeye kendi adını ve simgesini ver; dosyanın kendisi değişmez.
 • Başlat menüsünden bir uygulamayı ya da tarayıcıdan bir bağlantıyı kutuya sürükleyip bırak; bağlantılar yalnızca sen açınca tarayıcında açılır.
-• İstersen kutuya eklediğin masaüstü öğesi masaüstünden kalkar: kullanıcı klasöründeki görünür "NestDesk" klasörüne taşınır ve kutuda durmaya devam eder. Bu yalnızca sen bu seçeneği açarsan olur; "Masaüstüne geri koy" ile tek tıkla geri döner.
+• İstersen kutuya ya da halkaya koyduğun masaüstü simgesi masaüstünden kalkar; çıkarınca geri gelir. Simgeler görünürken dosya kullanıcı klasöründeki görünür "NestDesk" klasörüne taşınır, bölmeler masaüstünü yönetirken hiçbir dosya taşınmaz (yalnızca bölmelerden kalkar). İlk simgede bir kez sorulur; klasörler taşınmaz.
 
 HALKA MENÜ
 • Uygulamalarını, dosyalarını, web adreslerini, komutlarını, tuş kısayollarını ve metin parçacıklarını bir halkada topla; tıkla ya da 1–9'a bas. Alt halkalarla grupla.
@@ -129,7 +129,7 @@ Arayüz Türkçe ve İngilizcedir: Windows'un diline uyar, Ayarlar'dan değişti
 
 ```text
 Masaüstünü bölmelere ayır: klasörler, kısayollar, dosyalar ya da herhangi bir klasörün içi (İndirilenler, Belgeler…)
-Windows masaüstü simgeleri için üç seçenek: hepsi görünsün, kutuya eklenenler kalksın ya da yalnızca bölmelerde
+Windows simgeleri görünsün ya da yalnızca bölmelerde; kutuya koyduğun simge masaüstünden kalkar
 Windows masaüstüne göz at (Ctrl+Alt+G): simgeler görünür, widget'lar çekilir, sonra kendiliğinden geri dönülür
 Bölmede anında arama, sürükle-bırak, resim/video/PDF önizlemesi ve sıralama; Enter, F2, Delete, Ctrl+F ve 1–9
 Sekmeli kısayol kutusu: tek tıkla aç; Başlat menüsünden uygulama, tarayıcıdan bağlantı sürükle; her öğeye ad ve simge
@@ -169,6 +169,7 @@ klasör simgesi
 • Widget temaları: Neon, Gece, Kâğıt, Okyanus ve Windows'un açık/koyu ayarına uyan Otomatik; özel vurgu rengi. Yüksek karşıtlıkta widget'lar Windows'un renklerini kullanır.
 • Daha canlı hareket: widget'lar hafifçe büyüyerek belirir, sayfalar ve bildirimler kayarak gelir. Ayarlar > Genel > Animasyonlar'da Canlı, Sakin ya da Kapalı; Windows'un animasyon ayarına her zaman uyar.
 • Bölmede ve kısayol kutusunda 1–9 ile ilk dokuz öğeyi aç (Simgeler ▸ Numara tuşlarıyla aç); kısayol kutusuna Başlat menüsünden uygulama, tarayıcıdan bağlantı sürükle.
+• Kutuya ya da halkaya koyduğun masaüstü simgesi istersen masaüstünden kalkar, çıkarınca geri gelir (ilk seferde sorulur; bölme kipinde dosya taşınmaz).
 • Yerel tanılama: kişisel bilgi içermeyen hata günlüğü, çökmeden sonra "rapor kaydedilsin mi?" sorusu, tanılama sayfası ve paketi (hiçbir şey gönderilmez).
 • Güncellemeden önce ayarların yedeklenir. Daha az kaynak: otomatik taşıma kapalıyken masaüstü izlenmez, ağdaki masaüstünde açılış beklemez, paket daha küçük, tepsi menüsü Windows'un kendi menüsü.
 ```
@@ -184,7 +185,7 @@ klasör simgesi
 4. Eklerken ad ve simge seç; F2 ile istediğin an yeniden adlandır
 5. Zamanlayıcı, Pomodoro, dünya saati, geri sayım, sistem durumu ve Geri Dönüşüm Kutusu widget'ları
 6. Notlar, yapılacaklar ve her widget için Cam, Koyu ya da Açık görünüm; renkleri ve saydamlığı sen seç
-7. Kısayol kutusu: istersen kutuya eklediğin masaüstü öğeleri masaüstünden kalkar ve NestDesk klasöründe durur
+7. Kısayol kutusu ve halka: istersen koyduğun masaüstü simgesi masaüstünden kalkar, çıkarınca geri gelir
 8. İsteğe bağlı otomatik taşıma: hangi dosyanın nereye gideceğini sen seçersin; her taşıma tek tıkla geri alınır
 9. Halka menü: uygulamaların, web adreslerin ve kısayolların bir halkada; istersen kısayolla imlecin yanında açılır
 ```
@@ -220,7 +221,7 @@ PANELS
 • Gather the folders, shortcuts and files on your desktop into separate panels, or show any folder in a panel: Downloads, Documents, Pictures or another folder you pick (it doesn't have to be on the desktop).
 • Search a panel as you type (including subfolders), drag files between panels, preview pictures, videos and PDFs, and sort by name, type, date, size or by hand.
 • Use the keyboard: Enter opens, F2 renames, Delete sends to the Recycle Bin, Ctrl+F searches. Optionally, 1–9 opens the first nine items; type a letter to jump to an item.
-• Three choices for the Windows desktop icons: show everything on the desktop, let items you add to boxes leave the desktop, or show everything only in panels. "Sort my desktop into panels" sets it all up with one click and can be undone.
+• Windows desktop icons either show as usual or everything is gathered only into panels. "Sort my desktop into panels" sets it all up with one click and can be undone.
 
 PEEK AT THE WINDOWS DESKTOP
 • Press Ctrl+Alt+G: the Windows desktop icons appear and your widgets step aside. A small bar at the top of the screen shows the time left; select "Back to NestDesk" or wait a few minutes to return automatically. No file is changed.
@@ -229,7 +230,7 @@ PEEK AT THE WINDOWS DESKTOP
 SHORTCUT BOX
 • A tabbed shelf for apps, files and folders: open them with one click, or run an app as administrator. Give each item its own name and icon; the file itself is not changed.
 • Drag an app from the Start menu or a link from your browser onto a box; links open in your browser only when you open them.
-• Optionally, a desktop item you add to a box leaves the desktop: it is moved into a visible "NestDesk" folder in your user folder and stays in the box. This happens only if you turn the option on, and "Put back on the desktop" returns it with one click.
+• Optionally, a desktop icon you put in a box or ring leaves the desktop; take it out and it comes back. With Windows icons visible, the file moves into a visible "NestDesk" folder in your user folder; while panels manage the desktop, no file is moved (it just leaves the panels). You're asked once, with the first icon; folders are never moved.
 
 RING MENU
 • Gather apps, files, web addresses, commands, keyboard shortcuts and text snippets in a ring; click or press 1–9. Group them in sub-rings.
@@ -277,7 +278,7 @@ The app is available in English and Turkish: it follows your Windows display lan
 
 ```text
 Split your desktop into panels: folders, shortcuts, files or the contents of any folder (Downloads, Documents…)
-Three choices for Windows desktop icons: show all, let items added to boxes leave the desktop, or show only in panels
+Windows icons visible or only in panels; icons you put in a box leave the desktop
 Peek at the Windows desktop (Ctrl+Alt+G): icons appear, widgets step aside, and NestDesk comes back on its own
 Instant search, drag and drop, picture/video/PDF previews and sorting in panels; Enter, F2, Delete, Ctrl+F and 1–9
 Tabbed shortcut box: one-click open; drag apps from the Start menu and links from your browser; name and icon per item
@@ -317,6 +318,7 @@ folder icons
 • Widget themes: Neon, Night, Paper, Ocean and an Automatic theme that follows Windows light/dark, plus a custom accent color. In high contrast, widgets use your Windows colors.
 • Livelier motion: widgets pop in gently, pages and notices slide in. Choose Lively, Calm or Off in Settings > General > Animations; it always follows the Windows animation setting.
 • Open the first nine items of a panel or shortcut box with 1–9 (Icons ▸ Open with number keys), and drag apps from the Start menu and links from your browser onto shortcut boxes.
+• If you like, a desktop icon you put in a box or ring leaves the desktop and comes back when taken out (asked the first time; in panel mode no file is moved).
 • Local diagnostics: an error log without personal information, a "save a report?" prompt after a crash, and a diagnostics page and package (nothing is sent).
 • Your settings are backed up before an update. Lighter: the desktop isn't watched while auto-move is off, startup no longer waits for a network desktop, the download is smaller and the tray menu is the native Windows menu.
 ```
@@ -330,7 +332,7 @@ folder icons
 4. Choose a name and an icon as you add a panel; press F2 to rename it anytime
 5. Timer, Pomodoro, world clock, countdown, system status and Recycle Bin widgets
 6. Notes, to-do lists and a Glass, Dark or Light look for every widget; you choose the colors and transparency
-7. Shortcut box: optionally, desktop items you add leave the desktop and wait in a NestDesk folder
+7. Shortcut box and ring: optionally, icons you put in leave the desktop and come back when taken out
 8. Optional auto-move: you choose which files go to which folder, and every move can be undone with one click
 9. Ring menu: your apps, web addresses and shortcuts in a ring; optionally it opens next to the pointer with a shortcut
 ```
@@ -347,7 +349,7 @@ Her görüntü iki kez çekilir: Türkçe liste için `NESTDESK_LANG=tr`, İngil
 4. **Ad ve simge.** "Widget ekle"den yeni eklenen bir bölmenin başlığı düzenleme hâlinde (ör. "Projeler" yazılmış) ve başlıktaki simgeye tıklanınca açılan simge seçici görünür.
 5. **Yeni widget'lar.** Zamanlayıcı (çalışıyor, ör. 12:34), Pomodoro (Odak · 2/4), dünya saati (3 şehir), geri sayım ("Tatil: 12 gün kaldı"), sistem durumu ve Geri Dönüşüm Kutusu widget'ları düzenli yerleştirilmiş.
 6. **Notlar ve görünüm.** Koyu zeminli resim önizlemeli Fotoğraflar bölmesi, Açık zeminli Dosyalar bölmesi, pembe/yeşil/mavi/mor notlar (biri yapılacaklar listesi), Açık saat ve Koyu tarih. (Göz atma sahnesi gerçek masaüstü simgelerini gösterdiği için çekilmez.)
-7. **Kısayol kutusu ve kutu seçeneği.** Solda birkaç uygulama ve dosya taşıyan sekmeli bir kısayol kutusu (bir öğe kendi adı ve simgesiyle), sağda ana pencerede Ayarlar → Masaüstü → "Windows masaüstü simgeleri" = "Kutulara eklediklerim masaüstünden kalksın", altında "N öğe NestDesk klasöründe · Klasörü aç · Hepsini masaüstüne geri koy".
+7. **Kısayol kutusu ve kutu seçeneği.** Solda birkaç uygulama ve dosya taşıyan sekmeli bir kısayol kutusu (bir öğe kendi adı ve simgesiyle), sağda ana pencerede Ayarlar → Masaüstü → "Kutuya koyduğum simgeler masaüstünden kalksın" açık, altında "N simge kutularda; dosyalar … klasöründe · Klasörü aç · Hepsini masaüstüne geri koy" ve "Uygulama eklenince masaüstündeki kısayolu da kalksın".
 8. **Otomatik taşıma** sayfası: kurallar ("Hangi dosya nereye gitsin?") ve birkaç taşıma, "Geri al" düğmeleriyle; üstte anahtar açık.
 9. **Halka menü.** Masaüstünde varsayılan görünümlü bir halka menü widget'ı (6–8 öğe: Not Defteri, Hesap Makinesi, bir web adresi, "Yeni not", "Widget ekle" ve bir alt halka); yanında kısayolla imlecin yanında açılmış halka, bir öğesi vurgulu ve ortasında adı. Açılır halkayı test örneğinde `NESTDESK_TEST_RING=1` ve `NESTDESK_RING_AT` ile, "DuzenlemeHotkeys" penceresine WM_HOTKEY (id 8) göndererek aç (gerçek kısayol atama). Metin ya da komut öğelerinin içeriği görünmesin.
 
@@ -372,7 +374,7 @@ NestDesk is a Win32 desktop application (WPF, .NET 10) packaged as MSIX with the
    Item contents, addresses, commands, keys and window details are never logged or transmitted.
 6. Files, on the user's behalf:
    a. Only while auto-move is on, a FileSystemWatcher monitors the user's Desktop folder, and new files are moved into folders the user created on the desktop according to user-defined rules. Every move is journaled and can be undone. (Panels keep their item lists current with their own folder watchers; they never move files by themselves.)
-   b. Only if the user chooses "Items I add to boxes leave the desktop", a desktop item the user adds to a shortcut box is moved into a visible folder next to the Desktop folder (%USERPROFILE%\NestDesk\<box name>), recorded, and can be put back with one click. File attributes are never changed.
+   b. Only if the user turns on "Icons I put in boxes leave the desktop" (asked once, the first time a desktop icon is put in a box), a desktop file the user puts in a shortcut box or ring is moved into a visible folder next to the Desktop folder (%USERPROFILE%\NestDesk\<box name>), recorded, and put back when it is taken out of the box. Folders are never moved, file attributes are never changed, and a "What is this folder.txt" file in that folder lists each file's former location. While panels manage the desktop, nothing is moved (boxed icons are only left out of the desktop panels). Items on the Public Desktop are moved only after a separate question and Windows' UAC prompt, and only in the installer edition: the Store edition never moves them. The installer edition puts everything back when it is uninstalled.
    c. Panels list the Desktop, the Public Desktop and any folder the user picks (e.g. Downloads, Documents). On explicit user request they open, rename (F2), create folders and send items to the Recycle Bin using Windows' own shell file operations (SHFileOperation, IFileOperation; UAC only for Public Desktop items).
    d. Web and e-mail links the user drops on a shortcut box (http, https and mailto only) are saved as .url files in the app's data folder and opened in the default browser only when the user opens them.
 7. Shell integration: folder icons with SHGetSetFolderCustomSettings (desktop.ini plus a hidden .ico inside the folder); icons and thumbnails from SHGetFileInfo and IShellItemImageFactory (no thumbnails for online-only cloud files, so nothing is downloaded); the Windows "Change Icon" dialog (PickIconDlg); items are opened with ShellExecute, including "Run as administrator" for shortcut-box and ring items the user added. Apps dropped from the Start menu are opened through shell:AppsFolder. The Recycle Bin widget reads the item count and size with SHQueryRecycleBin, watches changes with SHChangeNotifyRegister, and empties it with SHEmptyRecycleBin only after the user confirms.
@@ -463,14 +465,14 @@ PEEK AT THE WINDOWS DESKTOP
 11. Press Ctrl+Alt+G (or tray > "Peek at the Windows desktop", or right-click a widget > "Peek at the Windows desktop"). The Windows desktop icons become visible, widgets step aside, and a small bar at the top center shows the time left with "+5 min" and "Back to NestDesk". It returns automatically after 2 minutes. Nothing on disk is changed.
 
 PANELS AND DESKTOP ICONS
-12. Settings > Desktop > "Windows desktop icons" has three choices: "Show everything on the desktop" (default), "Items I add to boxes leave the desktop", "Show only in panels". The same choice is in the tray menu and on the "Widgets" page. "Sort my desktop into panels" in the Add widget window adds panels for folders, shortcuts and files and switches to "Show only in panels"; the notice's "Undo" reverts it.
+12. Settings > Desktop > "Windows desktop icons" has two choices: "Show everything on the desktop" (default) and "Show only in panels". "Sort my desktop into panels" in the Add widget window adds panels for folders, shortcuts and files and switches to "Show only in panels"; the notice's "Undo" reverts it. The separate switch "Icons I put in boxes leave the desktop" is described in steps 16–17.
 13. With "Show only in panels" the Windows desktop icons are hidden and shown in the panels instead; no files are moved or changed. The icons come back immediately when another choice is selected, when the app exits (tray > "Exit") and when the user signs out.
 14. Double-clicking an empty area of the desktop (or pressing Ctrl+Alt+H) hides and shows icons and widgets; while panels manage the desktop, a double-click peeks instead. This can be changed or turned off in Settings > Desktop > "Double-click on the empty desktop".
 15. Optional: right-click a panel or shortcut box > "Icons" > "Open with number keys (1–9)"; then 1–9 opens the first nine items while the widget is active. Dragging a link from the browser onto a shortcut box adds it as a link that opens in the browser.
 
 SHORTCUT BOX OPTION (moves files only after the user picks it)
-16. By default a shortcut box only stores links; nothing is moved. To test the option: Settings > Desktop > "Windows desktop icons" > "Items I add to boxes leave the desktop". Add a "Shortcut box" widget, create a test file on the desktop and drag it onto the box (or right-click the box > "Add item" > "App or file…"). The file is moved to %USERPROFILE%\NestDesk\<box name> (a normal visible folder next to the Desktop folder), stays in the box, and a notice offers "Undo".
-17. Right-click the item > "Put back on the desktop" returns it. Settings > Desktop shows how many items are in the NestDesk folder with "Open folder" and "Put all back on the desktop"; switching to another choice asks whether to put the items back.
+16. By default a shortcut box only stores links; nothing is moved. To test the option: with "Show everything on the desktop" selected, add a "Shortcut box" widget, create a test file on the desktop and drag it onto the box (or right-click the box > "Add app…" > "Choose a file or folder…"). A small window next to the box asks "Remove the icon from the desktop too?": choose "Yes, remove it" (the same switch is Settings > Desktop > "Icons I put in boxes leave the desktop"). The file is moved to %USERPROFILE%\NestDesk\<box name> (a normal visible folder next to the Desktop folder), stays in the box, and a notice offers "Undo".
+17. Right-click the item > "Remove from box" (or Delete) returns it to the desktop; the notice's "Undo" puts it back in the box. Settings > Desktop shows how many icons are in the NestDesk folder with "Open folder" and "Put all back on the desktop"; turning the switch off puts everything back (with "Undo"). With "Show only in panels" selected, putting a desktop icon in a box moves no file: the icon simply no longer shows in the desktop panels until it is taken out of the box.
 
 RING MENU (keys and text are sent only after the user picks an item)
 18. Settings > Desktop > "Ring menu" > "Show". If there is no ring yet, click "Add a ring menu": a ring widget appears on the desktop with "New note", "Peek at the Windows desktop", "Add widget" and "Open NestDesk". Click an item, or press its number (1–9) while the ring is active.
@@ -498,7 +500,7 @@ DIAGNOSTICS (local only)
 OTHER
 33. Language: Settings > General > "Language / Dil" > choose, then "Restart now".
 34. Optional AI feature: AI-generated folder icons require the user's own Anthropic API key (Settings > Advanced > "AI folder icons (optional)"). Without a key the "Generate" button is disabled; all other features work offline and without a key. The app has no other network use. Inappropriate AI output can be reported with the "Report inappropriate content" link in the folder icon window; it opens a pre-filled GitHub issue form in the browser and sends nothing by itself.
-35. Uninstalling: the Store package removes the app's settings, ring menus, settings backups, error logs and crash reports. Desktop icons hidden by the app are shown again when it exits. Files the user put into the NestDesk box folder, folder icons the user applied and diagnostic zips the user saved stay as the user's own content; the first two can be returned/removed beforehand with "Put all back on the desktop" (Settings > Desktop) and "Remove all folder icons" (Settings > Advanced). The desktop installer tells the user where the box folder is when it is uninstalled.
+35. Uninstalling: the Store package removes the app's settings, ring menus, settings backups, error logs and crash reports. Desktop icons hidden by the app are shown again when it exits. Files the user put into the NestDesk box folder, folder icons the user applied and diagnostic zips the user saved stay as the user's own content; the first two can be returned/removed beforehand by turning off "Icons I put in boxes leave the desktop" or with "Put all back on the desktop" (Settings > Desktop) and with "Remove all folder icons" (Settings > Advanced). The box folder is a normal visible folder and contains "What is this folder.txt", which lists each file's former location. The Store edition never moves items from the Public Desktop. The desktop installer puts moved items back on the desktop when it is uninstalled and names the folder if anything could not be put back.
 ```
 
 ---

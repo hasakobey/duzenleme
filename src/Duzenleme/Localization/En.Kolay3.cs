@@ -68,6 +68,7 @@ internal static partial class En
         new("Anladım", "Got it"),
         new("Nasıl kullanılır kartlarını bir daha gösterme", "Don't show the How it works cards again"),
         new("Başlığından ya da boş yerinden sürükle.", "Drag it by its title or an empty spot."),
+        new("Taşı", "Move"),
         new("Büyüt", "Resize"),
         new("Kenarından sürükle ya da ⋯ › Boyut.", "Drag an edge, or use ⋯ › Size."),
         new("Düzenle", "Edit"),

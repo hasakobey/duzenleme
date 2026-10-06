@@ -26,17 +26,6 @@ internal static partial class En
 
         // ---- Masaüstü: kutular ----
         new("Hepsini masaüstüne geri koy", "Put all back on the desktop"),
-        new("Henüz kutuya taşınan öğe yok. Taşınanlar {0} klasöründe durur.",
-            "No items have been moved to boxes yet. Moved items are kept in the {0} folder."),
-        new("{0} öğe kutularda; dosyalar {1} klasöründe.",
-            "{0} item is in a box; the file is in the {1} folder.",
-            "{0} items are in boxes; the files are in the {1} folder."),
-        new("{0} öğe masaüstüne döner ve kutularda kalır.",
-            "{0} item goes back to the desktop and stays in its box.",
-            "{0} items go back to the desktop and stay in their boxes."),
-        new("Ortak masaüstündeki öğeler de taşınsın", "Also move items from the Public Desktop"),
-        new("Ortak masaüstündeki kısayollar (çoğu uygulamanınki) bu bilgisayardaki tüm hesaplarda görünür. Açarsan kutuya eklediğin böyle bir öğe tüm hesapların masaüstünden kalkar; Windows bunun için yönetici onayı ister.",
-            "Shortcuts on the Public Desktop (where most apps put theirs) appear for every account on this PC. If you turn this on, an item like that you add to a box leaves every account's desktop; Windows asks for administrator approval."),
 
         // ---- Masaüstü: göz atma ----
         new("Windows masaüstüne göz atılıyor", "Peeking at the Windows desktop"),

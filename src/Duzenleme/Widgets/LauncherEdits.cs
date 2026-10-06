@@ -5,14 +5,16 @@ namespace Duzenleme.Widgets;
 
 /// <summary>
 /// Kısayol kutusunun (<see cref="LauncherView"/>) ve halka menünün (<see cref="RingWidgetView"/>) ortak öğe düzenlemeleri:
-/// ekleme (varlık denetimi arka planda; "Kutulara eklediklerim masaüstünden kalksın" açıksa masaüstündekiler kutunun
-/// klasörüne taşınır), çıkarma ("Geri al" için son çıkarılan tutulur; masaüstünden taşınmış öğe başka kutuda yoksa
-/// masaüstüne döner) ve başka bir widget'a sürüklenince çıkarma. Her değişiklik kaydedilir, kutudaki masaüstü dosyaları
-/// kurallardan korunur (<see cref="AppHost.RefreshPinnedPaths"/>) ve görünüm yeniden çizilir. Sıra yalnızca
-/// <see cref="LauncherEntries"/> ile yazılır: halkanın yol olmayan öğeleri (Actions) yollarla birlikte yerinde kalır.
-/// Ayarı değiştiren saf bölümler (<see cref="Take"/>, <see cref="Put"/>, <see cref="Insert"/>) testlenir.
+/// ekleme (varlık denetimi arka planda; "Kutuya koyduğum simgeler masaüstünden kalksın" için <see cref="BoxMover.Added"/>:
+/// ilk kez sorulur, açıksa masaüstündekiler kutunun klasörüne taşınır ya da bölmelerden kalkar), çıkarma ("Geri al" için son
+/// çıkarılan tutulur; masaüstünden taşınmış öğe başka kutuda yoksa masaüstüne döner) ve başka bir widget'a sürüklenince
+/// çıkarma. Her değişiklik kaydedilir, kutudaki masaüstü dosyaları kurallardan korunur (<see cref="AppHost.RefreshPinnedPaths"/>)
+/// ve görünüm yeniden çizilir. Sıra yalnızca <see cref="LauncherEntries"/> ile yazılır: halkanın yol olmayan öğeleri (Actions)
+/// yollarla birlikte yerinde kalır. Ayarı değiştiren saf bölümler (<see cref="Take"/>, <see cref="Put"/>, <see cref="Insert"/>)
+/// testlenir.
 /// </summary>
-internal sealed class LauncherEdits(WidgetConfig config, Action render)
+/// <param name="near">Ekleme sorularının açılacağı yer (widget'ın ortası; yoksa ekranın ortası).</param>
+internal sealed class LauncherEdits(WidgetConfig config, Action render, Func<NativeMethods.POINT?>? near = null)
 {
     /// <summary>Çıkarılan öğe: sekmesi, görünen sırası, kendisi ve (başka sekmede yoksa) kutuda verilmiş adı/simgesi.</summary>
     public sealed record Removed(LauncherTab Tab, int Index, LauncherEntry Entry, ItemLook? Look);
@@ -44,8 +46,8 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         if (removed is null) return null;
         LastRemoved = removed;
         if (!moved) return false;
-        BoxMover.Reconcile();
-        return !BoxPlan.Referenced(AppHost.Settings.Widgets).Contains(path!);
+        BoxMover.Reconcile(interactive: true);
+        return !Launchers.Referenced(AppHost.Settings).Contains(path!);
     }
 
     /// <summary>
@@ -57,7 +59,7 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         if (LastRemoved is not { } last || !config.Tabs.Contains(last.Tab)) return false;
         LastRemoved = null;
         Change(() => Put(config, last));
-        if (last.Entry.IsPath) BoxMover.Reconcile();
+        if (last.Entry.IsPath) BoxMover.Reconcile(interactive: true);
         return true;
     }
 
@@ -66,8 +68,8 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
 
     /// <summary>
     /// Yolları sekmeye ekler (varlık denetimi arka planda; sekmede zaten olan eklenmez). <paramref name="at"/> verilirse o
-    /// sıraya (halkada bırakılan yer), yoksa sona. "Kutulara eklediklerim masaüstünden kalksın" açıksa masaüstündekiler
-    /// kutunun klasörüne taşınır.
+    /// sıraya (halkada bırakılan yer), yoksa sona. Eklenenler kutuda göründükten sonra <see cref="BoxMover.Added"/>: "Kutuya
+    /// koyduğum simgeler masaüstünden kalksın" ilk kez sorulur ya da (açıksa) masaüstündekiler kalkar.
     /// </summary>
     /// <param name="target">Eklenecek sekme; denetim bittiğinde bu sekme silinmişse yeniden sorulur.</param>
     /// <param name="look">Başka kutudan taşınan öğenin orada verilmiş adı ve simgesi.</param>
@@ -79,27 +81,38 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render)
         int? at = null, Action? duplicate = null, IReadOnlyDictionary<string, string>? names = null)
     {
         var tab = target();
-        // Başlat menüsü uygulaması diskte değildir (kabuk nesnesi): denetlenmez.
-        var existing = await Task.Run(() => paths.Where(p => StartApps.IsApp(p) || File.Exists(p) || Directory.Exists(p)).ToList());
+        var desktops = AppHost.DesktopDirectories;
+        // Başlat menüsü uygulaması diskte değildir (kabuk nesnesi): denetlenmez. Masaüstündekilerin öznitelikleri de burada okunur
+        // (klasör, gizli: masaüstünden kalkar mı sorusu için).
+        var (existing, attributes) = await Task.Run(() =>
+        {
+            var found = paths.Where(p => StartApps.IsApp(p) || File.Exists(p) || Directory.Exists(p)).ToList();
+            var attrs = new Dictionary<string, FileAttributes?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in found.Where(p => !TileItemPath.IsShellObject(p) && BoxPlan.IsDirectlyIn(p, desktops)))
+                attrs[path] = BoxFiles.Attributes(path);
+            return (found, attrs);
+        });
         if (!config.Tabs.Contains(tab)) tab = target();
         var added = new List<string>();
         Change(() => added = Insert(config, tab, existing, look, at, names));
         if (existing.Count > 0) then?.Invoke();
         if (existing.Count > 0 && added.Count == 0) duplicate?.Invoke();
-        if (added.Count > 0 && BoxMover.Active) BoxMover.Claim(config, added, justAdded: true);
+        if (added.Count > 0) BoxMover.Added(config, added, tab, attributes, near?.Invoke());
     }
 
     /// <summary>
     /// Öğe sürüklenerek başka bir widget'a taşındı: bu sekmeden çıkar (başka sekmede de yoksa adı ve simgesi de). Kutunun
-    /// klasörüne taşınmış öğe başka kutuda yoksa masaüstüne döner (BoxMover.Reconcile).
+    /// klasörüne taşınmış öğe başka kutuda yoksa masaüstüne döner (BoxMover.Reconcile). Menüdeki "Geri al" onu geri koyar.
     /// </summary>
     public void TakeOut(LauncherTab tab, string path)
     {
         if (!config.Tabs.Contains(tab)) return;
         var index = LauncherEntries.IndexOfPath(tab, path);
         if (index < 0) return;
-        Change(() => Take(config, tab, index));
-        BoxMover.Reconcile();
+        Removed? removed = null;
+        Change(() => removed = Take(config, tab, index));
+        if (removed is not null) LastRemoved = removed;
+        BoxMover.Reconcile(interactive: true);
     }
 
     // ---------------------------------------------------------------- saf bölümler (testlenir)

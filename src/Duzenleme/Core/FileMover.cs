@@ -5,17 +5,27 @@ namespace Duzenleme.Core;
 public static class FileMover
 {
     /// <summary>Hedefte aynı adda dosya varsa "ad (1).uzantı", "ad (2).uzantı" … üretir.</summary>
-    public static string UniquePath(string directory, string fileName)
+    public static string UniquePath(string directory, string fileName) => UniquePath(directory, fileName, reserved: null);
+
+    /// <summary>
+    /// <see cref="UniquePath(string, string)"/>; ayrıca <paramref name="reserved"/>'deki yollar da dolu sayılır (aynı işte başka
+    /// bir öğeye verilmiş, henüz taşınmamış hedefler: toplu taşımada iki öğe aynı adı almasın). <paramref name="exists"/>
+    /// verilmezse diske bakılır.
+    /// </summary>
+    public static string UniquePath(string directory, string fileName, IReadOnlySet<string>? reserved, Func<string, bool>? exists = null)
     {
+        exists ??= p => File.Exists(p) || Directory.Exists(p);
+        bool Taken(string path) => (reserved is not null && reserved.Contains(path)) || exists(path);
+
         var candidate = Path.Combine(directory, fileName);
-        if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+        if (!Taken(candidate)) return candidate;
 
         var stem = Path.GetFileNameWithoutExtension(fileName);
         var ext = Path.GetExtension(fileName);
         for (var i = 1; ; i++)
         {
             candidate = Path.Combine(directory, $"{stem} ({i}){ext}");
-            if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+            if (!Taken(candidate)) return candidate;
         }
     }
 

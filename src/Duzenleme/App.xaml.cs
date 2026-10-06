@@ -68,7 +68,7 @@ public partial class App : Application
         // alınmaz ve çalışan örneğe sinyal gönderilmez.
         if (args.RestoreDesktop)
         {
-            AppHost.RestoreDesktopForUninstall(args.Desktop, args.Data);
+            AppHost.RestoreDesktopForUninstall(args.Desktop, args.Data, args.Quiet);
             Shutdown();
             return;
         }
@@ -228,8 +228,9 @@ public partial class App : Application
             AppHost.Widgets.EnsureDesktopCoverage();
             AppHost.ApplyDesktopState();
         }
-        // Kutulara taşınan öğeler: önceki oturum yarıda kaldıysa ya da kutu dışarıdan silindiyse kayıtlar kutularla uzlaşır.
-        Widgets.BoxMover.Reconcile();
+        // Kutulara taşınan öğeler: önceki oturum yarıda kaldıysa ya da kutu dışarıdan silindiyse kayıtlar kutularla uzlaşır
+        // (yönetici onayı istenmez), kayıt dosyası kaybolduysa yeniden kurulur, açık olduğu için taşınamayanlar yeniden denenir.
+        Widgets.BoxMover.Startup();
         // Yeni klasöre "simge ver" önerisi: ayrı izleyici yok, masaüstünün anlık görüntüsünden; yalnızca öneri açıkken dinlenir.
         _newFolders = new NewFolderSuggestions(AppHost.DesktopSnapshot, folder => Dispatcher.BeginInvoke(() =>
         {
@@ -693,20 +694,21 @@ public partial class App : Application
     }
 
     private sealed record Args(string? Desktop, string? Data, bool Minimized, bool Exit, bool Add, bool Welcome, bool RestoreDesktop,
-        bool Restart, bool Peek);
+        bool Restart, bool Peek, bool Quiet = false);
 
     private Args? _args;
 
     /// <summary>
     /// --desktop ve --data test için gerçek masaüstü yerine başka klasör kullandırır; --exit çalışan örneği kapatır;
     /// --welcome karşılamayı açar (ilk açılış tamamlandıysa yeniden kurulum olarak); --restore-desktop gizli bırakılmış
-    /// masaüstü simgelerini açıp çıkar (kaldırma programı); --restart önceki örneğin kapanmasını bekleyip onun yerine
+    /// masaüstü simgelerini açıp kutulara taşınan simgeleri geri koyar ve çıkar (kaldırma programı; --quiet: sessiz kaldırma,
+    /// yönetici onayı penceresi açılmaz); --restart önceki örneğin kapanmasını bekleyip onun yerine
     /// başlar (dil değişikliği); --peek Windows masaüstüne göz atar (göz atılıyorsa NestDesk'e döner).
     /// </summary>
     private static Args ParseArgs(string[] args)
     {
         string? desktop = null, data = null;
-        bool minimized = false, exit = false, add = false, welcome = false, restoreDesktop = false, restart = false, peek = false;
+        bool minimized = false, exit = false, add = false, welcome = false, restoreDesktop = false, restart = false, peek = false, quiet = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -720,9 +722,10 @@ public partial class App : Application
                 case "--restore-desktop": restoreDesktop = true; break;
                 case "--restart": restart = true; break;
                 case "--peek": peek = true; break;
+                case "--quiet": quiet = true; break;
             }
         }
-        return new Args(desktop, data, minimized, exit, add, welcome, restoreDesktop, restart, peek);
+        return new Args(desktop, data, minimized, exit, add, welcome, restoreDesktop, restart, peek, quiet);
     }
 
     /// <summary>Bu kullanıcının (ya da test örneğinin) çalışan bir NestDesk'i var mı? (Tek örnek kilidi alınmadan bakılır.)</summary>

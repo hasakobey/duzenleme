@@ -245,16 +245,18 @@ public static class LinkFiles
     {
         var changed = false;
         foreach (var config in widgets)
+        {
+            var moves = new List<(string From, string To)>();
             foreach (var tab in config.Tabs)
-                for (var i = tab.Items.Count - 1; i >= 0; i--)
+                // Halkanın yol olmayan öğeleri yerinde kalsın (sıra LauncherEntries ile yazılır).
+                changed |= LauncherEntries.Rewrite(tab, old =>
                 {
-                    var old = tab.Items[i];
-                    if (Rebase(old, linksDirectory) is not { } moved) continue;
-                    if (tab.Items.Contains(moved, StringComparer.OrdinalIgnoreCase)) tab.Items.RemoveAt(i);
-                    else tab.Items[i] = moved;
-                    ItemLooks.Move(config, old, moved);
-                    changed = true;
-                }
+                    if (Rebase(old, linksDirectory) is not { } moved) return null;
+                    moves.Add((old, moved));
+                    return moved;
+                });
+            foreach (var (old, moved) in moves) ItemLooks.Move(config, old, moved);
+        }
         return changed;
     }
 
