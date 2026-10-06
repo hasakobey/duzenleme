@@ -182,6 +182,33 @@ public class AccessibilityTests
         Assert.Contains("AutomationProperties.SetAutomationId(this, \"Editor\")", window);
     }
 
+    /// <summary>
+    /// Halka düzenleyicisi klavyeyle de kullanılır: seçili öğe Alt+← / Alt+→ ile taşınır (fareyle "◀" / "▶"), Delete kaldırır;
+    /// önizlemenin yerleri, düğmeler ve ekleme çubuğu adlı ve kimliklidir; açılır halkanın "Halkayı düzenle" düğmesi de.
+    /// </summary>
+    [Fact]
+    public void Ring_editor_reorders_with_alt_arrows_and_names_its_controls()
+    {
+        var editor = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Views", "RingEditor.cs"));
+        Assert.Matches(@"Keyboard\.Modifiers == ModifierKeys\.Alt && key is Key\.Left or Key\.Right", editor);
+        Assert.Contains("Step(clockwise: key == Key.Right)", editor);
+        Assert.Contains("e.Key == Key.System ? e.SystemKey : e.Key", editor); // Alt basılıyken ok tuşu Key.System gelir
+        Assert.Contains("key == Key.Delete", editor);
+        foreach (var id in new[]
+                 {
+                     "\"RingEditor\"", "\"RingEditor.Slot.\"", "\"RingEditor.Left\"", "\"RingEditor.Right\"", "\"RingEditor.Remove\"",
+                     "\"RingEditor.Change\"", "\"RingEditor.Add.App\"", "\"RingEditor.Add.Folder\"", "\"RingEditor.Add.Web\"",
+                     "\"RingEditor.Add.Action\"", "\"RingEditor.Add.More\"",
+                 })
+            Assert.Contains(id, editor);
+        // "◀" ve "▶" yalnızca simge: ekran okuyucu ne yaptıklarını duyar.
+        Assert.Contains("Small(\"◀\", \"RingEditor.Left\", L.T(\"Ters yönde taşı\")", editor);
+        Assert.Contains("Small(\"▶\", \"RingEditor.Right\", L.T(\"Saat yönünde taşı\")", editor);
+        Assert.Contains("AutomationProperties.SetName(button, name)", editor);
+        var popup = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Views", "RingPopup.cs"));
+        Assert.Contains("SetAutomationId(button, \"Ring.Edit\")", popup);
+    }
+
     private static string RepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

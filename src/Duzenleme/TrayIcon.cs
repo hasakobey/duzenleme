@@ -337,6 +337,7 @@ public sealed class TrayIcon : IDisposable
         {
             case TrayCommand.QuickAdd: _quickAdd(); break;
             case TrayCommand.OpenApp: _openMainWindow(); break;
+            case TrayCommand.OpenRing: Views.RingPopup.OpenFromTray(); break;
             case TrayCommand.AutoMove: AppHost.SetPaused(!AppHost.Settings.Paused); break;
             case TrayCommand.OrganizeNow: AppHost.OrganizeNowInBackground(); break;
             case TrayCommand.UndoLastMove: UndoLast(); break;

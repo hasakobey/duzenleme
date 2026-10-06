@@ -14,6 +14,7 @@ public enum TrayCommand
     ToggleDesktop,
     OpenSettings,
     Exit,
+    OpenRing,
 }
 
 /// <summary>
@@ -41,7 +42,7 @@ public sealed record TrayMenuItem(TrayCommand Command, string Text = "", string?
 
 /// <summary>
 /// Tepsi menüsünün içeriği (saf; her açılışta yeniden kurulur). Kolay NestDesk: alt menü yok. Sıra: varsayılan (kalın)
-/// "Widget ekle…", "NestDesk'i aç", göz atma ("NestDesk'e dön"); işaretli "Otomatik taşıma", "Dosyaları şimdi taşı", "Son
+/// "Widget ekle…", "NestDesk'i aç", "Halkayı aç", göz atma ("NestDesk'e dön"); işaretli "Otomatik taşıma", "Dosyaları şimdi taşı", "Son
 /// taşımayı geri al"; yalnızca gerektiğinde "Geri getir: …" (kaldırılmış widget varken) ve "Masaüstünü göster" (masaüstü
 /// gizliyken: geri dönüş yolu), "Ayarlar", "Çıkış". Windows masaüstü simgeleri Ayarlar'da; widget'ları öne getirmek kısayolda.
 /// </summary>
@@ -55,6 +56,8 @@ public static class TrayMenuModel
             // Her ekleme yolu aynı "Widget ekle" penceresini açar (bölme, araç ve "Masaüstümü bölmelere ayır" orada).
             new(TrayCommand.QuickAdd, L.T("Widget ekle…"), Shortcut: Key(state.QuickAddHotkey), IsDefault: true),
             new(TrayCommand.OpenApp, L.F("{0}'i aç", AppInfo.Name)),
+            // Halka (kısayol gerekmez): tepsinin ekranının ortasında açılır.
+            new(TrayCommand.OpenRing, L.T("Halkayı aç")),
             new(TrayCommand.PeekDesktop, state.Peeking ? L.F("{0}'e dön", AppInfo.Name) : L.T("Windows masaüstüne göz at"),
                 Shortcut: Key(state.PeekHotkey)),
             separator,

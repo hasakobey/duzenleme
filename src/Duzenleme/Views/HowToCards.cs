@@ -36,12 +36,13 @@ internal static class HowToCards
     ];
 
     /// <summary>
-    /// Halka kartı halkaya bu kullanıcının bugün hangi yoldan ulaştığını söyler. Çift tıklamanın hiçbir seçeneği halkayı açmıyor:
-    /// halka "Widget ekle" › "Hepsini göster" › "Halka menü" ile eklenir. <see cref="DoubleClickEffect"/>'e halka gelince
-    /// yalnızca o seçenekte (kullanıcının gerçek ayarı; eski kullanıcı kendi seçimini korur) kart "Boş masaüstüne çift
-    /// tıkla." der; HomePageTests her seçenek için bunu bekler.
+    /// Halka kartı halkaya bu kullanıcının bugün hangi yoldan ulaştığını söyler: çift tıklama halkayı açıyorsa
+    /// (<see cref="DoubleClickEffect.Ring"/>; kullanıcının gerçek ayarı, eski kullanıcı kendi seçimini korur) "Boş masaüstüne çift
+    /// tıkla.", değilse halka "Widget ekle" › "Hepsini göster" › "Halka menü" ile eklenir. HomePageTests her seçenek için bunu bekler.
     /// </summary>
-    internal static string RingText(DoubleClickEffect doubleClick) => L.T("Widget ekle › Hepsini göster › Halka menü.");
+    internal static string RingText(DoubleClickEffect doubleClick) => doubleClick == DoubleClickEffect.Ring
+        ? L.T("Boş masaüstüne çift tıkla.")
+        : L.T("Widget ekle › Hepsini göster › Halka menü.");
 
     /// <summary>Boş masaüstüne çift tıklamanın bu kullanıcıdaki etkisi (masaüstü çift tıklamasıyla aynı çözüm).</summary>
     public static DoubleClickEffect CurrentDoubleClick()

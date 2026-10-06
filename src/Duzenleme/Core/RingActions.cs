@@ -344,10 +344,17 @@ public static class RingHotkey
     private static string? Normalize(string? text) => Hotkey.TryParse(text, out var hk) ? hk.ToString() : null;
 }
 
-/// <summary>Kısayolla açılan halkanın hedefi (saf; testlenir): seçilen halka (<see cref="AppSettings.RingWidgetId"/>), yoksa ilk halka.</summary>
+/// <summary>
+/// Açılır halkanın hedefi (saf; testlenir): seçilen halka (<see cref="AppSettings.RingWidgetId"/>: bir halka widget'ının kimliği,
+/// NestDesk halkasının kimliği ya da <see cref="HubId"/>), yoksa masaüstündeki ilk halka widget'ı, o da yoksa NestDesk halkası
+/// (<see cref="AppSettings.Hub"/>; henüz kurulmadıysa <see cref="Target"/> <see cref="EnsureHub"/> ile kurar).
+/// </summary>
 public static class RingTargets
 {
-    /// <summary>Halka menü widget'ları, ayardaki sırayla.</summary>
+    /// <summary><see cref="AppSettings.RingWidgetId"/>'de NestDesk halkasının takma adı.</summary>
+    public const string HubId = "hub";
+
+    /// <summary>Halka menüler (verilen yapılandırmalardan), sırayla.</summary>
     public static List<WidgetConfig> All(IEnumerable<WidgetConfig> widgets) =>
         widgets.Where(w => WidgetVariants.Is(w, WidgetVariants.Ring)).ToList();
 
@@ -358,7 +365,59 @@ public static class RingTargets
         return rings.FirstOrDefault(w => id is not null && string.Equals(w.Id, id, StringComparison.Ordinal)) ?? rings.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Açılır halkanın açacağı halka: <c>"hub"</c> ya da NestDesk halkasının kimliği → NestDesk halkası; bir halka widget'ının
+    /// kimliği → o; yoksa ilk halka widget'ı; masaüstünde halka widget'ı yoksa NestDesk halkası. NestDesk halkası gerekiyor
+    /// ama henüz kurulmadıysa null (<see cref="Target"/> kurar).
+    /// </summary>
+    public static WidgetConfig? Pick(AppSettings settings)
+    {
+        var id = settings.RingWidgetId;
+        var hub = settings.Hub is { } h && WidgetVariants.Is(h, WidgetVariants.Ring) ? h : null;
+        if (string.Equals(id, HubId, StringComparison.Ordinal) || (hub is not null && string.Equals(id, hub.Id, StringComparison.Ordinal)))
+            return hub;
+        return Pick(settings.Widgets.Where(w => w is not null), id) ?? hub;
+    }
+
+    /// <summary>Açılır halkanın açacağı halka; gerekiyorsa NestDesk halkasını kurar (ayara yazılır; kaydetmek çağıranın işi).</summary>
+    public static WidgetConfig Target(AppSettings settings) => Pick(settings) ?? EnsureHub(settings);
+
+    /// <summary>Halka <see cref="AppSettings.Hub"/> mı?</summary>
+    public static bool IsHub(AppSettings settings, WidgetConfig ring) => ReferenceEquals(settings.Hub, ring);
+
+    /// <summary>
+    /// NestDesk halkası yoksa (ya da halka değilse) halka tohumundan kurar: "{0} halkası" adıyla, tohumun NestDesk eylemleriyle
+    /// (Yeni not, Windows masaüstüne göz at, Widget ekle, NestDesk'i aç). Ad kullanıcı verisidir: kurulurken bir kez arayüz
+    /// dilinde yazılır. Kurulanı ya da var olanı döner.
+    /// </summary>
+    public static WidgetConfig EnsureHub(AppSettings settings)
+    {
+        if (settings.Hub is { } hub && WidgetVariants.Is(hub, WidgetVariants.Ring)) return hub;
+        var seed = WidgetSeeds.Create(WidgetSeeds.Ring)!;
+        seed.Title = L.F("{0} halkası", AppInfo.Name);
+        settings.Hub = seed;
+        return seed;
+    }
+
     /// <summary>Kısayol <paramref name="ring"/> halkasını mı açar (widget menüsündeki seçenek yalnızca o halkada işaretli)?</summary>
     public static bool Opens(IEnumerable<WidgetConfig> widgets, string? id, WidgetConfig ring) =>
         Pick(widgets, id) is { } target && string.Equals(target.Id, ring.Id, StringComparison.Ordinal);
+
+    /// <summary>Açılır halka <paramref name="ring"/> halkasını mı açar (NestDesk halkası dahil)?</summary>
+    public static bool Opens(AppSettings settings, WidgetConfig ring) =>
+        Pick(settings) is { } target && string.Equals(target.Id, ring.Id, StringComparison.Ordinal);
+}
+
+/// <summary>Açılır halkayı neyin açtığı (yalnızca çalışma zamanı; hiçbir yere yazılmaz).</summary>
+public enum RingOrigin { Hotkey, DoubleClick, Tray, Command }
+
+/// <summary>Hangi öğenin hangi açılışta çalıştığı (saf; testlenir).</summary>
+public static class RingAvailability
+{
+    /// <summary>
+    /// Tuş ve metin öğeleri önceki pencereye gönderilir: yalnızca kısayolla açılan halkada (çift tıklama ve tepsi halkayı
+    /// masaüstünden ya da görev çubuğundan açar; önceki pencere yazılacak yer değildir). Öbürleri her açılışta çalışır.
+    /// </summary>
+    public static bool Available(string? actionType, RingOrigin origin) =>
+        origin == RingOrigin.Hotkey || !RingActionTypes.NeedsTargetWindow(actionType);
 }

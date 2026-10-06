@@ -719,6 +719,11 @@ public static class AppHost
                     L.T("Masaüstüne yeniden çift tıkla ya da buraya tıkla, geri gelsin. Bu özellik Ayarlar'dan kapatılabilir."),
                     () => SetDesktopHidden(false));
                 break;
+            case DoubleClickEffect.Ring:
+                // Halka imlecin yanında açılır (kısayol gerekmez; tıklama kipinde, tuş/metin öğeleri soluk).
+                NativeMethods.GetCursorPos(out var cursor);
+                Views.RingPopup.OpenAt(cursor, RingOrigin.DoubleClick);
+                break;
         }
     }
 

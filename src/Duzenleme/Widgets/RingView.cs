@@ -194,6 +194,39 @@ internal sealed class RingView : FrameworkElement
     /// <summary>"+" yeri seçildi (tık, Enter, UI Automation Invoke).</summary>
     public event Action? AddRequested;
 
+    /// <summary>
+    /// Öğenin simgesi soluk çizilsin mi (çalışmayan öğelerin yanında; ör. açılır halka çift tıklamayla açılınca tuş ve metin
+    /// öğeleri). Yalnızca çizim; seçimi sahibi denetler.
+    /// </summary>
+    public Func<RingSlot, bool>? Dims { get; set; }
+
+    /// <summary>
+    /// Düzenleyicinin önizlemesi (<c>Views/RingEditor</c>): öğe seçilince çalışmaz, alt halkaya da girilmez; her yer (alt halka
+    /// dahil) <see cref="ItemInvoked"/> ile seçilir. "+" yeri yine <see cref="AddRequested"/>.
+    /// </summary>
+    public bool EditMode { get; set; }
+
+    /// <summary>Düzenleyicide seçili yer (sürekli vurgulu çizilir); yoksa null.</summary>
+    public int? SelectedIndex
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value) return;
+            var old = _selected;
+            _selected = value;
+            if (old is { } o && o < _items.Count) _items[o].InvalidateVisual();
+            if (value is { } v && v < _items.Count) _items[v].InvalidateVisual();
+        }
+    }
+    private int? _selected;
+
+    /// <summary>Öğelerin AutomationId öneki ("Ring.Item." → Ring.Item.1…; düzenleyicinin önizlemesinde "RingEditor.Slot.").</summary>
+    public string ItemIdPrefix { get; set; } = "Ring.Item.";
+
+    /// <summary>Simgesi soluk çizilen öğe mi (çalışmıyor ya da <see cref="Dims"/>)?</summary>
+    internal bool IsDimmed(RingSlot slot) => slot.Dimmed || Dims?.Invoke(slot) == true;
+
     /// <summary>Kökte boşken orta dairede ad yerine widget'ın simgesi ("Göster ▸ Ad" kapalıyken).</summary>
     public bool CenterShowsIcon
     {
@@ -410,7 +443,8 @@ internal sealed class RingView : FrameworkElement
     {
         if (index < 0 || index >= _slots.Count) return;
         var slot = _slots[index];
-        if (slot.Kind == RingSlotKind.SubRing) OpenSubRing(slot.TabIndex);
+        if (EditMode && slot.Kind != RingSlotKind.Add) ItemInvoked?.Invoke(slot);
+        else if (slot.Kind == RingSlotKind.SubRing) OpenSubRing(slot.TabIndex);
         else if (slot.Kind == RingSlotKind.Add) AddRequested?.Invoke();
         else ItemInvoked?.Invoke(slot);
     }
@@ -534,7 +568,7 @@ internal sealed class RingView : FrameworkElement
     internal bool CenterPressed => _pressed.Kind == RingGeometry.HitKind.Center && (_tab > 0 || IsPopup);
 
     internal bool IsHot(int index) =>
-        (index >= 0 && _highlight.Kind == RingGeometry.HitKind.Item && _highlight.Index == index) ||
+        (index >= 0 && _selected == index) || (index >= 0 && _highlight.Kind == RingGeometry.HitKind.Item && _highlight.Index == index) ||
         (index < 0 && _highlight.Kind == RingGeometry.HitKind.Parent) || (index >= 0 && _dropSlot == index);
 
     internal bool IsPressed(int index) =>
@@ -1263,7 +1297,7 @@ internal sealed class RingItemVisual : FrameworkElement
         _slot = slot;
         // "+" yerinin kendi kimliği var (yer sırası değişse de bulunsun); öbürleri sırasıyla.
         AutomationProperties.SetAutomationId(this, slot.Kind == RingSlotKind.Add ? "Ring.AddApp"
-            : "Ring.Item." + (_index + 1).ToString(CultureInfo.InvariantCulture));
+            : _ring.ItemIdPrefix + (_index + 1).ToString(CultureInfo.InvariantCulture));
         AutomationProperties.SetName(this, slot.Name);
         AutomationProperties.SetHelpText(this, slot.Kind == RingSlotKind.SubRing ? L.P(slot.ChildCount, "({0} öğe)")
             : !slot.Runnable ? L.T("Bu öğe bu sürümde çalışmıyor ya da kapalı.") : "");
@@ -1322,7 +1356,7 @@ internal sealed class RingItemVisual : FrameworkElement
             var dpi = _ring.PixelsPerDipForText;
             var left = Math.Round((c.X - size / 2) * dpi) / dpi;
             var top = Math.Round((c.Y - size / 2) * dpi) / dpi;
-            var dim = _slot?.Dimmed == true;
+            var dim = _slot is { } shown && _ring.IsDimmed(shown);
             if (dim) dc.PushOpacity(0.45);
             dc.DrawImage(image, new Rect(left, top, size, size));
             if (dim) dc.Pop();

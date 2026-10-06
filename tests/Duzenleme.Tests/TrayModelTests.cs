@@ -133,20 +133,20 @@ public class TrayModelTests
 
         Assert.Equal(
         [
-            TrayCommand.QuickAdd, TrayCommand.OpenApp, TrayCommand.PeekDesktop, TrayCommand.Separator,
+            TrayCommand.QuickAdd, TrayCommand.OpenApp, TrayCommand.OpenRing, TrayCommand.PeekDesktop, TrayCommand.Separator,
             TrayCommand.AutoMove, TrayCommand.OrganizeNow, TrayCommand.UndoLastMove, TrayCommand.Separator,
             TrayCommand.UndoRemove, TrayCommand.OpenSettings, TrayCommand.Exit,
         ], items.Select(i => i.Command));
         Assert.Equal(
         [
-            "Widget ekle…", "NestDesk'i aç", "Windows masaüstüne göz at", "",
+            "Widget ekle…", "NestDesk'i aç", "Halkayı aç", "Windows masaüstüne göz at", "",
             "Otomatik taşıma", "Dosyaları şimdi taşı", "Son taşımayı geri al", "",
             "Geri getir: Notlar", "Ayarlar", "Çıkış",
         ], items.Select(i => i.Text));
         // Kısayollar sağ sütunda: ekleme, göz atma ve "Dosyaları şimdi taşı".
         Assert.Equal(
         [
-            "Ctrl+Alt+B", null, "Ctrl+Alt+G", null, null, "Ctrl+Alt+O", null, null, null, null, null,
+            "Ctrl+Alt+B", null, null, "Ctrl+Alt+G", null, null, "Ctrl+Alt+O", null, null, null, null, null,
         ], items.Select(i => i.Shortcut));
     }
 

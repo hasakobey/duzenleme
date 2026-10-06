@@ -649,7 +649,8 @@ public partial class LauncherView : UserControl, IWidgetView
         if (!menu.ForEditor) return;
         menu.Settings.Add(Menus.Parts(_config, LauncherParts, () => { ApplyParts(); LayoutChanged?.Invoke(); }));
         menu.More.AddRange(Menus.TileOptions(_config, Change, singleClickOption: false));
-        // "Kutuya eklediklerim masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da (Views.DesktopModes).
+        // "Kutuya koyduğum simgeler masaüstünden kalksın" uygulama genelidir: widget menüsünde değil, Ayarlar'da ve Düzenle panelinde
+        // (Views.DesktopModes.SetBoxLeaves; bkz. AddEditorContent).
     }
 
     // Açık Düzenle panelinin öğe listesi kutu değişince (sürükleyip bırakma, arka planda biten ekleme) hemen tazelensin.
@@ -690,6 +691,11 @@ public partial class LauncherView : UserControl, IWidgetView
             (L.T("+ Dosya"), "Editor.Launcher.AddFile", () => AddPicked(Views.AppPicker.AskFiles(content.Owner, L.T("Kısayol kutusuna ekle")))),
             (L.T("+ Sekme"), "Editor.Launcher.AddTab", NewTab),
         ], rebuild: true);
+        // Uygulama geneli seçenek (Ayarlar'dakiyle aynı yoldan: soruları ve "Geri al"ı orada).
+        content.Switch(L.T("Kutuya koyduğum simgeler masaüstünden kalksın"), "Editor.BoxLeaves", () => BoxMover.On, on =>
+        {
+            if (on != BoxMover.On) Views.DesktopModes.SetBoxLeaves(on, DialogPoint, content.Owner);
+        });
         content.TileLook(_config, Change);
         return true;
     }

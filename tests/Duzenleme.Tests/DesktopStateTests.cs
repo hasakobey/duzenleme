@@ -66,18 +66,24 @@ public class DesktopStateTests
     [InlineData(" PEEK ", true, false, DoubleClickEffect.Peek)]         // büyük/küçük harf, boşluk
     [InlineData("gelecek-surum", true, false, DoubleClickEffect.ToggleDesktop)] // bilinmeyen → otomatik
     [InlineData("", false, true, DoubleClickEffect.None)]               // boş = eski anahtar
+    [InlineData("ring", true, false, DoubleClickEffect.Ring)]           // 2.2: halka imlecin yanında açılır
+    [InlineData(" RING ", false, true, DoubleClickEffect.Ring)]         // bölmeler yönetse de halka; eski anahtar baskın değil
     public void Double_click_resolves(string? action, bool legacy, bool fences, DoubleClickEffect expected) =>
         Assert.Equal(expected, DesktopState.ResolveDoubleClick(action, legacy, fences));
 
     [Fact]
     public void Double_click_choice_is_one_of_the_list()
     {
-        foreach (var action in new[] { null, "", "auto", "toggle", "peek", "none", "x", "TOGGLE" })
+        foreach (var action in new[] { null, "", "auto", "toggle", "peek", "none", "ring", "x", "TOGGLE" })
             foreach (var legacy in new[] { true, false })
                 Assert.Contains(DesktopState.DoubleClickChoice(action, legacy), DesktopState.DoubleClickChoices);
         Assert.Equal("none", DesktopState.DoubleClickChoice(null, legacyHidesDesktop: false));
         Assert.Equal("auto", DesktopState.DoubleClickChoice(null, legacyHidesDesktop: true));
         Assert.Equal("toggle", DesktopState.DoubleClickChoice("Toggle", legacyHidesDesktop: false));
+        Assert.Equal("ring", DesktopState.DoubleClickChoice("ring", legacyHidesDesktop: false));
+        // Yeni seçenek yalnızca sona eklenir (Ayarlar'daki kutunun sırası); bilinmeyen değer yine "otomatik".
+        Assert.Equal(["auto", "toggle", "peek", "none", "ring"], DesktopState.DoubleClickChoices);
+        Assert.Equal("auto", DesktopState.DoubleClickChoice("gelecek-surum", legacyHidesDesktop: false));
     }
 
     [Theory]

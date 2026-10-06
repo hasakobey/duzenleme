@@ -126,11 +126,7 @@ internal static partial class En
         new("Metin yapıştırılamadı; pano şu an kullanılamıyor olabilir.", "The text couldn't be pasted; the clipboard may be in use right now."),
 
         // Kısayolla açılan halka: açma, kapama, hedef
-        new("Henüz halka menün yok.", "You don't have a ring menu yet."),
         new("Halka menü ekle", "Add a ring menu"),
-        new("Eklemek için buraya tıkla.", "Click here to add one."),
-        new("Halka menün boş. Masaüstündeki halkaya bir uygulama, dosya ya da klasör sürükle.",
-            "Your ring menu is empty. Drag an app, file or folder onto the ring on your desktop."),
         new("Halka menü kısayolu kapatıldı.", "The ring menu shortcut is turned off."),
         new("{0} artık bu halkayı imlecin yanında açar.", "{0} now opens this ring next to the pointer."),
         new("Halka menü artık {0} ile imlecin yanında açılır. Tıkla ya da 1–9'a bas; Esc kapatır. {1} klavyeni izlemez: yalnızca bu kısayol Windows'a kaydedilir.",
