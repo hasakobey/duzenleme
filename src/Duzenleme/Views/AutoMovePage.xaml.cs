@@ -80,6 +80,19 @@ public sealed class RuleRow(Rule rule, int index, Action<RuleRow> changed) : INo
     public string MoreName => L.F("Kural seçenekleri: {0}", Rule.TargetFolder);
     public string CreateName => L.F("Klasörü oluştur: {0}", Rule.TargetFolder);
 
+    /// <summary>Kartın ekran okuyucudaki adı ("PDF ← .pdf, .xps"; kapalıysa durumu da): liste öğesinin UIA adı ToString'den gelir.</summary>
+    public string AccessibleName
+    {
+        get
+        {
+            var chips = Chips;
+            var name = chips.Count == 0 ? FolderText : FolderText + " ← " + string.Join(", ", chips);
+            return Rule.Enabled ? name : L.F("{0} (kapalı)", name);
+        }
+    }
+
+    public override string ToString() => AccessibleName;
+
     /// <summary>Klasörün masaüstündeki durumu ve bekleyen dosya sayısı (showPending: "Klasör yoksa oluştur" kapalıyken).</summary>
     internal void SetStatus(bool exists, int pending, bool showPending)
     {

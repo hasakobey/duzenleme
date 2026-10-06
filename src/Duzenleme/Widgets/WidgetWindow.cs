@@ -824,8 +824,10 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
         var where = place ?? PendingPlacement ?? WidgetPlacement.FromSettings();
         PendingPlacement = null;
         var p = AppHost.Widgets.FreeSpot(Config, new Size(ActualWidth, ActualHeight), ShadowMargin, this, where);
-        NativeMethods.SetWindowPos(Handle, IntPtr.Zero, p.X, p.Y, 0, 0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        // Yer başka ölçekli monitörde olabilir: WPF'in DPI işleyicisi pencereyi etkinleştirmesin (QuietShow.Move).
+        var hwnd = Handle;
+        QuietShow.Move(hwnd, () => NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, p.X, p.Y, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE));
         _nudge = 0;
         QueueSave();
     }
@@ -843,8 +845,9 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
         if (Config.PixelLeft is int px && Config.PixelTop is int py && IsOnSomeMonitor(px, py) &&
             NativeMethods.GetWindowRect(Handle, out var r) && (r.Left != px || r.Top != py))
         {
-            NativeMethods.SetWindowPos(Handle, IntPtr.Zero, px, py, 0, 0,
-                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            var hwnd = Handle;
+            QuietShow.Move(hwnd, () => NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, px, py, 0, 0,
+                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE));
             _nudge = 0;
         }
         FitToWorkArea(allowMove: true);
@@ -1031,8 +1034,9 @@ public sealed class WidgetWindow : Window, Views.IEditorTarget
     public void MoveTo(int x, int y)
     {
         if (Handle == IntPtr.Zero) return;
-        NativeMethods.SetWindowPos(Handle, IntPtr.Zero, x, y, 0, 0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        var hwnd = Handle;
+        QuietShow.Move(hwnd, () => NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE));
         _nudge = 0;
         QueueSave();
     }

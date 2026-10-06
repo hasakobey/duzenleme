@@ -27,19 +27,21 @@ namespace Duzenleme.Views;
 internal static class RingActionDialog
 {
     /// <summary>Yeni yol olmayan öğe; vazgeçilirse null.</summary>
-    public static LauncherAction? Create(string type, WidgetConfig config, WidgetWindow? anchor)
+    /// <param name="near">Widget'sız (NestDesk halkasının düzenleyicisi) açılacağı ekrandaki nokta; yoksa imleç.</param>
+    public static LauncherAction? Create(string type, WidgetConfig config, WidgetWindow? anchor, NativeMethods.POINT? near = null)
     {
         var action = new LauncherAction { Type = type, App = type == RingActionTypes.App ? RingAppIds.All[0] : null };
-        return Show(action, isNew: true, config, anchor) ? action : null;
+        return Show(action, isNew: true, config, anchor, near) ? action : null;
     }
 
     /// <summary>Var olan öğeyi düzenler; kaydedildiyse true (öğe yerinde değişir).</summary>
-    public static bool Edit(LauncherAction action, WidgetConfig config, WidgetWindow? anchor) => Show(action, isNew: false, config, anchor);
+    public static bool Edit(LauncherAction action, WidgetConfig config, WidgetWindow? anchor, NativeMethods.POINT? near = null) =>
+        Show(action, isNew: false, config, anchor, near);
 
     /// <summary>Alt halkanın adı (yeni ya da değiştirme); vazgeçilirse null.</summary>
-    public static string? AskSubRing(string? current, WidgetWindow? anchor)
+    public static string? AskSubRing(string? current, WidgetWindow? anchor, NativeMethods.POINT? near = null)
     {
-        var form = new Form(current is null ? L.T("Alt halka ekle") : L.T("Alt halka"), anchor);
+        var form = new Form(current is null ? L.T("Alt halka ekle") : L.T("Alt halka"), anchor, near);
         var name = form.Field(L.T("Alt halkanın adı"), "Ring.Dialog.Name", current ?? "", ItemLooks.MaxName);
         name.PlaceholderText = L.T("ör. Oyunlar, İş");
         form.Note(L.T("Alt halka kök halkanın sonunda durur; içine öğe eklemek için ona sağ tıkla."));
@@ -56,11 +58,11 @@ internal static class RingActionDialog
     }
 
     /// <summary>Yol öğesinin halkada görünen adı ve simgesi (dosyaya dokunulmaz); vazgeçilirse null.</summary>
-    public static (string? Name, string? Icon)? EditPath(RingSlot slot, WidgetConfig config, WidgetWindow? anchor)
+    public static (string? Name, string? Icon)? EditPath(RingSlot slot, WidgetConfig config, WidgetWindow? anchor, NativeMethods.POINT? near = null)
     {
         if (slot.Path is not { } path) return null;
         var look = ItemLooks.Get(config, path);
-        var form = new Form(L.T("Öğeyi değiştir"), anchor);
+        var form = new Form(L.T("Öğeyi değiştir"), anchor, near);
         var defaultName = RingSlot.DefaultPathName(path);
         string? icon = look?.Icon;
         var name = form.NameRow(look?.Name ?? "", defaultName, () => icon, i => icon = i, anchor is null || slot.Tile is null ? null : pick =>
@@ -77,9 +79,9 @@ internal static class RingActionDialog
         return form.ShowDialog() ? result : null;
     }
 
-    private static bool Show(LauncherAction action, bool isNew, WidgetConfig config, WidgetWindow? anchor)
+    private static bool Show(LauncherAction action, bool isNew, WidgetConfig config, WidgetWindow? anchor, NativeMethods.POINT? near)
     {
-        var form = new Form(Title(action.Type, isNew), anchor);
+        var form = new Form(Title(action.Type, isNew), anchor, near);
         // Alanlar öğenin bir kopyasında değişir; "Kaydet"te ve geçerliyse öğeye yazılır.
         var draft = new LauncherAction
         {
@@ -290,6 +292,7 @@ internal static class RingActionDialog
         private readonly StackPanel _panel = new() { Margin = new Thickness(24, 8, 24, 20), Width = 440 };
         private readonly TextBlock _error;
         private readonly WidgetWindow? _anchor;
+        private readonly NativeMethods.POINT? _near;
         private TextBox? _name;
 
         public FluentWindow Window { get; }
@@ -300,9 +303,11 @@ internal static class RingActionDialog
         /// <summary>Ad satırındaki simgeyi yeniden çizer (varsayılan simge türün alanına bağlıysa).</summary>
         public Action? RefreshIcon { get; private set; }
 
-        public Form(string title, WidgetWindow? anchor)
+        /// <param name="near">Widget yoksa açılacağı ekrandaki nokta (yoksa imleç): widget'ın monitörü, yoksa düzenleyicinin.</param>
+        public Form(string title, WidgetWindow? anchor, NativeMethods.POINT? near)
         {
             _anchor = anchor;
+            _near = near;
             var root = new Grid();
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition());
@@ -481,7 +486,7 @@ internal static class RingActionDialog
             _panel.Children.Add(buttons);
 
             WindowFit.FitChromeToContent(Window);
-            DialogPlacement.CenterOn(Window, _anchor?.CenterPoint);
+            DialogPlacement.CenterOn(Window, _anchor?.CenterPoint ?? _near);
             ok.Click += (_, _) =>
             {
                 if (Saving()) Window.DialogResult = true;
