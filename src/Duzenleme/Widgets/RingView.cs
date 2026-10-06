@@ -580,7 +580,7 @@ internal sealed class RingView : FrameworkElement
     internal Color GlyphColor => _glyphColor;
 
     /// <summary>Çizilen biçim (yüksek karşıtlıkta Klasik).</summary>
-    internal RingStyle Style => _style;
+    internal RingStyle RingStyle => _style;
 
     /// <summary>
     /// Ortada adının üstünde gösterilen simge: vurgulanan öğeninki (bırakma ipucu sürerken yok). Kando'daki gibi orta, nereye
@@ -1555,7 +1555,7 @@ internal sealed class RingItemVisual : FrameworkElement
     {
         var metrics = _ring.Metrics;
         var colors = _ring.Scheme;
-        var style = _ring.Style;
+        var style = _ring.RingStyle;
         var c = new Point(RenderSize.Width / 2, RenderSize.Height / 2);
         var back = _index < 0;
         // Alt halkadaki "geri": geldiğin yönde küçük daire (Kando'daki üst öğe); ortadan ona bağlantı çizgisi RingView'de.
@@ -1715,7 +1715,7 @@ internal sealed class RingCenterVisual : FrameworkElement
         var r = _ring.Metrics.CenterRadius;
         var c = new Point(r, r);
         var hot = _ring.CenterHot;
-        var border = hot || _ring.CenterPressed ? colors.CenterBorderHot : _ring.Style.Glow ? colors.GlowCenterBorder : colors.CenterBorder;
+        var border = hot || _ring.CenterPressed ? colors.CenterBorderHot : _ring.RingStyle.Glow ? colors.GlowCenterBorder : colors.CenterBorder;
         var inset = border.Thickness / 2;
         dc.DrawEllipse(_ring.CenterPressed ? colors.ChipPressed : hot ? colors.CenterHot : colors.Center, border, c, r - inset, r - inset);
         // Odak çerçevesi: klavye odağı halkadayken orta dairenin hemen dışında vurgu renginde ince bir halka (Windows'un odak

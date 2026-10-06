@@ -346,7 +346,7 @@ internal sealed class RingPopup : Window
         _ring.ApplyPalette(palette, rebuild: false);
         _ring.CenterShowsIcon = !config.Shows(WidgetNameLine.PartKey);
         _ring.SetRing(config, 0);
-        _backdrop.Apply(palette, _ring.Metrics.OuterRadius, _ring.Style);
+        _backdrop.Apply(palette, _ring.Metrics.OuterRadius, _ring.RingStyle);
         PaintChrome(palette);
         var side = 2 * (_ring.Metrics.OuterRadius + AimDip);
         Arrange(side / 2, side / 2);
