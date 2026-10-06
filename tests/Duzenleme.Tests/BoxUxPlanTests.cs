@@ -4,7 +4,7 @@ using Duzenleme.Localization;
 namespace Duzenleme.Tests;
 
 /// <summary>
-/// "Kutuya koyduğum simgeler masaüstünden kalksın"ın saf hesapları (<see cref="BoxPlan"/>): seçenek açılırken kaç simge kalkar
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın"ın saf hesapları (<see cref="BoxPlan"/>): seçenek açılırken kaç simge kalkar
 /// (aynı öğe bir kez, klasör ve herkesin masaüstü ayrı), bölme kipinde masaüstü bölmelerinin göstermedikleri (B5), kaldırınca
 /// kaç simge döner (B13), dışarı sürüklenen öğe ne oldu (B9), kaldırırken neler geri konur ve "Bu klasör nedir.txt".
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class BoxUxPlanTests : IDisposable
     // ---------------------------------------------------------------- seçenek açılırken
 
     [Fact]
-    public void Counts_are_distinct_and_leave_out_public_folders_and_protected_items()
+    public void Counts_are_distinct_and_leave_out_public_kept_and_protected_items()
     {
         var attrs = new Dictionary<string, FileAttributes>(StringComparer.OrdinalIgnoreCase)
         {
@@ -41,18 +41,22 @@ public sealed class BoxUxPlanTests : IDisposable
             [$@"{Desktop}\gizli.txt"] = FileAttributes.Hidden,
             [$@"{Public}\Edge.lnk"] = FileAttributes.Normal,
         };
-        // a.pdf iki kutuda (bir kez sayılır); masaüstünde olmayan ve bulunamayan sayılmaz.
+        // a.pdf iki kutuda (bir kez sayılır); masaüstünde olmayan ve bulunamayan sayılmaz. 2.2: klasör de sayılır (taşınır).
         string[] paths = [$@"{Desktop}\a.pdf", $@"{Desktop}\A.PDF", $@"{Desktop}\b.lnk", $@"{Desktop}\Proje", $@"{Desktop}\gizli.txt",
             $@"{Public}\Edge.lnk", @"D:\Belgeler\c.pdf", $@"{Desktop}\yok.pdf"];
         FileAttributes? Attr(string p) => attrs.TryGetValue(p, out var a) ? a : null;
 
         var counts = BoxPlan.ClaimCandidates(paths, Attr, new BoxContext(Desktop, [Public], IncludePublic: false));
-        Assert.Equal([$@"{Desktop}\a.pdf", $@"{Desktop}\b.lnk"], counts.Movable);
+        Assert.Equal([$@"{Desktop}\a.pdf", $@"{Desktop}\b.lnk", $@"{Desktop}\Proje"], counts.Movable);
         Assert.Equal([$@"{Public}\Edge.lnk"], counts.PublicOnly);
 
         var withPublic = BoxPlan.ClaimCandidates(paths, Attr, new BoxContext(Desktop, [Public], IncludePublic: true));
-        Assert.Equal(3, withPublic.Movable.Count);
+        Assert.Equal(4, withPublic.Movable.Count);
         Assert.Empty(withPublic.PublicOnly);
+
+        // Otomatik taşıma kuralının klasörü sayılmaz (masaüstünde kalır).
+        var kept = BoxPlan.ClaimCandidates(paths, Attr, new BoxContext(Desktop, [Public], IncludePublic: false, BoxPlan.KeptBy(["Proje"], [], Desktop)));
+        Assert.Equal([$@"{Desktop}\a.pdf", $@"{Desktop}\b.lnk"], kept.Movable);
     }
 
     [Fact]

@@ -23,7 +23,6 @@ internal static partial class En
 
         // Ayarlar: yedi satır
         new("Simgeleri bölmelerde topla", "Gather icons into panels"),
-        new("Kutuya eklenenler masaüstünden kalkıyor.", "Items you add to boxes leave the desktop."),
         new("Halkadaki uygulamaları ve öğeleri halkanın kendisinden değiştirirsin.", "You change the ring's apps and items on the ring itself."),
         new("Kısa tur, karşılama ya da sorun kaydı. Var olanlar silinmez.",
             "A short tour, the setup guide or a problem report. Nothing you have is deleted."),
@@ -36,7 +35,6 @@ internal static partial class En
         new("Widget yerleşimi", "Widget placement"),
         new("Sürüklerken widget'lar ekran kenarına ve birbirine yapışır.", "While you drag, widgets snap to the screen edges and to each other."),
         new("Bırakırken ya da büyütürken widget'lar birbirinin üstüne gelmez.", "Widgets don't land on each other when you drop or resize them."),
-        new("Kutular", "Shortcut boxes"),
         new("Sorun giderme", "Troubleshooting"),
         new("Tanılama", "Diagnostics"),
     ]);

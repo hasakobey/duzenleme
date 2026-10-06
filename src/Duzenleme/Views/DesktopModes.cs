@@ -5,7 +5,7 @@ namespace Duzenleme.Views;
 
 /// <summary>
 /// Windows'un masaüstü simgeleri için seçim (kalıcı değil: ayarlarda <c>FencesReplaceIcons</c> olarak durur). 2.2: iki seçenek;
-/// "Kutuya koyduğum simgeler masaüstünden kalksın" ayrı bir anahtardır (<see cref="DesktopModes.SetBoxLeaves"/>).
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın" ayrı bir anahtardır (<see cref="DesktopModes.SetBoxLeaves"/>).
 /// </summary>
 internal enum IconMode
 {
@@ -17,7 +17,7 @@ internal enum IconMode
 }
 
 /// <summary>
-/// "Windows masaüstü simgeleri" seçimi ve "Kutuya koyduğum simgeler masaüstünden kalksın" anahtarı: Ayarlar, karşılama ve
+/// "Windows masaüstü simgeleri" seçimi ve "Widget'lara koyduğum öğeler masaüstünden kalksın" anahtarı: Ayarlar, karşılama ve
 /// "Widget ekle"deki "Masaüstümü bölmelere ayır" aynı metinleri ve aynı davranışı buradan alır. İki seçim birbirinden
 /// bağımsızdır: bölme kipinde kutudaki simgeler dosyaya dokunulmadan bölmelerden kalkar, bölmeler kapanınca (anahtar açıksa)
 /// masaüstünde görünen kutu simgelerinin kalkması sorulur (<see cref="AfterFencesOff"/>). Dosya taşıyan adımlar sorulur;
@@ -43,13 +43,14 @@ internal static class DesktopModes
         _ => L.T("Windows'un masaüstü simgeleri her zamanki gibi görünür; bölmeler dosyalara dokunmadan kısayol gösterir."),
     };
 
-    /// <summary>"Kutuya koyduğum simgeler masaüstünden kalksın" anahtarının açıklaması (şu anki duruma göre).</summary>
+    /// <summary>"Widget'lara koyduğum öğeler masaüstünden kalksın" anahtarının açıklaması (şu anki duruma göre).</summary>
     public static string BoxLeavesDescription()
     {
-        if (!BoxMover.On) return L.T("Kutudaki ve halkadaki simgeler masaüstünde de görünür.");
+        if (!BoxMover.On)
+            return L.T("Kutudaki, halkadaki ve klasör bölmesindeki öğeler masaüstünde de durur. Tek bir öğeyi yine de masaüstünden kaldırabilirsin: sağ tıkla → \"Masaüstünden kaldır\".");
         if (BoxMover.HidesFromFences)
-            return L.T("Kutuya ya da halkaya koyduğun simge bölmelerde görünmez; çıkarınca geri gelir. Dosyalara dokunulmaz.");
-        var text = L.F("Kutuya ya da halkaya koyduğun masaüstü simgesi masaüstünden kalkar; çıkarınca geri gelir. Silinmez, {0} klasöründe durur.",
+            return L.T("Kutuya, halkaya ya da klasör bölmesine koyduğun öğe masaüstü bölmelerinde görünmez; çıkarınca geri gelir. Dosyalara dokunulmaz.");
+        var text = L.F("Kutuya, halkaya ya da klasör bölmesine koyduğun masaüstü öğesi masaüstünden kalkar; çıkarınca geri gelir. Silinmez, {0} klasöründe durur. Kapatınca hepsi masaüstüne döner.",
             BoxMover.Root);
         if (Core.BoxPlan.IsOneDrivePath(AppHost.DesktopDirectory))
             text += " " + L.T("Masaüstün OneDrive'da: kalkan simgeler öbür bilgisayarlarında da masaüstünden kalkar.");
@@ -73,7 +74,7 @@ internal static class DesktopModes
 
     /// <summary>
     /// Simge seçimini uygular. Bölmeler açılınca kutulardaki öğelere dokunulmaz (bölmeler onları göstermez); kapanınca
-    /// "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa masaüstünde görünen kutu simgelerinin kalkması sorulur.
+    /// "Widget'lara koyduğum öğeler masaüstünden kalksın" açıksa masaüstünde görünen kutu simgelerinin kalkması sorulur.
     /// near: bölmeler eklenecekse hangi ekrana. owner: soru penceresinin sahibi (yoksa ekranın ortasında, en üstte).
     /// announce: sonucu bildirimle söyle ("Geri al"lı); karşılama kendi özetini verir, false geçer (sorular yine sorulur).
     /// allStarters: bölmeler açılırken bütün başlangıç bölmeleri kurulsun ("Masaüstümü bölmelere ayır"; bölmeler zaten
@@ -108,7 +109,7 @@ internal static class DesktopModes
     }
 
     /// <summary>
-    /// "Kutuya koyduğum simgeler masaüstünden kalksın" anahtarı (Ayarlar). Açınca: Windows simgeleri görünürken kutularda
+    /// "Widget'lara koyduğum öğeler masaüstünden kalksın" anahtarı (Ayarlar). Açınca: Windows simgeleri görünürken kutularda
     /// masaüstünde de duran simgeler varsa kalkmaları sorulur (herkesin masaüstündekiler ayrı izinle); bölme kipinde soru
     /// yok (dosyaya dokunulmaz). Kapatınca: taşınanların hepsi masaüstüne döner (kutularda kalırlar); bildirimdeki "Geri al"
     /// anahtarı yeniden açar ve onları sormadan yeniden kutulara taşır.
@@ -151,7 +152,7 @@ internal static class DesktopModes
         var counts = BoxMover.ClaimCounts();
         if (counts.Movable.Count == 0) return;
         var text = L.P(counts.Movable.Count,
-            "Kutularında ve halkalarında masaüstünde de duran {0} simge var. Masaüstünden kalkar, {1} klasöründe durur ve kutularda görünmeye devam eder.",
+            "Widget'larında masaüstünde de duran {0} öğe var. Masaüstünden kalkar, {1} klasöründe durur ve widget'larda görünmeye devam eder.",
             BoxMover.Root);
         if (counts.PublicOnly.Count > 0)
             text += " " + L.P(counts.PublicOnly.Count, "Herkesin masaüstündeki {0} simge kalır; onlar için ayrı izin gerekir.");
@@ -163,7 +164,7 @@ internal static class DesktopModes
                 L.T("Seçmek için tıkla."));
             return;
         }
-        if (Confirm.Ask(owner, L.T("Kutudaki simgeler de masaüstünden kalksın mı?"), text, L.T("Kaldır"), danger: false,
+        if (Confirm.Ask(owner, L.T("Widget'lardaki öğeler de masaüstünden kalksın mı?"), text, L.T("Kaldır"), danger: false,
                 cancelText: L.T("Şimdi değil"), near: near))
             BoxMover.ClaimMany(existing);
     }

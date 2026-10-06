@@ -9,7 +9,7 @@ using Duzenleme.Views;
 namespace Duzenleme.Widgets;
 
 /// <summary>
-/// "Kutuya koyduğum simgeler masaüstünden kalksın" (<see cref="AppSettings.BoxItemsLeaveDesktop"/>): kutuya ya da halkaya konan
+/// "Widget'lara koyduğum öğeler masaüstünden kalksın" (<see cref="AppSettings.BoxItemsLeaveDesktop"/>): kutuya ya da halkaya konan
 /// masaüstü simgesi masaüstünden kalkar, çıkarınca geri gelir. Tek seçenek, iki yol: Windows simgeleri görünürken
 /// (<see cref="MovesFiles"/>) dosya görünür, sıradan bir klasöre (masaüstünün yanındaki NestDesk\&lt;kutu&gt;) taşınır, kutu yeni
 /// yolu gösterir, taşıma kaydedilir ve geri alınabilir; bölmeler masaüstünü yönetirken (<see cref="HidesFromFences"/>) hiçbir
@@ -30,7 +30,7 @@ internal static class BoxMover
     /// <summary>Taşıma ya da geri koyma bitti, kutuların yolları güncellendi ya da seçenek değişti (arayüz iş parçacığında).</summary>
     public static event Action? Changed;
 
-    /// <summary>"Kutuya koyduğum simgeler masaüstünden kalksın" açık mı?</summary>
+    /// <summary>"Widget'lara koyduğum öğeler masaüstünden kalksın" açık mı?</summary>
     public static bool On => AppHost.Settings.BoxItemsLeaveDesktop;
 
     /// <summary>Dosyalar taşınır mı? Bölmeler masaüstünü yönetirken (Windows simgeleri zaten gizli) öğeler taşınmaz.</summary>
@@ -66,9 +66,25 @@ internal static class BoxMover
     /// <summary>Ortak masaüstündekiler de taşınır mı? Store sürümü ortak masaüstüne hiç dokunmaz (kaldırınca geri konamaz).</summary>
     private static bool IncludePublic => AppHost.Settings.BoxIncludesPublicDesktop && !PackageInfo.IsPackaged;
 
-    /// <summary>Taşıma kararının ortamı (kullanıcının masaüstü, ortak masaüstleri, ortak masaüstü izni).</summary>
+    /// <summary>
+    /// Taşıma kararının ortamı (kullanıcının masaüstü, ortak masaüstleri, ortak masaüstü izni ve masaüstünde kalması gerekenler:
+    /// otomatik taşıma kurallarının klasörleri, halka komutlarının yolları).
+    /// </summary>
     private static BoxContext Context(bool includePublic) =>
-        new(AppHost.DesktopDirectory, AppHost.DesktopDirectories.Skip(1).ToList(), includePublic && !PackageInfo.IsPackaged);
+        new(AppHost.DesktopDirectory, AppHost.DesktopDirectories.Skip(1).ToList(), includePublic && !PackageInfo.IsPackaged, Kept());
+
+    /// <summary>Masaüstünde kalması gereken yollar (bkz. <see cref="BoxPlan.KeptBy"/>; ayarların o anki kopyasından).</summary>
+    private static Func<string, bool> Kept()
+    {
+        var settings = AppHost.Settings;
+        return BoxPlan.KeptBy(settings.Rules.Select(r => r?.TargetFolder).ToList(), Launchers.CommandTexts(settings).ToList(),
+            AppHost.DesktopDirectory);
+    }
+
+    private static string Desktop => AppHost.DesktopDirectory;
+
+    /// <summary>Widget bir klasör bölmesi mi (klasörü de masaüstünden kalkabilir)?</summary>
+    private static bool IsPanel(string? id) => Launchers.FindHolder(AppHost.Settings, id) is { } w && Launchers.IsFolderPanel(w);
 
     /// <summary>
     /// Masaüstü öğelerinin öznitelikleri, masaüstlerinin anlık görüntüsünden (arayüzde diske dokunmadan; henüz okunmamış ya da
@@ -91,20 +107,21 @@ internal static class BoxMover
     {
         var dirs = AppHost.DesktopDirectories;
         var result = new List<(WidgetConfig, List<string>)>();
-        foreach (var box in Launchers.All(AppHost.Settings))
+        foreach (var box in Launchers.Holders(AppHost.Settings))
         {
-            var pinned = BoxPlan.PinnedDesktopPaths([box], dirs);
-            if (pinned.Count > 0) result.Add((box, pinned.ToList()));
+            var held = Launchers.HeldBy(box, Desktop).Where(p => BoxPlan.IsDirectlyIn(p, dirs)).ToList();
+            if (held.Count > 0) result.Add((box, held));
         }
         return result;
     }
 
     /// <summary>
-    /// Kutulardaki masaüstü öğelerinden kaçı şimdi kalkabilir, kaçı yalnızca ayrı izinle (herkesin masaüstü): aynı öğe bir
-    /// kez; klasörler, korunanlar sayılmaz (masaüstünün anlık görüntüsünden; diske bakılmaz).
+    /// Widget'lardaki masaüstü öğelerinden (kutu ve halka öğeleri, klasör bölmelerinin klasörleri) kaçı şimdi kalkabilir, kaçı
+    /// yalnızca ayrı izinle (herkesin masaüstü): aynı öğe bir kez; korunanlar ve masaüstünde kalması gerekenler (kuralın
+    /// klasörü) sayılmaz (masaüstünün anlık görüntüsünden; diske bakılmaz).
     /// </summary>
     public static ClaimCount ClaimCounts() =>
-        BoxPlan.ClaimCandidates(Launchers.Referenced(AppHost.Settings), SnapshotAttributes(), Context(IncludePublic));
+        BoxPlan.ClaimCandidates(Launchers.Held(AppHost.Settings, Desktop), SnapshotAttributes(), Context(IncludePublic));
 
     /// <summary>Kutulardaki, yalnızca ayrı izinle kalkabilecek herkesin masaüstü öğeleri (kutularıyla).</summary>
     public static List<(WidgetConfig Box, List<string> Paths)> PublicItemsInBoxes()
@@ -113,9 +130,19 @@ internal static class BoxMover
         return DesktopItemsInBoxes().Select(i => (i.Box, i.Paths.Where(publicOnly.Contains).ToList())).Where(i => i.Item2.Count > 0).ToList();
     }
 
-    /// <summary>Yalnızca bu kutunun gösterdiği taşınmış öğe sayısı (kutu kaldırılınca masaüstüne dönecekler).</summary>
-    public static int MovedOnlyIn(WidgetConfig box) =>
-        box.Kind != WidgetKind.Launcher || MovedCount == 0 ? 0 : ReturningIf(box.Id, null, null);
+    /// <summary>
+    /// Yalnızca bu kutunun (halkanın, klasör bölmesinin) gösterdiği taşınmış öğe sayısı (widget kaldırılınca masaüstüne
+    /// dönecekler).
+    /// </summary>
+    public static int MovedOnlyIn(WidgetConfig box)
+    {
+        if (MovedCount == 0) return 0;
+        if (box.Kind == WidgetKind.Launcher) return ReturningIf(box.Id, null, null);
+        if (Launchers.PanelPath(box, Desktop) is not { } path || !IsMoved(path)) return 0;
+        var elsewhere = Launchers.Holders(AppHost.Settings).Where(w => !string.Equals(w.Id, box.Id, StringComparison.Ordinal))
+            .Any(w => Launchers.HeldBy(w, Desktop).Contains(path));
+        return elsewhere ? 0 : 1;
+    }
 
     /// <summary>
     /// Kutudan (ya da yalnızca sekmesinden, yalnızca bir öğesinden) kaldırınca masaüstüne dönecek taşınmış öğe sayısı (başka
@@ -132,22 +159,26 @@ internal static class BoxMover
         (IsMoved(path) || HidesFromFences) && !BoxPlan.HeldElsewhere(Launchers.All(AppHost.Settings), path);
 
     /// <summary>Öğe menüsü için öğenin durumu (diske bakmaz: masaüstünün anlık görüntüsünden).</summary>
-    public static BoxItemState ItemState(string path, bool missing)
+    public static BoxItemState ItemState(string path, bool missing) => ItemState(path, missing, out _);
+
+    /// <param name="decision">Masaüstündeki öğe için taşıma kararı (<see cref="BoxLinkReason.UsedFolder"/>: kuralın klasörü).</param>
+    public static BoxItemState ItemState(string path, bool missing, out BoxLinkReason decision)
     {
         var moved = IsMoved(path);
-        var decision = MovesFiles && !moved && !missing && !TileItemPath.IsShellObject(path)
-            ? BoxPlan.Decide(path, SnapshotAttributes()(path), AppHost.DesktopDirectory, AppHost.DesktopDirectories.Skip(1), IncludePublic)
+        // Elle kaldırma anahtar kapalıyken de çalışır; yalnızca bölmeler masaüstünü yönetirken ve anahtar açıkken öğe zaten
+        // bölmelerde görünmez.
+        var canMove = !HidesFromFences;
+        decision = canMove && !moved && !missing && !TileItemPath.IsShellObject(path)
+            ? BoxPlan.Decide(path, SnapshotAttributes()(path), AppHost.DesktopDirectory, AppHost.DesktopDirectories.Skip(1), IncludePublic, Kept())
             : BoxLinkReason.NotOnDesktop;
-        return BoxChoices.StateOf(moved, missing, MovesFiles, decision, PackageInfo.IsPackaged);
+        return BoxChoices.StateOf(moved, missing, canMove, decision, PackageInfo.IsPackaged);
     }
 
     /// <summary>Bırakılanlar kutuya girince masaüstünden kalkar mı (bırakma kaplaması; yalnızca metin karşılaştırır)?</summary>
     public static BoxDropEffect DropEffect(IEnumerable<string> paths)
     {
         if (!On) return BoxDropEffect.None;
-        var attributes = SnapshotAttributes();
-        return BoxChoices.DropEffect(paths, On, AppHost.Settings.FencesReplaceIcons, Context(IncludePublic),
-            path => attributes(path) is { } a && (a & FileAttributes.Directory) != 0);
+        return BoxChoices.DropEffect(paths, On, AppHost.Settings.FencesReplaceIcons, Context(IncludePublic));
     }
 
     private static bool IsRing(string? boxId) =>
@@ -270,22 +301,24 @@ internal static class BoxMover
     /// </summary>
     /// <param name="attributes">Eklenenlerin öznitelikleri (eklenirken arka planda okunan; masaüstünde olmayanlar için yok).</param>
     /// <param name="near">Soruların açılacağı yer (widget'ın ortası).</param>
-    public static void Added(WidgetConfig box, IReadOnlyList<string> added, LauncherTab tab, IReadOnlyDictionary<string, FileAttributes?> attributes,
+    /// <param name="tab">Öğelerin eklendiği sekme; klasör bölmesinde (klasörü gösterdiği öğedir) null.</param>
+    public static void Added(WidgetConfig box, IReadOnlyList<string> added, LauncherTab? tab, IReadOnlyDictionary<string, FileAttributes?> attributes,
         NativeMethods.POINT? near)
     {
         if (added.Count == 0 || AppHost.BoxMoves is null) return;
         var settings = AppHost.Settings;
         FileAttributes? Attributes(string path) => attributes.TryGetValue(path, out var a) ? a : null;
         var ring = WidgetVariants.Is(box, WidgetVariants.Ring);
+        var panel = Launchers.IsFolderPanel(box);
         if (!On)
         {
             // Ortak masaüstü izni bu soruda sayılmaz (o ayrıca sorulur); Store sürümü ortak masaüstündekileri yalnızca bölme kipinde
             // (dosyaya dokunmadan) kutuya alabilir.
             var anyContext = new BoxContext(AppHost.DesktopDirectory, AppHost.DesktopDirectories.Skip(1).ToList(),
-                IncludePublic: !PackageInfo.IsPackaged || AppHost.Settings.FencesReplaceIcons);
+                IncludePublic: !PackageInfo.IsPackaged || AppHost.Settings.FencesReplaceIcons, Kept());
             if (!BoxChoices.AskSwitch(BoxChoices.Asked(settings), On, added, Attributes, anyContext)) return;
             var first = added.First(p => BoxChoices.AskSwitch(false, false, [p], Attributes, anyContext));
-            var yes = Confirm.Ask(null, L.T("Masaüstündeki simge de kalksın mı?"), ConsentText(ring, TileItem.DisplayName(first)),
+            var yes = Confirm.Ask(null, L.T("Masaüstündeki öğe de kalksın mı?"), ConsentText(panel ? 2 : ring ? 1 : 0, TileItem.DisplayName(first)),
                 L.T("Evet, kalksın"), danger: false, cancelText: L.T("Hayır, kalsın"), near: near);
             settings.BoxLeaveAsked = true;
             if (!yes)
@@ -295,14 +328,14 @@ internal static class BoxMover
             }
             SetOn(true);
             // Soru açıkken kutu kaldırılmış olabilir.
-            if (Launchers.Find(settings, box.Id) is null) return;
+            if (Launchers.FindHolder(settings, box.Id) is null) return;
         }
 
         if (HidesFromFences)
         {
             var hidden = added.Where(p => !TileItemPath.IsShellObject(p) && BoxPlan.IsDirectlyIn(p, AppHost.DesktopDirectories)).ToList();
-            if (hidden.Count > 0) NotifyHidden(box.Id, tab, hidden, ring);
-            MatchAppShortcuts(box, added, near);
+            if (hidden.Count > 0 && tab is not null) NotifyHidden(box.Id, tab, hidden, ring);
+            if (!panel) MatchAppShortcuts(box, added, near);
             return;
         }
         if (!MovesFiles) return;
@@ -334,18 +367,46 @@ internal static class BoxMover
             }
         }
         var paths = added.ToList();
-        Enqueue(() => ClaimJob([new ClaimBatch(box.Id, tab, paths)], notify: true, justAdded: true, interactive: true,
+        // Kutuya az önce eklenenlerin "Geri al"ı onları kutudan da çıkarır; klasör bölmesinde yalnızca klasör masaüstüne döner.
+        Enqueue(() => ClaimJob([new ClaimBatch(box.Id, tab, paths)], notify: true, justAdded: tab is not null, interactive: true,
             includePublic: includePublic, publicMoved: publicMoved));
-        MatchAppShortcuts(box, added, near);
+        if (!panel) MatchAppShortcuts(box, added, near);
     }
 
-    /// <summary>İlk sorunun metni: kutu ya da halka, dosya taşınır ya da (bölme kipinde) yalnızca bölmelerden kalkar.</summary>
-    private static string ConsentText(bool ring, string name) => (ring, AppHost.Settings.FencesReplaceIcons) switch
+    /// <summary>
+    /// Klasör bölmesi masaüstündeki bir klasörü göstermeye başladı (yeni bölme ya da kaynağı değişti): önceki klasörü (artık
+    /// hiçbir widget'ta değilse) masaüstüne döner; anahtar açıksa yeni klasör masaüstünden kalkar (kutuya eklenen öğe gibi:
+    /// kapalıyken ve sorulmadıysa bir kez sorulur). Arayüz iş parçacığında; masaüstünün anlık görüntüsünden (diske bakmaz).
+    /// </summary>
+    public static void PanelShows(WidgetConfig panel, NativeMethods.POINT? near)
     {
-        (false, false) => L.F("\"{0}\" kutuya eklendi. İstersen masaüstünden kalkar: silinmez, {1} klasörüne konur ve kutudan açılır. Kutudan çıkarınca masaüstüne geri döner. Bundan sonra eklediğin simgeler için de böyle olur.", name, Root),
-        (true, false) => L.F("\"{0}\" halkaya eklendi. İstersen masaüstünden kalkar: silinmez, {1} klasörüne konur ve halkadan açılır. Halkadan çıkarınca masaüstüne geri döner. Bundan sonra eklediğin simgeler için de böyle olur.", name, Root),
-        (false, true) => L.F("\"{0}\" kutuya eklendi. İstersen bölmelerde görünmez, yalnızca kutuda durur; dosyaya dokunulmaz. Kutudan çıkarınca bölmede yeniden görünür. Bundan sonra eklediğin simgeler için de böyle olur.", name),
-        (true, true) => L.F("\"{0}\" halkaya eklendi. İstersen bölmelerde görünmez, yalnızca halkada durur; dosyaya dokunulmaz. Halkadan çıkarınca bölmede yeniden görünür. Bundan sonra eklediğin simgeler için de böyle olur.", name),
+        if (AppHost.BoxMoves is null) return;
+        AppHost.RefreshPinnedPaths();
+        Reconcile(interactive: true);
+        if (Launchers.PanelPath(panel, Desktop) is not { } path || !BoxPlan.IsDirectlyIn(path, [Desktop]) || IsMoved(path)) return;
+        // Bölme klasörü adıyla (Türkçe harflerden bağımsız) bulur: masaüstündeki gerçek yolu kullan.
+        var actual = AppHost.Snapshots.Find(Desktop) is { State: SnapshotState.Ready } snapshot
+            ? snapshot.Entries.FirstOrDefault(e => e.IsDirectory && FolderName.Equal(e.Name, BoxPlan.NameOf(path)))?.Path ?? path
+            : path;
+        // Kuralın klasörü ya da halka komutunun yolu masaüstünde kalır (sessizce; Düzenle paneli nedenini yazar).
+        if (Kept()(actual)) return;
+        var attributes = SnapshotAttributes();
+        Added(panel, [actual], tab: null, new Dictionary<string, FileAttributes?>(StringComparer.OrdinalIgnoreCase) { [actual] = attributes(actual) },
+            near);
+    }
+
+    /// <summary>
+    /// İlk sorunun metni: kutu (0), halka (1) ya da klasör bölmesi (2); dosya taşınır ya da (bölme kipinde) yalnızca bölmelerden
+    /// kalkar.
+    /// </summary>
+    private static string ConsentText(int kind, string name) => (kind, AppHost.Settings.FencesReplaceIcons) switch
+    {
+        (0, false) => L.F("\"{0}\" kutuya eklendi. İstersen masaüstünden kalkar: silinmez, {1} klasörüne konur ve kutudan açılır. Kutudan çıkarınca masaüstüne geri döner. Bundan sonra widget'lara koyduğun öğeler için de böyle olur.", name, Root),
+        (1, false) => L.F("\"{0}\" halkaya eklendi. İstersen masaüstünden kalkar: silinmez, {1} klasörüne konur ve halkadan açılır. Halkadan çıkarınca masaüstüne geri döner. Bundan sonra widget'lara koyduğun öğeler için de böyle olur.", name, Root),
+        (_, false) => L.F("\"{0}\" klasörü bölmede. İstersen masaüstünden kalkar: silinmez, {1} klasörüne konur ve bölmede görünmeye devam eder. Bölmeyi kaldırınca masaüstüne geri döner. Bundan sonra widget'lara koyduğun öğeler için de böyle olur.", name, Root),
+        (0, true) => L.F("\"{0}\" kutuya eklendi. İstersen bölmelerde görünmez, yalnızca kutuda durur; dosyaya dokunulmaz. Kutudan çıkarınca bölmede yeniden görünür. Bundan sonra widget'lara koyduğun öğeler için de böyle olur.", name),
+        (1, true) => L.F("\"{0}\" halkaya eklendi. İstersen bölmelerde görünmez, yalnızca halkada durur; dosyaya dokunulmaz. Halkadan çıkarınca bölmede yeniden görünür. Bundan sonra widget'lara koyduğun öğeler için de böyle olur.", name),
+        _ => L.F("\"{0}\" klasörü bölmede. İstersen masaüstü bölmelerinde görünmez, yalnızca kendi bölmesinde durur; dosyaya dokunulmaz. Bundan sonra widget'lara koyduğun öğeler için de böyle olur.", name),
     };
 
     /// <summary>Bölme kipinde eklenenler: bölmelerden kalktı ("Geri al" onları kutudan çıkarır: bölmede yeniden görünürler).</summary>
@@ -363,15 +424,28 @@ internal static class BoxMover
     }
 
     /// <summary>
-    /// İstisna durumundaki öğe ("Masaüstünden kaldır" öğe menüsünde): masaüstünden kalkar, kutuda durur. asAdmin: herkesin
-    /// masaüstündeki öğe için tek seferlik yönetici onayı (ayar değişmez).
+    /// "Masaüstünden kaldır" (kutu ve halka öğe menüsü, klasör bölmesinin Düzenle paneli): masaüstündeki öğe masaüstünden kalkar,
+    /// widget'ta durur. Anahtar kapalıyken de çalışır (tek tek kaldırma); kayıt anahtarla taşınanlarınki gibidir (açılışlardan
+    /// sonra da kalır; anahtarı kapatmak ya da "Masaüstüne geri koy" geri koyar). asAdmin: herkesin masaüstündeki öğe için tek
+    /// seferlik yönetici onayı (ayar değişmez).
     /// </summary>
     public static void LeaveDesktop(WidgetConfig box, string path, LauncherTab? tab, bool asAdmin)
     {
-        if (!MovesFiles) return;
+        if (HidesFromFences) return;
         var boxId = box.Id;
         Enqueue(() => ClaimJob([new ClaimBatch(boxId, tab, [path])], notify: true, justAdded: false, interactive: true,
-            includePublic: asAdmin ? true : null));
+            includePublic: asAdmin ? true : null, manual: true));
+    }
+
+    /// <summary>
+    /// "Masaüstüne geri koy" (kutu ve halka öğe menüsü, klasör bölmesinin Düzenle paneli): masaüstünden kalkmış öğe masaüstüne
+    /// döner, widget'ta kalır (widget masaüstündeki yolu gösterir). Bildirimdeki "Geri al" onu yeniden kaldırır. Anahtar açıkken
+    /// de öğe masaüstünde kalır (yalnızca anahtarı yeniden açmak ya da "Masaüstünden kaldır" kaldırır).
+    /// </summary>
+    public static void PutBack(string path)
+    {
+        Enqueue(() => ReturnJob(records => records.Where(r => r.Active && string.Equals(r.Current, path, StringComparison.OrdinalIgnoreCase)).ToList(),
+            reclaim: false, interactive: true, ReturnNotice.All, keepInBoxes: true, undo: back => ReclaimPaths(back, manual: true)));
     }
 
     // ---------------------------------------------------------------- taşıma
@@ -412,10 +486,12 @@ internal static class BoxMover
     }
 
     /// <param name="automatic">Kendiliğinden yeniden deneme (açık olduğu için taşınamayanlar): zamanlı deneme sınırlıdır.</param>
+    /// <param name="manual">Kullanıcı bu öğe için istedi ("Masaüstünden kaldır", onun "Geri al"ı): anahtar kapalıyken de taşınır
+    /// (bölmeler masaüstünü yönetirken de: Windows simgeleri gizli olsa da dosya masaüstünden kalkar).</param>
     private static async Task ClaimJob(List<ClaimBatch> batches, bool notify, bool justAdded, bool interactive, bool automatic = false,
-        bool? includePublic = null, Action<int>? publicMoved = null)
+        bool? includePublic = null, Action<int>? publicMoved = null, bool manual = false)
     {
-        if (!MovesFiles)
+        if (!MovesFiles && !manual)
         {
             publicMoved?.Invoke(0);
             return;
@@ -424,12 +500,12 @@ internal static class BoxMover
         var root = Root;
         var inputs = new List<ClaimInput>();
         var tabs = new Dictionary<string, LauncherTab?>(StringComparer.Ordinal);
-        var everywhere = Launchers.Referenced(settings);
+        var everywhere = Launchers.Held(settings, Desktop);
         foreach (var batch in batches)
         {
-            // Kutu bu arada kaldırıldıysa ya da öğe kutudan çıkarıldıysa taşınmaz (kutu kimlikle bulunur: geri getirilen kopya da).
-            if (Launchers.Find(settings, batch.BoxId) is not { } box) continue;
-            var referenced = BoxPlan.Referenced([box]);
+            // Widget bu arada kaldırıldıysa ya da öğe ondan çıkarıldıysa taşınmaz (kimlikle bulunur: geri getirilen kopya da).
+            if (Launchers.FindHolder(settings, batch.BoxId) is not { } box) continue;
+            var referenced = Launchers.HeldBy(box, Desktop);
             // Uygulamanın kısayolu kutuda değildir: uygulama hâlâ kutudaysa ve kısayol hiçbir kutuda değilse taşınır.
             var wanted = batch.ForItem is { } forItem
                 ? referenced.Contains(forItem)
@@ -442,7 +518,7 @@ internal static class BoxMover
             box.BoxFolder = !string.IsNullOrWhiteSpace(box.BoxFolder)
                 ? BoxPlan.FolderNameFor(box.BoxFolder)
                 : BoxPlan.UniqueFolderName(BoxPlan.FolderNameFor(BoxPlan.FolderTitleOf(box)),
-                    Launchers.All(settings).Where(w => w.Id != box.Id).Select(w => w.BoxFolder));
+                    Launchers.Holders(settings).Where(w => w.Id != box.Id).Select(w => w.BoxFolder));
             var folder = Path.Combine(root, box.BoxFolder);
             // Klasörü biz açıyoruz; masaüstünün içindeyse "simge ver" balonu çıkmasın (olağan durumda masaüstünün yanında).
             if (AppHost.DesktopDirectories.Any(d => IsUnder(folder, d))) AppHost.MarkQuietFolder(folder);
@@ -461,30 +537,30 @@ internal static class BoxMover
             engine.Claim(BoxPlan.PlanClaims(inputs, Disk.Attributes, context, Disk.Exists), allowElevation: interactive));
 
         var moved = outcomes.Where(o => o.Moved).ToList();
-        if (moved.Count > 0) Launchers.ReplacePaths(settings, moved.Select(o => (o.Step.Original, o.Current!, false)).ToList());
+        if (moved.Count > 0) ApplyPathChanges(moved.Select(o => (o.Step.Original, o.Current!)).ToList());
         var retryChanged = NoteRetries(outcomes);
         if (moved.Count > 0 || retryChanged) AppHost.SaveSettings();
         if (moved.Count > 0)
         {
-            AppHost.RefreshPinnedPaths();
             Changed?.Invoke();
             RefreshRootState();
             await BreadcrumbsAsync();
         }
         publicMoved?.Invoke(moved.Count(o => o.Step.OnPublic));
         if (outcomes.Any(o => o.Failure is BoxFailure.Locked or BoxFailure.Other)) ScheduleClaimRetry(automatic);
-        if (notify) NotifyClaimed(outcomes, justAdded, tabs);
+        if (notify) NotifyClaimed(outcomes, justAdded, tabs, manual);
     }
 
-    // Bu oturumda söylendi mi: klasörler taşınmaz; Store sürümü ortak masaüstündekileri taşımaz.
-    private static bool _folderNoticeShown;
+    // Bu oturumda söylendi mi: Store sürümü ortak masaüstündekileri taşımaz.
     private static bool _storePublicShown;
 
-    private static void NotifyClaimed(List<ClaimOutcome> outcomes, bool justAdded, IReadOnlyDictionary<string, LauncherTab?> tabs)
+    private static void NotifyClaimed(List<ClaimOutcome> outcomes, bool justAdded, IReadOnlyDictionary<string, LauncherTab?> tabs, bool manual)
     {
         var moved = outcomes.Where(o => o.Moved).ToList();
         var failed = outcomes.Where(o => !o.Moved && o.Failure != BoxFailure.None).ToList();
-        var folders = outcomes.Where(o => o.Step.Reason == BoxLinkReason.Folder).ToList();
+        // Masaüstünde kalması gereken öğe (kuralın klasörü, halka komutunun yolu) yalnızca kullanıcı onu istediyse söylenir
+        // (başlangıç bölmeleri, anahtarı açmak sessizce atlar; Düzenle paneli nedenini yazar).
+        var kept = manual ? outcomes.Where(o => o.Step.Reason == BoxLinkReason.UsedFolder).ToList() : [];
         // Store sürümü ortak masaüstündekileri hiç taşımaz: oturumda bir kez söylenir. Öbür sürümlerde soru sorulmuştu ya da
         // kullanıcı "Masaüstünde kalsın" dedi: söylenmez (öğe menüsü "Masaüstünden kaldır (yönetici izni)" sunar).
         var storePublic = PackageInfo.IsPackaged && !_storePublicShown
@@ -497,6 +573,7 @@ internal static class BoxMover
             var name = TileItem.DisplayName(moved[0].Step.Original);
             parts.Add(moved.Count > 1 ? L.P(moved.Count, "{0} simge masaüstünden kalktı.")
                 : IsRing(moved[0].Step.BoxId) ? L.F("\"{0}\" masaüstünden kalktı, halkada duruyor.", name)
+                : IsPanel(moved[0].Step.BoxId) ? L.F("\"{0}\" masaüstünden kalktı, bölmede duruyor.", name)
                 : L.F("\"{0}\" masaüstünden kalktı, kutuda duruyor.", name));
         }
         if (failed.Count > 0)
@@ -504,20 +581,19 @@ internal static class BoxMover
             var first = failed[0];
             parts.Add(failed.Count > 1
                 ? L.P(failed.Count, "{0} öğe taşınamadı (kullanımda ya da izin yok); kutuya bağlantı olarak eklendi.")
+                : IsPanel(first.Step.BoxId)
+                    ? first.Failure == BoxFailure.Locked
+                        ? L.F("\"{0}\" içindeki bir dosya açık olduğu için masaüstünden kalkamadı; sonra yeniden denenecek.", TileItem.DisplayName(first.Step.Original))
+                        : L.F("\"{0}\" masaüstünden kalkamadı ({1}); masaüstünde duruyor.", TileItem.DisplayName(first.Step.Original), BoxChoices.FailureText(first.Failure))
                 : first.Failure == BoxFailure.Locked
                     ? IsRing(first.Step.BoxId)
                         ? L.F("\"{0}\" açık olduğu için masaüstünden kalkamadı; halkaya eklendi, sonra yeniden denenecek.", TileItem.DisplayName(first.Step.Original))
                         : L.F("\"{0}\" açık olduğu için masaüstünden kalkamadı; kutuya eklendi, sonra yeniden denenecek.", TileItem.DisplayName(first.Step.Original))
                     : L.F("\"{0}\" taşınamadı ({1}); kutuya bağlantı olarak eklendi.", TileItem.DisplayName(first.Step.Original), BoxChoices.FailureText(first.Failure)));
         }
-        if (folders.Count > 0 && !_folderNoticeShown)
-        {
-            _folderNoticeShown = true;
-            var name = TileItem.DisplayName(folders[0].Step.Original);
-            parts.Add(IsRing(folders[0].Step.BoxId)
-                ? L.F("Klasörler masaüstünden kalkmaz; \"{0}\" halkada kısayol olarak duruyor.", name)
-                : L.F("Klasörler masaüstünden kalkmaz; \"{0}\" kutuda kısayol olarak duruyor.", name));
-        }
+        if (kept.Count > 0)
+            parts.Add(L.F("\"{0}\" bir otomatik taşıma kuralının klasörü ya da bir halka komutu onu kullanıyor; bozulmasın diye masaüstünde kalıyor.",
+                TileItem.DisplayName(kept[0].Step.Original)));
         if (storePublic is not null)
         {
             _storePublicShown = true;
@@ -539,7 +615,7 @@ internal static class BoxMover
             // Açık olan dosya kapatılınca (ya da izin verilince) yeniden denenebilir.
             var batches = failed.GroupBy(o => (o.Step.BoxId, o.Step.ForItem))
                 .Select(g => new ClaimBatch(g.Key.BoxId, tabs.GetValueOrDefault(g.Key.BoxId), g.Select(o => o.Step.Original).ToList(), g.Key.ForItem)).ToList();
-            choices.Add(new NoticeChoice(L.T("Tekrar dene"), () => Enqueue(() => ClaimJob(batches, notify: true, justAdded, interactive: true))));
+            choices.Add(new NoticeChoice(L.T("Tekrar dene"), () => Enqueue(() => ClaimJob(batches, notify: true, justAdded, interactive: true, manual: manual))));
         }
         if (storePublic is not null)
             choices.Add(new NoticeChoice(L.T("Bölmelerde topla"), () => DesktopModes.Set(IconMode.FencesOnly, near: null, owner: null)));
@@ -601,9 +677,16 @@ internal static class BoxMover
     /// </summary>
     private static Dictionary<string, string> _appShortcuts = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Masaüstü bölmelerinin göstermediği yollar (bölme kipinde; bkz. <see cref="BoxPlan.FenceExclusions"/>).</summary>
-    public static HashSet<string> FenceExclusions() =>
-        BoxPlan.FenceExclusions(Launchers.All(AppHost.Settings), AppHost.DesktopDirectories, _appShortcuts);
+    /// <summary>
+    /// Masaüstü bölmelerinin göstermediği yollar (bölme kipinde; bkz. <see cref="BoxPlan.FenceExclusions"/>): klasör bölmesinin
+    /// gösterdiği masaüstü klasörü de (kendi bölmesinde görünür).
+    /// </summary>
+    public static HashSet<string> FenceExclusions()
+    {
+        var set = BoxPlan.FenceExclusions(Launchers.All(AppHost.Settings), AppHost.DesktopDirectories, _appShortcuts);
+        set.UnionWith(Launchers.HeldDesktopPaths(AppHost.Settings, AppHost.DesktopDirectories));
+        return set;
+    }
 
     /// <summary>Masaüstündeki aday kısayollar (anlık görüntüden; kutuda olanlar ve zaten gizlenenler hariç).</summary>
     private static List<string> ShortcutCandidates()
@@ -778,7 +861,7 @@ internal static class BoxMover
         var batches = new Dictionary<string, ClaimBatch>(StringComparer.Ordinal);
         foreach (var path in list)
         {
-            if (Launchers.All(settings).FirstOrDefault(b => BoxPlan.Referenced([b]).Contains(path)) is not { } box) continue;
+            if (Launchers.Holders(settings).FirstOrDefault(b => Launchers.HeldBy(b, Desktop).Contains(path)) is not { } box) continue;
             left.Add(path);
             if (!batches.TryGetValue(box.Id, out var batch)) batches[box.Id] = batch = new ClaimBatch(box.Id, null, []);
             batch.Paths.Add(path);
@@ -810,17 +893,21 @@ internal static class BoxMover
     /// </summary>
     public static void ReturnAll(Action<List<string>>? undo = null) =>
         Enqueue(() => ReturnJob(records => records.Where(r => r.Active).ToList(), reclaim: false, interactive: true, ReturnNotice.All,
-            keepInBoxes: true, undo: undo ?? ReclaimPaths));
+            keepInBoxes: true, undo: undo ?? (paths => ReclaimPaths(paths))));
 
-    /// <summary>Masaüstündeki bu yolları gösteren kutuların öğelerini yeniden kutu klasörlerine taşır ("Geri al").</summary>
-    internal static void ReclaimPaths(List<string> paths)
+    /// <summary>
+    /// Masaüstündeki bu yolları gösteren widget'ların (kutu, halka, klasör bölmesi) öğelerini yeniden kutu klasörlerine taşır
+    /// ("Geri al"). manual: "Masaüstüne geri koy"un "Geri al"ı (anahtar kapalıyken de).
+    /// </summary>
+    internal static void ReclaimPaths(List<string> paths, bool manual = false)
     {
-        if (!MovesFiles || paths.Count == 0) return;
+        if ((!MovesFiles && !manual) || paths.Count == 0) return;
         // Kutudaki uygulama yüzünden kalkmış kısayollar da (kutuda değiller; kayıtlarından bulunur) uygulamanın kutusuna döner.
-        var batches = BoxPlan.ReclaimBatches(paths, Launchers.All(AppHost.Settings).ToList(), AppHost.BoxMoves.Snapshot())
+        var batches = BoxPlan.ReclaimBatches(paths, Launchers.Holders(AppHost.Settings).ToList(), AppHost.BoxMoves.Snapshot(),
+                box => Launchers.HeldBy(box, Desktop))
             .Select(b => new ClaimBatch(b.BoxId, null, b.Paths, b.ForItem)).ToList();
         if (batches.Count == 0) return;
-        Enqueue(() => ClaimJob(batches, notify: false, justAdded: false, interactive: true));
+        Enqueue(() => ClaimJob(batches, notify: false, justAdded: false, interactive: true, manual: manual));
     }
 
     /// <summary>Kayıtları kimlikle yeniden dener ("Tekrar dene", "Geri koy", "Benim masaüstüme koy", kendiliğinden yeniden deneme).</summary>
@@ -909,7 +996,7 @@ internal static class BoxMover
         var records = log.Snapshot();
         if (records.Count == 0) return;
         var settings = AppHost.Settings;
-        var referenced = Launchers.Referenced(settings);
+        var referenced = Launchers.Held(settings, Desktop);
         var journal = AppHost.Journal;
         var organizer = AppHost.Organizer;
         // Geri konan öğe masaüstünden bir kuralla taşınmışsa (ör. önceki sürümde) kutu onu geçmişten bulur.
@@ -939,12 +1026,7 @@ internal static class BoxMover
         var request = Request(interactive, reclaim: true);
         var outcomes = plan.Return.Count > 0 ? await Task.Run(() => engine.Return(plan.Return, request)) : [];
 
-        var changes = plan.Remap.Select(r => (r.From, r.To, false)).ToList();
-        if (Launchers.ReplacePaths(settings, changes))
-        {
-            AppHost.SaveSettings();
-            AppHost.RefreshPinnedPaths();
-        }
+        ApplyPathChanges(plan.Remap.Select(r => (r.From, r.To)).ToList());
         ApplyReturns(outcomes);
         if (outcomes.Count == 0 && (plan.Remap.Count > 0 || plan.Close.Count > 0))
         {
@@ -957,8 +1039,8 @@ internal static class BoxMover
         // Kutu geri geldi (Geri al, kayıtlı düzen): masaüstüne dönen öğeleri dosyalar taşınıyorsa yeniden kutuya taşı.
         var reclaim = plan.Remap.Where(r => r.Reclaim).Select(r => r.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (reclaim.Count == 0 || !MovesFiles) return;
-        var items = Launchers.All(settings)
-            .Select(box => (box, BoxPlan.Referenced([box]).Where(reclaim.Contains).ToList()))
+        var items = Launchers.Holders(settings)
+            .Select(box => (box, Launchers.HeldBy(box, Desktop).Where(reclaim.Contains).ToList()))
             .Where(x => x.Item2.Count > 0).ToList();
         ClaimMany(items, notify: false, interactive: interactive);
     }
@@ -988,14 +1070,33 @@ internal static class BoxMover
     {
         if (outcomes.Count == 0) return;
         // Hâlâ kutuda duruyorsa kutu masaüstündeki yolu göstersin.
-        var changes = outcomes.Where(o => o.OnDesktop && o.Path is not null).Select(o => (o.Record.Current, o.Path!, false)).ToList();
-        if (Launchers.ReplacePaths(AppHost.Settings, changes))
-        {
-            AppHost.SaveSettings();
-            AppHost.RefreshPinnedPaths();
-        }
+        ApplyPathChanges(outcomes.Where(o => o.OnDesktop && o.Path is not null).Select(o => (o.Record.Current, o.Path!)).ToList());
         Changed?.Invoke();
         RefreshRootState();
+    }
+
+    /// <summary>
+    /// Masaüstünden kalkan ya da masaüstüne dönen öğelerin yollarını widget'larda değiştirir (<see cref="Launchers.ReplaceHeld"/>:
+    /// kutu ve halka öğeleri, klasör bölmesi ve içindeki yollar; klasörde altındaki yollar da) ve simge verilmiş klasörlerin
+    /// kaydını günceller ("Klasör simgelerinin hepsini kaldır" onları yeni yerinde de bulsun). Değiştiyse kaydeder.
+    /// </summary>
+    private static void ApplyPathChanges(IReadOnlyCollection<(string From, string To)> moves)
+    {
+        if (moves.Count == 0) return;
+        var settings = AppHost.Settings;
+        // Dosyanın altında yol olmaz: hepsi klasör gibi eşlenir (taşınan klasörün içindeki yolları gösterenler de izlesin).
+        var changed = Launchers.ReplaceHeld(settings, moves.Select(m => (m.From, m.To, true)).ToList(), Desktop);
+        foreach (var (from, to) in moves)
+        {
+            if (FolderIconLog.Rename(settings.IconFolders, from, to, isDirectory: true) is var icons && !ReferenceEquals(icons, settings.IconFolders))
+            {
+                settings.IconFolders = icons;
+                changed = true;
+            }
+        }
+        if (!changed) return;
+        AppHost.SaveSettings();
+        AppHost.RefreshPinnedPaths();
     }
 
     // Arka plandaki uzlaştırmanın bu oturumda söylediği sorunlar (aynı kayıt için bir kez) ve ortak masaüstü sorusu.
@@ -1127,11 +1228,7 @@ internal static class BoxMover
             return moved;
         });
         if (done.Count == 0) return;
-        if (Launchers.ReplacePaths(AppHost.Settings, done.Select(m => (m.From, m.To, false)).ToList()))
-        {
-            AppHost.SaveSettings();
-            AppHost.RefreshPinnedPaths();
-        }
+        ApplyPathChanges(done.Select(m => (m.From, m.To)).ToList());
         Changed?.Invoke();
         Notice.Show(L.F("\"{0}\" herkesin masaüstüne kondu.", TileItem.DisplayName(done[0].To)), NoticeKind.Success);
     });
@@ -1175,7 +1272,7 @@ internal static class BoxMover
             if (source is not null && LauncherEntries.IndexOfPath(source, path) is >= 0 and var index) removed = LauncherEdits.Take(box, source, index);
         }
         // Başka kutular da gösteriyorsa masaüstündeki yolu göstersinler.
-        if (found is not null) Launchers.ReplacePaths(settings, [(path, found, false)]);
+        if (found is not null) ApplyPathChanges([(path, found)]);
         AppHost.SaveSettings();
         AppHost.RefreshPinnedPaths();
         Changed?.Invoke();

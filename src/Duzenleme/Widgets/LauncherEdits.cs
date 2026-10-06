@@ -5,7 +5,7 @@ namespace Duzenleme.Widgets;
 
 /// <summary>
 /// Kısayol kutusunun (<see cref="LauncherView"/>) ve halka menünün (<see cref="RingWidgetView"/>) ortak öğe düzenlemeleri:
-/// ekleme (varlık denetimi arka planda; "Kutuya koyduğum simgeler masaüstünden kalksın" için <see cref="BoxMover.Added"/>:
+/// ekleme (varlık denetimi arka planda; "Widget'lara koyduğum öğeler masaüstünden kalksın" için <see cref="BoxMover.Added"/>:
 /// ilk kez sorulur, açıksa masaüstündekiler kutunun klasörüne taşınır ya da bölmelerden kalkar), çıkarma ("Geri al" için son
 /// çıkarılan tutulur; masaüstünden taşınmış öğe başka kutuda yoksa masaüstüne döner) ve başka bir widget'a sürüklenince
 /// çıkarma. Her değişiklik kaydedilir, kutudaki masaüstü dosyaları kurallardan korunur (<see cref="AppHost.RefreshPinnedPaths"/>)

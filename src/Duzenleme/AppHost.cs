@@ -932,7 +932,8 @@ public static class AppHost
     /// </summary>
     public static void RefreshPinnedPaths()
     {
-        var pinned = Launchers.PinnedDesktopPaths(Settings, DesktopDirectories);
+        // Klasör bölmelerinin masaüstündeki klasörleri de (kurallar klasör taşımaz; bölme kipinde masaüstü bölmeleri onları göstermez).
+        var pinned = Launchers.HeldDesktopPaths(Settings, DesktopDirectories);
         var before = Organizer.Pinned;
         Organizer.Pinned = pinned;
         if (before is not null && before.SetEquals(pinned)) return;
@@ -989,7 +990,7 @@ public static class AppHost
     {
         if (!Settings.FencesReplaceIcons || Widgets.CoversDesktop()) return false;
         SetFencesManageDesktop(false);
-        // "Kutuya koyduğum simgeler masaüstünden kalksın" açıksa kutudaki simgeler artık masaüstünde görünür: kalksınlar mı
+        // "Widget'lara koyduğum öğeler masaüstünden kalksın" açıksa kutudaki simgeler artık masaüstünde görünür: kalksınlar mı
         // (soru şeritte; dosyaya sorulmadan dokunulmaz).
         Views.DesktopModes.AfterFencesOff(owner: null, near: null, automatic: true);
         if (notify)

@@ -509,11 +509,11 @@ public partial class SettingsPage : Page
         LoadDesktopChoices();
     }
 
-    /// <summary>"Kutuya eklenenler masaüstünden kalkıyor." satırındaki "Değiştir": Gelişmiş ayarlar > Kutular.</summary>
+    /// <summary>Anahtarın altındaki "Ayrıntılar": Gelişmiş ayarlar > Masaüstünden kalkanlar (klasör, hepsini geri koy, alt seçenekler).</summary>
     private void BoxChange_Click(object sender, RoutedEventArgs e) => ShowView(advanced: true, scrollTo: BoxHeader);
 
     /// <summary>
-    /// "Kutuya koyduğum simgeler masaüstünden kalksın" satırı: anahtar, duruma göre açıklama (kapalı / dosyalar taşınıyor /
+    /// "Widget'lara koyduğum öğeler masaüstünden kalksın": ilk görünümdeki anahtar, duruma göre açıklama (kapalı / dosyalar taşınıyor /
     /// bölme kipinde yalnızca bölmelerden kalkıyor; OneDrive'daki masaüstünde ek uyarı), taşınanlar (dosyalar taşınırken, taşınmış
     /// öğe kaldıysa ya da NestDesk klasörü duruyorsa görünür: kayıtlar kaybolsa da klasör açılabilsin; klasörün varlığına arka
     /// planda bakılır, bkz. BoxMover.RootExists; masaüstü sonradan taşındıysa öğelerin durduğu eski klasör) ve alt anahtarlar
@@ -530,15 +530,19 @@ public partial class SettingsPage : Page
             var moved = BoxMover.MovedCount;
             var folder = BoxMover.FolderToOpen;
             BoxLeavesToggle.IsChecked = BoxMover.On;
-            BoxModeLine.Visibility = BoxMover.On ? Visibility.Visible : Visibility.Collapsed;
             BoxLeavesText.Text = DesktopModes.BoxLeavesDescription();
             BoxPanel.Visibility = BoxMover.MovesFiles || moved > 0 || BoxMover.RootExists ? Visibility.Visible : Visibility.Collapsed;
             BoxCountText.Text = moved == 0
-                ? L.F("Henüz masaüstünden kalkan simge yok. Kalkanlar {0} klasöründe durur.", folder)
-                : L.P(moved, "{0} simge kutularda; dosyalar {1} klasöründe.", folder);
+                ? L.F("Henüz masaüstünden kalkan öğe yok. Kalkanlar {0} klasöründe durur.", folder)
+                : L.P(moved, "Masaüstünden kalkan {0} öğe widget'larda duruyor; dosyalar {1} klasöründe.", folder);
             ReturnAllButton.IsEnabled = moved > 0;
             OpenBoxFolderButton.IsEnabled = moved > 0 || BoxMover.RootExists;
             BoxOptions.Visibility = BoxMover.On ? Visibility.Visible : Visibility.Collapsed;
+            BoxOptions.Margin = new Thickness(0, BoxPanel.Visibility == Visibility.Visible ? 12 : 0, 0, 0);
+            // Gelişmiş görünümün bölümü yalnızca gösterecek bir şey varken; ilk görünümdeki "Ayrıntılar" oraya götürür.
+            var details = BoxPanel.Visibility == Visibility.Visible || BoxMover.On;
+            BoxHeader.Visibility = BoxCard.Visibility = details ? Visibility.Visible : Visibility.Collapsed;
+            BoxModeLine.Visibility = details ? Visibility.Visible : Visibility.Collapsed;
             PublicBoxRow.Visibility = BoxMover.MovesFiles && !PackageInfo.IsPackaged && (!AppHost.IsTestDesktop || AppHost.TestPublicDesktop is not null)
                 ? Visibility.Visible : Visibility.Collapsed;
             PublicBoxToggle.IsChecked = s.BoxIncludesPublicDesktop;

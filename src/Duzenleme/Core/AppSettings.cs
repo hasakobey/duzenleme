@@ -534,7 +534,7 @@ public sealed class AppSettings
     public int NewWidgetHintsShown { get; set; }
 
     /// <summary>
-    /// "Kutuya koyduğum simgeler masaüstünden kalksın" (2.1'de "Kutulara eklediklerim masaüstünden kalksın"): kutuya ya da
+    /// "Widget'lara koyduğum öğeler masaüstünden kalksın" (2.1'de "Kutulara eklediklerim masaüstünden kalksın"): kutuya ya da
     /// halkaya konan masaüstü simgesi masaüstünden kalkar, çıkarınca geri gelir. Windows simgeleri görünürken dosya görünür bir
     /// klasöre (masaüstünün yanındaki NestDesk klasörü) taşınır; bölmeler masaüstünü yönetirken (FencesReplaceIcons) dosyaya
     /// dokunulmaz, masaüstü bölmeleri onu göstermez. 2.2'den beri bölme kipi bu ayarı kapatmaz (iki ayrı seçim; 2.1 ikisi de
@@ -654,7 +654,7 @@ public sealed class AppSettings
     public List<string>? BoxClaimRetry { get; set; }
 
     /// <summary>
-    /// "Kutuya koyduğum simgeler masaüstünden kalksın" soruldu mu? Kapalıyken bir masaüstü simgesi ilk kez kutuya ya da halkaya
+    /// "Widget'lara koyduğum öğeler masaüstünden kalksın" soruldu mu? Kapalıyken bir masaüstü simgesi ilk kez kutuya ya da halkaya
     /// konunca bir kez, widget'ın yanında sorulur; iki yanıt da bunu yazar. <see cref="BoxItemsLeaveDesktop"/> açıksa sorulmuş
     /// sayılır (<see cref="BoxChoices.Asked"/>).
     /// </summary>
