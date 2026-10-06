@@ -104,26 +104,25 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ToolTile" TargetType="ToggleButton">
+        <!-- Araç çipi: solda kare onay işareti, sonra simge ve ad; seçilince kenar 2 px. -->
+        <Style x:Key="ToolChip" TargetType="ToggleButton">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="Width" Value="112" />
-            <Setter Property="Height" Value="118" />
             <Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Card" CornerRadius="8" BorderThickness="1" Padding="8"
+                        <Border x:Name="Card" CornerRadius="6" BorderThickness="1" Padding="10,6"
                                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                            <Grid>
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <Border x:Name="Box" Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                        CornerRadius="3" BorderThickness="1" Background="Transparent"
+                            <StackPanel Orientation="Horizontal">
+                                <Border x:Name="Box" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" CornerRadius="3"
+                                        BorderThickness="1" Background="Transparent"
                                         BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}">
                                     <ui:SymbolIcon x:Name="Check" Symbol="Checkmark12" FontSize="12" Visibility="Hidden"
                                                    Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                                 </Border>
-                            </Grid>
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -131,7 +130,7 @@
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Card" Property="BorderThickness" Value="2" />
-                                <Setter TargetName="Card" Property="Padding" Value="7" />
+                                <Setter TargetName="Card" Property="Padding" Value="9,5" />
                                 <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                                 <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                                 <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
@@ -139,7 +138,7 @@
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Card" Property="Opacity" Value="0.55" />
-                                <Setter TargetName="Box" Property="Visibility" Value="Hidden" />
+                                <Setter TargetName="Box" Property="Visibility" Value="Collapsed" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -227,7 +226,6 @@
                 <!-- Adım 1: Bölmeler -->
                 <StackPanel x:Name="Step1">
                     <TextBlock x:Name="Step1Text" Style="{StaticResource StepText}" />
-                    <TextBlock Style="{StaticResource Question}" Text="{l:T 'Masaüstünü bölmelere ayıralım mı?'}" />
 
                     <!-- Durağan önce/sonra çizimi. -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" HorizontalAlignment="Left">
@@ -302,26 +300,15 @@
                             </DockPanel>
                             <TextBlock x:Name="FencePlan" Style="{StaticResource Muted}" Margin="0,2,0,0"
                                        AutomationProperties.AutomationId="Welcome.FencePlan" />
-                            <!-- Windows masaüstü simgeleri: Ayarlar'la aynı iki seçenek (DesktopModes). -->
-                            <StackPanel Margin="0,10,0,0" IsEnabled="{Binding IsChecked, ElementName=FencesYes}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{l:T 'Windows masaüstü simgeleri'}" VerticalAlignment="Center" Margin="0,0,12,0"
-                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                    <ComboBox x:Name="IconModeBox" MinWidth="320"
-                                              AutomationProperties.AutomationId="Welcome.IconMode"
-                                              AutomationProperties.Name="{l:T 'Windows masaüstü simgeleri'}" />
-                                </StackPanel>
-                                <TextBlock x:Name="IconModeText" Style="{StaticResource Muted}" Margin="0,4,0,0"
-                                           AutomationProperties.AutomationId="Welcome.IconModeText" />
-                                <TextBlock x:Name="FencesOnlyTip" Style="{StaticResource Muted}" Margin="0,2,0,0"
-                                           Text="{l:T 'Bu açıkken yeni klasör açmak ya da ad değiştirmek için bölmeye sağ tıkla.'}" />
-                            </StackPanel>
+                            <!-- "Evet" = simgeler yalnızca bölmelerde (DesktopModes.FencesOnly); üçlü seçim yok. -->
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                                       Text="{l:T 'Simgeler bölmelerde görünür. İstediğinde Ayarlar\'dan geri alırsın.'}" />
                         </StackPanel>
                     </RadioButton>
                     <RadioButton x:Name="FencesNo" GroupName="Fences" Style="{StaticResource ChoiceCard}"
-                                 AutomationProperties.AutomationId="Welcome.FencesNo" AutomationProperties.Name="{l:T 'Şimdilik hayır'}">
+                                 AutomationProperties.AutomationId="Welcome.FencesNo" AutomationProperties.Name="{l:T 'Hayır, simgeler kalsın'}">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource CardHeader}" Text="{l:T 'Şimdilik hayır'}" />
+                            <TextBlock Style="{StaticResource CardHeader}" Text="{l:T 'Hayır, simgeler kalsın'}" />
                             <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
                                        Text="{l:T 'Masaüstün olduğu gibi kalır. Bölmeleri sonra &quot;Widget ekle&quot;den ekleyebilirsin.'}" />
                         </StackPanel>
@@ -377,12 +364,52 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Adım 3: Araçlar ve başlangıç -->
+                <!-- Adım 3: NestDesk halkası, araçlar ve başlangıç -->
                 <StackPanel x:Name="Step3" Visibility="Collapsed">
-                    <TextBlock Style="{StaticResource StepText}"
-                               Text="{l:T 'İstediklerine tıkla. Sonra sürükleyerek yerini değiştirebilir, sağ tıklayarak ayarlayabilirsin.'}" />
-                    <WrapPanel x:Name="ToolTiles" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14" Text="{l:T 'Hiçbirini seçmezsen masaüstüne araç eklenmez.'}" />
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <!-- Halkanın durağan önizlemesi (gerçek RingView, tıklanmaz; kodla kurulur). -->
+                        <Viewbox x:Name="RingPreviewBox" Width="156" Height="156" Margin="0,0,20,0" VerticalAlignment="Top"
+                                 Stretch="Uniform" StretchDirection="DownOnly" IsHitTestVisible="False" Focusable="False" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Style="{StaticResource StepText}"
+                                       Text="{l:T 'Halkada yeni not, widget ekleme ve masaüstüne göz atma hazır. Kendi uygulamalarını sonra eklersin.'}" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource CardHeader}" Text="{l:T 'Boş masaüstüne çift tıklayınca açılsın'}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               Text="{l:T 'Halka imlecin yanında açılır; kısayol gerekmez. Simgeye çift tıklamak yine dosyayı açar.'}" />
+                                </StackPanel>
+                                <ui:ToggleSwitch x:Name="RingDoubleClickToggle" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                 AutomationProperties.AutomationId="Welcome.Ring.DoubleClick"
+                                                 AutomationProperties.Name="{l:T 'Boş masaüstüne çift tıklayınca açılsın'}" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource CardHeader}" Text="{l:T 'Bir tuşla da açılsın'}" />
+                                    <TextBlock x:Name="RingKeyText" Style="{StaticResource Muted}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                               AutomationProperties.AutomationId="Welcome.Ring.KeyText" />
+                                </StackPanel>
+                                <ui:ToggleSwitch x:Name="RingKeyToggle" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                 AutomationProperties.AutomationId="Welcome.Ring.Key"
+                                                 AutomationProperties.Name="{l:T 'Bir tuşla da açılsın'}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource Question}" Text="{l:T 'Masaüstüne ekle:'}" />
+                    <WrapPanel x:Name="ToolTiles" Margin="0,0,0,6" />
 
                     <Border Style="{StaticResource Surface}" Padding="16,12">
                         <Grid>
@@ -411,7 +438,6 @@
                         </Grid>
                     </Border>
                     <TextBlock x:Name="StartupTip" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="Collapsed" />
-                    <TextBlock x:Name="TrayInfo" Style="{StaticResource Muted}" Margin="0,14,0,0" />
                 </StackPanel>
             </Grid>
         </ScrollViewer>

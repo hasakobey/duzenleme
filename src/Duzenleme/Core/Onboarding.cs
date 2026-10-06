@@ -20,6 +20,14 @@ public sealed class WelcomeChoices
 
     /// <summary>Windows ile başlatma. null = değiştirilmez (durum bilinmiyor ya da ilk okunan durumla aynı).</summary>
     public bool? StartWithWindows { get; set; }
+
+    // 2.2 halka adımı (yalnızca çalışma zamanı; hiçbir yere yazılmaz)
+
+    /// <summary>Boş masaüstüne çift tıklama halkayı açsın (<see cref="DesktopState.DoubleClickRing"/>). Varsayılan açık.</summary>
+    public bool DoubleClickRing { get; set; } = true;
+
+    /// <summary>Halka bir kısayolla da açılsın (<c>RingShortcut.TurnOn</c>). Varsayılan kapalı (Store: kısayol atanmamış).</summary>
+    public bool RingKey { get; set; }
 }
 
 /// <summary>
@@ -144,6 +152,22 @@ public static class Onboarding
             create.Add(name);
         }
         return create;
+    }
+
+    /// <summary>
+    /// Karşılamanın halka seçimlerini ayara yazar (saf; "Bitti"de <c>WelcomeSetup.Apply</c> çağırır, kaydetmek ve çift tıklama
+    /// algılayıcısını uygulamak çağıranın işi). Çift tıklama seçildiyse "ring" yazılır; seçilmediyse yalnızca şu an halkayı
+    /// açıyorsa "otomatik"e döner (başka bir seçime dokunulmaz). Eski anahtar da yazılır (2.0'a dönülürse çift tıklama açık
+    /// kalsın). Dönüş: kısayol için ne yapılmalı: true aç, false kapat, null dokunma (yalnızca seçim şimdiki durumdan farklıysa).
+    /// </summary>
+    public static bool? ApplyRingChoices(AppSettings settings, WelcomeChoices c)
+    {
+        var current = DesktopState.DoubleClickChoice(settings.DoubleClickAction, settings.DoubleClickHidesDesktop);
+        if (c.DoubleClickRing) settings.DoubleClickAction = DesktopState.DoubleClickRing;
+        else if (current == DesktopState.DoubleClickRing) settings.DoubleClickAction = DesktopState.DoubleClickAuto;
+        if (c.DoubleClickRing || current == DesktopState.DoubleClickRing) settings.DoubleClickHidesDesktop = true;
+        var keyOn = !string.IsNullOrEmpty(settings.Hotkeys.Ring);
+        return c.RingKey == keyOn ? null : c.RingKey;
     }
 
     /// <summary>

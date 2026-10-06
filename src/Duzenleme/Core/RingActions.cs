@@ -393,9 +393,16 @@ public static class RingTargets
     public static WidgetConfig EnsureHub(AppSettings settings)
     {
         if (settings.Hub is { } hub && WidgetVariants.Is(hub, WidgetVariants.Ring)) return hub;
+        var seed = NewHub();
+        settings.Hub = seed;
+        return seed;
+    }
+
+    /// <summary>Yeni bir NestDesk halkası (ayara yazılmaz): karşılamanın önizlemesi ve <see cref="EnsureHub"/>.</summary>
+    public static WidgetConfig NewHub()
+    {
         var seed = WidgetSeeds.Create(WidgetSeeds.Ring)!;
         seed.Title = L.F("{0} halkası", AppInfo.Name);
-        settings.Hub = seed;
         return seed;
     }
 

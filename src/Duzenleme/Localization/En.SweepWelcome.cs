@@ -14,9 +14,7 @@ internal static partial class En
         new("{0} kurulumu", "{0} setup"),
         new("{0}'e hoş geldin", "Welcome to {0}"),
         new("Şimdilik atla", "Skip for now"),
-        new("Masaüstünü yeniden kuralım", "Let's set up your desktop again"),
         new("Dosyalar kendiliğinden yerine gitsin mi?", "Should files move into place on their own?"),
-        new("Masaüstüne küçük araçlar ekleyelim mi?", "Want to add some small tools to your desktop?"),
         new("Adım {0} / 3", "Step {0} of 3"),
         new("Geri", "Back"),
         new("İleri", "Next"),
@@ -29,13 +27,10 @@ internal static partial class En
             "{0} keeps your desktop tidy: it gathers icons into panels, moves new files into their folders and adds small tools like a clock and notes."),
         new("Var olan bölmelerin, widget'ların ve dosyaların silinmez; yalnızca eksikler eklenir.",
             "Your existing panels, widgets and files won't be deleted; only what's missing is added."),
-        new("Masaüstünü bölmelere ayıralım mı?", "Want to sort your desktop into panels?"),
         new("önce", "before"),
         new("sonra", "after"),
         new("Evet, bölmelere ayır", "Yes, sort into panels"),
         new("Önerilen", "Recommended"),
-        new("Bu açıkken yeni klasör açmak ya da ad değiştirmek için bölmeye sağ tıkla.",
-            "While this is on, right-click a panel to create a folder or rename something."),
         new("Masaüstün olduğu gibi kalır. Bölmeleri sonra \"Widget ekle\"den ekleyebilirsin.",
             "Your desktop stays as it is. You can add panels later from \"Add widget\"."),
 
@@ -88,9 +83,6 @@ internal static partial class En
         new("{0} klasöre", "in {0} folder", "in {0} folders"),
 
         // 3. adım: araçlar ve başlangıç
-        new("İstediklerine tıkla. Sonra sürükleyerek yerini değiştirebilir, sağ tıklayarak ayarlayabilirsin.",
-            "Click the ones you want. Later you can drag them around and right-click to change their settings."),
-        new("Hiçbirini seçmezsen masaüstüne araç eklenmez.", "If you don't pick any, no tools are added to your desktop."),
         new("Windows açılınca {0} de başlasın", "Start {0} when Windows starts"),
         new("Tepside sessizce başlar; bölmelerin, saatin ve otomatik taşıma hep hazır olur.",
             "Starts quietly in the notification area, so your panels, clock and auto-move are always ready."),
@@ -98,10 +90,6 @@ internal static partial class En
             "Portable version: the app starts from this folder. If you move the folder, turn this setting on again."),
         new("İpucu: {0} Windows ile başlamazsa masaüstü simgelerin, sen {0}'i açana dek her zamanki gibi görünür.",
             "Tip: If {0} doesn't start with Windows, your desktop icons appear as usual until you open {0}."),
-        new("{0} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için {1} tuşlarına bas ya da o simgeye sağ tıkla → Widget ekle.",
-            "{0} runs from the icon next to the clock (in the notification area). To add something new, press {1} or right-click that icon → Add widget."),
-        new("{0} saatin yanındaki simgede (tepside) çalışır. Yeni bir şey eklemek için o simgeye sağ tıkla → Widget ekle.",
-            "{0} runs from the icon next to the clock (in the notification area). To add something new, right-click that icon → Add widget."),
 
         // Karşılama uygulanırken (tepsi balonu)
         new("Bazı klasörler oluşturulamadı", "Some folders couldn't be created"),

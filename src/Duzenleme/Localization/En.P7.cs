@@ -13,7 +13,6 @@ internal static partial class En
         new("Animasyonlar", "Animations"),
 
         // Karşılama: Windows simgeleri için Ayarlar'daki üç seçenek
-        new("Windows masaüstü simgeleri", "Windows desktop icons"),
 
         // "Yeni bölme…": masaüstü dışındaki klasör (klasör portalı)
         new("Masaüstü dışındaki bir klasör", "A folder outside the desktop"),

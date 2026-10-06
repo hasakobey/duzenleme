@@ -16,7 +16,7 @@ internal enum WidgetGroup { Fence, Tool, Info }
 /// Eklenebilecek bir widget. Key: AutomationId'nin ("Add." + Key) ve karşılamadaki seçimin anahtarı. Add: widget'ı ekler
 /// (klasör açılamazsa ya da kullanıcı vazgeçerse null). Subtitle: kutucukta adın altında görünen kısa açıklama (Tip ise
 /// ekran okuyucunun yardım metni). Matches: masaüstündeki bir widget bu seçimin türünden mi? ShowInWelcome: karşılamanın 3.
-/// adımında da gösterilir (yalnızca ilk beş araç).
+/// adımında da gösterilir (Saat, Tarih, Not, Yapılacaklar, Takvim, Kısayol kutusu).
 /// </summary>
 internal sealed record WidgetChoice(string Key, string Label, SymbolRegular Icon, string Tip, WidgetGroup Group,
     Func<WidgetConfig?> Add, bool FocusAfterAdd = false, string? Subtitle = null, Func<WidgetConfig, bool>? Matches = null,
@@ -56,7 +56,8 @@ internal static class WidgetCatalog
             L.T("Uygulamaların bir halkada; tıkla ya da 1–9'a bas. İstersen kısayolla imlecin yanında açılır."), WidgetGroup.Tool,
             () => Seed(WidgetSeeds.Ring), Subtitle: L.T("Uygulamalar bir halkada"), Matches: c => WidgetVariants.Is(c, WidgetVariants.Ring)),
         new("Calendar", L.T("Takvim"), SymbolRegular.CalendarMonth24, L.T("Aylık takvim; ay ay gezinilir"), WidgetGroup.Info,
-            () => Seed(WidgetSeeds.Calendar), Subtitle: L.T("Aylık takvim"), Matches: c => WidgetVariants.Is(c, WidgetVariants.Month)),
+            () => Seed(WidgetSeeds.Calendar), Subtitle: L.T("Aylık takvim"), Matches: c => WidgetVariants.Is(c, WidgetVariants.Month),
+            ShowInWelcome: true),
         new("Countdown", L.T("Geri sayım"), SymbolRegular.CalendarStar24, L.T("Bir güne kaç gün kaldı (tatil, doğum günü…)"), WidgetGroup.Tool,
             AddCountdown, Subtitle: L.T("Önemli güne kaç gün"), Matches: c => WidgetVariants.Is(c, WidgetVariants.Countdown), AsksName: true),
         new("Timer", L.T("Zamanlayıcı"), SymbolRegular.Timer24, L.T("Geri sayan zamanlayıcı; süre dolunca haber verir. Kronometre de olur."), WidgetGroup.Tool,
@@ -109,8 +110,11 @@ internal static class WidgetCatalog
     /// <summary>"Yeni bölme…" kutucuğunun anahtarı (AutomationId "Add.NewFence"): ad, kaynak ve simge soran pencereyi açar.</summary>
     public const string NewFenceKey = "NewFence";
 
-    /// <summary>Karşılamada gösterilen araçlar (Saat, Tarih, Not, Yapılacaklar, Kısayol kutusu).</summary>
-    public static IEnumerable<WidgetChoice> WelcomeTools => Tools.Where(c => c.ShowInWelcome);
+    /// <summary>Karşılamada gösterilen araçlar, bu sırayla: Saat, Tarih, Not, Yapılacaklar, Takvim, Kısayol kutusu.</summary>
+    public static IEnumerable<WidgetChoice> WelcomeTools =>
+        Tools.Where(c => c.ShowInWelcome).OrderBy(c => Array.IndexOf(WelcomeOrder, c.Key));
+
+    private static string[] WelcomeOrder => ["Clock", "Date", "Note", "Checklist", "Calendar", "Launcher"];
 
     private static WidgetConfig? Seed(string key) => WidgetSeeds.Create(key) is { } seed ? AppHost.Widgets.AddSeed(seed) : null;
 

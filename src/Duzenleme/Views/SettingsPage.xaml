@@ -134,8 +134,8 @@
                                      AutomationProperties.AutomationId="Settings.IconsInFences" AutomationProperties.Name="{l:T 'Simgeleri bölmelerde topla'}" />
                 </Grid>
             </Border>
-            <!-- Halka menü (2.2): kısayolla imleçte açılan halka. Kısayol varsayılan olarak kapalı ve atanmamış; açarken ne yaptığı
-                 anlatılır (Widgets.RingShortcut). -->
+            <!-- Halka menü (2.2): NestDesk halkası boş masaüstüne çift tıklayınca (DoubleClickAction "ring") ve isteğe bağlı kısayolla
+                 imleçte açılır. Kısayol varsayılan olarak kapalı ve atanmamış; açarken ne yaptığı anlatılır (Widgets.RingShortcut). -->
             <Border Style="{StaticResource Row}">
                 <StackPanel>
                     <Grid>
@@ -154,6 +154,22 @@
                                    AutomationProperties.AutomationId="Settings.Ring" AutomationProperties.HelpText="{l:T 'Halka menü'}" />
                     </Grid>
                     <StackPanel x:Name="RingContent" Margin="36,12,0,0">
+                        <!-- Gelişmiş'teki "Boş masaüstüne çift tıklayınca" kutusuyla aynı ayar ("Halkayı aç"). -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource RowTitle}" FontWeight="Normal" Text="{l:T 'Boş masaüstüne çift tıklayınca açılsın'}" />
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                           Text="{l:T 'Halka imlecin yanında açılır; kısayol gerekmez. Simgeye çift tıklamak yine dosyayı açar.'}" />
+                            </StackPanel>
+                            <ui:ToggleSwitch x:Name="RingDoubleClickToggle" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                                             Checked="RingDoubleClick_Changed" Unchecked="RingDoubleClick_Changed"
+                                             AutomationProperties.AutomationId="Settings.RingDoubleClick"
+                                             AutomationProperties.Name="{l:T 'Boş masaüstüne çift tıklayınca açılsın'}" />
+                        </Grid>
                         <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -207,7 +223,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap"
-                                       Text="{l:T 'Kısayolla açılan halka, masaüstündeki halka menü widget\'ının öğelerini gösterir.'}" />
+                                       Text="{l:T 'Halkayı masaüstüne bir widget olarak da koyabilirsin.'}" />
                             <ui:Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Icon="{ui:SymbolIcon Add24}"
                                        Content="{l:T 'Halka menü ekle'}" AutomationProperties.AutomationId="Settings.RingAdd" Click="RingAdd_Click" />
                         </Grid>

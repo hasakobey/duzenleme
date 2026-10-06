@@ -623,6 +623,9 @@ public partial class SettingsPage : Page
     {
         if (_loadingDesktop || DoubleClickBox.SelectedIndex < 0) return;
         AppHost.SetDoubleClickAction(DesktopState.DoubleClickChoices[DoubleClickBox.SelectedIndex]);
+        RingPopup.Sync();
+        // Halka menü bölümündeki "Boş masaüstüne çift tıklayınca açılsın" anahtarı aynı ayarı gösterir.
+        ReloadRingAndHotkeys();
     }
 
     private void PlacementBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -829,15 +832,22 @@ public partial class SettingsPage : Page
 
     // ---- Masaüstü: halka menü ----
 
-    /// <summary>Halka menü bölümü: kısayolun durumu, açılacak halka, "tuşu bırakınca seç", halka yoksa ekleme düğmesi.</summary>
+    /// <summary>
+    /// Halka menü bölümü: halkanın nasıl açıldığı (çift tıklama, kısayol, yoksa yalnızca tepsi), açılacak halka, "tuşu bırakınca
+    /// seç", "Halkayı düzenle" (NestDesk halkası gerekirse kurulur) ve masaüstünde halka widget'ı yoksa ekleme düğmesi.
+    /// </summary>
     private void LoadRing()
     {
         var hotkey = RingShortcut.Current;
         var failure = RingShortcut.Failure;
-        RingStatus.Text = hotkey is null ? L.T("Kapalı")
-            : failure is not null ? L.F("{0} kaydedilemedi: {1}", hotkey, failure)
-            : L.F("{0} ile imlecin yanında açılır", hotkey);
+        var doubleClick = RingOpensOnDoubleClick;
+        RingStatus.Text = failure is not null && hotkey is not null ? L.F("{0} kaydedilemedi: {1}", hotkey, failure)
+            : doubleClick && hotkey is not null ? L.F("Boş masaüstüne çift tıkla ya da {0} tuşlarına bas", hotkey)
+            : doubleClick ? L.T("Boş masaüstüne çift tıklayınca açılır")
+            : hotkey is not null ? L.F("{0} ile imlecin yanında açılır", hotkey)
+            : L.T("Yalnızca tepsiden açılır");
         RingStatus.Foreground = (Brush)Application.Current.FindResource(failure is null ? "TextFillColorTertiaryBrush" : "SystemFillColorCriticalBrush");
+        RingDoubleClickToggle.IsChecked = doubleClick;
         RingToggle.IsChecked = hotkey is not null;
         RingHoldToggle.IsChecked = !AppHost.Settings.RingHoldSelectOff;
 
@@ -847,8 +857,33 @@ public partial class SettingsPage : Page
         var target = RingTargets.Pick(rings, AppHost.Settings.RingWidgetId);
         RingTargetBox.SelectedItem = choices.FirstOrDefault(c => c.Id == target?.Id);
         RingTargetRow.Visibility = rings.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
-        RingAddRow.Visibility = rings.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        RingEditRow.Visibility = rings.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        // "Halkayı düzenle" her zaman (HomeRing.Edit NestDesk halkasını gerekirse kurar); masaüstünde halka widget'ı yoksa eklenebilir.
+        RingAddRow.Visibility = RingTargets.All(AppHost.Settings.Widgets.Where(w => w is not null)).Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RingEditRow.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Boş masaüstüne çift tıklama halkayı mı açıyor (Gelişmiş'teki kutuda "Halkayı aç")?</summary>
+    private static bool RingOpensOnDoubleClick =>
+        DesktopState.DoubleClickChoice(AppHost.Settings.DoubleClickAction, AppHost.Settings.DoubleClickHidesDesktop) == DesktopState.DoubleClickRing;
+
+    /// <summary>Halka açılmadan önceki çift tıklama seçimi (bu oturumda): anahtar kapanınca ona dönülür, yoksa "otomatik".</summary>
+    private static string? _doubleClickBeforeRing;
+
+    private void RingDoubleClick_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        var on = RingDoubleClickToggle.IsChecked == true;
+        if (on == RingOpensOnDoubleClick) return;
+        if (on)
+        {
+            _doubleClickBeforeRing = DesktopState.DoubleClickChoice(AppHost.Settings.DoubleClickAction, AppHost.Settings.DoubleClickHidesDesktop);
+            AppHost.SetDoubleClickAction(DesktopState.DoubleClickRing);
+        }
+        else AppHost.SetDoubleClickAction(_doubleClickBeforeRing is { } before && before != DesktopState.DoubleClickRing ? before : DesktopState.DoubleClickAuto);
+        // Açılır halka çift tıklamayla da açılacaksa boşta önceden kurulur; artık açılmayacaksa kapanır.
+        RingPopup.Sync();
+        LoadDesktopChoices();
+        ReloadRingAndHotkeys();
     }
 
     private void RingToggle_Changed(object sender, RoutedEventArgs e)

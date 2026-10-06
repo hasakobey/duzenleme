@@ -67,7 +67,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         _ring.PixelsPerDipHint = WidgetWindow.ExpectedPixelsPerDip(config);
         // 8'den az yerli halkada sonda "+" ("Uygulama ekle"): "Uygulama seç" açılır, seçilen gösterilen halkaya eklenir.
         _ring.ShowAddSlot = true;
-        _ring.AddRequested += () => AddApps(CurrentTab, () => null);
+        _ring.AddRequested += () => AddApps(CurrentTab, () => null, pulse: true);
         _ring.SetRing(config);
         _rendered = true;
         _ring.ItemInvoked += RingRunner.RunFromWidget;
@@ -318,24 +318,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         menu.Items.Add(subTab is not null ? AddMenu(subTab, () => null)
             : AddMenu(tab, () => EntryNow(tab, slot) is >= 0 and var i ? i + 1 : null));
         menu.Items.Add(new Separator());
-        if (!sub)
-        {
-            if (LauncherEntries.Count(tab) > 1)
-            {
-                menu.Items.Add(Menus.Item(L.T("Saat yönünde taşı"), () => Step(tab, slot, clockwise: true)));
-                menu.Items.Add(Menus.Item(L.T("Ters yönde taşı"), () => Step(tab, slot, clockwise: false)));
-            }
-            var targets = new List<(LauncherTab Tab, string Name)>();
-            if (_ring.InSubRing) targets.Add((_config.Tabs[0], L.T("Ana halka")));
-            for (var t = 1; t < _config.Tabs.Count; t++)
-                if (t != _ring.TabIndex) targets.Add((_config.Tabs[t], Menus.Literal(RingSlot.SubRingName(_config.Tabs[t]))));
-            if (targets.Count > 0)
-            {
-                var move = new MenuItem { Header = _ring.InSubRing ? L.T("Başka halkaya taşı") : L.T("Alt halkaya taşı") };
-                foreach (var (target, name) in targets) move.Items.Add(Menus.Item(name, () => MoveToTab(tab, slot, target)));
-                menu.Items.Add(move);
-            }
-        }
+        // Sırayı ve alt halkayı değiştirmek Halka düzenleyicisinde (RingEditor: ◀ ▶, Alt+←/→, sürükleme).
         menu.Items.Add(Menus.Item(L.T("Değiştir…"), () => Edit(slot, subTab)));
         var rows = BoxChoices.MenuRows(BoxItemState.Link, ring: true, heldElsewhere: false);
         if (slot is { Kind: RingSlotKind.Path, Path: { } path } && !TileItem.IsShellObject(path))
@@ -367,24 +350,6 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         }
     }
 
-    private void Step(LauncherTab tab, RingSlot slot, bool clockwise)
-    {
-        var from = EntryNow(tab, slot);
-        if (from < 0 || RingInput.StepTarget(from, LauncherEntries.Count(tab), clockwise) is not { } to) return;
-        _edits.Change(() => LauncherEntries.Move(tab, from, to));
-        // Taşınan öğe vurgulu kalır (vurgu yeni yerine geçer): art arda taşınabilsin.
-        if (ReferenceEquals(tab, CurrentTab)) _ring.Highlight(to);
-    }
-
-    private void MoveToTab(LauncherTab from, RingSlot slot, LauncherTab to)
-    {
-        var index = EntryNow(from, slot);
-        if (index < 0 || !_config.Tabs.Contains(to)) return;
-        var moved = false;
-        _edits.Change(() => moved = LauncherEntries.MoveTo(from, index, to, int.MaxValue));
-        if (!moved) Views.Notice.Show(L.F("\"{0}\" o halkada zaten var.", slot.Name), Views.NoticeKind.Info);
-    }
-
     private void Edit(RingSlot slot, LauncherTab? subTab)
     {
         switch (slot.Kind)
@@ -413,11 +378,29 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     /// monitöründe açılır; seçilen uygulama (ya da altındaki "Dosya ya da klasör seç…" ile seçilenler) <paramref name="tab"/> sekmesine, <paramref name="where"/>
     /// sırasına (yoksa sona; sıra pencere kapanınca hesaplanır) eklenir. Sekmede zaten olan "Zaten ekli"dir.
     /// </summary>
-    private void AddApps(LauncherTab tab, Func<int?> where)
+    /// <param name="pulse">"+" yerinden: eklenen öğe halkada bir kez dikkat nabzıyla gösterilir (hareket düzeyine uyar).</param>
+    private void AddApps(LauncherTab tab, Func<int?> where, bool pulse = false)
     {
         if (Views.AppPicker.Ask(Owner?.CenterPoint, Live(tab).Items, L.T("Halkaya ekle"), L.T("Halkaya ekle")) is not { } pick) return;
-        AddPaths(tab, pick.Paths, null, null, where(), pick.Names);
+        var first = pick.Paths.Count > 0 ? pick.Paths[0] : null;
+        AddPaths(tab, pick.Paths, null, pulse && first is not null ? () => PulseLater(first) : null, where(), pick.Names);
     }
+
+    /// <summary>
+    /// Yeni öğenin yerine bir kez dikkat nabzı (halka yeniden kurulduktan sonra; öğe gösterilen halkada değilse ya da hareket
+    /// kapalıysa hiçbir şey olmaz). Öğe yoluyla yeniden bulunur.
+    /// </summary>
+    private void PulseLater(string path) =>
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (Owner is not { } owner) return;
+            for (var i = 0; i < _ring.Slots.Count; i++)
+            {
+                if (_ring.Slots[i] is not { Kind: RingSlotKind.Path, Path: { } p } || !string.Equals(p, path, StringComparison.OrdinalIgnoreCase)) continue;
+                if (_ring.ItemElement(i) is { } element) Views.Motion.Attention(element, MotionSurface.LayeredWidget, owner.PixelArea);
+                return;
+            }
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
 
     /// <summary>Yolları ekler (kısayol kutusuyla aynı yoldan); hepsi zaten oradaysa söyler.</summary>
     private void AddPaths(LauncherTab tab, IReadOnlyList<string> paths, ItemLook? look, Action? then, int? at,

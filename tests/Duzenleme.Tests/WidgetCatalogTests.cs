@@ -13,9 +13,9 @@ namespace Duzenleme.Tests;
 public class WidgetCatalogTests
 {
     [Fact]
-    public void Welcome_shows_only_the_original_five_tools()
+    public void Welcome_shows_the_six_basic_tools_in_order()
     {
-        Assert.Equal(new[] { "Clock", "Date", "Note", "Checklist", "Launcher" }, WidgetCatalog.WelcomeTools.Select(c => c.Key));
+        Assert.Equal(new[] { "Clock", "Date", "Note", "Checklist", "Calendar", "Launcher" }, WidgetCatalog.WelcomeTools.Select(c => c.Key));
     }
 
     [Fact]
