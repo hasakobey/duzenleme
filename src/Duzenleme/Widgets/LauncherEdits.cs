@@ -77,8 +77,11 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render, Func<Nat
     /// klasörüne taşınmış öğe arada masaüstüne geri konur.</param>
     /// <param name="duplicate">Hiçbiri eklenemedi çünkü hepsi zaten sekmedeydi (halka "zaten var" der).</param>
     /// <param name="names">Bırakılan bağlantının sayfa başlığı, uygulamanın adı (yola göre; öğenin adı yoksa yazılır).</param>
+    /// <param name="done">Bittiğinde gerçekten eklenen yollar (boş olabilir; "Masaüstünden ekle"nin bildirimi ve "Geri al"ı için).
+    /// Masaüstünden kalkma sorusu yanıtlandıktan sonra çağrılır.</param>
     public async void AddItems(Func<LauncherTab> target, IReadOnlyList<string> paths, ItemLook? look = null, Action? then = null,
-        int? at = null, Action? duplicate = null, IReadOnlyDictionary<string, string>? names = null)
+        int? at = null, Action? duplicate = null, IReadOnlyDictionary<string, string>? names = null,
+        Action<IReadOnlyList<string>>? done = null)
     {
         var tab = target();
         var desktops = AppHost.DesktopDirectories;
@@ -98,6 +101,27 @@ internal sealed class LauncherEdits(WidgetConfig config, Action render, Func<Nat
         if (existing.Count > 0) then?.Invoke();
         if (existing.Count > 0 && added.Count == 0) duplicate?.Invoke();
         if (added.Count > 0) BoxMover.Added(config, added, tab, attributes, near?.Invoke());
+        done?.Invoke(added);
+    }
+
+    /// <summary>
+    /// "Masaüstünden ekle"nin "Geri al"ı: verilen öğeleri (sekme, yol) sekmelerinden çıkarır ("Geri al" için tutulmaz);
+    /// kutunun klasörüne taşınmış olanlar başka kutuda yoksa masaüstüne döner. Çıkarılan sayısını döner.
+    /// </summary>
+    public int TakeBack(IReadOnlyList<(LauncherTab Tab, string Path)> items)
+    {
+        var taken = 0;
+        Change(() =>
+        {
+            foreach (var (tab, path) in items)
+            {
+                if (!config.Tabs.Contains(tab)) continue;
+                var index = LauncherEntries.IndexOfPath(tab, path);
+                if (index >= 0 && Take(config, tab, index) is not null) taken++;
+            }
+        });
+        if (taken > 0) BoxMover.Reconcile(interactive: true);
+        return taken;
     }
 
     /// <summary>

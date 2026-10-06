@@ -350,6 +350,18 @@ public partial class LauncherView : UserControl, IWidgetView
     /// </summary>
     private void TakeOut(LauncherTab tab, string path) => _edits.TakeOut(tab, path);
 
+    /// <summary>
+    /// "Widget ekle"nin "Masaüstünden" bölümü (Views.DesktopAdd): öğeleri açık sekmeye ekler. Tek kapıdan geçer
+    /// (<see cref="LauncherEdits.AddItems"/> → BoxMover.Added: masaüstünden kalkma sorusu); bitince gerçekten eklenenler
+    /// <paramref name="done"/>'a gelir.
+    /// </summary>
+    internal void AddFromDesktop(IReadOnlyList<string> paths, Action<IReadOnlyList<string>> done) =>
+        _edits.AddItems(() => Current, paths, done: done);
+
+    /// <summary>"Masaüstünden ekle"nin "Geri al"ı: o eklemenin öğelerini (taşındılarsa yeni yollarıyla) kutudan çıkarır.</summary>
+    internal int TakeBackFromDesktop(IReadOnlyCollection<string> added) =>
+        _edits.TakeBack(DesktopPicks.TakeBack(_config, added, AppHost.BoxMoves.Snapshot()));
+
     private void OnItemClick(object sender, MouseButtonEventArgs e)
     {
         if (Menus.IsClick(Items, e) && Menus.ItemAt(Items, e.OriginalSource) is { Missing: false } item)

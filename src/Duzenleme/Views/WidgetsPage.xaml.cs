@@ -96,6 +96,28 @@ public partial class WidgetsPage : Page
                 _editor.Release();
             },
             refresh: Reload);
+        // Masaüstünden (ya da Gezgin'den) bırakılan klasör bölme, kısayol ve dosya kısayol kutusu olur ("Widget ekle"deki
+        // "Masaüstünden" ile aynı yol: Views.DesktopAdd). Widget'tan gelen sürükleme burada işlenmez.
+        AllowDrop = true;
+        Background ??= Brushes.Transparent;
+        DragEnter += OnDesktopDragOver;
+        DragOver += OnDesktopDragOver;
+        Drop += OnDesktopDrop;
+    }
+
+    private static void OnDesktopDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Handled) return;
+        e.Effects = DesktopDrop.EffectFor(e);
+        e.Handled = true;
+    }
+
+    private void OnDesktopDrop(object sender, DragEventArgs e)
+    {
+        if (e.Handled || DesktopDrop.PathsOf(e) is not { } paths) return;
+        e.Effects = DesktopDrop.EffectFor(e);
+        e.Handled = true;
+        DesktopAdd.AddDropped(paths, null);
     }
 
     /// <summary>Liste, görünüm şeridi ve yerleşimler baştan.</summary>
