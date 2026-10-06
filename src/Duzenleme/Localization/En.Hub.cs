@@ -28,7 +28,6 @@ internal static partial class En
         new("Seçili öğe yok.", "No item selected."),
         new("Klasör ekle", "Add folder"),
         new("+ Web adresi", "+ Web address"),
-        new("Web adresi ekle", "Add a web address"),
         new("+ {0} eylemi", "+ {0} action"),
         new("{0} eylemi ekle", "Add a {0} action"),
         new("Daha fazla ▾", "More ▾"),

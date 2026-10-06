@@ -171,9 +171,9 @@ public class TrayModelTests
     {
         var without = TrayMenuModel.Build(State(removed: null));
         Assert.DoesNotContain(without, i => i.Command == TrayCommand.UndoRemove);
-        Assert.Equal(10, without.Count);
+        Assert.Equal(11, without.Count);
         // Ayırıcıdan sonra doğrudan "Ayarlar" gelir (gizli öğe yer tutmaz).
-        var separator = without.ToList().FindIndex(4, i => i.IsSeparator);
+        var separator = without.ToList().FindIndex(5, i => i.IsSeparator);
         Assert.Equal(TrayCommand.OpenSettings, without[separator + 1].Command);
 
         var named = TrayMenuModel.Build(State(removed: "Tom & Jerry")).Single(i => i.Command == TrayCommand.UndoRemove);

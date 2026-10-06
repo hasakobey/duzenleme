@@ -336,9 +336,9 @@ public class RingPopupTests
         Assert.Matches(@"Activated \+= [\s\S]*?StopWatch\(\);", popup);
         // Gizli pencere ölçeğe geçmezse yeniden kurulur (bir kez).
         Assert.Matches(@"if \(!Place\(requireScale: mayRecreate\)\)\s*\{\s*Recreate\(", popup);
-        Assert.Contains("fresh.Open(pressedAt, previous, mayRecreate: false);", popup);
-        // Kısayol halka açıkken kapatıldıysa kapanınca bütünüyle kapanır.
-        Assert.Matches(@"if \(!Enabled\)\s*\{\s*Sync\(\);", popup);
+        Assert.Contains("fresh.Open(pressedAt, origin, _anchor, previous, mayRecreate: false);", popup);
+        // Kısayol (ve çift tıklama) halka açıkken kapatıldıysa kapanınca bütünüyle kapanır.
+        Assert.Matches(@"if \(!Prebuild\)\s*\{\s*Sync\(\);", popup);
     }
 
     [Fact]

@@ -190,7 +190,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     /// <summary>
     /// Menüde: "Uygulama ekle…" (Başlat menüsündeki uygulamalar, gösterilen halkaya) ve "Tuşla imlecin yanında açılsın" (açıkken
-    /// tuşuyla). Öbür öğe türleri (web adresi, komut, tuşlar…) Düzenle panelinin "Öğe ekle"sinde; kaldırılanın "Geri al"ı bildirimde.
+    /// tuşuyla). Öbür öğe türleri (web adresi, komut, tuşlar…) Düzenle panelindeki halka düzenleyicisinde; kaldırılanın "Geri al"ı bildirimde.
     /// </summary>
     public void AddMenuItems(WidgetMenu menu)
     {
@@ -202,7 +202,6 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         if (RingShortcut.Opens(_config) && RingShortcut.Current is { } hotkey) key.InputGestureText = hotkey;
         menu.Primary.Add(key);
         if (!menu.ForEditor) return;
-        menu.Settings.Add(AddMenu(CurrentTab, () => null, withApps: false));
         menu.Settings.Add(Menus.Parts(_config,
             [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.EditPart, Menus.ClosePart], ApplyParts));
     }
