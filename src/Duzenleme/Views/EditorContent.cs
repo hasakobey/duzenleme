@@ -29,13 +29,18 @@ public sealed class EditorContent
     private readonly ICollection<Action> _refreshers;
     private readonly Action<bool> _changed;
     private readonly Action<string, Action> _notice;
+    private readonly ICollection<Action>? _releasers;
 
-    internal EditorContent(Panel panel, ICollection<Action> refreshers, Action<bool> changed, Action<string, Action> notice)
+    /// <param name="releasers">Panel bu içeriği bırakırken (yeniden kurulmadan, başka widget'a geçmeden, kapanmadan önce)
+    /// çalıştırılacak işler (<see cref="Custom"/>'un <c>release</c>'i).</param>
+    internal EditorContent(Panel panel, ICollection<Action> refreshers, Action<bool> changed, Action<string, Action> notice,
+        ICollection<Action>? releasers = null)
     {
         _panel = panel;
         _refreshers = refreshers;
         _changed = changed;
         _notice = notice;
+        _releasers = releasers;
     }
 
     /// <summary>Panelin penceresi (dosya ve klasör seçicilerin sahibi); panel bir sayfadaysa o sayfanın penceresi.</summary>
@@ -49,11 +54,18 @@ public sealed class EditorContent
 
     /// <summary>
     /// Görünümün kendi denetimi (halka düzenleyicisi, <see cref="RingEditor"/>): panele olduğu gibi eklenir; panel tazelenince
-    /// <paramref name="refresh"/> çağrılır.
+    /// <paramref name="refresh"/>, denetimi bırakırken (panel yeniden kurulur, başka widget'a geçer ya da kapanır)
+    /// <paramref name="release"/> çağrılır (olaylardan çıkma).
     /// </summary>
-    public void Custom(FrameworkElement element, Action? refresh = null)
+    public void Custom(FrameworkElement element, Action? refresh = null, Action? release = null)
     {
         if (refresh is not null) _refreshers.Add(refresh);
+        if (release is not null)
+        {
+            // Bırakan panel yoksa (test, eski çağıran) iş yine bir kez yapılır: denetim kaldırılınca.
+            if (_releasers is not null) _releasers.Add(release);
+            else element.Unloaded += (_, _) => release();
+        }
         _panel.Children.Add(element);
     }
 
@@ -153,7 +165,7 @@ public sealed class EditorContent
             _panel.Children.Add(EditorRows.Muted(L.T("Yüksek karşıtlık açık: halka sade çizilir.")));
             return;
         }
-        var gallery = new RingStyleGallery(c, () => Core.RingStyles.CurrentId(c), id =>
+        var gallery = new RingStyleGallery(c, () => Core.RingStyles.SelectedId(c), id =>
         {
             choose(id);
             _changed(false);

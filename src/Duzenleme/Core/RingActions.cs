@@ -382,20 +382,44 @@ public static class RingTargets
     /// <summary>Açılır halkanın açacağı halka; gerekiyorsa NestDesk halkasını kurar (ayara yazılır; kaydetmek çağıranın işi).</summary>
     public static WidgetConfig Target(AppSettings settings) => Pick(settings) ?? EnsureHub(settings);
 
-    /// <summary>Halka <see cref="AppSettings.Hub"/> mı?</summary>
-    public static bool IsHub(AppSettings settings, WidgetConfig ring) => ReferenceEquals(settings.Hub, ring);
+    /// <summary>
+    /// Halka NestDesk halkası mı (<see cref="AppSettings.Hub"/>; ayardaki halka olmayan merkezin yerine bu oturumda kullanılan
+    /// geçici halka da: bkz. <see cref="EnsureHub"/>)?
+    /// </summary>
+    public static bool IsHub(AppSettings settings, WidgetConfig ring) =>
+        ReferenceEquals(settings.Hub, ring) || (Stand.TryGetValue(settings, out var stand) && ReferenceEquals(stand, ring));
+
+    /// <summary>Ayardaki merkez bu sürümün tanımadığı bir biçimdeyken (daha yeni sürüm) bu oturumda yerine kullanılan halka.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<AppSettings, WidgetConfig> Stand = new();
 
     /// <summary>
-    /// NestDesk halkası yoksa (ya da halka değilse) halka tohumundan kurar: "{0} halkası" adıyla, tohumun NestDesk eylemleriyle
-    /// (Yeni not, Windows masaüstüne göz at, Widget ekle, NestDesk'i aç). Ad kullanıcı verisidir: kurulurken bir kez arayüz
-    /// dilinde yazılır. Kurulanı ya da var olanı döner.
+    /// NestDesk halkası yoksa halka tohumundan kurar: "{0} halkası" adıyla, tohumun NestDesk eylemleriyle (Yeni not, Windows
+    /// masaüstüne göz at, Widget ekle, NestDesk'i aç). Ad kullanıcı verisidir: kurulurken bir kez arayüz dilinde yazılır. Kurulanı
+    /// ya da var olanı döner. Ayarda halka olmayan bir merkez varsa (daha yeni sürümün biçimi) ona asla yazılmaz, olduğu gibi
+    /// korunur: bu oturumda yerine ayara yazılmayan bir halka kullanılır (her çağrıda aynısı).
     /// </summary>
     public static WidgetConfig EnsureHub(AppSettings settings)
     {
-        if (settings.Hub is { } hub && WidgetVariants.Is(hub, WidgetVariants.Ring)) return hub;
+        if (settings.Hub is { } hub)
+            return WidgetVariants.Is(hub, WidgetVariants.Ring) ? hub : Stand.GetValue(settings, _ => NewHub());
         var seed = NewHub();
         settings.Hub = seed;
         return seed;
+    }
+
+    /// <summary>
+    /// "Halkayı düzenle"nin götüreceği yer (iş anında, kimlikle): NestDesk halkası kendi penceresinde; masaüstündeki halka widget'ı
+    /// (ayardaki şimdiki nesnesi: "Geri al" kaldırılan widget'ı yeni bir nesneyle geri getirir) Düzenle panelinde; ikisi de
+    /// değilse (widget kaldırıldı) hiçbir yer: kopuk bir kopyayı düzenlemek değişiklikleri kaybettirirdi.
+    /// </summary>
+    public static (RingEditPlace Place, WidgetConfig? Ring) EditPlace(AppSettings settings, WidgetConfig ring)
+    {
+        if (IsHub(settings, ring)) return (RingEditPlace.Hub, ring);
+        var live = settings.Widgets.FirstOrDefault(w => w is not null && string.Equals(w.Id, ring.Id, StringComparison.Ordinal));
+        if (live is not null && WidgetVariants.Is(live, WidgetVariants.Ring)) return (RingEditPlace.Widget, live);
+        if (settings.Hub is { } hub && string.Equals(hub.Id, ring.Id, StringComparison.Ordinal) && WidgetVariants.Is(hub, WidgetVariants.Ring))
+            return (RingEditPlace.Hub, hub);
+        return (RingEditPlace.Gone, null);
     }
 
     /// <summary>Yeni bir NestDesk halkası (ayara yazılmaz): karşılamanın önizlemesi ve <see cref="EnsureHub"/>.</summary>
@@ -415,6 +439,9 @@ public static class RingTargets
         Pick(settings) is { } target && string.Equals(target.Id, ring.Id, StringComparison.Ordinal);
 }
 
+/// <summary>"Halkayı düzenle"nin yeri (yalnızca çalışma zamanı; bkz. <see cref="RingTargets.EditPlace"/>).</summary>
+public enum RingEditPlace { Gone, Hub, Widget }
+
 /// <summary>Açılır halkayı neyin açtığı (yalnızca çalışma zamanı; hiçbir yere yazılmaz).</summary>
 public enum RingOrigin { Hotkey, DoubleClick, Tray, Command }
 
@@ -427,4 +454,11 @@ public static class RingAvailability
     /// </summary>
     public static bool Available(string? actionType, RingOrigin origin) =>
         origin == RingOrigin.Hotkey || !RingActionTypes.NeedsTargetWindow(actionType);
+
+    /// <summary>
+    /// Vazgeçince (Esc, sağ tık, ortaya basmak) önceki pencere öne gelsin mi: yalnızca kısayolla açılan halkada (kullanıcı bir
+    /// pencerede çalışıyordu). Çift tıklama ve tepsi masaüstünden ya da görev çubuğundan açar: oraya dönmek görev çubuğunu ya da
+    /// masaüstünü öne getirirdi.
+    /// </summary>
+    public static bool RestoresPrevious(RingOrigin origin) => origin == RingOrigin.Hotkey;
 }

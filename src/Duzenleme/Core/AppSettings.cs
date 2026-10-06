@@ -686,6 +686,15 @@ public sealed class AppSettings
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WidgetConfig? Hub { get; set; }
+
+    // 2.2 Halka çift tıklaması
+    /// <summary>
+    /// "Boş masaüstüne çift tıklayınca halka açılsın" açılmadan önceki çift tıklama seçimi (<see cref="DesktopState.DoubleClickChoices"/>):
+    /// anahtar kapanınca (Ayarlar ya da karşılama) ona dönülür ve silinir (<see cref="DesktopState.RingDoubleClickOff"/>). Yoksa
+    /// "auto". Boşken yazılmaz.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DoubleClickBeforeRing { get; set; }
 }
 
 /// <summary><see cref="AppSettings.BoxAppShortcuts"/> değerleri (enum değil metin: yeni değer eski sürümü bozmaz).</summary>

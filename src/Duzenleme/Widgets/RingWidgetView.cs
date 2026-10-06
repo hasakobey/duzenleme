@@ -69,6 +69,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         _ring.ShowAddSlot = true;
         _ring.AddRequested += () => AddApps(CurrentTab, () => null, pulse: true);
         _ring.SetRing(config);
+        _renderedPrint = Print();
         _rendered = true;
         _ring.ItemInvoked += RingRunner.RunFromWidget;
         // Yalnızca yol öğeleri dışarı sürüklenir; öbürlerinde biraz kayan tıklama yine seçer.
@@ -113,26 +114,41 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     // ---------------------------------------------------------------- çizim
 
-    /// <summary>Ayardan yeniden kurar. Görünmezken dışarıdan gelen değişiklik (kutu taşıması, ad değişimi) görünür olunca uygulanır.</summary>
-    private void Render()
+    /// <summary>
+    /// Ayardan yeniden kurar. Görünmezken dışarıdan gelen değişiklik (kutu taşıması, ad değişimi) görünür olunca uygulanır.
+    /// Halkanın parmak izi değişmediyse (<see cref="RingFingerprint"/>; ör. halkayı ilgilendirmeyen bir kutu taşıması) yerler
+    /// yeniden kurulmaz ve açık panel tazelenmez. <paramref name="force"/>: dışarıdan gelen değişiklik (kutu taşıması; diskteki
+    /// durum da değişmiş olabilir) ya da görünmezken kaçırılan değişiklik: her zaman yeniden kurulur.
+    /// </summary>
+    private void Render() => Render(force: false);
+
+    private void Render(bool force)
     {
         if (!_live && _rendered)
         {
             _stale = true;
             return;
         }
-        _ring.Rebuild();
+        var print = Print();
+        var changed = force || print != _renderedPrint;
+        _renderedPrint = print;
+        if (changed) _ring.Rebuild();
         ApplyParts();
-        // Açık Düzenle panelindeki halka düzenleyicisi de tazelensin (sürükleyip bırakma, arka planda biten ekleme).
-        _editorChanged?.Invoke();
+        // Açık Düzenle panellerindeki halka düzenleyicisi de tazelensin (sürükleyip bırakma, arka planda biten ekleme).
+        if (changed)
+            foreach (var notify in _editorChanged.ToList()) notify();
     }
 
-    private void OnOutsideChange() => Render();
+    private ulong _renderedPrint;
+
+    private ulong Print() => RingFingerprint.Of(_config, SystemParameters.HighContrast, WidgetPalette.SystemDark);
+
+    private void OnOutsideChange() => Render(force: true);
 
     private void OnPathRenamed(string oldPath, string newPath, bool isDirectory)
     {
         // AppHost kutuların yollarını zaten güncelledi; bu halkada etkilenen öğe varsa yeniden çizilir.
-        if (_config.Tabs.Any(t => t.Items.Any(p => PathRenames.Map(p, newPath, newPath, isDirectory) is not null))) Render();
+        if (_config.Tabs.Any(t => t.Items.Any(p => PathRenames.Map(p, newPath, newPath, isDirectory) is not null))) Render(force: true);
     }
 
     public void SetLive(bool live)
@@ -140,7 +156,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
         _live = live;
         if (!live || !_stale) return;
         _stale = false;
-        Render();
+        Render(force: true);
     }
 
     private void ApplyParts()
@@ -179,7 +195,7 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
 
     public void Detach()
     {
-        _editorChanged = null;
+        _editorChanged.Clear();
         _name.Cancel();
         _ring.Release();
         BoxMover.Changed -= OnOutsideChange;
@@ -206,8 +222,12 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             [WidgetNameLine.Part, (RingView.PartKeys, L.N("Tuş numaraları")), Menus.EditPart, Menus.ClosePart], ApplyParts));
     }
 
-    // Açık Düzenle panelinin halka düzenleyicisi: halka değişince panel (ve düzenleyici) tazelenir.
-    private Action? _editorChanged;
+    // Açık Düzenle panellerinin (kendi penceresi ve Widget'lar sayfası) halka düzenleyicileri: halka değişince panel (ve
+    // düzenleyici) tazelenir. Panel düzenleyiciyi bırakınca (yeniden kurma, başka widget, kapanış) listeden çıkar.
+    private readonly List<Action> _editorChanged = [];
+
+    /// <summary>Düzenle panelinin bir sonraki kurulumunda açılacak halka (0 kök, 1… alt halka; "Halkayı düzenle" verir); bir kez tüketilir.</summary>
+    internal int? EditorTab { get; set; }
 
     /// <summary>
     /// Düzenle paneli: halka düzenleyicisi (<see cref="Views.RingEditor"/>: önizleme, seçili öğenin işleri, ekleme çubuğu,
@@ -216,17 +236,26 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
     /// </summary>
     public bool AddEditorContent(Views.EditorContent content)
     {
+        var tab = EditorTab ?? _ring.TabIndex;
+        EditorTab = null;
         var editor = new Views.RingEditor(_config, _edits, () => Owner, () => Owner?.CenterPoint, content.Notice, () => content.Changed(),
-            _ring.TabIndex);
-        _editorChanged = () => content.Changed();
-        content.Custom(editor, editor.Refresh);
+            tab);
+        Action changed = () => content.Changed();
+        _editorChanged.Add(changed);
+        // Panel yeniden kurulunca, başka widget'a geçince ya da kapanınca: önizlemenin yerleri kutucuk olaylarından çıkar.
+        content.Custom(editor, editor.Refresh, release: () =>
+        {
+            _editorChanged.Remove(changed);
+            editor.Release();
+        });
         // Halkanın biçimi (RingStyles: Klasik, Daire, Etiketli, Işıltı; gerçek çizimli kartlar). Hemen uygulanır; açılır halka
         // ayarın imzasından yeniden kurulur, düzenleyicinin önizlemesi tazelenir.
         content.RingStylePicker(_config, id =>
         {
-            if (Core.RingStyles.CurrentId(_config) == id || !Core.RingStyles.Apply(_config, id)) return;
+            if (Core.RingStyles.SelectedId(_config) == id || !Core.RingStyles.Apply(_config, id)) return;
             AppHost.SaveSettings();
             _ring.Rebuild();
+            _renderedPrint = Print();
             ApplyParts();
             editor.Refresh();
         });

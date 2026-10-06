@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -65,7 +64,7 @@ internal sealed class RingPopup : Window
     private RingOrigin _origin = RingOrigin.Hotkey;
 
     private WidgetConfig? _config;
-    private string? _signature;
+    private ulong? _signature;
     private bool _dirty = true, _rebuildQueued, _forReal;
 
     // Kurulduğu andaki Windows görünüşü (açık/koyu, yüksek karşıtlık ve renkleri): App.ApplyTheme değişikliği bildirir
@@ -375,13 +374,11 @@ internal sealed class RingPopup : Window
     /// <summary>
     /// Halkanın görünüşünü belirleyen ayarların özeti: ilgisiz ayar değişiklikleri (konum, başka widget) yeniden kurdurmaz.
     /// Tema ve özel vurgu rengi de girer (2.2: "Otomatik"/"Klasik" Style/Accent'i değiştirmeyebilir; açılır halka eski temada
-    /// kalıyordu), Windows'un açık/koyu kipi de (Otomatik ve Okyanus ona uyar). Yalnızca bellekte, karşılaştırma için.
+    /// kalıyordu), Windows'un açık/koyu kipi de (Otomatik ve Okyanus ona uyar). Yalnızca bellekte, karşılaştırma için. Her
+    /// kayıtta arayüz iş parçacığında hesaplanır: serileştirme yok (<see cref="RingFingerprint"/>).
     /// </summary>
-    internal static string Signature(WidgetConfig config) => JsonSerializer.Serialize(new
-    {
-        config.Id, config.Style, config.Accent, config.LookTheme, config.LookAccentColor, config.IconSize, config.Scale, config.Title,
-        config.Icon, config.HiddenParts, config.Tabs, config.ItemLooks, config.RingStyle, SystemParameters.HighContrast, WidgetPalette.SystemDark,
-    }, JsonFile.Options);
+    internal static ulong Signature(WidgetConfig config) =>
+        RingFingerprint.Of(config, SystemParameters.HighContrast, WidgetPalette.SystemDark);
 
     private void OnSettingsChanged()
     {
@@ -723,8 +720,8 @@ internal sealed class RingPopup : Window
         CloseWith(restore: false, after: null);
     }
 
-    /// <summary>Kısayol yeniden, Esc, sağ tık, kökte orta: kapanır ve önceki pencere öne gelir.</summary>
-    private void Dismiss() => CloseWith(restore: true, after: null);
+    /// <summary>Kısayol yeniden, Esc, sağ tık, kökte orta: kapanır; kısayolla açıldıysa önceki pencere öne gelir.</summary>
+    private void Dismiss() => CloseWith(restore: RingAvailability.RestoresPrevious(_origin), after: null);
 
     private void CloseWith(bool restore, Action? after)
     {

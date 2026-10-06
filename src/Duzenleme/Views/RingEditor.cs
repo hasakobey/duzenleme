@@ -217,28 +217,78 @@ internal sealed class RingEditor : UserControl
     /// yanında açılır; değilse (NestDesk halkası) düzenleyicinin kendi penceresi imlecin ya da <paramref name="near"/> noktasının
     /// ekranında ortalanır.
     /// </summary>
-    public static void Open(WidgetConfig config, int tab = 0, NativeMethods.POINT? near = null)
+    /// <remarks>
+    /// Halka iş anında kimliğiyle bulunur (<see cref="RingTargets.EditPlace"/>): kaldırılmış (ya da "Geri al"la yeni nesneyle geri
+    /// gelmiş) widget'ın eski kopyası düzenlenmez; kaldırıldıysa yalnızca söylenir. Widget'ın penceresi henüz açılmadıysa (açılış,
+    /// gizli masaüstü) widget'lar gösterilir ve birkaç kez boşta yeniden denenir; olmazsa söylenir. İstenen halka (alt halka)
+    /// Düzenle panelinde de açılır.
+    /// </remarks>
+    public static void Open(WidgetConfig config, int tab = 0, NativeMethods.POINT? near = null) => Open(config, tab, near, attempt: 0);
+
+    private const int OpenAttempts = 4;
+
+    private static void Open(WidgetConfig config, int tab, NativeMethods.POINT? near, int attempt)
     {
-        if (AppHost.Settings.Widgets.Contains(config) && AppHost.Widgets.RevealAndEdit(config.Id)) return;
-        RingEditorWindow.ShowFor(config, tab, near);
+        var (place, ring) = RingTargets.EditPlace(AppHost.Settings, config);
+        switch (place)
+        {
+            case RingEditPlace.Hub:
+                RingEditorWindow.ShowFor(ring!, tab, near);
+                return;
+            case RingEditPlace.Gone:
+                Views.Notice.Show(L.T("Bu halka artık masaüstünde değil."), NoticeKind.Info);
+                return;
+        }
+        if (attempt == 0) AppHost.EnsureWidgetsShown();
+        var view = AppHost.Widgets.ViewOf(ring!.Id) as RingWidgetView;
+        if (view is not null) view.EditorTab = tab;
+        if (AppHost.Widgets.RevealAndEdit(ring.Id))
+        {
+            // Panel zaten bu widget'taydı ve yeniden kurulmadıysa istenen halka sonraki bir kurulumda beklenmedik açılmasın.
+            if (view is not null) view.Dispatcher.BeginInvoke(() => view.EditorTab = null, DispatcherPriority.ContextIdle);
+            return;
+        }
+        if (attempt + 1 >= OpenAttempts)
+        {
+            Views.Notice.Show(L.T("Halka henüz açılmadı. Biraz sonra yeniden dene."), NoticeKind.Info);
+            return;
+        }
+        // Pencereler sırayla açılır (RestoreAll) ya da yeni gösteriliyor: boşta yeniden denenir (yine kimlikle bulunur).
+        var timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(250) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            Open(ring, tab, near, attempt + 1);
+        };
+        timer.Start();
     }
 
     /// <summary>Düzenlenen halka.</summary>
     public WidgetConfig Config => _config;
 
-    /// <summary>Önizlemeyi, seçimi ve anahtarları ayardan tazeler (halka değişti, panel yeniden etkinleşti).</summary>
+    /// <summary>
+    /// Önizlemeyi, seçimi ve anahtarları ayardan tazeler (halka değişti, panel yeniden etkinleşti). Önizleme yalnızca halkanın
+    /// parmak izi (<see cref="RingFingerprint"/>), gösterilen halka ya da palet değiştiyse yeniden kurulur: ilgisiz kayıtlar
+    /// (widget sürüklemek) ve aynı düzenlemenin ikinci bildirimi halkayı yeniden kurmaz.
+    /// </summary>
     public void Refresh()
     {
         _refreshing = true;
+        _refreshCount++;
         try
         {
             if (_config.Tabs.Count == 0) _config.Tabs.Add(new LauncherTab { Name = L.T("Uygulamalar") });
             _tab = Math.Clamp(_tab, 0, _config.Tabs.Count - 1);
             var palette = RingView.PaletteFor(_config);
-            _ring.ApplyPalette(palette, rebuild: false);
-            _ring.CenterShowsIcon = !_config.Shows(WidgetNameLine.PartKey);
-            _ring.SetRing(_config, _tab);
-            _backdrop.Apply(palette, _ring.Metrics.OuterRadius);
+            var print = RingFingerprint.Of(_config, SystemParameters.HighContrast, WidgetPalette.SystemDark);
+            if (_built is not { } last || last.Print != print || last.Tab != _tab || !ReferenceEquals(last.Palette, palette))
+            {
+                _built = (print, _tab, palette);
+                _ring.ApplyPalette(palette, rebuild: false);
+                _ring.CenterShowsIcon = !_config.Shows(WidgetNameLine.PartKey);
+                _ring.SetRing(_config, _tab);
+                _backdrop.Apply(palette, _ring.Metrics.OuterRadius);
+            }
 
             var index = SelectedIndex();
             if (index is null) _selected = null;
@@ -255,7 +305,17 @@ internal sealed class RingEditor : UserControl
     }
 
     /// <summary>Düzenleyici kapanıyor: önizlemenin yerleri kutucuklarının olaylarından çıkar.</summary>
-    public void Release() => _ring.Release();
+    public void Release()
+    {
+        _ring.Release();
+        _built = null;
+    }
+
+    /// <summary>Önizlemenin en son kurulduğu hâl (bkz. <see cref="Refresh"/>).</summary>
+    private (ulong Print, int Tab, WidgetPalette Palette)? _built;
+
+    /// <summary>Kaç kez tazelendi: düzenleme kendi yolundan (kutunun çizim geri çağırması) zaten tazelediyse ikinci kez bildirilmez.</summary>
+    private int _refreshCount;
 
     // ---------------------------------------------------------------- seçim
 
@@ -352,8 +412,10 @@ internal sealed class RingEditor : UserControl
 
     private void Change(Action change)
     {
+        var before = _refreshCount;
         _edits.Change(change);
-        Changed();
+        // Düzenlemenin çizim geri çağırması (widget'ın Render'ı → panel, ya da düzenleyicinin kendi Refresh'i) zaten tazelediyse yeter.
+        if (_refreshCount == before) Changed();
     }
 
     private void Changed()
