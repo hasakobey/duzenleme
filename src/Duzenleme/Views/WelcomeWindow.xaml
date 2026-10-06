@@ -366,16 +366,18 @@
 
                 <!-- Adım 3: NestDesk halkası, araçlar ve başlangıç -->
                 <StackPanel x:Name="Step3" Visibility="Collapsed">
-                    <Grid Margin="0,0,0,12">
+                    <!-- 680×540'ta kaydırmadan sığar: halka solda büyük, anahtarlar sağda; başlangıç ipucu ayrı satır değil,
+                         başlangıç kartının açıklamasının yerine geçer (UpdateStartupTip). -->
+                    <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <!-- Halkanın durağan önizlemesi (gerçek RingView, tıklanmaz; kodla kurulur). -->
-                        <Viewbox x:Name="RingPreviewBox" Width="156" Height="156" Margin="0,0,20,0" VerticalAlignment="Top"
-                                 Stretch="Uniform" StretchDirection="DownOnly" IsHitTestVisible="False" Focusable="False" />
+                        <Viewbox x:Name="RingPreviewBox" Width="188" Height="188" Margin="0,0,20,0" VerticalAlignment="Center"
+                                 Stretch="Uniform" IsHitTestVisible="False" Focusable="False" />
                         <StackPanel Grid.Column="1">
-                            <TextBlock Style="{StaticResource StepText}"
+                            <TextBlock Style="{StaticResource StepText}" Margin="0,0,0,10"
                                        Text="{l:T 'Halkada yeni not, widget ekleme ve masaüstüne göz atma hazır. Kendi uygulamalarını sonra eklersin.'}" />
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
@@ -409,9 +411,9 @@
                     </Grid>
 
                     <TextBlock Style="{StaticResource Question}" Text="{l:T 'Masaüstüne ekle:'}" />
-                    <WrapPanel x:Name="ToolTiles" Margin="0,0,0,6" />
+                    <WrapPanel x:Name="ToolTiles" Margin="0,0,0,2" />
 
-                    <Border Style="{StaticResource Surface}" Padding="16,12">
+                    <Border Style="{StaticResource Surface}" Padding="16,10">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -422,12 +424,12 @@
                                            Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                             <StackPanel Grid.Column="1">
                                 <TextBlock x:Name="StartupTitle" Style="{StaticResource CardHeader}" />
-                                <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
-                                           Text="{l:T 'Tepside sessizce başlar; bölmelerin, saatin ve otomatik taşıma hep hazır olur.'}" />
+                                <TextBlock x:Name="StartupText" Style="{StaticResource Muted}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                           AutomationProperties.AutomationId="Welcome.StartupText" />
                                 <TextBlock x:Name="StartupNote" Style="{StaticResource Muted}" Margin="0,4,0,0" Visibility="Collapsed"
                                            AutomationProperties.AutomationId="Welcome.StartupNote" />
                                 <TextBlock x:Name="PortableNote" Style="{StaticResource Muted}" Margin="0,4,0,0" Visibility="Collapsed"
-                                           Text="{l:T 'Taşınabilir sürüm: program bu klasörden başlatılır; klasörü taşırsan bu ayarı yeniden aç.'}" />
+                                           Text="{l:T 'Taşınabilir sürüm: klasörü taşırsan bu ayarı yeniden aç.'}" />
                             </StackPanel>
                             <Grid Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
                                 <ui:ToggleSwitch x:Name="StartupToggle" AutomationProperties.AutomationId="Welcome.Startup" />
@@ -437,7 +439,6 @@
                             </Grid>
                         </Grid>
                     </Border>
-                    <TextBlock x:Name="StartupTip" Style="{StaticResource Muted}" Margin="0,8,0,0" Visibility="Collapsed" />
                 </StackPanel>
             </Grid>
         </ScrollViewer>

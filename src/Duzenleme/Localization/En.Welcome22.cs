@@ -24,6 +24,10 @@ internal static partial class En
         new("Halka {0} ile imlecin yanında açılır. {1} klavyeni izlemez: yalnızca bu kısayol Windows'a kaydedilir.",
             "The ring opens next to the pointer with {0}. {1} doesn't watch your keyboard: only this shortcut is registered with Windows."),
         new("Masaüstüne ekle:", "Add to the desktop:"),
+        new("Tepside sessizce başlar; bölmeler ve otomatik taşıma hep hazır.",
+            "Starts quietly in the notification area. Panels and auto-move stay ready."),
+        new("Kapalıyken simgelerin, {0}'i açana dek masaüstünde görünür.",
+            "While off, your icons stay on the desktop until you open {0}."),
 
         // "Bitti"den sonra
         new("Hazır. Halkayı açmak için boş masaüstüne çift tıkla.", "All set. Double-click the empty desktop to open the ring."),

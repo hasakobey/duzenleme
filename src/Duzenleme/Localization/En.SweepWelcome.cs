@@ -84,12 +84,8 @@ internal static partial class En
 
         // 3. adım: araçlar ve başlangıç
         new("Windows açılınca {0} de başlasın", "Start {0} when Windows starts"),
-        new("Tepside sessizce başlar; bölmelerin, saatin ve otomatik taşıma hep hazır olur.",
-            "Starts quietly in the notification area, so your panels, clock and auto-move are always ready."),
-        new("Taşınabilir sürüm: program bu klasörden başlatılır; klasörü taşırsan bu ayarı yeniden aç.",
-            "Portable version: the app starts from this folder. If you move the folder, turn this setting on again."),
-        new("İpucu: {0} Windows ile başlamazsa masaüstü simgelerin, sen {0}'i açana dek her zamanki gibi görünür.",
-            "Tip: If {0} doesn't start with Windows, your desktop icons appear as usual until you open {0}."),
+        new("Taşınabilir sürüm: klasörü taşırsan bu ayarı yeniden aç.",
+            "Portable version: if you move the folder, turn this on again."),
 
         // Karşılama uygulanırken (tepsi balonu)
         new("Bazı klasörler oluşturulamadı", "Some folders couldn't be created"),
