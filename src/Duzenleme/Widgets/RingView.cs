@@ -27,14 +27,38 @@ internal readonly record struct RingMetrics(int Places, double IconDip, double I
     /// <summary>Orta (ölü) bölge: bunun içi hiçbir öğeyi seçmez.</summary>
     public double DeadZone => CenterRadius;
 
-    public static RingMetrics For(int places, double iconDip)
+    /// <param name="style">Biçim (yoksa Klasik). Göstergeli biçimde (Daire, Etiketli) orta daire ile öğeler arasında gösterge
+    /// çizgisine <see cref="PointerRoom"/> kadar yer kalır. Etiketli'de öğeler yan yana duran etiketleri kadar aralıklı, etiketler
+    /// dışa bakar (<see cref="RingStyles.LabelAbove"/>), dış disk bütün etiketleri kapsar; orta daire en çok
+    /// <see cref="MaxLabeledCenter"/> (büyük halkada ortası boşa büyümesin).</param>
+    public static RingMetrics For(int places, double iconDip, RingStyle? style = null)
     {
         var item = iconDip + 18;
+        var room = style?.Pointer == true ? PointerRoom : 0;
+        if (style?.Labels == true)
+        {
+            var hang = item / 2 + Gap + room;
+            // Orta daire etiketlerin de içinde kalır (yanlardaki öğelerin etiketi ortaya doğru uzanır).
+            var (r, inner, reach) = RingStyles.LabeledLayout(places, item, Math.Max(item * 1.6, MinCenterRadius + hang));
+            for (var i = 0; inner - LabelRoom < MinCenterRadius && i < 100; i++)
+                (r, inner, reach) = RingStyles.LabeledLayout(places, item, r + 2);
+            var c = Math.Clamp(Math.Min(r - hang, inner - LabelRoom), MinCenterRadius, MaxLabeledCenter);
+            return new RingMetrics(places, iconDip, item, r, c, Math.Max(r + item / 2 + Gap, reach + 6));
+        }
         var radius = RingGeometry.Radius(places, item, item * 1.6);
-        var center = Math.Max(MinCenterRadius, radius - item / 2 - Gap);
-        radius = Math.Max(radius, center + item / 2 + Gap);
+        var center = Math.Max(MinCenterRadius, radius - item / 2 - Gap - room);
+        radius = Math.Max(radius, center + item / 2 + Gap + room);
         return new RingMetrics(places, iconDip, item, radius, center, radius + item / 2 + Gap);
     }
+
+    /// <summary>Göstergeli biçimde orta daire ile öğe daireleri arasına eklenen yer (DIP).</summary>
+    public const double PointerRoom = 12;
+
+    /// <summary>Etiketli halkada orta daire ile en yakın etiket arasındaki en az boşluk (DIP).</summary>
+    public const double LabelRoom = 6;
+
+    /// <summary>Etiketli halkada orta dairenin en büyük yarıçapı (DIP).</summary>
+    public const double MaxLabeledCenter = 52;
 }
 
 /// <summary>Halkada bir tuşun anlamı (kalıcı değil).</summary>
@@ -137,8 +161,10 @@ internal sealed class RingView : FrameworkElement
     private RingColors _colors = RingColors.From(WidgetPalette.Glass, highContrast: false);
     private Color _glyphColor = Colors.White;
     private StreamGeometry[] _sectors = [], _rims = [];
-    private StreamGeometry? _parentSector, _parentRim;
+    private StreamGeometry? _parentSector, _parentRim, _track;
     private Brush _disc = Brushes.Transparent, _hot = Brushes.Transparent;
+    private WidgetPalette? _palette;
+    private RingStyle _style = RingStyles.Classic;
 
     private RingGeometry.Hit _highlight = RingGeometry.Hit.None;
     private bool _keyboardHighlight;
@@ -313,7 +339,18 @@ internal sealed class RingView : FrameworkElement
         _wedges = RingGeometry.Wedges(_angles, _parentAngle);
         var places = _slots.Count + (_parentAngle is null ? 0 : 1);
         if (StableSize) places = Math.Max(places, MaxPlaces(config));
-        _metrics = RingMetrics.For(places, IconDip(config));
+        // Biçim ayardan (alan değişince widget görünümü yeniden kurulur; açılır halka da): simgenin rengi biçimin katmanlarına göre.
+        var style = RingStyles.Effective(config.RingStyle, _colors.HighContrast);
+        if (!ReferenceEquals(style, _style))
+        {
+            _style = style;
+            if (_palette is not null)
+            {
+                _colors = RingColors.From(_palette, _colors.HighContrast, style);
+                _glyphColor = _colors.Glyph;
+            }
+        }
+        _metrics = RingMetrics.For(places, IconDip(config), _style);
 
         while (_items.Count > _slots.Count)
         {
@@ -358,7 +395,9 @@ internal sealed class RingView : FrameworkElement
     public void ApplyPalette(WidgetPalette palette, bool rebuild = true)
     {
         var highContrast = SystemParameters.HighContrast;
-        _colors = RingColors.From(palette, highContrast);
+        _palette = palette;
+        _style = RingStyles.Effective(_config?.RingStyle, highContrast);
+        _colors = RingColors.From(palette, highContrast, _style);
         // Simgeler öğe dairesinin üstünde okunur kalsın (vurgu rengi gerekirse açılır/koyulaşır); yüksek karşıtlıkta pencere yazısı.
         var glyph = _colors.Glyph;
         var recolor = glyph != _glyphColor || !_paletteApplied;
@@ -535,6 +574,18 @@ internal sealed class RingView : FrameworkElement
     internal RingColors Scheme => _colors;
     internal Color GlyphColor => _glyphColor;
 
+    /// <summary>Çizilen biçim (yüksek karşıtlıkta Klasik).</summary>
+    internal RingStyle Style => _style;
+
+    /// <summary>
+    /// Ortada adının üstünde gösterilen simge: vurgulanan öğeninki (bırakma ipucu sürerken yok). Kando'daki gibi orta, nereye
+    /// gidileceğini simgesi ve adıyla söyler.
+    /// </summary>
+    internal ImageSource? CenterItemIcon => _hint is null ? HighlightedSlot?.Icon : null;
+
+    /// <summary>Alt halkadaki "geri" dairesinin öğe dairesine oranı (Kando'daki gibi küçük üst öğe).</summary>
+    public const double BackScale = 0.66;
+
     /// <summary>
     /// Kök halkanın başlığı: verilmiş ad; yoksa ya da tohumun yazdığı varsayılan adsa (oluşturulduğu dilde) arayüz dilinde
     /// "Halka menü" (bkz. WidgetText).
@@ -675,7 +726,43 @@ internal sealed class RingView : FrameworkElement
         _rims = _wedges.Items.Select(w => Arc(c, rim, w.Start, w.End)).ToArray();
         _parentSector = _wedges.Parent is { } p ? Sector(c, inner, outer, p.Start, p.End) : null;
         _parentRim = _wedges.Parent is { } q ? Arc(c, rim, q.Start, q.End) : null;
+        _track = _style.Track ? Track(c, _metrics, _angles, _parentAngle) : null;
         BuildBrushes();
+    }
+
+    /// <summary>
+    /// Yörünge (Daire): öğe merkezlerinin çemberi, öğe dairelerinin arasında kalan yaylar (çizgi simgenin altından geçmez;
+    /// dairelerle arasında 4 DIP). Alt halkadaki küçük "geri" dairesi de yer kaplar. Dondurulmuş, tek biçim.
+    /// </summary>
+    internal static StreamGeometry Track(Point c, RingMetrics metrics, IReadOnlyList<double> angles, double? parentAngle)
+    {
+        var radius = metrics.Radius;
+        double Half(double chipRadius) => Math.Asin(Math.Min(1, (chipRadius + 4) / radius)) * 180 / Math.PI;
+        var stops = angles.Select(a => (Angle: a, Half: Half(metrics.ItemDip / 2))).ToList();
+        if (parentAngle is { } parent) stops.Add((parent, Half(metrics.ItemDip / 2 * BackScale)));
+        stops.Sort((a, b) => a.Angle.CompareTo(b.Angle));
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            if (stops.Count == 0)
+            {
+                ctx.BeginFigure(At(c, radius, 0), isFilled: false, isClosed: true);
+                ctx.ArcTo(At(c, radius, 180), new Size(radius, radius), 0, false, SweepDirection.Clockwise, true, false);
+                ctx.ArcTo(At(c, radius, 360), new Size(radius, radius), 0, false, SweepDirection.Clockwise, true, false);
+            }
+            for (var i = 0; i < stops.Count; i++)
+            {
+                var (a, ha) = stops[i];
+                var (b, hb) = stops[(i + 1) % stops.Count];
+                var span = stops.Count == 1 ? 360 : ((b - a) % 360 + 360) % 360;
+                var (from, to) = (a + ha, a + span - hb);
+                if (to - from < 2) continue;
+                ctx.BeginFigure(At(c, radius, from), isFilled: false, isClosed: false);
+                ctx.ArcTo(At(c, radius, to), new Size(radius, radius), 0, to - from > 180, SweepDirection.Clockwise, true, false);
+            }
+        }
+        geometry.Freeze();
+        return geometry;
     }
 
     private void BuildBrushes()
@@ -683,7 +770,42 @@ internal sealed class RingView : FrameworkElement
         (_disc, _hot) = LayerBrushes(_colors, _metrics);
         (_chipShadow, _chipShadowShape) = RingItemVisual.Shadow(_metrics, _colors.ChipShadowAlpha) is { } shadow
             ? (shadow.Brush, shadow.Shape) : ((Brush?)null, (Geometry?)null);
+        var glow = _style.Glow && !_colors.HighContrast;
+        (_chipHalo, _chipHaloShape) = glow && RingItemVisual.Halo(_metrics, _colors.Accent) is { } halo
+            ? (halo.Brush, halo.Shape) : ((Brush?)null, (Geometry?)null);
+        (_glowBand, _rimHalo) = glow ? GlowBrushes(_colors, _metrics) : ((Brush?)null, (Pen?)null);
     }
+
+    /// <summary>
+    /// Işıltı: dış kenarın içinde vurgu renginde ince bir hale (yalnızca öğe dairelerinin dışında kalan bantta) ve vurgulanan
+    /// yayın altında genişçe, iki yana solan bir kalem. Degradeler halkanın ortasına göre (mutlak, dondurulmuş); efekt değil.
+    /// </summary>
+    internal static (Brush Band, Pen RimHalo) GlowBrushes(RingColors colors, RingMetrics metrics)
+    {
+        var c = new Point(metrics.OuterRadius, metrics.OuterRadius);
+        var outer = metrics.OuterRadius;
+        var rim = (outer - 4) / outer;
+        var bandStart = Math.Min((metrics.Radius + metrics.ItemDip / 2 + 1) / outer, rim - 0.01);
+        var band = Radial(c, outer, (0, WithAlpha(colors.Accent, 0)), (bandStart, WithAlpha(colors.Accent, 0)),
+            (rim, WithAlpha(colors.Accent, GlowBandAlpha)), (1, WithAlpha(colors.Accent, 0x08)));
+        const double width = 10;
+        var inner = (outer - 4 - width / 2) / outer;
+        var halo = Radial(c, outer, (0, WithAlpha(colors.Accent, 0)), (inner, WithAlpha(colors.Accent, 0)),
+            (rim, WithAlpha(colors.Accent, RimHaloAlpha)), (1, WithAlpha(colors.Accent, 0)));
+        var pen = new Pen(halo, width) { StartLineCap = PenLineCap.Flat, EndLineCap = PenLineCap.Flat };
+        pen.Freeze();
+        return (band, pen);
+    }
+
+    /// <summary>Işıltının dış bandı ve vurgulanan yayın halesi en koyu yerinde (vurgu renginin saydamlığı).</summary>
+    internal const byte GlowBandAlpha = 0x34, RimHaloAlpha = 0x60;
+
+    private Brush? _chipHalo, _glowBand;
+    private Geometry? _chipHaloShape;
+    private Pen? _rimHalo;
+
+    internal Brush? ChipHalo => _chipHalo;
+    internal Geometry? ChipHaloShape => _chipHaloShape;
 
     /// <summary>
     /// Zemin diskinin ve vurgulanan dilimin degradeleri (görünümün koordinatında, ortası halkanın ortası; dondurulmuş). Disk
@@ -819,24 +941,66 @@ internal sealed class RingView : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         var c = CenterPoint;
+        var style = _style;
         // Zemin diski: isabet testi de buna bakar (dışı widget'ı taşımaya kalır).
         dc.DrawEllipse(_disc, null, c, _metrics.OuterRadius, _metrics.OuterRadius);
-        for (var i = 0; i < _sectors.Length; i++)
-            dc.DrawGeometry(IsHot(i) ? _hot : _colors.Wedge, null, _sectors[i]);
-        if (_parentSector is not null) dc.DrawGeometry(IsHot(-1) ? _hot : _colors.Wedge, null, _parentSector);
+        if (_glowBand is not null) dc.DrawEllipse(_glowBand, null, c, _metrics.OuterRadius, _metrics.OuterRadius);
+        if (style.Wedges)
+        {
+            for (var i = 0; i < _sectors.Length; i++)
+                dc.DrawGeometry(IsHot(i) ? _hot : _colors.Wedge, null, _sectors[i]);
+            if (_parentSector is not null) dc.DrawGeometry(IsHot(-1) ? _hot : _colors.Wedge, null, _parentSector);
+        }
+        else if (_dropSlot is { } drop && drop < _sectors.Length) dc.DrawGeometry(_hot, null, _sectors[drop]); // alt halkaya bırakma
 
-        // Dilimler arasındaki ince ayırıcılar (tek dilimde yok).
+        // Dilimler arasındaki ince ayırıcılar (tek dilimde yok); Işıltı'da yerlerinde dış kenarda küçük noktalar.
         var boundaries = _wedges.Items.Select(w => w.Start).ToList();
         if (_wedges.Parent is { } parent) boundaries.Add(parent.Start);
-        if (boundaries.Count > 1)
+        if (boundaries.Count > 1 && style.Separators)
             foreach (var angle in boundaries)
                 dc.DrawLine(_colors.Separator, At(c, _metrics.CenterRadius + 8, angle), At(c, _metrics.OuterRadius - 9, angle));
+        if (boundaries.Count > 1 && style.Glow)
+            foreach (var angle in boundaries)
+                dc.DrawEllipse(_colors.GlowDot, null, At(c, _metrics.OuterRadius - 4, angle), 1.6, 1.6);
 
-        for (var i = 0; i < _rims.Length; i++) dc.DrawGeometry(null, IsHot(i) ? _colors.RimHot : _colors.Rim, _rims[i]);
-        // Boş halka: dilim yok; yine de bir halka gibi görünsün (bırakılacak yer).
-        if (_rims.Length == 0 && _parentRim is null)
-            dc.DrawEllipse(null, _colors.Separator, c, _metrics.OuterRadius - 4, _metrics.OuterRadius - 4);
-        if (_parentRim is not null) dc.DrawGeometry(null, IsHot(-1) ? _colors.RimHot : _colors.Rim, _parentRim);
+        if (style.Rims)
+        {
+            var idle = style.Glow ? _colors.GlowRim : _colors.Rim;
+            for (var i = 0; i < _rims.Length; i++)
+            {
+                if (IsHot(i) && _rimHalo is not null) dc.DrawGeometry(null, _rimHalo, _rims[i]);
+                dc.DrawGeometry(null, IsHot(i) ? _colors.RimHot : idle, _rims[i]);
+            }
+            if (_parentRim is not null)
+            {
+                if (IsHot(-1) && _rimHalo is not null) dc.DrawGeometry(null, _rimHalo, _parentRim);
+                dc.DrawGeometry(null, IsHot(-1) ? _colors.RimHot : idle, _parentRim);
+            }
+            // Boş halka: dilim yok; yine de bir halka gibi görünsün (bırakılacak yer).
+            if (_rims.Length == 0 && _parentRim is null)
+                dc.DrawEllipse(null, _colors.Separator, c, _metrics.OuterRadius - 4, _metrics.OuterRadius - 4);
+        }
+        else dc.DrawEllipse(null, _colors.Edge, c, _metrics.OuterRadius - 0.5, _metrics.OuterRadius - 0.5);
+        if (_track is not null) dc.DrawGeometry(null, _colors.Track, _track);
+
+        // Alt halkada: ortadan geldiğin yöndeki küçük üst daireye bağlantı çizgisi (Kando'daki gibi).
+        if (_parentAngle is { } back)
+        {
+            var end = _metrics.Radius - _metrics.ItemDip / 2 * BackScale - 2;
+            if (end > _metrics.CenterRadius + 6)
+                dc.DrawLine(IsHot(-1) ? _colors.Pointer : _colors.Connector, At(c, _metrics.CenterRadius + 3, back), At(c, end, back));
+        }
+        // Gösterge: ortadan vurgulanan öğeye ince vurgu çizgisi (Daire, Etiketli).
+        if (style.Pointer && _highlight.Kind == RingGeometry.HitKind.Item && _highlight.Index < _angles.Length)
+        {
+            var angle = _angles[_highlight.Index];
+            var end = _metrics.Radius - _metrics.ItemDip / 2 - 3;
+            if (end > _metrics.CenterRadius + 6)
+            {
+                dc.DrawLine(_colors.Pointer, At(c, _metrics.CenterRadius + 3, angle), At(c, end, angle));
+                dc.DrawEllipse(_colors.PointerDot, null, At(c, _metrics.CenterRadius + 3, angle), 2.5, 2.5);
+            }
+        }
 
         // Bırakılacak yer: öğelerin arasında vurgu çizgisi.
         var entries = EntryCount;
@@ -1034,7 +1198,10 @@ internal sealed record RingColors(
     Pen Separator, Pen Rim, Pen RimHot, Pen Marker,
     Brush Chip, Pen ChipBorder, Brush ChipHot, Pen ChipBorderHot, Brush ChipPressed, byte ChipShadowAlpha,
     Brush Center, Pen CenterBorder, Brush CenterHot, Pen CenterBorderHot, Brush Text, Brush TextHot, Brush Secondary,
-    Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot, Pen FocusBorder, Color Glyph)
+    Brush Badge, Pen BadgeBorder, Brush BadgeText, Brush BadgeHot, Brush BadgeTextHot, Brush Dot, Pen FocusBorder, Color Glyph,
+    Pen Track, Pen Pointer, Brush PointerDot, Pen Connector, Pen Edge,
+    Brush Label, Pen LabelBorder, Brush LabelHot, Brush LabelText, Brush LabelTextHot,
+    Pen GlowRim, Brush GlowDot, Pen GlowChipBorder, Pen GlowCenterBorder)
 {
     /// <summary>Simgenin altındaki renge karşı en az karşıtlığı (WCAG, anlamlı grafik).</summary>
     public const double GlyphContrast = 3.0;
@@ -1048,7 +1215,9 @@ internal sealed record RingColors(
     /// <summary>Koyu temada vurgulanan ve basılan dairenin saydamlığı (neredeyse opak; açık temada opak).</summary>
     internal const byte SolidChipAlpha = 0xF0;
 
-    public static RingColors From(WidgetPalette palette, bool highContrast)
+    /// <param name="style">Halkanın biçimi (<see cref="RingStyles"/>; yalnızca simge renginin denendiği katmanları değiştirir:
+    /// dilimsiz biçimde simgenin altında dilim yoktur). Yüksek karşıtlıkta yok sayılır.</param>
+    public static RingColors From(WidgetPalette palette, bool highContrast, RingStyle? style = null)
     {
         if (highContrast)
         {
@@ -1065,7 +1234,11 @@ internal sealed record RingColors(
                 Center: Solid(window), CenterBorder: Line(text, 1.5), CenterHot: Solid(window), CenterBorderHot: Line(highlight, 3),
                 Text: Solid(text), TextHot: Solid(text), Secondary: Solid(text),
                 Badge: Solid(window), BadgeBorder: Line(text, 1), BadgeText: Solid(text), BadgeHot: Solid(highlight),
-                BadgeTextHot: Solid(highlightText), Dot: Solid(text), FocusBorder: Line(highlight, 2), Glyph: text);
+                BadgeTextHot: Solid(highlightText), Dot: Solid(text), FocusBorder: Line(highlight, 2), Glyph: text,
+                Track: Line(text, 1), Pointer: Line(highlight, 2), PointerDot: Solid(highlight), Connector: Line(text, 1.5),
+                Edge: Line(text, 1), Label: Solid(window), LabelBorder: Line(text, 1), LabelHot: Solid(highlight), LabelText: Solid(text),
+                LabelTextHot: Solid(highlightText), GlowRim: Line(text, 2), GlowDot: Solid(text), GlowChipBorder: Line(text, 1.5),
+                GlowCenterBorder: Line(text, 1.5));
         }
         var fg = (palette.Foreground as SolidColorBrush)?.Color ?? Colors.White;
         var accent = (palette.Accent as SolidColorBrush)?.Color ?? Colors.White;
@@ -1096,8 +1269,20 @@ internal sealed record RingColors(
             Text: palette.Foreground, TextHot: palette.Foreground, Secondary: palette.Secondary,
             Badge: Solid(light ? white : Color.FromArgb(0xEE, 0x1E, 0x1C, 0x28)), BadgeBorder: Line(A(fg, light ? 0x26 : 0x34), 1),
             BadgeText: palette.Foreground, BadgeHot: palette.Accent, BadgeTextHot: accentText, Dot: Solid(A(fg, light ? 0x70 : 0x8C)),
-            FocusBorder: Line(accent, 2), Glyph: accent);
-        return colors with { Glyph = GlyphOn(accent, colors.GlyphGrounds(Grounds(palette))) };
+            FocusBorder: Line(accent, 2), Glyph: accent,
+            // Yörünge ve bağlantı çizgisi yazı renginin saydamı; gösterge vurgu renginde. Etiket orta daire gibi neredeyse opak
+            // ve nötr (yazı renginde ad), vurgulanınca vurgu renginde (vurgu yazısı rengiyle).
+            Track: Line(A(fg, light ? 0x30 : 0x38), 1.5), Pointer: Line(A(accent, 0xD8), 2), PointerDot: Solid(accent),
+            Connector: Line(A(fg, light ? 0x48 : 0x58), 1.5), Edge: Line(A(fg, light ? 0x1C : 0x24), 1),
+            Label: Solid(light ? A(white, 0xF4) : Solidish(ThemeMath.Composite(Argb(A(fg, 0x1E)), ground))),
+            LabelBorder: Line(A(fg, light ? 0x1E : 0x2A), 1), LabelHot: palette.Accent, LabelText: palette.Foreground,
+            LabelTextHot: Solid(Rgb(ThemeMath.TextOn(Argb(accent)))),
+            // Işıltı: kenarlar vurgu renginin saydamı (simgenin altına düşmez; halesi RingView/RingItemVisual'da degrade).
+            GlowRim: Line(A(accent, light ? 0x80 : 0x70), 2), GlowDot: Solid(A(accent, 0xB0)),
+            GlowChipBorder: Line(A(accent, light ? 0xA0 : 0x88), 1.25), GlowCenterBorder: Line(A(accent, light ? 0x90 : 0x78), 1.25));
+        var glyph = GlyphOn(accent, colors.GlyphGrounds(Grounds(palette), wedges: style?.Wedges ?? true));
+        // Alt halkanın noktaları simgenin renginde, biraz saydam (nereye gideceğini söyler; vurgu ailesinden).
+        return colors with { Glyph = glyph, Dot = Solid(A(glyph, 0xC8)) };
     }
 
     /// <summary>
@@ -1117,7 +1302,9 @@ internal sealed record RingColors(
     /// diskin içi → orta daire (boşta, vurgulu, basılı). Degradeler halkanın ölçüsünden bağımsız, en kötü durumla denenir: her
     /// biri uçlarında ve ortasında. Öğe gölgesi dairenin içine düşmez (<see cref="RingItemVisual.Shadow"/>).
     /// </summary>
-    internal IReadOnlyList<uint> GlyphGrounds(IEnumerable<uint> grounds)
+    /// <param name="wedges">false: dilimsiz biçim (Daire, Etiketli): öğe dairesi doğrudan zemin diskinin üstünde, vurgulanınca
+    /// da (altında dilim degradesi yok).</param>
+    internal IReadOnlyList<uint> GlyphGrounds(IEnumerable<uint> grounds, bool wedges = true)
     {
         var discs = WithMidpoints([Argb(DiscOuter), Argb(DiscInner)]);
         var hots = new[] { RingView.HotInnerAlpha, RingView.HotMidAlpha, RingView.HotOuterAlpha }.Select(a => Argb(A(Accent, a))).ToList();
@@ -1130,6 +1317,11 @@ internal sealed record RingColors(
             foreach (var disc in discs)
             {
                 var under = ThemeMath.Composite(disc, ground);
+                if (!wedges)
+                {
+                    foreach (var chip in idleChips.Concat(hotChips)) result.Add(ThemeMath.Composite(chip, under));
+                    continue;
+                }
                 foreach (var wedge in Fills(Wedge))
                 {
                     var idle = ThemeMath.Composite(wedge, under);
@@ -1287,6 +1479,35 @@ internal sealed class RingItemVisual : FrameworkElement
         return (brush, shape);
     }
 
+    /// <summary>Işıltı halesinin daireden taşan payı (DIP): kutunun payının içinde kalır.</summary>
+    public const double HaloReach = 7;
+
+    /// <summary>
+    /// Işıltı biçiminde vurgulanan dairenin halesi (efektsiz; gölge gibi yalnızca dairenin dışında, öğe kutusunun koordinatında,
+    /// dondurulmuş): dairenin kenarında vurgu renginde en koyu, <see cref="HaloReach"/> dışarıda saydam.
+    /// </summary>
+    internal static (Brush Brush, Geometry Shape)? Halo(RingMetrics metrics, Color accent)
+    {
+        var half = BoxSize(metrics) / 2;
+        var c = new Point(half, half);
+        var r = metrics.ItemDip / 2;
+        var reach = r + HaloReach;
+        double At(double distance) => Math.Clamp(distance / reach, 0, 1);
+        var brush = RingView.Radial(c, reach,
+            (At(r - 1), RingView.WithAlpha(accent, 0x78)),
+            (At(r + 2), RingView.WithAlpha(accent, 0x38)),
+            (At(r + 4.5), RingView.WithAlpha(accent, 0x10)),
+            (1, RingView.WithAlpha(accent, 0)));
+        var shape = new StreamGeometry { FillRule = FillRule.EvenOdd };
+        using (var ctx = shape.Open())
+        {
+            RingView.Circle(ctx, c, reach);
+            RingView.Circle(ctx, c, r - ShadowHoleInset);
+        }
+        shape.Freeze();
+        return (brush, shape);
+    }
+
     /// <summary>1–9 rozetinin yarıçapı (DIP): simgeyi örtmeyecek kadar küçük, rakam okunacak kadar büyük.</summary>
     public static double BadgeRadius(RingMetrics metrics) => Math.Max(7.5, metrics.ItemDip * 0.15);
 
@@ -1328,31 +1549,40 @@ internal sealed class RingItemVisual : FrameworkElement
     {
         var metrics = _ring.Metrics;
         var colors = _ring.Scheme;
+        var style = _ring.Style;
         var c = new Point(RenderSize.Width / 2, RenderSize.Height / 2);
-        var radius = metrics.ItemDip / 2;
+        var back = _index < 0;
+        // Alt halkadaki "geri": geldiğin yönde küçük daire (Kando'daki üst öğe); ortadan ona bağlantı çizgisi RingView'de.
+        var radius = metrics.ItemDip / 2 * (back ? RingView.BackScale : 1);
         var hot = _ring.IsHot(_index);
         var pressed = _ring.IsPressed(_index);
 
-        // Alt halkanın içindeki öğeler: dairenin arkasında küçük noktalar (Kando'daki torunlar gibi).
+        // Alt halkanın içindeki öğeler: dairenin dışında, alt halkada duracakları yönlerde küçük noktalar (Kando'daki torunlar
+        // gibi; durağan, fareyle belirmez).
         if (_slot is { Kind: RingSlotKind.SubRing, ChildCount: > 0 } sub)
         {
             var count = Math.Min(sub.ChildCount, RingSlot.MaxDots);
             var angle = _ring.ItemAngle(_index);
             foreach (var a in RingGeometry.Angles(count, (angle + 180) % 360))
-                dc.DrawEllipse(colors.Dot, null, RingView.At(c, radius + 2, a), 3.5, 3.5);
+                dc.DrawEllipse(colors.Dot, null, RingView.At(c, radius + DotGap, a), DotRadius, DotRadius);
         }
 
-        // Dairenin altında dışa solan ince gölge, yalnızca dairenin dışında (yüksek karşıtlıkta yok).
-        if (_ring.ChipShadow is { } shadow && _ring.ChipShadowShape is { } shape) dc.DrawGeometry(shadow, null, shape);
+        // Dairenin altında dışa solan ince gölge, yalnızca dairenin dışında (yüksek karşıtlıkta yok); Işıltı'da vurgulanan
+        // dairenin çevresinde vurgu renginde hale.
+        if (!back)
+        {
+            if ((hot || pressed) && _ring.ChipHalo is { } halo && _ring.ChipHaloShape is { } haloShape) dc.DrawGeometry(halo, null, haloShape);
+            else if (_ring.ChipShadow is { } shadow && _ring.ChipShadowShape is { } shape) dc.DrawGeometry(shadow, null, shape);
+        }
         // Yüksek karşıtlıkta kalın Vurgulama kenarı daireyi taşırmasın: kalemin yarısı kadar içeride.
-        var border = hot || pressed ? colors.ChipBorderHot : colors.ChipBorder;
+        var border = hot || pressed ? colors.ChipBorderHot : style.Glow ? colors.GlowChipBorder : colors.ChipBorder;
         var inset = border.Thickness / 2;
         dc.DrawEllipse(pressed ? colors.ChipPressed : hot ? colors.ChipHot : colors.Chip, border, c, radius - inset, radius - inset);
 
-        var image = _slot?.Icon ?? (_index < 0 ? GlyphImage.For(RingSlot.BackGlyph, _ring.GlyphColor) : null);
+        var image = _slot?.Icon ?? (back ? GlyphImage.For(RingSlot.BackGlyph, _ring.GlyphColor) : null);
         if (image is not null)
         {
-            var size = _index < 0 ? metrics.IconDip * 0.7 : metrics.IconDip;
+            var size = back ? metrics.IconDip * 0.55 : metrics.IconDip;
             var dpi = _ring.PixelsPerDipForText;
             var left = Math.Round((c.X - size / 2) * dpi) / dpi;
             var top = Math.Round((c.Y - size / 2) * dpi) / dpi;
@@ -1362,8 +1592,11 @@ internal sealed class RingItemVisual : FrameworkElement
             if (dim) dc.Pop();
         }
 
+        // Etiketli: dairenin dışa bakan yanında (üst yarıda üstünde, öbürlerinde altında) adı; vurgulanınca vurgu renginde.
+        if (style.Labels && !back && _slot is { } slot) DrawLabel(dc, slot, c, radius, hot || pressed, colors, metrics);
+
         // 1–9: hep yerinde (rozet fareyle belirmez), Kando'daki gibi öğenin ortaya bakan kenarında (alt halkanın noktaları hiç
-        // o yönde değildir); vurgulanınca yalnızca rengi değişir.
+        // o yönde değildir); Etiketli'de etiket alttadır, rozet sol üstte. Vurgulanınca yalnızca rengi değişir.
         if (_index is >= 0 and < 9 && _ring.ShowsKeys && _slot?.Kind != RingSlotKind.Add)
         {
             var badge = RingView.At(c, radius * 0.95, _ring.ItemAngle(_index) + 180);
@@ -1377,6 +1610,33 @@ internal sealed class RingItemVisual : FrameworkElement
                 : new Point(badge.X - ink.X - ink.Width / 2, badge.Y - ink.Y - ink.Height / 2);
             dc.DrawText(digit, at);
         }
+    }
+
+    /// <summary>Alt halka noktalarının daireden uzaklığı ve yarıçapı (DIP; öğe kutusunun payında kalır).</summary>
+    public const double DotGap = 4.5, DotRadius = 2.6;
+
+    /// <summary>Etiketin dikdörtgeni (öğe kutusunun koordinatında; kutunun dışına taşar, halka ona yer açar).</summary>
+    internal static Rect LabelRect(Point center, RingMetrics metrics, double angle)
+    {
+        var (left, top, width, height) = RingStyles.LabelBox(angle, metrics.ItemDip);
+        return new Rect(center.X + left, center.Y + top, width, height);
+    }
+
+    private void DrawLabel(DrawingContext dc, RingSlot slot, Point c, double radius, bool hot, RingColors colors, RingMetrics metrics)
+    {
+        var rect = LabelRect(c, metrics, _ring.ItemAngle(_index));
+        var corner = rect.Height / 2;
+        dc.DrawRoundedRectangle(hot ? colors.LabelHot : colors.Label, hot ? null : colors.LabelBorder, rect, corner, corner);
+        var text = new FormattedText(slot.Name, L.Culture, FlowDirection.LeftToRight, hot ? RingCenterVisual.Bold : RingCenterVisual.Regular,
+            11.5, hot ? colors.LabelTextHot : colors.LabelText, _ring.PixelsPerDipForText)
+        {
+            MaxTextWidth = Math.Max(1, rect.Width - 14), MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis,
+            TextAlignment = TextAlignment.Center,
+        };
+        var dim = slot.Dimmed;
+        if (dim) dc.PushOpacity(0.6);
+        dc.DrawText(text, new Point(rect.X + 7, rect.Y + (rect.Height - text.Height) / 2));
+        if (dim) dc.Pop();
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => new Peer(this);
@@ -1428,7 +1688,7 @@ internal sealed class RingCenterVisual : FrameworkElement
         var r = _ring.Metrics.CenterRadius;
         var c = new Point(r, r);
         var hot = _ring.CenterHot;
-        var border = hot || _ring.CenterPressed ? colors.CenterBorderHot : colors.CenterBorder;
+        var border = hot || _ring.CenterPressed ? colors.CenterBorderHot : _ring.Style.Glow ? colors.GlowCenterBorder : colors.CenterBorder;
         var inset = border.Thickness / 2;
         dc.DrawEllipse(_ring.CenterPressed ? colors.ChipPressed : hot ? colors.CenterHot : colors.Center, border, c, r - inset, r - inset);
         // Odak çerçevesi: klavye odağı halkadayken orta dairenin hemen dışında vurgu renginde ince bir halka (Windows'un odak
@@ -1437,7 +1697,18 @@ internal sealed class RingCenterVisual : FrameworkElement
 
         var top = c.Y - r * 0.62;
         var bottom = c.Y + r * 0.62;
-        if (_ring.InSubRing && GlyphImage.For(RingSlot.BackGlyph, _ring.GlyphColor) is { } back)
+        if (_ring.CenterItemIcon is { } itemIcon)
+        {
+            // Vurgulanan öğe: üstte simgesi, altında adı (Kando'daki gibi orta nereye gidileceğini gösterir).
+            var size = Math.Round(Math.Min(_ring.Metrics.IconDip * 0.8, r * 0.56));
+            var y = c.Y - r * 0.70;
+            var dim = _ring.HighlightedSlot?.Dimmed == true;
+            if (dim) dc.PushOpacity(0.45);
+            dc.DrawImage(itemIcon, new Rect(c.X - size / 2, y, size, size));
+            if (dim) dc.Pop();
+            top = y + size + 2;
+        }
+        else if (_ring.InSubRing && GlyphImage.For(RingSlot.BackGlyph, _ring.GlyphColor) is { } back)
         {
             // Alt halkada: üstte geri oku (ortaya basmak köke döner).
             var size = Math.Max(12, r * 0.28);

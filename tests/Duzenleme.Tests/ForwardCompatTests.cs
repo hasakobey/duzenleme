@@ -154,11 +154,35 @@ public class ForwardCompatTests : IDisposable
         var json = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Note }, JsonFile.Options);
         foreach (var name in new[] { "Variant", "SortBy", "ItemOrder", "ChecklistDoneLast", "Clock12Hour", "FolderKnownId", "FirstDayOfWeek",
                      "TargetDate", "CountdownYearly", "Timer", "Zones", "StatusIntervalSeconds", "StatusDrive", "Extra",
-                     "LookTheme", "LookAccentColor", "QuickKeys" })
+                     "LookTheme", "LookAccentColor", "QuickKeys", "RingStyle" })
             Assert.DoesNotContain($"\"{name}\"", json);
         var calendar = JsonSerializer.Serialize(new WidgetConfig { Kind = WidgetKind.Date, Variant = WidgetVariants.Month, CountdownYearly = true }, JsonFile.Options);
         Assert.Contains("\"Variant\": \"month\"", calendar);
         Assert.Contains("\"CountdownYearly\": true", calendar);
+    }
+
+    /// <summary>
+    /// 2.2 halka görünümü: RingStyle metni (Klasik'te yazılmaz); daha yeni bir sürümün biçim adı Klasik çizilir ve kaydedince
+    /// korunur. Kalıcı enum'a üye eklenmedi.
+    /// </summary>
+    [Fact]
+    public void Ring_style_round_trips_and_unknown_names_are_kept()
+    {
+        var s = Load("""
+            { "Paused": true, "Widgets": [ { "Kind": "Launcher", "Variant": "ring", "RingStyle": "hologram" },
+              { "Kind": "Launcher", "Variant": "ring", "RingStyle": "orbit" }, { "Kind": "Launcher", "Variant": "ring" } ] }
+            """);
+        Assert.Equal("hologram", s.Widgets[0].RingStyle);
+        Assert.Same(RingStyles.Classic, RingStyles.For(s.Widgets[0].RingStyle));
+        Assert.Equal(RingStyles.Orbit, RingStyles.For(s.Widgets[1].RingStyle).Id);
+        Assert.Null(s.Widgets[2].RingStyle);
+        var json = System.Text.Encoding.UTF8.GetString(JsonFile.Serialize(s));
+        Assert.Contains("\"RingStyle\": \"hologram\"", json);
+        Assert.Contains("\"RingStyle\": \"orbit\"", json);
+        using var doc = JsonDocument.Parse(json);
+        Assert.False(doc.RootElement.GetProperty("Widgets")[2].TryGetProperty("RingStyle", out _));
+        Assert.Equal("orbit", s.Widgets[1].Clone().RingStyle);
+        Assert.Equal(0, BrokenBackups);
     }
 
     [Fact]

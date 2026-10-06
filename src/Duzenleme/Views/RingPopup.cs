@@ -341,7 +341,7 @@ internal sealed class RingPopup : Window
         _ring.ApplyPalette(palette, rebuild: false);
         _ring.CenterShowsIcon = !config.Shows(WidgetNameLine.PartKey);
         _ring.SetRing(config, 0);
-        _backdrop.Apply(palette, _ring.Metrics.OuterRadius);
+        _backdrop.Apply(palette, _ring.Metrics.OuterRadius, _ring.Style);
         PaintChrome(palette);
         var side = 2 * (_ring.Metrics.OuterRadius + AimDip);
         Arrange(side / 2, side / 2);
@@ -380,7 +380,7 @@ internal sealed class RingPopup : Window
     internal static string Signature(WidgetConfig config) => JsonSerializer.Serialize(new
     {
         config.Id, config.Style, config.Accent, config.LookTheme, config.LookAccentColor, config.IconSize, config.Scale, config.Title,
-        config.Icon, config.HiddenParts, config.Tabs, config.ItemLooks, SystemParameters.HighContrast, WidgetPalette.SystemDark,
+        config.Icon, config.HiddenParts, config.Tabs, config.ItemLooks, config.RingStyle, SystemParameters.HighContrast, WidgetPalette.SystemDark,
     }, JsonFile.Options);
 
     private void OnSettingsChanged()
@@ -874,7 +874,8 @@ internal sealed class RingBackdrop : FrameworkElement
         Focusable = false;
     }
 
-    public void Apply(WidgetPalette palette, double outer)
+    /// <param name="style">Halkanın biçimi: Işıltı'da zeminin kenarı vurgu renginin saydamı (yüksek karşıtlıkta yok sayılır).</param>
+    public void Apply(WidgetPalette palette, double outer, RingStyle? style = null)
     {
         _outer = outer;
         Width = Height = 2 * (outer + ShadowDip);
@@ -896,7 +897,9 @@ internal sealed class RingBackdrop : FrameworkElement
             // Cam'da koyu, neredeyse opak zemin (RingColors simgelerin rengini buna göre de denetler).
             _plate = palette.IsOpaqueBackground ? palette.Background
                 : Frozen(Radial((0, ColorOf(RingColors.PopupPlateInner)), (1, ColorOf(RingColors.PopupPlateOuter))));
-            _edge = Frozen(new Pen(palette.IsOpaqueBackground ? palette.BorderBrush : WidgetPalette.Solid(0x38FFFFFF), 1));
+            _edge = style?.Glow == true && palette.Accent is SolidColorBrush accent
+                ? Frozen(new Pen(Frozen(new SolidColorBrush(RingView.WithAlpha(accent.Color, 0x66))), 1))
+                : Frozen(new Pen(palette.IsOpaqueBackground ? palette.BorderBrush : WidgetPalette.Solid(0x38FFFFFF), 1));
         }
         InvalidateVisual();
     }

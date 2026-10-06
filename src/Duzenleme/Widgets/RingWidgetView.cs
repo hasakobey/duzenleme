@@ -220,6 +220,16 @@ internal sealed class RingWidgetView : UserControl, IWidgetView
             _ring.TabIndex);
         _editorChanged = () => content.Changed();
         content.Custom(editor, editor.Refresh);
+        // Halkanın biçimi (RingStyles: Klasik, Daire, Etiketli, Işıltı; gerçek çizimli kartlar). Hemen uygulanır; açılır halka
+        // ayarın imzasından yeniden kurulur, düzenleyicinin önizlemesi tazelenir.
+        content.RingStylePicker(_config, id =>
+        {
+            if (Core.RingStyles.CurrentId(_config) == id || !Core.RingStyles.Apply(_config, id)) return;
+            AppHost.SaveSettings();
+            _ring.Rebuild();
+            ApplyParts();
+            editor.Refresh();
+        });
         return true;
     }
 

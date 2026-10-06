@@ -1,4 +1,4 @@
-﻿using System.Xml.Linq;
+using System.Xml.Linq;
 using Duzenleme.Core;
 using Duzenleme.Localization;
 using Duzenleme.Views;

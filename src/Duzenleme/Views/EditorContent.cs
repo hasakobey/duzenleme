@@ -131,6 +131,38 @@ public sealed class EditorContent
         }, _refreshers));
 
     /// <summary>
+    /// Görünümün menü öğelerinden satırlar, kendi denetimlerinin yanında (<see cref="IWidgetView.AddEditorContent"/> true döndüğünde
+    /// panel menü satırlarını kendisi kurmaz): Primary'den yalnızca seçenekler, Settings'ten hepsi; AutomationId'ler panelin
+    /// menü satırlarıyla aynı (<c>Editor.Option.P|S.n</c>).
+    /// </summary>
+    internal void MenuOptions(WidgetMenu menu)
+    {
+        MenuRows.Add(_panel, menu.Primary, optionsOnly: true, "Editor.Option.P", _refreshers, _changed);
+        MenuRows.Add(_panel, menu.Settings, optionsOnly: false, "Editor.Option.S", _refreshers, _changed);
+    }
+
+    /// <summary>
+    /// Halka menünün biçimi (<see cref="RingStyles"/>): "Halka biçimi" başlığı ve gerçek çizimli dört kart (<see cref="RingStyleGallery"/>,
+    /// AutomationId <c>Editor.RingStyle.&lt;kimlik&gt;</c>). Seçim hemen uygulanır (<paramref name="choose"/>).
+    /// </summary>
+    internal void RingStylePicker(WidgetConfig c, Action<string> choose)
+    {
+        _panel.Children.Add(EditorRows.Section(L.T("Halka biçimi")));
+        if (SystemParameters.HighContrast)
+        {
+            _panel.Children.Add(EditorRows.Muted(L.T("Yüksek karşıtlık açık: halka sade çizilir.")));
+            return;
+        }
+        var gallery = new RingStyleGallery(c, () => Core.RingStyles.CurrentId(c), id =>
+        {
+            choose(id);
+            _changed(false);
+        });
+        _refreshers.Add(gallery.Refresh);
+        _panel.Children.Add(gallery);
+    }
+
+    /// <summary>
     /// Bölme ve kısayol kutusunun görünüşü: "Görünüş: Izgara · Liste" ve "Simge boyutu" (Ctrl + tekerleğin adımları). Seyrek simge
     /// seçenekleri "Daha fazla"dadır (<see cref="Menus.TileOptions"/>).
     /// </summary>
