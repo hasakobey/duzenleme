@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 
 namespace Duzenleme.Localization;
 
@@ -69,9 +69,9 @@ internal static partial class En
         new("Nasıl kullanılır kartlarını bir daha gösterme", "Don't show the How it works cards again"),
         new("Başlığından ya da boş yerinden sürükle.", "Drag it by its title or an empty spot."),
         new("Büyüt", "Resize"),
-        new("Kenarından sürükle.", "Drag an edge."),
+        new("Kenarından sürükle ya da ⋯ › Boyut.", "Drag an edge, or use ⋯ › Size."),
         new("Düzenle", "Edit"),
-        new("Üzerine sağ tıkla.", "Right-click it."),
+        new("Köşedeki ⋯ düğmesine bas.", "Select the ⋯ button in its corner."),
         new("Halka", "Ring"),
         new("Widget ekle › Hepsini göster › Halka menü.", "Add widget › Show all › Ring menu."),
     ]);

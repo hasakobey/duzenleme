@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -24,14 +24,14 @@ internal static class HowToCards
 
     /// <summary>
     /// Kartlar, sırasıyla. Metinler arayüz dilinde: her çağrıda kurulur. Yalnızca bugün gerçekten çalışan yollar yazılır:
-    /// widget'larda ⋯ düğmesi yokken "Büyüt" ve "Düzenle" onu anmaz (⋯ gelince HomePageTests kartları güncelletir).
+    /// "Düzenle" kartın köşesindeki ⋯ düğmesini, "Büyüt" kenarı ve panelin "Boyut"unu anar (HomePageTests denetler).
     /// </summary>
     /// <param name="doubleClick">Kullanıcının boş masaüstüne çift tıklamasının bugünkü etkisi (<see cref="CurrentDoubleClick"/>).</param>
     public static IReadOnlyList<Card> CardsFor(DoubleClickEffect doubleClick) =>
     [
         new("move", SymbolRegular.ArrowMove24, L.T("Taşı"), L.T("Başlığından ya da boş yerinden sürükle.")),
-        new("resize", SymbolRegular.ResizeLarge24, L.T("Büyüt"), L.T("Kenarından sürükle.")),
-        new("edit", SymbolRegular.Edit24, L.T("Düzenle"), L.T("Üzerine sağ tıkla.")),
+        new("resize", SymbolRegular.ResizeLarge24, L.T("Büyüt"), L.T("Kenarından sürükle ya da ⋯ › Boyut.")),
+        new("edit", SymbolRegular.Edit24, L.T("Düzenle"), L.T("Köşedeki ⋯ düğmesine bas.")),
         new("ring", SymbolRegular.DataPie24, L.T("Halka"), RingText(doubleClick)),
     ];
 

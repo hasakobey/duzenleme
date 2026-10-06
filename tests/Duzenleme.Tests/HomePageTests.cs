@@ -1,4 +1,4 @@
-using System.Xml.Linq;
+﻿using System.Xml.Linq;
 using Duzenleme.Core;
 using Duzenleme.Localization;
 using Duzenleme.Views;
@@ -38,8 +38,8 @@ public class HomePageTests
         Assert.Equal(["move", "resize", "edit", "ring"], cards.Select(c => c.Key));
         Assert.Equal(["Taşı", "Büyüt", "Düzenle", "Halka"], cards.Select(c => c.Title));
         Assert.Equal("Başlığından ya da boş yerinden sürükle.", cards[0].Text);
-        Assert.Equal("Kenarından sürükle.", cards[1].Text);
-        Assert.Equal("Üzerine sağ tıkla.", cards[2].Text);
+        Assert.Equal("Kenarından sürükle ya da ⋯ › Boyut.", cards[1].Text);
+        Assert.Equal("Köşedeki ⋯ düğmesine bas.", cards[2].Text);
         Assert.All(cards, c =>
         {
             Assert.DoesNotContain(' ', c.Title);
@@ -53,20 +53,17 @@ public class HomePageTests
     }
 
     /// <summary>
-    /// Kartlar yalnızca bugün çalışan yolu söyler: widget'larda ⋯ düğmesi yokken "Büyüt" ve "Düzenle" onu anmaz. ⋯ düğmesi
-    /// (MoreHorizontal simgesi ya da "⋯") widget'lara gelince bu test düşer: kartlara ⋯ yolunu ekle ve testi güncelle.
+    /// Kartlar yalnızca bugün çalışan yolu söyler: "Düzenle" kartın köşesindeki ⋯ düğmesini (CardButtons), "Büyüt" panelin
+    /// "Boyut"unu anar. ⋯ düğmesi widget'lardan kalkarsa ya da AutomationId'si değişirse bu test düşer: kartları güncelle.
     /// </summary>
     [Fact]
-    public void How_to_cards_do_not_name_a_more_button_widgets_do_not_have()
+    public void How_to_cards_name_the_edit_button_widgets_have()
     {
-        var widgets = Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets");
-        var withMore = Directory.EnumerateFiles(widgets, "*.*", SearchOption.AllDirectories)
-            .Where(f => f.EndsWith(".cs", StringComparison.Ordinal) || f.EndsWith(".xaml", StringComparison.Ordinal))
-            .Where(f => File.ReadAllText(f) is var text && (text.Contains("MoreHorizontal", StringComparison.Ordinal) || text.Contains('⋯')))
-            .Select(Path.GetFileName).ToList();
-        Assert.True(withMore.Count == 0,
-            $"Widget'larda ⋯ düğmesi var ({string.Join(", ", withMore)}): HowToCards'ta \"Büyüt\" ve \"Düzenle\" kartlarına ⋯ yolunu ekle ve bu testi güncelle.");
-        Assert.All(HowToCards.CardsFor(DoubleClickEffect.ToggleDesktop), c => Assert.DoesNotContain("⋯", c.Text));
+        var buttons = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Duzenleme", "Widgets", "CardButtons.cs"));
+        Assert.Contains("\"Widget.Edit\"", buttons);
+        var cards = HowToCards.CardsFor(DoubleClickEffect.ToggleDesktop);
+        Assert.Contains("⋯", cards.Single(c => c.Key == "edit").Text);
+        Assert.Contains("⋯", cards.Single(c => c.Key == "resize").Text);
     }
 
     /// <summary>
