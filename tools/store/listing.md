@@ -363,6 +363,12 @@ Her görüntü iki kez çekilir: Türkçe liste için `NESTDESK_LANG=tr`, İngil
 
 ## Kısıtlı yetenek gerekçesi: runFullTrust (Submission options → Restricted capabilities)
 
+**Partner Center kutusu en çok 500 karakter alır (Ekim 2026).** Kutuya bu sürüm girer; aşağıdaki uzun metinler sertifikasyon soru sorarsa yanıt için durur:
+
+```text
+NestDesk is a Win32 WPF desktop app (FullTrustApplication). It needs runFullTrust to hide/show Explorer's desktop icon view on request, keep widget windows on the desktop, detect double-clicks on the empty desktop with raw input (no hooks), register opt-in hotkeys (RegisterHotKey), run ring items the user picks, move desktop files only after opt-in (journaled, undoable) and use shell file and folder-icon APIs. No drivers, services, keyboard hooks or admin rights.
+```
+
 İngilizce yaz; kutu kısaysa aşağıdaki kısa sürümü kullan.
 
 ```text
@@ -395,7 +401,7 @@ The app does not install drivers or services and does not require administrator 
 Kısa sürüm:
 
 ```text
-Win32 WPF (.NET 10) desktop app packaged with the Windows.FullTrustApplication entry point. runFullTrust is required to: hide/show Explorer's desktop icon view (SHELLDLL_DefView/SysListView32) on user request (panel mode, peek, double-click) and restore it on exit; keep widget windows owned by the desktop at the bottom of the z-order; detect double-clicks on the empty desktop with raw mouse input to open the ring menu or hide/peek (no hook; time/position only, nothing stored or sent); register user-configurable global hotkeys (RegisterHotKey; the ring menu shortcut is off by default; no keyboard hook is used); on the user's pick of a ring item only, send that item's user-defined key combinations once (at most 8, SendInput, only to the window that was in front before the ring opened and only while it is still in front, never to windows at a higher integrity level such as elevated ones) or paste its user-defined text via the clipboard with the clipboard-history/cloud exclusion formats, restoring the previous clipboard; start user-defined command lines via ShellExecute (runas only through UAC); watch the user's Desktop folder and, only after opt-in, move files into user-created folders by user rules or into a visible %USERPROFILE%\NestDesk folder for shortcut boxes (journaled, undoable); list, rename and recycle items on explicit request with shell file operations; apply folder icons with SHGetSetFolderCustomSettings; query and, after confirmation, empty the Recycle Bin; read CPU/memory/disk/battery for display only; launch user-chosen items via ShellExecute; and keep a local, rotating, scrubbed error log in the app data folder (no paths, file names or user text; 4 MB/14-day cap; the user can turn it off and delete it in Settings). Widget themes are data only (built-in color values). No drivers, services or admin rights.
+Win32 WPF (.NET 10) desktop app packaged with the Windows.FullTrustApplication entry point. runFullTrust is required to: hide/show Explorer's desktop icon view (SHELLDLL_DefView/SysListView32) on user request (panel mode, peek, double-click) and restore it on exit; keep widget windows owned by the desktop at the bottom of the z-order; detect double-clicks on the empty desktop with raw mouse input to open the ring menu or hide/peek (no hook; time/position only, nothing stored or sent); register user-configurable global hotkeys (RegisterHotKey; the ring menu shortcut is off by default; no keyboard hook is used); on the user's pick of a ring item only, send that item's user-defined key combinations once (at most 8, SendInput, only to the window that was in front before the ring opened and only while it is still in front, never to windows at a higher integrity level such as elevated ones) or paste its user-defined text via the clipboard with the clipboard-history/cloud exclusion formats, restoring the previous clipboard; start user-defined command lines via ShellExecute (runas only through UAC); watch the user's Desktop folder and, only after opt-in, move files into user-created folders by user rules or into a visible %USERPROFILE%\NestDesk folder for items the user puts in widgets (journaled, undoable); list, rename and recycle items on explicit request with shell file operations; apply folder icons with SHGetSetFolderCustomSettings; query and, after confirmation, empty the Recycle Bin; read CPU/memory/disk/battery for display only; launch user-chosen items via ShellExecute; and keep a local, rotating, scrubbed error log in the app data folder (no paths, file names or user text; 4 MB/14-day cap; the user can turn it off and delete it in Settings). Widget themes are data only (built-in color values). No drivers, services or admin rights.
 ```
 
 ---
@@ -446,6 +452,47 @@ Partner Center'daki gizlilik sorusu (**Properties** → uygulama kişisel bilgiy
 
 ## Sertifikasyon test notları (Submission options → Notes for certification)
 
+**Notlar artık Supplemental info → Additional Testing Information sayfasında; kutu en çok 6000 karakter alır (Ekim 2026).** Kutuya bu kısa sürüm girer, aşağıdaki uzun sürüm başvuru içindir:
+
+```text
+Thank you for testing NestDesk. No account, sign-in or admin rights are needed. The UI follows the Windows display language (English labels below).
+
+START
+1. First launch adds a tray icon and a 3-step welcome (panels, moving files, "Your NestDesk ring"). Use "Next"/"Done" or "Skip for now" (changes nothing). In step 3 "Open when I double-click the empty desktop" is on, "Also open with a key" is off.
+2. No file moves without consent. Auto-move is OFF unless chosen in welcome step 2 or on the "Auto-move" page, and only moves into folders that already exist on the desktop (PDF, Pictures, Documents...). On a clean machine nothing moves.
+3. Closing the window keeps the app in the tray; tray right-click > "Exit" quits.
+
+WIDGETS
+4. Ctrl+Alt+B, tray > "Add widget...", Home > "Add widget" or Start > "NestDesk - Add widget". Click a tile (Clock, Calendar, Note, To-do, Shortcut box, Timer; "Show all" has Ring menu, Pomodoro, World clock...; "Panel >" has folder panels). "From the desktop" lists desktop items: a folder becomes a panel, a shortcut/file goes into a shortcut box.
+5. The ... button in a widget's corner (or right-click > "Edit...") opens the Edit panel: name, icon, settings, "Appearance" (Auto, Glass, Dark, Light, Neon, Night, Paper, Ocean, colors, Size), "Show", "More". Changes apply at once; "Undo" reverts; "Done"/Esc closes.
+6. Remove: x in the corner or right-click > "Remove"; the notice's "Undo" restores it. Main window > "Widgets" lists all widgets with their Edit panel; "All widgets" restyles every widget (with Undo).
+7. Settings > "Advanced settings" > Appearance > Animations (Lively/Calm/Off). With Windows "Animation effects" off, no NestDesk animation plays. No flashing or looping. High Contrast uses Windows colors.
+
+DESKTOP ICONS (nothing on disk changes)
+8. Ctrl+Alt+G peeks at the Windows desktop (bar with "+5 min"/"Back to NestDesk", auto-returns in 2 min).
+9. Settings > "Gather icons into panels" hides Explorer's icon view and shows the icons in panels; turning it off, exiting or signing out shows them again.
+
+ITEMS IN WIDGETS (moves files only after the user opts in)
+10. Settings > "Items I put in widgets leave the desktop" (off by default; asked once the first time a desktop item is put in a widget). With it on, a desktop item put into a shortcut box, ring or folder panel is moved to %USERPROFILE%\NestDesk\<widget> (visible folder, journaled, "What is this folder.txt" lists former locations) and returns when taken out, with "Put back on the desktop", "Put all back on the desktop" or when the switch is turned off. Any item can also be removed/returned by hand ("Remove from desktop" / "Put back on the desktop"). Folders used by an auto-move rule or ring command never move. The Store edition never moves Public Desktop items.
+
+RING MENU (keys/text only after the user picks an item)
+11. Double-click the empty desktop (default from welcome) or tray > "Open the ring": the ring opens at the pointer ("New note", "Peek at the Windows desktop", "Add widget", "Open NestDesk"). Click or press 1-9; Esc/right-click/outside closes.
+12. "Edit ring" (below the ring or on Home) opens the ring editor: select a slot, move with < > (Alt+Left/Right), "Change..."/"Remove" (Undo). Add: "+ App", "+ Folder", "+ Web address", "+ NestDesk action", "More" (Command..., Press keys..., Paste text..., Sub-ring...). A ring widget's Edit panel has "Ring style": Classic, Orbit, Labeled, Glow.
+13. The ring key is off and unassigned by default. Turning on "Open next to the pointer with a key" (Settings > Ring menu) registers Ctrl+Alt+R (or K/J/Y) with RegisterHotKey; no keyboard hook. Key and text items work only in the ring opened by that key; elsewhere they are dimmed.
+14. Text item: in Notepad press the key and pick the item; the text is pasted (excluded from Win+V history and cloud clipboard) and the previous clipboard is restored after ~1 s. Key item: sends its keys once to the window that was in front. Elevated windows never receive keys (a notice says so). The ring never opens on the lock screen or UAC.
+15. Commands run only when picked; "Run as administrator" shows UAC each time. No preset commands.
+
+AUTO-MOVE
+16. Turn it on (Auto-move page or tray). Create a "PDF" folder on the desktop and copy a .pdf there: it moves in ~2 s with a notification; "Undo last move" reverts.
+
+DIAGNOSTICS AND NETWORK (local only)
+17. Settings > Advanced settings > Troubleshooting: local scrubbed error log (no paths/file names/user text; can be turned off/deleted), "Open diagnostics page" (script-free local HTML), "Create diagnostic package" (lists files first, saves where the user chooses). Nothing is uploaded.
+18. Only optional network use: AI folder icons with the user's own Anthropic API key (Advanced settings > Folder icons). Without a key the button is disabled; all else works offline.
+
+UNINSTALL
+19. The Store package removes settings and logs. Files the user put in the NestDesk folder stay as the user's content; turn off "Items I put in widgets leave the desktop" first to put them back.
+```
+
 Etiketler İngilizce arayüzdeki adlardır (sertifikasyon bilgisayarı çoğunlukla İngilizcedir). Yerelleştirme bittiğinde metni `NESTDESK_LANG=en` ile açılan arayüzle karşılaştır; bir etiket farklıysa burada düzelt.
 
 ```text
@@ -457,7 +504,7 @@ GETTING STARTED
 3. Closing the main window keeps the app running in the tray. Left-click the tray icon to reopen it. To quit, right-click the tray icon > "Exit".
 
 ADD, EDIT AND REMOVE WIDGETS
-4. Press Ctrl+Alt+B, right-click the tray icon > "Add widget…", select "Add widget" on the Home page, or start "NestDesk – Add widget" from the Start menu. Click a tile, e.g. "Clock", "Calendar", "Note", "To-do", "Shortcut box", "Timer"; "Show all" has "Ring menu", "Pomodoro", "World clock" and more, and "Panel ›" has the panels ("Folders", "Files", "Downloads", "New panel…"). The new widget appears next to the mouse pointer and is highlighted for a few seconds (Settings > "Advanced settings" > Desktop > "Where new widgets appear" can change this to the screen center or a corner). Below the tiles, "From the desktop" shows up to six desktop items: a folder becomes a panel, a shortcut or file goes into a shortcut box ("All…" lists everything with search and multi-select; dropping files from the desktop onto the window does the same). Nothing is moved on disk unless "Icons I put in boxes leave the desktop" is on (it is asked the first time).
+4. Press Ctrl+Alt+B, right-click the tray icon > "Add widget…", select "Add widget" on the Home page, or start "NestDesk – Add widget" from the Start menu. Click a tile, e.g. "Clock", "Calendar", "Note", "To-do", "Shortcut box", "Timer"; "Show all" has "Ring menu", "Pomodoro", "World clock" and more, and "Panel ›" has the panels ("Folders", "Files", "Downloads", "New panel…"). The new widget appears next to the mouse pointer and is highlighted for a few seconds (Settings > "Advanced settings" > Desktop > "Where new widgets appear" can change this to the screen center or a corner). Below the tiles, "From the desktop" shows up to six desktop items: a folder becomes a panel, a shortcut or file goes into a shortcut box ("All…" lists everything with search and multi-select; dropping files from the desktop onto the window does the same). Nothing is moved on disk unless "Items I put in widgets leave the desktop" is on (it is asked the first time).
 5. Click the ⋯ button in a widget's corner, or right-click it > "Edit…": the Edit panel opens next to the widget with its name, icon (click the icon to choose one of 64), the widget's own settings, "Appearance" (Auto, Glass, Dark, Light, Neon, Night, Paper, Ocean; five colors and "Custom…"; Size), "Show" and "More". Every change applies at once; "Undo" returns to the state when the panel opened; "Done" or Esc closes it. Right-click menus have at most five rows (Edit…, up to two actions of the widget, Remove).
 6. F2 renames: click a widget's title and press F2. In a panel, select a file you created for the test and press F2 to rename it on disk; in a shortcut box, F2 changes only the displayed name.
 7. To remove a widget, click the × in its top-right corner, right-click it > "Remove", or "Remove" in the Edit panel. The notice's "Undo" or the tray menu's "Bring back" item restores it.
@@ -471,14 +518,14 @@ PEEK AT THE WINDOWS DESKTOP
 11. Press Ctrl+Alt+G (or tray > "Peek at the Windows desktop"). The Windows desktop icons become visible, widgets step aside, and a small bar at the top center shows the time left with "+5 min" and "Back to NestDesk". It returns automatically after 2 minutes. Nothing on disk is changed.
 
 PANELS AND DESKTOP ICONS
-12. Settings > "Gather icons into panels" (on after "Yes, sort into panels" in step 1 of the welcome, otherwise off). "Sort my desktop into panels" in the Add widget window adds panels for folders, shortcuts and files and turns this on; the notice's "Undo" reverts it. The separate switch "Icons I put in boxes leave the desktop" is described in steps 16–17.
+12. Settings > "Gather icons into panels" (on after "Yes, sort into panels" in step 1 of the welcome, otherwise off). "Sort my desktop into panels" in the Add widget window adds panels for folders, shortcuts and files and turns this on; the notice's "Undo" reverts it. The separate switch "Items I put in widgets leave the desktop" is described in steps 16–17.
 13. With "Gather icons into panels" on, the Windows desktop icons are hidden and shown in the panels instead; no files are moved or changed. The icons come back immediately when it is turned off, when the app exits (tray > "Exit") and when the user signs out.
 14. Double-clicking an empty area of the desktop opens the ring menu if "Open when I double-click the empty desktop" was left on in the welcome (see step 18). Otherwise, or after choosing another action in Settings > "Advanced settings" > Desktop > "Double-click on the empty desktop" (Automatic (recommended) / Hide / show desktop / Peek at the Windows desktop / Do nothing / Open the ring), it hides and shows icons and widgets (Ctrl+Alt+H does the same); while panels manage the desktop, Automatic peeks instead.
 15. Optional: Edit panel of a panel or shortcut box > "More" > "Open with number keys (1–9)"; then 1–9 opens the first nine items while the widget is active. Dragging a link from the browser onto a shortcut box adds it as a link that opens in the browser.
 
 SHORTCUT BOX OPTION (moves files only after the user picks it)
-16. By default a shortcut box only stores links; nothing is moved. To test the option: with "Gather icons into panels" off, add a "Shortcut box" widget, create a test file on the desktop and drag it onto the box (or right-click the box > "Add app…" > "Choose a file or folder…"). A small window next to the box asks "Remove the icon from the desktop too?": choose "Yes, remove it" (the same switch is Settings > "Advanced settings" > Shortcut boxes > "Icons I put in boxes leave the desktop"). The file is moved to %USERPROFILE%\NestDesk\<box name> (a normal visible folder next to the Desktop folder), stays in the box, and a notice offers "Undo".
-17. Right-click the item > "Remove from box" (or Delete) returns it to the desktop; the notice's "Undo" puts it back in the box. Settings > "Advanced settings" > Shortcut boxes shows how many icons are in the NestDesk folder with "Open folder" and "Put all back on the desktop"; turning the switch off puts everything back (with "Undo"). With "Gather icons into panels" on, putting a desktop icon in a box moves no file: the icon simply no longer shows in the desktop panels until it is taken out of the box.
+16. By default a shortcut box only stores links; nothing is moved. To test the option: with "Gather icons into panels" off, add a "Shortcut box" widget, create a test file on the desktop and drag it onto the box (or right-click the box > "Add app…" > "Choose a file or folder…"). A small window next to the box asks "Remove it from the desktop too?": choose "Yes, remove it" (the same switch is Settings > "Advanced settings" > "Removed from the desktop" > "Items I put in widgets leave the desktop"). The file is moved to %USERPROFILE%\NestDesk\<box name> (a normal visible folder next to the Desktop folder), stays in the box, and a notice offers "Undo".
+17. Right-click the item > "Remove from box" (or Delete) returns it to the desktop; the notice's "Undo" puts it back in the box. Settings > "Advanced settings" > "Removed from the desktop" shows how many icons are in the NestDesk folder with "Open folder" and "Put all back on the desktop"; turning the switch off puts everything back (with "Undo"). With "Gather icons into panels" on, putting a desktop icon in a box moves no file: the icon simply no longer shows in the desktop panels until it is taken out of the box.
 
 RING MENU (keys and text are sent only after the user picks an item)
 18. Double-click an empty area of the desktop (after the welcome with its default choice), or right-click the tray icon > "Open the ring": the NestDesk ring opens next to the pointer with "New note", "Peek at the Windows desktop", "Add widget" and "Open NestDesk". Click an item or press its number (1–9); Esc, a right-click or a click outside closes it. Settings > "Ring menu" > "Show" has the same switches as the welcome.
@@ -506,7 +553,7 @@ DIAGNOSTICS (local only)
 OTHER
 33. Language: Settings > "Dil / Language" > choose, then "Restart now".
 34. Optional AI feature: AI-generated folder icons require the user's own Anthropic API key (Settings > "Advanced settings" > Folder icons > "AI folder icons (optional)"). Without a key the "Generate" button is disabled; all other features work offline and without a key. The app has no other network use. Inappropriate AI output can be reported with the "Report inappropriate content" link in the folder icon window; it opens a pre-filled GitHub issue form in the browser and sends nothing by itself.
-35. Uninstalling: the Store package removes the app's settings, ring menus, settings backups, error logs and crash reports. Desktop icons hidden by the app are shown again when it exits. Files the user put into the NestDesk box folder, folder icons the user applied and diagnostic zips the user saved stay as the user's own content; the first two can be returned/removed beforehand by turning off "Icons I put in boxes leave the desktop" or with "Put all back on the desktop" (Settings > "Advanced settings" > Shortcut boxes) and with "Remove all folder icons" (Settings > "Advanced settings" > Folder icons). The box folder is a normal visible folder and contains "What is this folder.txt", which lists each file's former location. The Store edition never moves items from the Public Desktop. The desktop installer puts moved items back on the desktop when it is uninstalled and names the folder if anything could not be put back.
+35. Uninstalling: the Store package removes the app's settings, ring menus, settings backups, error logs and crash reports. Desktop icons hidden by the app are shown again when it exits. Files the user put into the NestDesk box folder, folder icons the user applied and diagnostic zips the user saved stay as the user's own content; the first two can be returned/removed beforehand by turning off "Items I put in widgets leave the desktop" or with "Put all back on the desktop" (Settings > "Advanced settings" > "Removed from the desktop") and with "Remove all folder icons" (Settings > "Advanced settings" > Folder icons). The box folder is a normal visible folder and contains "What is this folder.txt", which lists each file's former location. The Store edition never moves items from the Public Desktop. The desktop installer puts moved items back on the desktop when it is uninstalled and names the folder if anything could not be put back.
 ```
 
 ---
