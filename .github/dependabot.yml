@@ -1,0 +1,11 @@
+# GitHub Actions adımlarının (actions/checkout, setup-dotnet…) güvenlik ve sürüm güncellemelerini haftada bir PR olarak önerir.
+# NuGet paketleri bilerek dışarıda: WPF-UI yükseltmesi QuietStyles şablonlarının yeniden karşılaştırılmasını ister (CLAUDE.md).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"

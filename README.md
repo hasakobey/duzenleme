@@ -1,18 +1,61 @@
-# NestDesk
+<p align="center">
+  <img src="docs/images/logo.png" width="96" alt="NestDesk">
+</p>
 
-**Masaüstün için derli toplu bir yuva. · A tidy home for your desktop.**
+<h1 align="center">NestDesk</h1>
 
-Windows 10/11 için ücretsiz ve açık kaynaklı (MIT) masaüstü düzenleyici. · A free, open source (MIT) desktop organizer for Windows 10/11.
+<p align="center"><b>Masaüstün için derli toplu bir yuva.</b> · <b>A tidy home for your desktop.</b><br>
+Windows 10/11 için ücretsiz ve açık kaynaklı masaüstü düzenleyici. · A free, open source desktop organizer for Windows 10/11.</p>
 
-[Türkçe](#türkçe) · [English](#english) · [Gizlilik / Privacy](PRIVACY.md) · [Lisans / License](#lisans--license)
+<p align="center">
+  <a href="https://github.com/hasakobey/duzenleme/releases/latest"><img src="https://img.shields.io/github/v/release/hasakobey/duzenleme?label=s%C3%BCr%C3%BCm%20%2F%20release" alt="Release"></a>
+  <a href="https://github.com/hasakobey/duzenleme/releases"><img src="https://img.shields.io/github/downloads/hasakobey/duzenleme/total?label=indirme%20%2F%20downloads" alt="Downloads"></a>
+  <a href="https://github.com/hasakobey/duzenleme/actions/workflows/dotnet-desktop.yml"><img src="https://img.shields.io/github/actions/workflow/status/hasakobey/duzenleme/dotnet-desktop.yml?branch=main&label=derleme%20%2F%20build" alt="Build"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4" alt="Windows 10 | 11">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/hasakobey/duzenleme" alt="MIT"></a>
+</p>
 
-**İndir / Download:** [Releases](https://github.com/hasakobey/duzenleme/releases) — `NestDesk-Setup-<sürüm/version>.exe` (kurulum / installer, English + Türkçe) ya da / or `NestDesk-<sürüm/version>-<mimari/arch>-portable.zip`. **Microsoft Store:** [apps.microsoft.com/detail/9PCQ9C4BBWKP](https://apps.microsoft.com/detail/9PCQ9C4BBWKP)
+<p align="center">
+  <a href="https://apps.microsoft.com/detail/9PCQ9C4BBWKP"><img src="https://get.microsoft.com/images/tr%20dark.svg" width="200" alt="Microsoft Store"></a>
+  &nbsp;
+  <a href="https://github.com/hasakobey/duzenleme/releases/latest"><img src="https://img.shields.io/badge/%C4%B0ndir%20%2F%20Download-Setup%20%2B%20portable-2ea44f?style=for-the-badge&logo=github" height="58" alt="İndir / Download"></a>
+</p>
+
+<p align="center"><img src="docs/images/en-01-showcase.jpg" width="900" alt="NestDesk"></p>
+
+<p align="center"><a href="#türkçe">Türkçe</a> · <a href="#english">English</a> · <a href="PRIVACY.md">Gizlilik / Privacy</a> · <a href="#lisans--license">Lisans / License</a></p>
 
 ---
 
 ## Türkçe
 
 NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen dosyaları **senin oluşturduğun klasörlere** taşır, uygulamalarını bir **halka menüde** toplar ve duvar kâğıdının üzerine saat, takvim, not, yapılacaklar, zamanlayıcı gibi **widget'lar** ekler. Arayüz Türkçe ve İngilizcedir; Windows'un diline uyar (**Ayarlar → Dil / Language**).
+
+✅ Ücretsiz ve açık kaynak (MIT) · ✅ Hesap, reklam ve telemetri yok · ✅ Türkçe ve İngilizce · ✅ Her taşıma geri alınır
+
+### Neler yapabilir?
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/tr-09-ring-menu.jpg" alt="Halka menü"><br><b>Halka menü</b><br>Boş masaüstüne çift tıkla: uygulamaların, klasörlerin, web adreslerin ve kısayolların imlecin yanında bir halkada. Tıkla ya da 1–9'a bas.</td>
+<td width="50%" valign="top"><img src="docs/images/tr-04-ring-editor.jpg" alt="Halka düzenleyicisi"><br><b>Halka düzenleyicisi</b><br>Canlı önizlemeyle öğe ekle, sırala, değiştir. Dört biçim: Klasik, Daire, Etiketli, Işıltı.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/tr-01-showcase.jpg" alt="Bölmeler"><br><b>Bölmeler</b><br>Masaüstündeki klasörleri, kısayolları ve dosyaları bölmelerde topla; İndirilenler gibi herhangi bir klasörü göster.</td>
+<td width="50%" valign="top"><img src="docs/images/tr-02-add-widget.jpg" alt="Tek tıkla widget"><br><b>Tek tıkla widget</b><br>Saat, takvim, not, yapılacaklar, kısayol kutusu, zamanlayıcı… Masaüstündeki bir klasörü ya da kısayolu da doğrudan ekle.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/tr-03-edit-panel.jpg" alt="Düzenle paneli"><br><b>Düzenle paneli</b><br>Köşedeki ⋯: ad, simge, ayarlar, görünüm ve boyut tek yerde. Her değişiklik anında, "Geri al" her zaman yanında.</td>
+<td width="50%" valign="top"><img src="docs/images/tr-05-time-and-info-widgets.jpg" alt="Zaman ve bilgi"><br><b>Zaman ve bilgi</b><br>Zamanlayıcı, Pomodoro, dünya saati, geri sayım, sistem durumu ve Geri Dönüşüm Kutusu.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/tr-06-notes-and-looks.jpg" alt="Notlar ve temalar"><br><b>Notlar ve temalar</b><br>Renkli notlar ve yapılacaklar; Cam, Koyu, Açık, Neon, Gece, Kâğıt ve Okyanus görünümleri.</td>
+<td width="50%" valign="top"><img src="docs/images/tr-07-shortcut-box.jpg" alt="Kısayol kutusu"><br><b>Kısayol kutusu</b><br>Uygulamalar ve dosyalar için sekmeli raf. İstersen kutuya koyduğun öğe masaüstünden kalkar, çıkarınca geri gelir.</td>
+</tr>
+<tr>
+<td width="100%" colspan="2" valign="top"><img src="docs/images/tr-08-auto-move.jpg" alt="Otomatik taşıma (isteğe bağlı)"><br><b>Otomatik taşıma (isteğe bağlı)</b><br>Masaüstüne düşen PDF'ler PDF klasörüne, resimler Resimler'e… Her taşıma listelenir ve tek tıkla geri alınır.</td>
+</tr>
+</table>
 
 ### 2.2'deki yenilikler
 
@@ -55,6 +98,9 @@ NestDesk masaüstünü **bölmelere** ayırır, istersen masaüstüne düşen do
 ### Ana pencere
 
 Tepsi simgesine tıkla ya da `Ctrl+Alt+D`. Dört sayfa: **Ana sayfa** (Widget ekle, Halkayı düzenle, ilk ziyarette "Nasıl kullanılır" kartları, tek satırlık otomatik taşıma: Geri al, Dosyaları şimdi taşı ve aç/kapat, son taşınanlar), **Widget'lar** (Widget ekle, "Tüm widget'lar": bir görünümü ya da rengi hepsine uygula, "Masaüstündekiler" listesi ve seçilenin yanında Düzenle paneli; "Daha fazla"da hizala, öne getir ve kayıtlı düzenler), **Otomatik taşıma** (aç/kapat, kurallar, geçmiş ve geri alma) ve **Ayarlar** (Dil, Windows ile başlat, Simgeleri bölmelerde topla ve Widget'lara koyduğum öğeler masaüstünden kalksın, Halka menü, Yardım, Hakkında ve **Gelişmiş ayarlar**: Masaüstü, Widget yerleşimi, Görünüm, Klavye kısayolları, Klasör simgeleri, Masaüstünden kalkanlar, Sorun giderme). Geri bildirimler pencerenin altındaki şeritte kalır; kaldırma gibi işlemler oradan **Geri al** ile geri alınır.
+
+<details>
+<summary><b>Bütün özellikler ve klavye kısayolları (ayrıntılı)</b></summary>
 
 ### Özellikler
 
@@ -175,6 +221,9 @@ Genel kısayollar (**Ayarlar → Gelişmiş ayarlar → Klavye kısayolları**'n
 
 Widget'ın içinde: `F2` yeniden adlandır · `Enter` aç · `Delete` Geri Dönüşüm Kutusu'na gönder (bölme) ya da kutudan kaldır · `Ctrl+F` bölmede ara · `1`–`9` öğeyi aç (bölme ve kutuda seçenek açıksa, halkada her zaman) · `Ctrl + tekerlek` boyut · `Shift+F10` seçili öğenin menüsü · zamanlayıcıda `Boşluk` / `R` · takvimde `Page Up` / `Page Down` / `Home`.
 
+
+</details>
+
 ### Gizlilik
 
 Hesap, reklam ve telemetri yok; her şey bilgisayarında kalır. Dosyalar yalnızca sen otomatik taşımayı ya da kutu seçeneğini açarsan taşınır ve her taşıma geri alınır. Klavye kancası yok; halka menü kısayolu varsayılan olarak kapalı. Hata günlüğü kişisel bilgi içermez ve bilgisayarından çıkmaz. İnternete çıkan tek özellik isteğe bağlı yapay zekâ simgesidir. Ayrıntılar: [PRIVACY.md](PRIVACY.md#türkçe).
@@ -183,6 +232,9 @@ Hesap, reklam ve telemetri yok; her şey bilgisayarında kalır. Dosyalar yalnı
 
 - **Store:** Windows uygulamayla birlikte ayarlarını, halka menülerini, ayar yedeklerini ve hata günlüklerini de siler. **Kurulum sürümü:** kaldırma programı gizli kalmış masaüstü simgelerini geri açar, kutulara taşınan simgeleri masaüstüne geri koyar ve ayarların (halka menüler, temalar, bırakılan bağlantılar, yedekler ve hata günlükleri dahil) silinip silinmeyeceğini sorar. **Taşınabilir:** klasörü sil.
 - Senin içeriğin olarak kalanlar: `NestDesk` kutu klasörü (Store ve taşınabilir sürümde önce **Ayarlar → Gelişmiş ayarlar → Masaüstünden kalkanlar → Hepsini masaüstüne geri koy**; kaldırdıktan sonra `Bu klasör nedir.txt` eski yerleri yazar), klasör simgeleri (önce **Ayarlar → Gelişmiş ayarlar → Klasör simgeleri → Klasör simgelerinin hepsini kaldır**), otomatik taşınan dosyalar (taşındıkları klasörde) ve kaydettiğin tanılama paketleri.
+
+<details>
+<summary><b>Geliştiriciler için: derleme ve yeni sürüm</b></summary>
 
 ### Derleme
 
@@ -211,11 +263,40 @@ Ortam değişkenleri (hepsi eski `DUZENLEME_*` adlarıyla da okunur): `NESTDESK_
 4. Commit → `git tag v2.2.0` → push. GitHub Actions kurulum dosyasını (`NestDesk-Setup-2.2.0.exe`) ve 3 zip'i üretip Releases'ta "NestDesk 2.2.0" sürümünü açar.
 5. **Store:** `powershell -File tools/package-msix.ps1 -Strict` → `dist-store\NestDesk-2.2.0.msixbundle`. Partner Center'da **Start update** ile yeni gönderim açılır, yalnızca bu dosya yüklenir ve "What's new" doldurulur (adımlar: [tools/store/listing.md](tools/store/listing.md)).
 
+
+</details>
+
 ---
 
 ## English
 
 NestDesk splits your desktop into **panels**, can move files that land on the desktop into **folders you created**, gathers your apps in a **ring menu**, and puts **widgets** such as a clock, calendar, notes, to-do lists and timers on your wallpaper. The app is in English and Turkish and follows your Windows display language (**Settings → Dil / Language**).
+
+✅ Free and open source (MIT) · ✅ No account, ads or telemetry · ✅ English and Turkish · ✅ Every move can be undone
+
+### What it does
+
+<table>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/en-09-ring-menu.jpg" alt="Ring menu"><br><b>Ring menu</b><br>Double-click the empty desktop: your apps, folders, web addresses and shortcuts appear in a ring next to the pointer. Click or press 1–9.</td>
+<td width="50%" valign="top"><img src="docs/images/en-04-ring-editor.jpg" alt="Ring editor"><br><b>Ring editor</b><br>Add, reorder and change items with a live preview. Four styles: Classic, Orbit, Labeled, Glow.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/en-01-showcase.jpg" alt="Panels"><br><b>Panels</b><br>Gather the folders, shortcuts and files on your desktop into panels, or show any folder such as Downloads.</td>
+<td width="50%" valign="top"><img src="docs/images/en-02-add-widget.jpg" alt="One-click widgets"><br><b>One-click widgets</b><br>Clock, calendar, note, to-do, shortcut box, timer… or turn a folder or shortcut on your desktop into a widget.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/en-03-edit-panel.jpg" alt="Edit panel"><br><b>Edit panel</b><br>The ⋯ button: name, icon, settings, look and size in one place. Every change applies at once, with Undo right there.</td>
+<td width="50%" valign="top"><img src="docs/images/en-05-time-and-info-widgets.jpg" alt="Time and info"><br><b>Time and info</b><br>Timer, Pomodoro, world clock, countdown, system status and Recycle Bin.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/en-06-notes-and-looks.jpg" alt="Notes and themes"><br><b>Notes and themes</b><br>Colored notes and to-do lists; Glass, Dark, Light, Neon, Night, Paper and Ocean looks.</td>
+<td width="50%" valign="top"><img src="docs/images/en-07-shortcut-box.jpg" alt="Shortcut box"><br><b>Shortcut box</b><br>A tabbed shelf for apps and files. Optionally, what you put in leaves the desktop and comes back when taken out.</td>
+</tr>
+<tr>
+<td width="100%" colspan="2" valign="top"><img src="docs/images/en-08-auto-move.jpg" alt="Auto-move (optional)"><br><b>Auto-move (optional)</b><br>PDFs dropped on the desktop go to your PDF folder, pictures to Pictures… Every move is listed and can be undone with one click.</td>
+</tr>
+</table>
 
 ### What's new in 2.2
 
@@ -259,6 +340,9 @@ Notes for earlier versions: [Releases](https://github.com/hasakobey/duzenleme/re
 
 Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Edit ring, "How it works" cards on your first visit, a one-line auto-move card with Undo, Move files now and on/off, recent moves), **Widgets** (Add widget; "All widgets" to apply a look or color to every widget; the "On your desktop" list with the Edit panel of the selected widget next to it; "More" for aligning, bringing to front and saved layouts), **Auto-move** (on/off, rules, history and undo) and **Settings** (Language, Start with Windows, Gather icons into panels, Ring menu, Help, About and **Advanced settings**: Desktop, Widget placement, Appearance, Keyboard shortcuts, Folder icons, Shortcut boxes, Troubleshooting). Feedback stays in a strip at the bottom of the window; actions such as removing a widget can be undone there with **Undo**.
 
+<details>
+<summary><b>All features and keyboard shortcuts (detailed)</b></summary>
+
 ### Features
 
 #### Panels
@@ -276,7 +360,7 @@ Click the tray icon or press `Ctrl+Alt+D`. Four pages: **Home** (Add widget, Edi
 1. **Off:** the Windows icons look as usual; panels show shortcuts without touching your files.
 2. **On:** Windows' own icons are hidden and everything appears in panels. Your files are not touched; the icons come back when you turn it off or quit the app. **"Sort my desktop into panels"** (in the Add widget window) creates the panels you need and turns this on; **Undo** in the notice reverts everything.
 
-#### Icons I put in boxes leave the desktop
+#### Items I put in widgets leave the desktop
 
 "A desktop icon you put in a box or ring leaves the desktop; take it out and it comes back." While this is off, boxes and rings only hold links. The first time you put a desktop icon in a box you are asked once, next to the box (**Yes, remove it** / **No, keep it**); after that it is a switch in **Settings → Advanced settings → Shortcut boxes**.
 
@@ -377,6 +461,9 @@ Global shortcuts (customizable in **Settings → Advanced settings → Keyboard 
 
 Inside a widget: `F2` rename · `Enter` open · `Delete` send to the Recycle Bin (panel) or remove from the box · `Ctrl+F` search a panel · `1`–`9` open an item (in panels and boxes when the option is on, always in a ring) · `Ctrl + wheel` size · `Shift+F10` menu for the selected item · `Space` / `R` in a timer · `Page Up` / `Page Down` / `Home` in the calendar.
 
+
+</details>
+
 ### Privacy
 
 No account, no ads, no telemetry; everything stays on your PC. Files are moved only if you turn on auto-move or the box option, and every move can be undone. No keyboard hook; the ring menu shortcut is off by default. The error log contains no personal information and never leaves your PC. The only feature that uses the internet is the optional AI folder icon. Details: [PRIVACY.md](PRIVACY.md#english).
@@ -385,6 +472,9 @@ No account, no ads, no telemetry; everything stays on your PC. Files are moved o
 
 - **Store:** Windows removes your settings, ring menus, settings backups and error logs together with the app. **Installer edition:** the uninstaller shows any desktop icons left hidden, puts icons that were moved to boxes back on the desktop and asks whether to delete your settings (including ring menus, themes, dropped links, backups and error logs). **Portable:** delete the folder.
 - What stays as your own content: the `NestDesk` box folder (in the Store and portable editions first use **Settings → Advanced settings → Shortcut boxes → Put all back on the desktop**; afterwards `What is this folder.txt` lists the former locations), folder icons (first use **Settings → Advanced settings → Folder icons → Remove all folder icons**), files moved by auto-move (in the folders they were moved to) and diagnostic packages you saved.
+
+<details>
+<summary><b>For developers: building and releasing</b></summary>
 
 ### Building
 
@@ -404,6 +494,9 @@ powershell -File tools/perf/perf-run.ps1      # performance measurement (test in
 Command line: `--minimized` (start in the tray), `--add` ("Add widget"; forwarded to the running app), `--peek` (peek at the Windows desktop, or return to NestDesk), `--welcome` (open the welcome; while the app is closed), `--exit` (close the running instance cleanly), `--restore-desktop` (shows Windows desktop icons that were left hidden, puts icons moved to boxes back and exits; used by the uninstaller, with `--quiet` for a silent uninstall), `--desktop <folder> --data <folder>` (test instance: never touches your real desktop, the "Start with Windows" entry or the Windows icons).
 
 Environment variables (the older `DUZENLEME_*` names work too): `NESTDESK_LANG=tr|en|pseudo` (interface language, for screenshots and tests), `NESTDESK_DEBUGLOG=<file>` (detailed developer log; separate from the error log), `NESTDESK_PERF_LOG=<file>` (performance log), `NESTDESK_WINDOW_AT` / `NESTDESK_QUICKADD_AT` / `NESTDESK_NEWWIDGET_AT` / `NESTDESK_PEEK_AT` / `NESTDESK_RING_AT="x,y"` (physical pixels; open windows, the peek bar and the shortcut ring on that point's monitor), `NESTDESK_TEST_RING=1` (only with `--desktop`: try the pop-up ring without assigning its shortcut), `NESTDESK_TEST_HOTKEYS=1` (only with `--desktop`: the test instance also registers its global shortcuts with Windows; otherwise it registers none and shortcuts are tried by message), `NESTDESK_TEST_CRASH=1` (only with `--desktop`: a test crash a few seconds after startup), `NESTDESK_APPDATA_ROOT` (for testing the data folder migration; only with `--desktop` and without `--data`), `NESTDESK_GPU=1` (hardware rendering for widgets). Without `--data`, a `--desktop` test instance keeps its data in `%TEMP%\NestDesk-test-data\<key>` (your real settings are never touched). An empty `--data` folder opens the welcome; to skip it, put a `settings.json` containing `{ "FirstRunDone": true, "RenameNoticeShown": true, "CloseToTrayHintShown": true }` in the folder. Developer helpers: `--export-icon-sheet out.png`, `--render-svg in.svg out.png`.
+
+
+</details>
 
 ---
 
